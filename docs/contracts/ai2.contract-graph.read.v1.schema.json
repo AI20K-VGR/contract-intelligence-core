@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vsf.example/contracts/ai2.contract-graph.read.v1.schema.json",
+  "title": "AI2 Contract Graph Internal Read v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "graph_kind", "edges", "total_count", "has_more", "next_cursor", "snapshot_digest"],
+  "properties": {
+    "status": {"enum": ["READY", "PARTIAL", "SKIPPED", "PENDING", "FAILED", "STALE", "UNAVAILABLE", "PERSIST_FAILED", "PERSISTENCE_UNKNOWN"]},
+    "graph_kind": {"enum": ["operation", "pair"]},
+    "tenant_id": {"type": "string"},
+    "dossier_id": {"type": "string"},
+    "job_id": {"type": "string"},
+    "snapshot_digest": {"type": ["string", "null"]},
+    "edges": {"type": "array", "items": {"$ref": "#/$defs/edge"}},
+    "total_count": {"type": "integer", "minimum": 0},
+    "has_more": {"type": "boolean"},
+    "next_cursor": {"type": ["string", "null"]},
+    "error_code": {"type": "string"}
+  },
+  "$defs": {
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tenant_id", "dossier_id", "job_id", "snapshot_digest", "id", "kind", "label", "directed", "source_node_id", "target_node_id", "source_document_id", "target_document_id", "review_state", "source_citation_ref", "target_citation_ref", "digest"],
+      "properties": {
+        "tenant_id": {"type": "string"},
+        "dossier_id": {"type": "string"},
+        "job_id": {"type": "string"},
+        "snapshot_digest": {"type": "string"},
+        "id": {"type": "string"},
+        "kind": {"enum": ["OPERATION", "PAIR"]},
+        "label": {"type": "string"},
+        "directed": {"type": "boolean"},
+        "source_node_id": {"type": "string"},
+        "target_node_id": {"type": "string"},
+        "source_document_id": {"type": ["string", "null"]},
+        "target_document_id": {"type": ["string", "null"]},
+        "target_address": {"type": "string"},
+        "review_state": {"type": "string"},
+        "source_citation_ref": {"type": "string"},
+        "target_citation_ref": {"type": "string"},
+        "digest": {"type": "string"}
+      }
+    }
+  }
+}

@@ -1,0 +1,79 @@
+{
+ "additional_minimum_if_valid": {
+  "CONFLICT": 30,
+  "DUPLICATE": 31,
+  "GENERAL_SPECIFIC": 26,
+  "REFERENCE": 52
+ },
+ "current_approved_positive": {
+  "CONFLICT": 30,
+  "DUPLICATE": 29,
+  "GENERAL_SPECIFIC": 34,
+  "REFERENCE": 8
+ },
+ "human_decision": {
+  "approved_by_label": {
+   "UNRELATED": 474
+  },
+  "n_selected": 474,
+  "recall_floor": {
+   "labels": [
+    "GENERAL_SPECIFIC",
+    "CONFLICT",
+    "DUPLICATE",
+    "REFERENCE"
+   ],
+   "method": "wilson_lower",
+   "min": 0.85
+  },
+  "scope_consent": true
+ },
+ "human_decisions_required": [
+  "approve the Wilson lower recall floor and labels",
+  "approve/relabel/reject any added rows",
+  "confirm data scope and consent"
+ ],
+ "manifest_locked": true,
+ "note": "HG-2 PASS is locked with explicit human decisions; additional counts remain lower bounds.",
+ "proposal": {
+  "by_stratum": {
+   "S1": 66,
+   "S2": 10,
+   "S3": 384,
+   "S4": 14
+  },
+  "decisions_recorded": true,
+  "human_action": "human-confirmed decisions recorded; HG-2 lock is PASS",
+  "n_rows": 474,
+  "review_sheet_path": ".harness/state/contract-graph-pairs/review/hg2_review.csv",
+  "selection_path": ".harness/state/contract-graph-pairs/review/hg2_selection.jsonl",
+  "selection_sha256": "7488c8422f53f326042672bba81366d377a0a93027991cb610598ff5d94be896",
+  "source": "previously unselected heldout pool rows; GPT suggestion UNRELATED only"
+ },
+ "sampling_plan": {
+  "consent_required": true,
+  "decision_values": [
+   "approve",
+   "relabel",
+   "reject"
+  ],
+  "scope": "new reviewed scored gold only; do not alter locked HG-1 rows",
+  "selection": "stratified by label and pool stratum; preserve pair_id/doc_id/stratum provenance"
+ },
+ "schema": "contract-graph-hg2-sizing/1",
+ "source": "evals/contract_graph/pairs/manifest.json heldout_review lock",
+ "status": "PASS",
+ "target": {
+  "min_n": 60,
+  "recall_floor": {
+   "labels": [
+    "CONFLICT",
+    "DUPLICATE",
+    "GENERAL_SPECIFIC",
+    "REFERENCE"
+   ],
+   "method": "wilson_lower",
+   "min": 0.85
+  }
+ }
+}

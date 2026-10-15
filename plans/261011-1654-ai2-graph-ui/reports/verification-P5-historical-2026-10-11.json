@@ -1,0 +1,85 @@
+{
+  "phase": "P5",
+  "plan": "261011-1654-ai2-graph-ui",
+  "checks": [
+    {
+      "detail": "Dossier graph integration: 9/9 tests pass; independent review reran 24 P5-focused tests across 3 files.",
+      "status": "PASS",
+      "name": "focused-p5-page"
+    },
+    {
+      "detail": "139 tests pass across 36 files after final provenance and source-map lock update.",
+      "status": "PASS",
+      "name": "frontend-suite"
+    },
+    {
+      "detail": "0 errors; 13 warnings.",
+      "status": "PASS",
+      "name": "frontend-lint"
+    },
+    {
+      "detail": "Production build passes; existing >500 kB chunk-size warning.",
+      "status": "PASS",
+      "name": "frontend-build"
+    },
+    {
+      "detail": "Flag remains OFF by default and closed/disabled state avoids graph requests.",
+      "status": "PASS",
+      "name": "feature-gate"
+    },
+    {
+      "detail": "40 unique document-qualified nodes, 30 edges; deterministic output and metrics recorded.",
+      "status": "PASS",
+      "name": "renderer-spike"
+    },
+    {
+      "detail": "9 graph read API tests pass.",
+      "status": "PASS",
+      "name": "ai2-projection"
+    },
+    {
+      "detail": "13 graph adapter tests pass.",
+      "status": "PASS",
+      "name": "backend-adapter"
+    },
+    {
+      "detail": "Graph contract schema JSON files parse.",
+      "status": "PASS",
+      "name": "schemas"
+    },
+    {
+      "detail": "npm audit --omit=dev --audit-level=high: zero vulnerabilities after source-map-js 1.2.2 lockfile fix.",
+      "status": "PASS",
+      "name": "production-dependencies"
+    },
+    {
+      "detail": "Full npm audit retains dev-only Vitest/Tinypool advisories; remediation requires a major Vitest upgrade and separate compatibility work.",
+      "status": "SKIP",
+      "name": "dev-dependency-audit"
+    },
+    {
+      "detail": "pip-audit is not installed in Backend virtual environment.",
+      "status": "SKIP",
+      "name": "python-dependency-audit"
+    },
+    {
+      "detail": "Anchored Edge/Playwright check 7db7bcbf58edfd76 on composed Ai2GraphDossierView at 320x900: no horizontal overflow, keyboard selection/focus and inspector update pass, 0 page errors. API fixture is mocked. Assistant executed the check; harness actor is configured identity, not user co-sign. Visual evidence remains soft pending independent human co-sign.",
+      "status": "PASS",
+      "name": "manual-320px"
+    },
+    {
+      "detail": "Anchored live smoke 684bfb5241be6620: isolated Backend/Keycloak/AI2; authenticated owner graph route returned READY with 1 REFERENCE edge and correct source/target document IDs; AI2 trace returned AVAILABLE; both graph-linked documents returned PDF 200 through Backend; graph response excluded citation text/span; anonymous caller got 401 and unshared same-tenant OPERATOR got 403. Dossier/PDF and graph+trace rows are synthetic; graph+trace rows were inserted directly in the isolated DB, so this validates the Backend/AI2 read and ACL path, not graph generation.",
+      "status": "PASS",
+      "name": "live-citation"
+    }
+  ],
+  "verdict": "PASS_WITH_RISK",
+  "stage": "cook",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-11T14:46:26+00:00",
+  "blastRadius": {
+    "unavailable": true,
+    "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF-ai2-contract-graph"
+  },
+  "run_seq": null
+}

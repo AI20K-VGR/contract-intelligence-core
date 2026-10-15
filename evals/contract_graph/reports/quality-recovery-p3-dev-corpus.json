@@ -1,0 +1,79 @@
+{
+ "dataset_id": "quality-recovery-dev-20261011-v1",
+ "frame_version": "contract-graph-quality-frame/1",
+ "hashes": {
+  "historical_manifest_sha256": "20218aabbdd6618cc41e69d82c0c2182437bc06f06c8e4e1cc7fe85b2a6d69bc",
+  "independent_membership_sha256": "c1f5cce276e6eb45582af4accff7dda9de592a2f89744a0467114a998817c72f",
+  "independent_packet_sha256": "138df5af62b1eea19aa3e606c7413c7e09a9b5f7a6a317fe6e87d8fc38631442",
+  "precision_frame_seed_sha256": "e01595f8e22222b73c84f0496bfc4510ac6d4b73b90d4cb958cd607040567664",
+  "primary_packet_sha256": "7d417daed123ad50f961b950bd9d6316f10015982bd86164b9257816bf4d765a",
+  "recall_membership_sha256": "6c65a30a2a693f2ac700f3c4151dfd723aef5d803eda8af1799fe01c3be2fdfa",
+  "rubric_sha256": "a2a2c5e507b831164034aad5f3fcb17d25f89205c5e01c2fa3901ee56122ecb4",
+  "source_list_sha256": "e6e41cdae9d1fd1b9dbb46ab882728b36e581eee9e68b50ecc49a5807e5b5899"
+ },
+ "limitations": [
+  "The staged source set has no labels. Packets are model-blind and do not contain GPT suggestions.",
+  "The 150-row second-review packet is a blind random subset stratified by source x pool stratum; after primary annotations, audit label/negative strata and add blinded rows to cover every label and ambiguous row.",
+  "No approved gold, human decision, or P2 quality review lock was created.",
+  "The pool is the declared finite pair frame after ancestor/luong1 exclusions; source-pool inclusion probabilities are recorded per row."
+ ],
+ "packet_counts": {
+  "candidate_independent_frame_rows": 600,
+  "independent_annotation_rows": 150,
+  "independent_fraction": 0.25,
+  "method": "deterministic proportional sample by source document x predeclared pool stratum; pair order hashed with fixed seed",
+  "pi_includes_pool_sampling_and_review_sampling": true,
+  "primary_annotation_rows": 600,
+  "seed": 20261011,
+  "stratum_counts_independent": {
+   "S1": 116,
+   "S2": 6,
+   "S3": 28
+  },
+  "stratum_counts_primary": {
+   "S1": 441,
+   "S2": 25,
+   "S3": 134
+  }
+ },
+ "precision_frame_seed": {
+  "rows": 600,
+  "scope": "same selected membership as recall; actual P4 candidate union is pending and must be reviewed before scoring",
+  "sha256": "e01595f8e22222b73c84f0496bfc4510ac6d4b73b90d4cb958cd607040567664"
+ },
+ "readiness": {
+  "annotation_agreement": null,
+  "approved_negative_count": null,
+  "approved_positive_counts_by_label": null,
+  "reason_codes": [
+   "fewer_than_30_fresh_independent_clusters",
+   "primary_annotation_pending",
+   "independent_annotation_pending",
+   "human_HG-QR1_not_approved",
+   "precision_candidate_union_pending"
+  ],
+  "status": "BLOCKED"
+ },
+ "review_gate": {
+  "decision": null,
+  "id": "HG-QR1",
+  "scope_counts": null,
+  "signed_by": null
+ },
+ "schema": "contract-graph-quality-recovery-p3-report/1",
+ "source_counts": {
+  "fresh_docs": 28,
+  "fresh_independent_clusters": 28,
+  "historical_heldout_docs_in_cache": 13,
+  "historical_or_template_exposed_docs_excluded": 1,
+  "pool_by_stratum_fresh": {
+   "S1": 3500,
+   "S2": 200,
+   "S3": 1070
+  },
+  "pool_rows_all": 4810,
+  "pool_rows_fresh": 4770,
+  "staged_docs": 29
+ },
+ "status": "BLOCKED_REVIEW_PENDING"
+}

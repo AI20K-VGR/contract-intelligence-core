@@ -43,12 +43,17 @@ from app.tools.store import DossierRecord
 
 
 def processing_egress_allowed() -> bool:
-    """Server-side egress switch for processing (A8, default off).
+    """Server-side egress switch for processing (A8, default on).
 
     The Backend request flag is a hint only; AI2 never widens egress from it.
     """
 
-    return os.getenv("AI2_PROCESSING_EGRESS_ALLOWED", "false").strip().casefold() in {"1", "true", "yes", "on"}
+    return os.getenv("AI2_PROCESSING_EGRESS_ALLOWED", "true").strip().casefold() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 
 class SnapshotContractError(ValueError):
@@ -104,6 +109,22 @@ def adapt_be_ai2_processing_request(
                 acl_revision=acl_revision,
                 scope_id=request.dossier_id,
             )
+            members = normalized_payload.get("dossier_members")
+            if isinstance(members, list):
+                member = next(
+                    (
+                        item
+                        for item in members
+                        if isinstance(item, Mapping)
+                        and str(item.get("snapshot_id"))
+                        == str(original_snapshots[0].get("snapshot_id"))
+                    ),
+                    None,
+                )
+                if isinstance(member, Mapping):
+                    adapted.record.source_files[0].document_number = _optional_text(
+                        member.get("document_number")
+                    )
             # The OCR-lab adapter pins ``sha256:<hex>``; the result wire and
             # /query bind to bare lowercase hex, so normalize once here.
             query_digest = bare_sha256_digest(adapted.record.pins.source_snapshot_digest)
@@ -148,6 +169,11 @@ def adapt_be_ai2_processing_request(
                 "snapshot_id": item.snapshot_id,
                 "role": item.role,
                 "source_digest": item.source_digest,
+                **(
+                    {"document_number": item.document_number}
+                    if item.document_number is not None
+                    else {}
+                ),
             }
             for item in request.dossier_members
         ],
@@ -168,7 +194,10 @@ def adapt_be_ai2_processing_request(
         member_ids=[item.member_id for item in request.dossier_members],
         member_documents={item.member_id: item.document_id for item in request.dossier_members},
     )
-    result.record.egress_approved = processing_egress_allowed()
+    result.record.content_sharing_consent = bool(request.policy_flags.egress_allowed)
+    result.record.egress_approved = (
+        processing_egress_allowed() and result.record.content_sharing_consent
+    )
     _semantic_profile(request, result.record)
     result.meta.update(
         {
@@ -184,7 +213,7 @@ def adapt_be_ai2_processing_request(
 
 
 def _semantic_profile(request: BeAi2ProcessingRequest, record: DossierRecord) -> None:
-    if request.semantic_profile and os.getenv("AI2_SEMANTIC_ENABLED", "false").strip().casefold() == "true":
+    if request.semantic_profile and os.getenv("AI2_SEMANTIC_ENABLED", "true").strip().casefold() == "true":
         from app.pipeline.frame_context import effective_context_bounds
 
         try:
@@ -249,7 +278,11 @@ def _prepare_ocr_lab_compatibility_payload(
                 continue
             snapshot_id = str(identity.get("snapshot_id") or "")
             snapshot = next(
-                (item for item in normalized_snapshots if str(item.get("snapshot_id")) == snapshot_id),
+                (
+                    item
+                    for item in normalized_snapshots
+                    if str(item.get("snapshot_id")) == snapshot_id
+                ),
                 None,
             )
             if snapshot is None:
@@ -289,12 +322,16 @@ def adapt_ai2_request(
 
     _require_mapping(payload, "ai2 request")
     try:
-        validate_contract(payload, "ai2.idp.request.v1.schema.json", error_code="REQUEST_SCHEMA_INVALID")
+        validate_contract(
+            payload, "ai2.idp.request.v1.schema.json", error_code="REQUEST_SCHEMA_INVALID"
+        )
         request = AI2IdpRequest.model_validate(payload)
     except ContractValidationError as exc:
         raise SnapshotContractError(str(exc), code=exc.code) from exc
     except Exception as exc:
-        raise SnapshotContractError(f"invalid ai2 request: {exc}", code="REQUEST_CONTRACT_INVALID") from exc
+        raise SnapshotContractError(
+            f"invalid ai2 request: {exc}", code="REQUEST_CONTRACT_INVALID"
+        ) from exc
 
     snapshots = {str(item["snapshot_id"]): item for item in request.snapshots}
     results: list[SnapshotAdapterResult] = []
@@ -339,10 +376,13 @@ def adapt_ai2_request(
         )
         result.record.source_files[0].role = document.role
         result.record.source_files[0].digest = document.source_digest
+        result.record.source_files[0].document_number = document.document_number
         results.append(result)
 
     if not results:
-        raise SnapshotContractError("request must contain at least one snapshot", code="REQUEST_CONTRACT_INVALID")
+        raise SnapshotContractError(
+            "request must contain at least one snapshot", code="REQUEST_CONTRACT_INVALID"
+        )
 
     first = results[0]
     record = first.record
@@ -420,7 +460,9 @@ def adapt_snapshot_v1(
 
     _require_mapping(snapshot, "ai1 snapshot v1")
     try:
-        validate_contract(snapshot, "ai1.snapshot.v1.schema.json", error_code="SNAPSHOT_SCHEMA_INVALID")
+        validate_contract(
+            snapshot, "ai1.snapshot.v1.schema.json", error_code="SNAPSHOT_SCHEMA_INVALID"
+        )
     except ContractValidationError as exc:
         raise SnapshotContractError(str(exc), code=exc.code) from exc
     if snapshot.get("schema_version") != "ai1.snapshot.v1":
@@ -510,7 +552,9 @@ def adapt_ai1_input(
             "ai2.ocr_edge_cases.v1 is a policy/test catalog, not an AI1 document snapshot",
             code="UNSUPPORTED_ARTIFACT_KIND",
         )
-    if isinstance(payload.get("pages"), list) and ("full_text" in payload or "page_count" in payload):
+    if isinstance(payload.get("pages"), list) and (
+        "full_text" in payload or "page_count" in payload
+    ):
         return adapt_legacy_ocr(
             payload,
             tenant_id=tenant_id,
@@ -520,7 +564,9 @@ def adapt_ai1_input(
         )
     raise SnapshotContractError(
         "payload is neither ai1.snapshot.v1 nor supported legacy OCR JSON",
-        code="UNSUPPORTED_SNAPSHOT_VERSION" if isinstance(version, str) and version.startswith("ai1.snapshot.") else "UNSUPPORTED_ARTIFACT_KIND",
+        code="UNSUPPORTED_SNAPSHOT_VERSION"
+        if isinstance(version, str) and version.startswith("ai1.snapshot.")
+        else "UNSUPPORTED_ARTIFACT_KIND",
     )
 
 
@@ -546,17 +592,31 @@ def adapt_ai1_result_v01(
     machine = payload.get("machine")
     effective = payload.get("effective")
     if not isinstance(machine, Mapping):
-        raise SnapshotContractError("ai1.result.v0.1 requires machine", code="RESULT_CONTRACT_INVALID")
+        raise SnapshotContractError(
+            "ai1.result.v0.1 requires machine", code="RESULT_CONTRACT_INVALID"
+        )
     if not isinstance(effective, Mapping):
         effective = machine
     if str(machine.get("schema_version")) != "0.1" or str(effective.get("schema_version")) != "0.1":
-        raise SnapshotContractError("ai1 result schema_version must be 0.1", code="RESULT_CONTRACT_INVALID")
+        raise SnapshotContractError(
+            "ai1 result schema_version must be 0.1", code="RESULT_CONTRACT_INVALID"
+        )
     pages_in = effective.get("pages")
     if not isinstance(pages_in, list) or not pages_in:
-        raise SnapshotContractError("ai1 result pages must be a non-empty array", code="RESULT_CONTRACT_INVALID")
-    for name, key in (("documents", "document_id"), ("clauses", "id"), ("tables", "id"), ("citations", "id"), ("facts", "id")):
+        raise SnapshotContractError(
+            "ai1 result pages must be a non-empty array", code="RESULT_CONTRACT_INVALID"
+        )
+    for name, key in (
+        ("documents", "document_id"),
+        ("clauses", "id"),
+        ("tables", "id"),
+        ("citations", "id"),
+        ("facts", "id"),
+    ):
         values = effective.get(name) or []
-        if not isinstance(values, list) or any(not isinstance(item, Mapping) or not item.get(key) for item in values):
+        if not isinstance(values, list) or any(
+            not isinstance(item, Mapping) or not item.get(key) for item in values
+        ):
             raise SnapshotContractError(f"invalid {name} inventory", code="RESULT_SEMANTIC_INVALID")
         ids = [str(item[key]) for item in values]
         if len(ids) != len(set(ids)):
@@ -564,7 +624,9 @@ def adapt_ai1_result_v01(
     for raw_page in pages_in:
         if not isinstance(raw_page, Mapping):
             raise SnapshotContractError("invalid page", code="RESULT_SEMANTIC_INVALID")
-        line_ids = [line.get("id") for line in raw_page.get("lines", []) if isinstance(line, Mapping)]
+        line_ids = [
+            line.get("id") for line in raw_page.get("lines", []) if isinstance(line, Mapping)
+        ]
         if len(line_ids) != len(set(line_ids)) or any(not value for value in line_ids):
             raise SnapshotContractError("invalid/duplicate line ID", code="RESULT_SEMANTIC_INVALID")
 
@@ -601,14 +663,21 @@ def adapt_ai1_result_v01(
                 file_id=file_id,
                 filename=str(item.get("storage_key") or f"ai1:{file_id}.pdf"),
                 role=role,
+                document_number=_optional_text(item.get("document_number")),
                 digest=_hash_digest(item.get("sha256")),
                 n_pages=int(item.get("page_count") or 0),
             )
         )
     if not source_files:
-        inferred_ids = {str(p.get("document_id")) for p in pages_in if isinstance(p, Mapping) and p.get("document_id")}
+        inferred_ids = {
+            str(p.get("document_id"))
+            for p in pages_in
+            if isinstance(p, Mapping) and p.get("document_id")
+        }
         for file_id in sorted(inferred_ids):
-            source_files.append(SourceFile(file_id=file_id, filename=f"ai1:{file_id}.pdf", digest="", n_pages=0))
+            source_files.append(
+                SourceFile(file_id=file_id, filename=f"ai1:{file_id}.pdf", digest="", n_pages=0)
+            )
 
     issues: list[HandoffIssue] = []
     raw_citations = {
@@ -623,7 +692,9 @@ def adapt_ai1_result_v01(
 
     for raw_page in pages_in:
         if not isinstance(raw_page, Mapping):
-            raise SnapshotContractError("ai1 result page must be an object", code="RESULT_SEMANTIC_INVALID")
+            raise SnapshotContractError(
+                "ai1 result page must be an object", code="RESULT_SEMANTIC_INVALID"
+            )
         page = _adapt_result_page(raw_page, doc_by_id, effective_scope, issues)
         page.page_revision_id += f":{content_digest}"
         if (page.source_file_id or "", page.page_number) in page_by_key:
@@ -654,22 +725,32 @@ def adapt_ai1_result_v01(
         if cite and cite.text_span and cite.text_span not in text:
             text = f"{label}\n{cite.text_span}"
         page_number = cite.page if cite else None
-        node_type = "UNNUMBERED_BLOCK" if str(raw_clause.get("type", "")).lower() == "fragment" else "CLAUSE"
+        node_type = (
+            "UNNUMBERED_BLOCK"
+            if str(raw_clause.get("type", "")).lower() == "fragment"
+            else "CLAUSE"
+        )
         nodes.append(
             StructuralNode(
                 node_id=node_id,
                 type=node_type,
                 raw_label=label,
-                parent_id=str(raw_clause.get("parent_id")) if raw_clause.get("parent_id") in known_node_ids else None,
+                parent_id=str(raw_clause.get("parent_id"))
+                if raw_clause.get("parent_id") in known_node_ids
+                else None,
                 order=len(nodes),
                 status="CONFIRMED" if cite and cite.validation_status == "VALID" else "PARTIAL",
                 text=text,
                 page_range=[page_number] if page_number else [],
                 page_revision_id=cite.page_revision_id if cite else None,
                 bbox=cite.bbox if cite else [],
-                source_file_id=cite.source_file_id if cite else str(raw_clause.get("document_id") or "") or None,
+                source_file_id=cite.source_file_id
+                if cite
+                else str(raw_clause.get("document_id") or "") or None,
                 page_in_file=page_number,
-                structure_level="ARTICLE" if str(raw_clause.get("type", "")).lower() == "article" else "BLOCK",
+                structure_level="ARTICLE"
+                if str(raw_clause.get("type", "")).lower() == "article"
+                else "BLOCK",
                 scope_id=effective_scope,
                 source_line_ids=cite.line_ids if cite else [],
             )
@@ -683,7 +764,9 @@ def adapt_ai1_result_v01(
                 review_state=ReviewState.NEEDS_REVIEW,
             )
         )
-        for page in sorted(page_by_key.values(), key=lambda item: (item.source_file_id or "", item.page_number)):
+        for page in sorted(
+            page_by_key.values(), key=lambda item: (item.source_file_id or "", item.page_number)
+        ):
             if not page.text.strip():
                 continue
             node_id = f"ai2-page-block:{page.source_file_id}:{page.page_number}"
@@ -762,9 +845,14 @@ def adapt_ai1_result_v01(
             )
 
     review = payload.get("review") if isinstance(payload.get("review"), Mapping) else {}
-    if (str(payload.get("status", "")).lower() == "pending_review"
-            or bool(machine.get("review_required")) or bool(effective.get("review_required"))
-            or bool(review.get("blocked")) or bool(review.get("unresolved")) or bool(review.get("stale"))):
+    if (
+        str(payload.get("status", "")).lower() == "pending_review"
+        or bool(machine.get("review_required"))
+        or bool(effective.get("review_required"))
+        or bool(review.get("blocked"))
+        or bool(review.get("unresolved"))
+        or bool(review.get("stale"))
+    ):
         issues.append(
             HandoffIssue(
                 code="AI1_PENDING_REVIEW",
@@ -774,7 +862,11 @@ def adapt_ai1_result_v01(
         )
     coverage = effective.get("coverage") if isinstance(effective.get("coverage"), Mapping) else {}
     if coverage.get("expected_pages") not in (None, len(page_by_key)):
-        issues.append(_result_issue("AI1_PAGE_COUNT_MISMATCH", "expected page count differs from received unique pages"))
+        issues.append(
+            _result_issue(
+                "AI1_PAGE_COUNT_MISMATCH", "expected page count differs from received unique pages"
+            )
+        )
     if not bool(coverage.get("coverage_complete", False)):
         issues.append(
             HandoffIssue(
@@ -789,7 +881,9 @@ def adapt_ai1_result_v01(
         dossier_id=effective_dossier,
         lifecycle=LifecycleState.ACTIVE,
         pins=pins,
-        pages=sorted(page_by_key.values(), key=lambda item: (item.source_file_id or "", item.page_number)),
+        pages=sorted(
+            page_by_key.values(), key=lambda item: (item.source_file_id or "", item.page_number)
+        ),
         nodes=nodes,
         tables=tables,
         profile=profile,
@@ -804,6 +898,7 @@ def adapt_ai1_result_v01(
         review_items=_review_items_from_issues(issues),
     )
     from app.pipeline.result_structure import enrich_result_structure
+
     enrich_result_structure(record)
     assign_contract_units(record)
     envelope = ToolEnvelope(
@@ -841,9 +936,19 @@ def adapt_ai1_result_v01(
             "capabilities": {
                 "text": bool(record.pages),
                 "line_geometry": any(bool(p.line_bboxes) for p in record.pages),
-                "word_geometry": any(bool(line.get("words")) for page in pages_in if isinstance(page, Mapping) for line in (page.get("lines") or []) if isinstance(line, Mapping)),
+                "word_geometry": any(
+                    bool(line.get("words"))
+                    for page in pages_in
+                    if isinstance(page, Mapping)
+                    for line in (page.get("lines") or [])
+                    if isinstance(line, Mapping)
+                ),
                 "table_structure": bool(record.tables),
-                "table_geometry": any(bool(cell.bbox or cell.bbox_fragments) for table in record.tables for cell in table.cells),
+                "table_geometry": any(
+                    bool(cell.bbox or cell.bbox_fragments)
+                    for table in record.tables
+                    for cell in table.cells
+                ),
             },
         },
     )
@@ -872,9 +977,7 @@ def adapt_snapshot(
         raise SnapshotContractError(f"missing required snapshot fields: {', '.join(missing)}")
     schema_version = snapshot.get("schema_version")
     if schema_version not in SUPPORTED_SNAPSHOT_VERSIONS:
-        raise SnapshotContractError(
-            "schema_version must be ai1.snapshot.v1"
-        )
+        raise SnapshotContractError("schema_version must be ai1.snapshot.v1")
     pages_in = snapshot.get("pages")
     if not isinstance(pages_in, list) or not pages_in:
         raise SnapshotContractError("pages must be a non-empty array")
@@ -1154,14 +1257,22 @@ def _adapt_result_page(
     try:
         page_number = int(raw_page.get("page_number"))
     except (TypeError, ValueError) as exc:
-        raise SnapshotContractError("ai1 result page_number must be an integer", code="RESULT_SEMANTIC_INVALID") from exc
+        raise SnapshotContractError(
+            "ai1 result page_number must be an integer", code="RESULT_SEMANTIC_INVALID"
+        ) from exc
     if page_number < 1:
-        raise SnapshotContractError("ai1 result page_number must be >= 1", code="RESULT_SEMANTIC_INVALID")
+        raise SnapshotContractError(
+            "ai1 result page_number must be >= 1", code="RESULT_SEMANTIC_INVALID"
+        )
     document_id = str(raw_page.get("document_id") or "")
     if not document_id:
-        raise SnapshotContractError("ai1 result page requires document_id", code="RESULT_SEMANTIC_INVALID")
+        raise SnapshotContractError(
+            "ai1 result page requires document_id", code="RESULT_SEMANTIC_INVALID"
+        )
     lines = [line for line in (raw_page.get("lines") or []) if isinstance(line, Mapping)]
-    line_texts = {str(line.get("id")): str(line.get("text") or "") for line in lines if line.get("id")}
+    line_texts = {
+        str(line.get("id")): str(line.get("text") or "") for line in lines if line.get("id")
+    }
     line_bboxes = {
         str(line.get("id")): bbox
         for line in lines
@@ -1169,7 +1280,13 @@ def _adapt_result_page(
     }
     text = "\n".join(value for value in line_texts.values() if value)
     status = str(raw_page.get("status") or "completed").lower()
-    quality = "OK" if status in {"completed", "success", "succeeded"} and text.strip() else "EMPTY" if not text.strip() else "LOW"
+    quality = (
+        "OK"
+        if status in {"completed", "success", "succeeded"} and text.strip()
+        else "EMPTY"
+        if not text.strip()
+        else "LOW"
+    )
     if status in {"failed", "error"}:
         quality = "FAILED"
         issues.append(
@@ -1188,7 +1305,9 @@ def _adapt_result_page(
             )
         )
     page_revision_id = f"ai1:{document_id}:p{page_number}"
-    source_hash = str(raw_page.get("sha256") or (doc_by_id.get(document_id) or {}).get("sha256") or "")
+    source_hash = str(
+        raw_page.get("sha256") or (doc_by_id.get(document_id) or {}).get("sha256") or ""
+    )
     table_values = raw_page.get("tables") if isinstance(raw_page.get("tables"), list) else []
     page = PageSnapshot(
         page_revision_id=page_revision_id,
@@ -1226,7 +1345,16 @@ def _adapt_result_table(
         page_number = 0
     page = page_by_key.get((document_id, page_number))
     if not table_id or page is None:
-        return None, None, {}, [_result_issue("TABLE_SOURCE_UNRESOLVED", f"table {table_id or '<missing>'} has no source page")]
+        return (
+            None,
+            None,
+            {},
+            [
+                _result_issue(
+                    "TABLE_SOURCE_UNRESOLVED", f"table {table_id or '<missing>'} has no source page"
+                )
+            ],
+        )
     cells: list[TableCell] = []
     citations: dict[str, Citation] = {}
     raw_rows = raw_table.get("rows") if isinstance(raw_table.get("rows"), list) else []
@@ -1249,7 +1377,9 @@ def _adapt_result_table(
                 col_no = fallback_col
             max_col = max(max_col, col_no)
             if row_no < 0 or col_no < 0 or (row_no, col_no) in cell_positions:
-                raise SnapshotContractError("invalid/duplicate cell coordinate", code="RESULT_SEMANTIC_INVALID")
+                raise SnapshotContractError(
+                    "invalid/duplicate cell coordinate", code="RESULT_SEMANTIC_INVALID"
+                )
             cell_positions.add((row_no, col_no))
             bbox = _bbox(raw_cell.get("bbox"))
             cell_id = f"{table_id}:r{row_no}:c{col_no}"
@@ -1264,7 +1394,12 @@ def _adapt_result_table(
             cells.append(cell)
     rows = _rows_from_cells(cells) if cells else []
     node_id = f"table-node:{table_id}"
-    source_hash = str(raw_table.get("source_hash") or page.source_hash or (doc_by_id.get(document_id) or {}).get("sha256") or "")
+    source_hash = str(
+        raw_table.get("source_hash")
+        or page.source_hash
+        or (doc_by_id.get(document_id) or {}).get("sha256")
+        or ""
+    )
     for cell in cells:
         citation_id = f"{table_id}:{cell.row_index}:{cell.column_index}"
         cite = Citation(
@@ -1287,11 +1422,15 @@ def _adapt_result_table(
             geometry_available=bool(cell.bbox),
             validation_status="UNVERIFIED",
         )
-        cite.char_start = _char_offset(page, cell.text, cell.line_ids[0] if len(cell.line_ids) == 1 else None)
+        cite.char_start = _char_offset(
+            page, cell.text, cell.line_ids[0] if len(cell.line_ids) == 1 else None
+        )
         cite.char_end = cite.char_start + len(cell.text) if cite.char_start is not None else None
         cite.validation_status = CitationResolver([page]).verify(cite).status
         citations[f"{cell.row_index}:{cell.column_index}"] = cite
-    continuation = bool(raw_table.get("continues_table_id") or raw_table.get("continued_by_table_id"))
+    continuation = bool(
+        raw_table.get("continues_table_id") or raw_table.get("continued_by_table_id")
+    )
     low_confidence = bool(raw_table.get("low_confidence")) or continuation
     issues: list[HandoffIssue] = []
     if continuation:
@@ -1322,12 +1461,18 @@ def _adapt_result_table(
         cells=cells,
     )
     from app.pipeline.table_headers import identify_header
+
     header, header_rows = identify_header(rows)
     table.header = header or table.header
     table.header_row_indices = header_rows
     if not header:
         table.continuation = True
-        issues.append(_result_issue("TABLE_HEADER_UNRESOLVED", f"table {table_id}: header absent; possible continuation requires review"))
+        issues.append(
+            _result_issue(
+                "TABLE_HEADER_UNRESOLVED",
+                f"table {table_id}: header absent; possible continuation requires review",
+            )
+        )
     for cite in citations.values():
         cite.validation_status = CitationResolver([page], [table]).verify(cite).status
     node = StructuralNode(
@@ -1363,7 +1508,12 @@ def _adapt_result_fact(
         return None, None, {}, [_result_issue("FACT_ID_MISSING", "AI1 fact has no id")]
     raw_value = str(raw_fact.get("raw") or "")
     if not raw_value:
-        return None, None, {}, [_result_issue("FACT_VALUE_MISSING", f"fact {fact_id} has no raw value")]
+        return (
+            None,
+            None,
+            {},
+            [_result_issue("FACT_VALUE_MISSING", f"fact {fact_id} has no raw value")],
+        )
     refs = [str(x) for x in (raw_fact.get("citation_ids") or [])]
     node_id = f"fact-node:{fact_id}"
     local_citations: dict[str, Citation] = {}
@@ -1379,7 +1529,14 @@ def _adapt_result_fact(
     )
     normalized = raw_fact.get("normalized")
     if isinstance(normalized, Mapping):
-        normalized_value = next((str(normalized[key]) for key in ("name", "value", "date", "amount", "mst") if normalized.get(key) is not None), json.dumps(normalized, ensure_ascii=False, sort_keys=True))
+        normalized_value = next(
+            (
+                str(normalized[key])
+                for key in ("name", "value", "date", "amount", "mst")
+                if normalized.get(key) is not None
+            ),
+            json.dumps(normalized, ensure_ascii=False, sort_keys=True),
+        )
     elif normalized is None:
         normalized_value = None
     else:
@@ -1398,14 +1555,18 @@ def _adapt_result_fact(
         bbox=cite.bbox if cite else [],
         structured_key=_fact_key(fact_type),
         structured_value=raw_value,
-        source_file_id=cite.source_file_id if cite else str(raw_fact.get("document_id") or "") or None,
+        source_file_id=cite.source_file_id
+        if cite
+        else str(raw_fact.get("document_id") or "") or None,
         page_in_file=cite.page if cite else None,
         structure_level="FIELD",
         scope_id=scope_id,
         source_line_ids=cite.line_ids if cite else [],
     )
     if cite is None:
-        issues.append(_result_issue("FACT_CITATION_MISSING", f"fact {fact_id} has no resolvable citation"))
+        issues.append(
+            _result_issue("FACT_CITATION_MISSING", f"fact {fact_id} has no resolvable citation")
+        )
         cite = Citation(
             citation_id=fact_id,
             node_id=node_id,
@@ -1415,7 +1576,9 @@ def _adapt_result_fact(
         )
     else:
         citation_index.update(local_citations)
-    confidence = raw_fact.get("confidence") if isinstance(raw_fact.get("confidence"), Mapping) else {}
+    confidence = (
+        raw_fact.get("confidence") if isinstance(raw_fact.get("confidence"), Mapping) else {}
+    )
     state = ReviewState.PASS if cite.validation_status == "VALID" else ReviewState.NEEDS_REVIEW
     fact = Fact(
         fact_id=fact_id,
@@ -1452,8 +1615,12 @@ def _derive_result_facts(
     existing_values = {" ".join(f.raw_value.split()).casefold() for f in existing_facts}
     unit_scopes = contract_unit_line_scopes(pages)
     identity_keys = {
-        (unit_scopes.get((f.citation.page_revision_id, f.citation.line_ids[0])), _fact_key(f.role or f.item_key or ""))
-        for f in existing_facts if f.citation.line_ids
+        (
+            unit_scopes.get((f.citation.page_revision_id, f.citation.line_ids[0])),
+            _fact_key(f.role or f.item_key or ""),
+        )
+        for f in existing_facts
+        if f.citation.line_ids
     }
     facts: list[Fact] = []
     nodes: list[StructuralNode] = []
@@ -1470,7 +1637,11 @@ def _derive_result_facts(
     ) -> None:
         role = _fact_key(fact_type)
         normalized_raw = " ".join(raw_value.split()).casefold()
-        unit_id = unit_scopes.get((page.page_revision_id, line_id)) if role.startswith(("party_", "mst_party_")) else None
+        unit_id = (
+            unit_scopes.get((page.page_revision_id, line_id))
+            if role.startswith(("party_", "mst_party_"))
+            else None
+        )
         if unit_id and (unit_id, role) in identity_keys:
             return
         if not unit_id and (role in existing_keys or normalized_raw in existing_values):
@@ -1507,14 +1678,23 @@ def _derive_result_facts(
             if unit_id != current_unit:
                 current_party = None
                 current_unit = unit_id
-            party_match = re.search(r"\bben\s+([abcy])(?:\s*\([^)]*\))?\s*[:：]\s*(.+)$", folded, re.I)
+            party_match = re.search(
+                r"\bben\s+([abcy])(?:\s*\([^)]*\))?\s*[:：]\s*(.+)$", folded, re.I
+            )
             if party_match:
                 party = party_match.group(1).lower()
                 current_party = party
-                party_value = value.split(":", 1)[1].strip() if ":" in value or "：" in value else party_match.group(2).strip()
+                party_value = (
+                    value.split(":", 1)[1].strip()
+                    if ":" in value or "：" in value
+                    else party_match.group(2).strip()
+                )
                 emit_derived(
-                    fact_type=f"party_{party}", raw_value=party_value,
-                    page=page, line_id=line_id, source_text=value,
+                    fact_type=f"party_{party}",
+                    raw_value=party_value,
+                    page=page,
+                    line_id=line_id,
+                    source_text=value,
                 )
                 continue
 
@@ -1522,8 +1702,11 @@ def _derive_result_facts(
             if tax_match:
                 role = f"mst_party_{current_party}" if current_party else "mst"
                 emit_derived(
-                    fact_type=role, raw_value=tax_match.group(1),
-                    page=page, line_id=line_id, source_text=value,
+                    fact_type=role,
+                    raw_value=tax_match.group(1),
+                    page=page,
+                    line_id=line_id,
+                    source_text=value,
                 )
 
             contract_match = re.search(r"\bso\s*[:ï¼š]\s*([0-9][a-z0-9./_-]{3,})", folded, re.I)
@@ -1554,10 +1737,16 @@ def _derive_result_facts(
                     source_text=value,
                 )
 
-            payment_match = re.search(r"(?:tien\s+do\s+thanh\s+toan|thanh\s+toan)\s*[:ï¼š]\s*(.+)$", folded, re.I)
+            payment_match = re.search(
+                r"(?:tien\s+do\s+thanh\s+toan|thanh\s+toan)\s*[:ï¼š]\s*(.+)$", folded, re.I
+            )
             if payment_match:
                 separator = ":" if ":" in value else "："
-                payment_value = value.split(separator, 1)[1].strip() if separator in value else payment_match.group(1).strip()
+                payment_value = (
+                    value.split(separator, 1)[1].strip()
+                    if separator in value
+                    else payment_match.group(1).strip()
+                )
                 emit_derived(
                     fact_type="payment_schedule",
                     raw_value=payment_value,
@@ -1643,7 +1832,9 @@ def _make_derived_fact(
         item_key=_fact_key(fact_type),
         citation=cite,
         provenance="AI2_DETERMINISTIC_LINE_RECOVERY",
-        review_state=ReviewState.PASS if cite.validation_status == "VALID" else ReviewState.NEEDS_REVIEW,
+        review_state=ReviewState.PASS
+        if cite.validation_status == "VALID"
+        else ReviewState.NEEDS_REVIEW,
     )
     node = StructuralNode(
         node_id=node_id,
@@ -1689,7 +1880,12 @@ def _result_citation_for_refs(
             continue
         line_id = str(raw.get("line_id") or "")
         quote = str(raw.get("quote") or "")
-        source_hash = str(raw.get("source_hash") or page.source_hash or (doc_by_id.get(document_id) or {}).get("sha256") or "")
+        source_hash = str(
+            raw.get("source_hash")
+            or page.source_hash
+            or (doc_by_id.get(document_id) or {}).get("sha256")
+            or ""
+        )
         char_start = _char_offset(page, quote, line_id)
         cite = Citation(
             citation_id=ref,
@@ -1705,7 +1901,9 @@ def _result_citation_for_refs(
             char_end=(char_start + len(quote)) if char_start is not None else None,
             source_hash=source_hash,
             quote_sha256=_quote_digest(quote),
-            coordinate_system=str(raw.get("coordinate_system") or "normalized_top_left_rendered_page"),
+            coordinate_system=str(
+                raw.get("coordinate_system") or "normalized_top_left_rendered_page"
+            ),
             geometry_source=str(raw.get("geometry_source") or "") or None,
             precision=str(raw.get("precision") or "line"),
             geometry_available=bool(raw.get("bbox")),
@@ -1714,10 +1912,18 @@ def _result_citation_for_refs(
         cite.validation_status = CitationResolver([page]).verify(cite).status
         citation_index[ref] = cite
         if cite.validation_status != "VALID":
-            issues.append(_result_issue("CITATION_UNRESOLVED", f"citation {ref} could not be verified against AI1 page text", citation=cite))
+            issues.append(
+                _result_issue(
+                    "CITATION_UNRESOLVED",
+                    f"citation {ref} could not be verified against AI1 page text",
+                    citation=cite,
+                )
+            )
         return cite
     if refs:
-        issues.append(_result_issue("CITATION_UNRESOLVED", f"none of citation_ids resolved: {refs[:3]}"))
+        issues.append(
+            _result_issue("CITATION_UNRESOLVED", f"none of citation_ids resolved: {refs[:3]}")
+        )
     return None
 
 
@@ -1728,25 +1934,41 @@ def _review_items_from_issues(issues: list[HandoffIssue]) -> list[ReviewItem]:
             kind=issue.code,
             reason=issue.message,
             review_state=issue.review_state,
-            proposed_action="VERIFY_EVIDENCE" if issue.review_state != ReviewState.BLOCKED else "FIX_INPUT",
-            citation_ids=[issue.citation.citation_id] if issue.citation and issue.citation.citation_id else [],
+            proposed_action="VERIFY_EVIDENCE"
+            if issue.review_state != ReviewState.BLOCKED
+            else "FIX_INPUT",
+            citation_ids=[issue.citation.citation_id]
+            if issue.citation and issue.citation.citation_id
+            else [],
         )
         for index, issue in enumerate(issues, start=1)
-        if issue.review_state in {ReviewState.NEEDS_REVIEW, ReviewState.INSUFFICIENT_EVIDENCE, ReviewState.BLOCKED}
+        if issue.review_state
+        in {ReviewState.NEEDS_REVIEW, ReviewState.INSUFFICIENT_EVIDENCE, ReviewState.BLOCKED}
     ]
 
 
 def _result_issue(code: str, message: str, *, citation: Citation | None = None) -> HandoffIssue:
-    return HandoffIssue(code=code, message=message, review_state=ReviewState.NEEDS_REVIEW, citation=citation)
+    return HandoffIssue(
+        code=code, message=message, review_state=ReviewState.NEEDS_REVIEW, citation=citation
+    )
 
 
 def _result_role(value: Any) -> str:
-    return "annex" if str(value or "").casefold() in {"annex", "appendix", "phu_luc", "phụ lục"} else "body"
+    return (
+        "annex"
+        if str(value or "").casefold() in {"annex", "appendix", "phu_luc", "phụ lục"}
+        else "body"
+    )
 
 
 def _hash_digest(value: Any) -> str:
     text = str(value or "")
     return text if not text or text.startswith("sha256:") else f"sha256:{text}"
+
+
+def _optional_text(value: Any) -> str | None:
+    text = str(value).strip() if value is not None else ""
+    return text or None
 
 
 def _fact_key(value: str) -> str:
@@ -1802,7 +2024,9 @@ def _text_in_page(page: PageSnapshot, quote: str) -> bool:
     return quote in page.text
 
 
-def _result_table_coverage(pages: list[PageSnapshot], tables: list[TableSnapshot], coverage: Mapping[str, Any]) -> str:
+def _result_table_coverage(
+    pages: list[PageSnapshot], tables: list[TableSnapshot], coverage: Mapping[str, Any]
+) -> str:
     if tables:
         return TableCoverage.DETECTED.value
     if bool(coverage.get("coverage_complete")):
@@ -1832,7 +2056,9 @@ def _validate_snapshot_semantics(snapshot: Mapping[str, Any]) -> None:
         try:
             page_no = int(raw_page.get("page_no"))
         except (TypeError, ValueError) as exc:
-            raise SnapshotContractError("page_no must be an integer", code="SNAPSHOT_SEMANTIC_INVALID") from exc
+            raise SnapshotContractError(
+                "page_no must be an integer", code="SNAPSHOT_SEMANTIC_INVALID"
+            ) from exc
         if page_no in page_numbers:
             raise SnapshotContractError(
                 f"duplicate page_no={page_no}", code="SNAPSHOT_SEMANTIC_INVALID"
@@ -1847,9 +2073,11 @@ def _validate_snapshot_semantics(snapshot: Mapping[str, Any]) -> None:
             page_revision_ids.add(page_revision_id)
         coverage = raw_page.get("table_coverage")
         coverage_status = coverage.get("status") if isinstance(coverage, Mapping) else None
-        if coverage is not None and isinstance(coverage, Mapping) and coverage_status not in {
-            item.value for item in TableCoverage
-        }:
+        if (
+            coverage is not None
+            and isinstance(coverage, Mapping)
+            and coverage_status not in {item.value for item in TableCoverage}
+        ):
             raise SnapshotContractError(
                 f"page {page_no}: invalid table_coverage.status",
                 code="SNAPSHOT_SEMANTIC_INVALID",
@@ -1962,7 +2190,9 @@ def _validate_snapshot_compatibility_semantics(snapshot: Mapping[str, Any]) -> N
         try:
             page_no = int(raw_page.get("page_no"))
         except (TypeError, ValueError) as exc:
-            raise SnapshotContractError("page_no must be an integer", code="SNAPSHOT_SEMANTIC_INVALID") from exc
+            raise SnapshotContractError(
+                "page_no must be an integer", code="SNAPSHOT_SEMANTIC_INVALID"
+            ) from exc
         if page_no in page_numbers:
             raise SnapshotContractError(
                 f"duplicate page_no={page_no}", code="SNAPSHOT_SEMANTIC_INVALID"
@@ -2019,7 +2249,12 @@ def _validate_bbox_value(value: Any, label: str) -> None:
     if value is None:
         return
     box = _bbox(value)
-    if len(box) != 4 or not all(0 <= number <= 1 for number in box) or box[2] <= box[0] or box[3] <= box[1]:
+    if (
+        len(box) != 4
+        or not all(0 <= number <= 1 for number in box)
+        or box[2] <= box[0]
+        or box[3] <= box[1]
+    ):
         raise SnapshotContractError(f"{label}: invalid bbox", code="SNAPSHOT_SEMANTIC_INVALID")
 
 
@@ -2075,7 +2310,9 @@ def _adapt_page(
         quality=quality,
         coverage=0.0 if quality in {"FAILED", "EMPTY"} else (0.5 if quality == "LOW" else 1.0),
         rotation=rotation,
-        source_block_ids=[str(x.get("line_id")) for x in lines if isinstance(x, Mapping) and x.get("line_id")],
+        source_block_ids=[
+            str(x.get("line_id")) for x in lines if isinstance(x, Mapping) and x.get("line_id")
+        ],
         text=text,
         source_file_id=source_file_id,
         page_in_file=page_no,
@@ -2088,7 +2325,11 @@ def _adapt_page(
     issues: list[HandoffIssue] = []
     if quality == "FAILED":
         code = error_code or "AI1_PAGE_FAILED"
-        issues.append(HandoffIssue(code=code, message=f"page {page_no}: {code}", review_state=ReviewState.BLOCKED))
+        issues.append(
+            HandoffIssue(
+                code=code, message=f"page {page_no}: {code}", review_state=ReviewState.BLOCKED
+            )
+        )
     elif quality == "EMPTY":
         issues.append(
             HandoffIssue(
@@ -2223,7 +2464,9 @@ def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[S
     return nodes
 
 
-def _amount_after_total_label(lines: list[Any], index: int) -> tuple[str, str, list[float], int] | None:
+def _amount_after_total_label(
+    lines: list[Any], index: int
+) -> tuple[str, str, list[float], int] | None:
     """A bare 'Tổng cộng' line takes the amount on the next line, not a later line item."""
 
     current = lines[index]
@@ -2362,19 +2605,29 @@ def _labelled_line_facts(raw: str, folded: str, party: str | None) -> list[tuple
             if len(digits) >= 6:
                 found.append(("contract_value", digits))
     percents = re.findall(r"\d+(?:[.,]\d+)?\s*%", raw)
-    numbered_schedule = bool(re.match(r"^\d+\.\d+\.", folded)) and "thanh toan" in folded and percents
+    numbered_schedule = (
+        bool(re.match(r"^\d+\.\d+\.", folded)) and "thanh toan" in folded and percents
+    )
     if numbered_schedule or ("thanh toan" in folded and len(percents) >= 2):
         found.append(("payment_schedule", raw.strip()))
-    term = re.search(r"(?:thoi\s+han|phuong\s+thuc|hinh\s+thuc)\s+thanh\s+toan\s*[:：]\s*(.+)$", folded)
+    term = re.search(
+        r"(?:thoi\s+han|phuong\s+thuc|hinh\s+thuc)\s+thanh\s+toan\s*[:：]\s*(.+)$", folded
+    )
     if term and not any(key == "payment_schedule" for key, _value in found):
         value = raw.split(":", 1)[-1].strip() if ":" in raw else raw.split("：", 1)[-1].strip()
-        key = "payment_method" if re.search(r"(?:phuong\s+thuc|hinh\s+thuc)", folded) else "payment_term"
+        key = (
+            "payment_method"
+            if re.search(r"(?:phuong\s+thuc|hinh\s+thuc)", folded)
+            else "payment_term"
+        )
         if value:
             found.append((key, value))
     return found
 
 
-def _adapt_tables(value: Any, page: PageSnapshot, *, page_no: int, source_file_id: str) -> list[TableSnapshot]:
+def _adapt_tables(
+    value: Any, page: PageSnapshot, *, page_no: int, source_file_id: str
+) -> list[TableSnapshot]:
     if not isinstance(value, list):
         return []
     out: list[TableSnapshot] = []
@@ -2469,10 +2722,16 @@ def fold_for_match(value: str) -> str:
     return text.replace("đ", "d")
 
 
-def _page_quality(status: str, *, text: str, lines: list[Any], warnings: set[str], data: Mapping[str, Any]) -> str:
+def _page_quality(
+    status: str, *, text: str, lines: list[Any], warnings: set[str], data: Mapping[str, Any]
+) -> str:
     if status == "FAILED" or "OCR_ENGINE_UNAVAILABLE" in warnings:
         return "FAILED"
-    coverage = data.get("quality", {}).get("coverage_status") if isinstance(data.get("quality"), Mapping) else None
+    coverage = (
+        data.get("quality", {}).get("coverage_status")
+        if isinstance(data.get("quality"), Mapping)
+        else None
+    )
     if coverage == "BLANK_VERIFIED" or (not text.strip() and not lines and not data.get("tables")):
         return "EMPTY"
     if status == "PARTIAL" or warnings.intersection(
@@ -2492,7 +2751,10 @@ def _has_usable_table_cells(tables: list[Any]) -> bool:
     return any(
         isinstance(table, Mapping)
         and isinstance(table.get("cells"), list)
-        and any(isinstance(cell, Mapping) and str(cell.get("text", "")).strip() for cell in table["cells"])
+        and any(
+            isinstance(cell, Mapping) and str(cell.get("text", "")).strip()
+            for cell in table["cells"]
+        )
         for table in tables
     )
 

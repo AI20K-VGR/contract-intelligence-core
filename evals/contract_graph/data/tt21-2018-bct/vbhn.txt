@@ -1,0 +1,584 @@
+0971.654.238 [email protected]
+Hướng dẫn sử dụng | Liên hệ
+Toggle Navigation
+Giới thiệu
+Giải pháp
+Bảng giá
+Bài viết
+Bản án Hợp đồng mẫu Văn bản pháp luật Tra cứu mã HS Thuật ngữ Pháp lý
+Đăng ký
+Đăng nhập
+Trang chủ
+Văn bản pháp luật
+06/VBHN-BCT
+Thông tin văn bản
+1082
+2
+Văn bản hợp nhất số 06/VBHN-BCT ngày 15/03/2022 của Bộ trưởng Bộ Công thương hợp nhất Thông tư quy định về quản lý website thương mại điện tử
+Số hiệu văn bản: 06/VBHN-BCT
+Loại văn bản: Văn bản hợp nhất
+Cơ quan ban hành: Bộ trưởng Bộ Công thương
+Ngày ban hành: 15-03-2022
+Ngày có hiệu lực: 15-03-2022
+Tình trạng hiệu lực: Đang có hiệu lực
+Ngôn ngữ:
+Định dạng văn bản hiện có:
+MỤC LỤC
+Không có mục lục
+Tải về (WORD)
+Tải về (WORD)
+Tải lược đồ
+Nội dung VB
+Văn bản gốc
+Tiếng anh
+Lược đồ
+VB liên quan
+Bản án áp dụng
+BỘ CÔNG THƯƠNG
+-------
+CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+Độc lập - Tự do - Hạnh phúc
+---------------
+Số: 06/VBHN-BCT
+Hà Nội, ngày 15 tháng 03 năm 2022
+THÔNG TƯ
+QUY ĐỊNH VỀ QUẢN LÝ WEBSITE THƯƠNG MẠI ĐIỆN TỬ
+Thông tư số 47/2014/TT-BCT ngày 05 tháng 12 năm 2014 của Bộ trưởng Bộ Công Thương quy định về quản lý website thương mại điện tử, có hiệu lực kể từ ngày 20 tháng 01 năm 2015, được sửa đổi, bổ sung bởi:
+1. Thông tư số 04/2016/TT-BCT ngày 06 tháng 6 năm 2016 của Bộ trưởng Bộ Công Thương sửa đổi, bổ sung một số Thông tư của Bộ trưởng Bộ Công Thương về thủ tục hành chính trong lĩnh vực thương mại điện tử, hóa chất, sản xuất kinh doanh rượu, nhượng quyền thương mại, hoạt động mua bán hàng hóa qua sở giao dịch hàng hóa, năng lượng, an toàn thực phẩm và điện lực, có hiệu lực kể từ ngày 20 tháng 7 năm 2016;
+2. Thông tư số 21/2018/TT-BCT ngày 20 tháng 8 năm 2018 của Bộ trưởng Bộ Công Thương sửa đổi một số điều của Thông tư số 47/2014/TT-BCT ngày 05/12/2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31/12/2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 18 tháng 10 năm 2018;
+3. Thông tư số 42/2019/TT-BCT ngày 18 tháng 12 năm 2019 của Bộ trưởng Bộ Công Thương sửa đổi, bổ sung một số quy định về chế độ báo cáo định kỳ tại các Thông tư do Bộ trưởng Bộ Công Thương ban hành hoặc liên tịch ban hành, có hiệu lực kể từ ngày 05 tháng 02 năm 2020;
+4. Thông tư số 01/2022/TT-BCT ngày 18 tháng 01 năm 2022 của Bộ trưởng Bộ Công Thương sửa đổi, bổ sung một số điều của Thông tư số 47/2014/TT-BCT ngày 05 tháng 12 năm 2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31 tháng 12 năm 2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 08 tháng 3 năm 2022.
+Căn cứ Nghị định số 95/2012/NĐ-CP ngày 12 tháng 11 năm 2012 của Chính phủ quy định chức năng, nhiệm vụ, quyền hạn và cơ cấu tổ chức của Bộ Công Thương;
+Căn cứ Nghị định số 52/2013/NĐ-CP ngày 16 tháng 5 năm 2013 của Chính phủ về thương mại điện tử;
+Căn cứ Nghị định số 59/2006/NĐ-CP ngày 12 tháng 6 năm 2006 của Chính phủ quy định chi tiết Luật Thương mại về hàng hóa, dịch vụ cấm kinh doanh, hạn chế kinh doanh và kinh doanh có điều kiện;
+Bộ trưởng Bộ Công Thương ban hành Thông tư quy định về quản lý website thương mại điện tử.[1]
+Chương I
+NHỮNG QUY ĐỊNH CHUNG
+Điều 1. Phạm vi điều chỉnh
+1. Thông tư này quy định chi tiết và hướng dẫn thi hành một số điều tại Nghị định số 52/2013/NĐ-CP ngày 16 tháng 5 năm 2013 của Chính phủ về thương mại điện tử (sau đây gọi là Nghị định số 52/2013/NĐ-CP) quy định về hoạt động kinh doanh trên website thương mại điện tử, trình tự, thủ tục thông báo, đăng ký website thương mại điện tử, đăng ký hoạt động đánh giá tín nhiệm website thương mại điện tử và công bố thông tin trên Cổng thông tin Quản lý hoạt động thương mại điện tử.
+2.[2] (được bãi bỏ)
+Điều 2. Đối tượng áp dụng
+Thông tư này áp dụng đối với:
+1. Thương nhân, tổ chức, cá nhân thiết lập website thương mại điện tử bán hàng.
+2. Thương nhân, tổ chức thiết lập website cung cấp dịch vụ thương mại điện tử.
+3. Người bán trên website cung cấp dịch vụ thương mại điện tử.
+4. Thương nhân, tổ chức hoạt động đánh giá tín nhiệm website thương mại điện tử.
+5. Tổ chức, cá nhân thực hiện việc phản ánh trực tuyến trên Cổng thông tin Quản lý hoạt động thương mại điện tử.
+Điều 3.[3] (được bãi bỏ)
+Điều 4.[4] (được bãi bỏ)
+Điều 5. Nguyên tắc thông báo, đăng ký website thương mại điện tử [5]
+Thương nhân, tổ chức sở hữu website thương mại điện tử có cả chức năng bán hàng và cung cấp dịch vụ thương mại điện tử chỉ thực hiện thủ tục đăng ký với Bộ Công Thương theo quy định tại Chương II Thông tư này.
+Điều 6.[6] (được bãi bỏ)
+Điều 7. Các hình thức của website khuyến mại trực tuyến
+Website khuyến mại trực tuyến theo quy định tại Khoản 10 Điều 3 Nghị định số 52/2013/NĐ-CP bao gồm:
+1. Website hoạt động theo hình thức quy định tại điểm a và b Khoản 2 Điều 39 Nghị định số 52/2013/NĐ-CP .
+2. Website thực hiện khuyến mại cho hàng hóa của thương nhân, tổ chức, cá nhân khác theo các điều khoản của hợp đồng dịch vụ khuyến mại dưới những hình thức sau:
+a) Tặng hàng hóa hoặc đua hàng mẫu để khách hàng dùng thử không phải trả tiền;
+b) Bán hàng với giá thấp hơn giá bán hàng trước đó, được áp dụng trong một thời gian nhất định hoặc với một số lượng khách hàng nhất định;
+c) Các hình thức khác theo quy định của pháp luật về khuyến mại.
+Chương II
+THỦ TỤC THÔNG BÁO, ĐĂNG KÝ WEBSITE THƯƠNG MẠI ĐIỆN TỬ VÀ ĐĂNG KÝ HOẠT ĐỘNG CUNG CẤP DỊCH VỤ CHỨNG THỰC HỢP ĐỒNG ĐIỆN TỬ [7]
+Mục 1. THÔNG BÁO WEBSITE THƯƠNG MẠI ĐIỆN TỬ BÁN HÀNG
+Điều 8.[8] (được bãi bỏ)
+Điều 9. Quy trình thông báo
+1. Việc tiếp nhận, xử lý thông báo website thương mại điện tử bán hàng được Bộ Công Thương thực hiện trực tuyến tại Cổng thông tin Quản lý hoạt động thương mại điện tử tại địa chỉ www.online.gov.vn.
+2. Thương nhân, tổ chức, cá nhân thiết lập website thương mại điện tử bán hàng truy cập vào Cổng thông tin Quản lý hoạt động thương mại điện tử và thực hiện các bước sau:
+Bước 1: Thương nhân, tổ chức, cá nhân đăng ký tài khoản đăng nhập hệ thống bằng việc cung cấp những thông tin sau:
+- Tên thương nhân, tổ chức, cá nhân;
+- Số đăng ký kinh doanh của thương nhân hoặc số quyết định thành lập của tổ chức hoặc mã số thuế cá nhân của cá nhân;
+- Lĩnh vực kinh doanh/hoạt động;
+- Địa chỉ trụ sở của thương nhân, tổ chức hoặc địa chỉ thường trú của cá nhân;
+- Các thông tin liên hệ.
+Bước 2: Trong thời hạn 3 ngày làm việc, thương nhân, tổ chức, cá nhân nhận kết quả từ Bộ Công Thương qua địa chỉ thư điện tử đã đăng ký về một trong các nội dung sau:
+- Nếu thông tin đăng ký tài khoản đầy đủ, thương nhân, tổ chức, cá nhân được cấp một tài khoản đăng nhập hệ thống và tiến hành tiếp Bước 3.
+- Nếu đăng ký tài khoản bị từ chối hoặc yêu cầu bổ sung, thương nhân, tổ chức, cá nhân phải tiến hành đăng ký lại hoặc bổ sung thông tin theo yêu cầu.
+Bước 3: Sau khi được cấp tài khoản đăng nhập hệ thống, thương nhân, tổ chức, cá nhân tiến hành đăng nhập, chọn chức năng Thông báo website thương mại điện tử bán hàng và tiến hành khai báo thông tin theo mẫu.
+Bước 4: Trong thời hạn 3 ngày làm việc, thương nhân, tổ chức, cá nhân nhận thông tin phản hồi của Bộ Công Thương qua địa chỉ thư điện tử đã đăng ký về một trong các nội dung sau:
+- Xác nhận thông tin khai báo đầy đủ, hợp lệ;
+- Cho biết thông tin khai báo chưa đầy đủ hoặc không hợp lệ. Khi đó, thương nhân, tổ chức, cá nhân phải quay về Bước 3 để khai báo lại hoặc bổ sung các thông tin theo yêu cầu.
+3. Thương nhân, tổ chức, cá nhân có trách nhiệm theo dõi tình trạng xử lý hồ sơ qua thư điện tử hoặc tài khoản truy cập hệ thống đã được cấp để tiến hành cập nhật và chỉnh sửa thông tin theo yêu cầu.
+4. Trong vòng 10 ngày làm việc kể từ khi nhận được thông báo yêu cầu bổ sung thông tin ở Bước 4 theo quy định tại Khoản 2 Điều này, nếu thương nhân, tổ chức, cá nhân không có phản hồi thì hồ sơ thông báo sẽ bị chấm dứt và phải tiến hành thông báo lại hồ sơ từ Bước 3.
+Điều 10. Xác nhận thông báo
+1. Thời gian xác nhận thông báo: 3 ngày làm việc kể từ ngày nhận được hồ sơ thông báo đầy đủ, hợp lệ của thương nhân, tổ chức, cá nhân.
+2. Khi xác nhận thông báo, Bộ Công Thương sẽ gửi cho thương nhân, tổ chức, cá nhân qua địa chỉ thư điện tử đã đăng ký một đoạn mã để gắn lên website thương mại điện tử bán hàng, thể hiện thành biểu tượng đã thông báo. Khi chọn biểu tượng này, người sử dụng được dẫn về phần thông tin thông báo tương ứng của thương nhân, tổ chức, cá nhân tại Cổng thông tin Quản lý hoạt động thương mại điện tử.
+Điều 11. Thay đổi, chấm dứt thông tin đã thông báo
+1. Trong trường hợp có sự thay đổi một trong những thông tin quy định tại Khoản 2 Điều 53 Nghị định số 52/2013/NĐ-CP hoặc ngừng hoạt động website thương mại điện tử bán hàng đã thông báo, thương nhân, tổ chức, cá nhân phải thông báo về Bộ Công Thương trong thời hạn 7 ngày làm việc kể từ khi có sự thay đổi thông tin hoặc ngừng hoạt động.
+2. Việc thay đổi, chấm dứt thông tin thông báo về website thương mại điện tử bán hàng được thực hiện trực tuyến thông qua tài khoản truy cập hệ thống đã được cấp khi thương nhân, tổ chức, cá nhân tiến hành thông báo theo quy định tại Điều 9 Thông tư này.
+3. Thời gian xác nhận việc thay đổi, chấm dứt thông tin thông báo: 3 ngày làm việc kể từ ngày nhận được thông báo đầy đủ, chính xác do thương nhân, tổ chức, cá nhân gửi về Bộ Công Thương theo quy định tại Khoản 2 Điều này.
+Điều 12. Cập nhật thông tin thông báo định kỳ
+1. Mỗi năm một lần kể từ thời điểm được xác nhận thông báo, thương nhân, tổ chức, cá nhân có nghĩa vụ cập nhật thông tin thông báo bằng cách truy cập vào tài khoản trên Cổng thông tin Quản lý hoạt động thương mại điện tử và khai báo thông tin theo mẫu.
+2. Trong vòng 10 ngày kể từ ngày phải thực hiện nghĩa vụ cập nhật thông tin, nếu thương nhân, tổ chức, cá nhân không tiến hành cập nhật, Bộ Công Thương sẽ gửi thông báo nhắc nhở thông qua tài khoản của thương nhân, tổ chức, cá nhân trên Cổng thông tin Quản lý hoạt động thương mại điện tử. Trong vòng 15 ngày kể từ khi gửi thông báo nhắc nhở, nếu thương nhân, tổ chức, cá nhân vẫn không có phản hồi thì Bộ Công Thương hủy bỏ thông tin thông báo trên Cổng thông tin Quản lý hoạt động thương mại điện tử.
+Mục 2. ĐĂNG KÝ WEBSITE CUNG CẤP DỊCH VỤ THƯƠNG MẠI ĐIỆN TỬ
+Điều 13.[9] (được bãi bỏ)
+Điều 14. Hồ sơ đăng ký
+1. Đơn đăng ký website cung cấp dịch vụ thương mại điện tử (theo Mẫu TMĐT-1 tại Phụ lục ban hành kèm theo Thông tư này).
+2.[10] Bản sao từ sổ gốc hoặc bản sao có chứng thực hoặc bản sao xuất trình kèm bản chính để đối chiếu.
+Cá nhân, tổ chức trực tiếp thực hiện thủ tục hành chính tại cơ quan, tổ chức có quyền lựa chọn nộp một trong ba hình thức bản sao trên.
+3. Đề án cung cấp dịch vụ theo quy định tại Khoản 3 Điều 54 Nghị định số 52/2013/NĐ-CP .
+4. Quy chế quản lý hoạt động của website cung cấp dịch vụ thương mại điện tử bao gồm các nội dung sau:
+a) Các nội dung quy định tại Điều 38 Nghị định số 52/2013/NĐ-CP ;
+b) Cơ chế xử lý, thời hạn xử lý khi nhận được phản ánh về hành vi kinh doanh vi phạm pháp luật trên website cung cấp dịch vụ thương mại điện tử.
+5. Mẫu hợp đồng dịch vụ hoặc thỏa thuận hợp tác giữa thương nhân, tổ chức sở hữu website cung cấp dịch vụ thương mại điện tử với thương nhân, tổ chức, cá nhân tham gia mua bán hàng hóa, cung ứng dịch vụ trên website đó.
+6. Các điều kiện giao dịch chung áp dụng cho hoạt động mua bán hàng hóa, cung ứng dịch vụ trên website (nếu có).
+Điều 15. Quy trình đăng ký
+1. Việc tiếp nhận, xử lý hồ sơ đăng ký website cung cấp dịch vụ thương mại điện tử được Bộ Công Thương thực hiện trực tuyến tại Cổng thông tin Quản lý hoạt động thương mại điện tử tại địa chỉ www.online.gov.vn.
+2. Để khai báo hồ sơ, thương nhân, tổ chức truy cập vào Cổng thông tin Quản lý hoạt động thương mại điện tử và tiến hành các bước sau:
+Bước 1: Thương nhân, tổ chức đăng ký tài khoản đăng nhập hệ thống bằng việc cung cấp những thông tin sau:
+- Tên thương nhân, tổ chức;
+- Số đăng ký kinh doanh của thương nhân, số quyết định thành lập của tổ chức;
+- Lĩnh vực kinh doanh/hoạt động;
+- Địa chỉ trụ sở của thương nhân, tổ chức;
+- Các thông tin liên hệ.
+Bước 2: Trong thời hạn 3 ngày làm việc, thương nhân, tổ chức nhận kết quả từ Bộ Công Thương qua địa chỉ thư điện tử đã đăng ký về một trong các nội dung sau:
+- Nếu thông tin đăng ký tài khoản đầy đủ, thương nhân, tổ chức được cấp một tài khoản đăng nhập hệ thống và tiến hành tiếp Bước 3;
+- Nếu đăng ký tài khoản bị từ chối hoặc yêu cầu bổ sung thông tin, thương nhân, tổ chức phải tiến hành đăng ký lại hoặc bổ sung thông tin theo yêu cầu.
+Bước 3: Sau khi được cấp tài khoản đăng nhập hệ thống, thương nhân, tổ chức tiến hành đăng nhập, chọn chức năng Đăng ký website cung cấp dịch vụ thương mại điện tử, tiến hành khai báo thông tin theo mẫu và đính kèm hồ sơ đăng ký quy định tại Điều 14 Thông tư này.
+Bước 4: Trong thời hạn 7 ngày làm việc, thương nhân, tổ chức nhận thông tin phản hồi của Bộ Công Thương qua địa chỉ thư điện tử đã đăng ký về một trong các nội dung sau:
+- Xác nhận hồ sơ đăng ký đầy đủ, hợp lệ và yêu cầu thương nhân, tổ chức thực hiện tiếp Bước 5;
+- Thông báo hồ sơ đăng ký không hợp lệ hoặc yêu cầu bổ sung thông tin. Khi đó thương nhân, tổ chức quay về Bước 3 để khai báo lại hoặc bổ sung các thông tin, hồ sơ theo yêu cầu.
+Bước 5: Sau khi nhận được thông báo xác nhận hồ sơ đầy đủ và hợp lệ, thương nhân, tổ chức gửi về Bộ Công Thương (Cục Thương mại điện tử và Kinh tế số[11]) bộ hồ sơ đăng ký hoàn chỉnh (bản giấy) theo quy định tại Điều 14 Thông tư này.
+3. Thương nhân, tổ chức có trách nhiệm theo dõi tình trạng xử lý hồ sơ qua thư điện tử hoặc tài khoản truy cập hệ thống đã được cấp để tiến hành cập nhật và chỉnh sửa thông tin theo yêu cầu.
+4. Trong thời hạn 30 ngày làm việc kể từ khi nhận được thông báo yêu cầu bổ sung thông tin ở Bước 4 theo quy định tại Khoản 2 Điều này, nếu thương nhân, tổ chức không có phản hồi thì hồ sơ đăng ký trên hệ thống sẽ bị chấm dứt và thương nhân, tổ chức phải tiến hành đăng ký lại từ đầu.
+Điều 16. Xác nhận đăng ký
+1. Thời gian xác nhận đăng ký: 5 ngày làm việc kể từ ngày nhận được hồ sơ đăng ký bản giấy đầy đủ, hợp lệ do thương nhân, tổ chức gửi trực tiếp hoặc qua đường bưu điện về Bộ Công Thương (Cục Thương mại điện tử và Kinh tế số[12]) khi hoàn thành quy trình đăng ký quy định tại Khoản 2 Điều 15 Thông tư này. Trường hợp hồ sơ bản giấy gửi về không khớp với những tài liệu, thông tin đã khai báo trực tuyến qua tài khoản truy cập hệ thống, Bộ Công Thương thông báo qua địa chỉ thư điện tử mà thương nhân, tổ chức đã đăng ký để thương nhân, tổ chức hoàn chỉnh hồ sơ.
+2. Khi xác nhận đăng ký, Bộ Công Thương sẽ gửi cho thương nhân, tổ chức qua địa chỉ thư điện tử đã đăng ký một đoạn mã để gắn lên website cung cấp dịch vụ thương mại điện tử, thể hiện thành biểu tượng đăng ký. Khi chọn biểu tượng này, người sử dụng được dẫn về phần thông tin đăng ký tương ứng của thương nhân, tổ chức tại Cổng thông tin Quản lý hoạt động thương mại điện tử.
+Điều 17. Sửa đổi, bổ sung thông tin đã đăng ký
+1. Trường hợp có sự thay đổi một trong những thông tin liên quan tới website cung cấp dịch vụ thương mại điện tử đã được đăng ký quy định tại Khoản 1 Điều 56 Nghị định số 52/2013/NĐ-CP , thương nhân, tổ chức phải thông báo về Bộ Công Thương trong thời hạn 7 ngày làm việc kể từ ngày có sự thay đổi thông tin.
+2. Việc thông báo được thực hiện trực tuyến qua tài khoản truy cập hệ thống đã được cấp hoặc bằng văn bản gửi trực tiếp hoặc qua đường bưu điện về Bộ Công Thương (Cục Thương mại điện tử và Kinh tế số[13]), kèm theo bản sao các giấy tờ, tài liệu chứng minh sự thay đổi (nếu có).
+3. Trong thời hạn 7 ngày làm việc kể từ ngày nhận được thông báo đầy đủ, chính xác của thương nhân, tổ chức theo quy định tại Khoản 2 Điều này, Bộ Công Thương tiến hành xem xét việc xác nhận hoặc không xác nhận thông tin sửa đổi, bổ sung và phản hồi lại cho thương nhân, tổ chức qua tài khoản truy cập hệ thống đã được cấp; trường hợp không xác nhận phải nêu rõ lý do.
+Điều 18. Hủy bỏ, chấm dứt đăng ký
+1. Bộ Công Thương chấm dứt đăng ký đối với website cung cấp dịch vụ thương mại điện tử theo quy định tại Khoản 3 Điều 56 Nghị định số 52/2013/NĐ-CP .
+2. Thương nhân, tổ chức thiết lập website thương mại điện tử khi ngừng hoạt động hoặc chuyển nhượng website phải thông báo cho Bộ Công Thương trước 7 ngày làm việc để chấm dứt đăng ký. Việc thông báo này được thực hiện trực tuyến qua tài khoản truy cập hệ thống đã được cấp khi tiến hành đăng ký hoặc bằng văn bản gửi trực tiếp hoặc qua đường bưu điện về Bộ Công Thương (Cục Thương mại điện tử và Kinh tế số[14]).
+3. Thương nhân, tổ chức bị hủy bỏ đăng ký website cung cấp dịch vụ thương mại điện tử trong các trường hợp sau:
+a) Thực hiện các hành vi bị cấm trong hoạt động thương mại điện tử theo quy định tại Điều 4 Nghị định số 52/2013/NĐ-CP ;
+b) Không thực hiện nghĩa vụ báo cáo theo quy định tại Điều 57 Nghị định số 52/2013/NĐ-CP và tiếp tục tái phạm sau khi đã được nhắc nhở;
+c) Bị đình chỉ hoạt động thương mại điện tử theo quyết định xử lý vi phạm của cơ quan nhà nước có thẩm quyền;
+d) Không thực hiện trách nhiệm theo quy định tại Điều 4 Thông tư này và tái phạm sau khi đã được nhắc nhở.
+4. Thông tin về các website cung cấp dịch vụ thương mại điện tử bị hủy bỏ đăng ký sẽ được công bố trên Cổng thông tin Quản lý hoạt động thương mại điện tử.
+Điều 19. Đăng ký lại đối với website cung cấp dịch vụ thương mại điện tử
+1. Thương nhân, tổ chức khi nhận chuyển nhượng website cung cấp dịch vụ thương mại điện tử phải tiến hành đăng ký lại theo quy trình quy định tại Điều 15 Thông tư này.
+2. Thời gian thương nhân, tổ chức phải tiến hành đăng ký lại không vượt quá 30 ngày kể từ ngày nhận chuyển nhượng website cung cấp dịch vụ thương mại điện tử.
+3. Website cung cấp dịch vụ thương mại điện tử bị hủy bỏ đăng ký thuộc các trường hợp quy định tại điểm b, điểm c, điểm d Khoản 3 Điều 18 Thông tư này được làm thủ tục đăng ký lại khi đáp ứng các điều kiện sau đây:
+a) Đã khắc phục các hành vi vi phạm dẫn đến bị hủy bỏ đăng ký hoặc đã hết thời hạn bị đình chỉ hoạt động thương mại điện tử theo quyết định xử lý vi phạm của cơ quan nhà nước có thẩm quyền;
+b) Đáp ứng các điều kiện thiết lập website cung cấp dịch vụ thương mại điện tử theo quy định tại Điều 54 Nghị định số 52/2013/NĐ-CP .
+Điều 20. Phương thức báo cáo của thương nhân, tổ chức đã đăng ký website cung cấp dịch vụ thương mại điện tử [15]
+Thương nhân, tổ chức thiết lập website cung cấp dịch vụ thương mại điện tử báo cáo Bộ Công Thương số liệu thống kê về tình hình hoạt động của năm trước đó bằng phương thức trực tuyến thông qua Cổng thông tin Quản lý hoạt động thương mại điện tử hoặc dưới hình thức văn bản qua đường bưu điện.
+Điều 20a. Hoạt động cung cấp dịch vụ chứng thực hợp đồng điện tử[16]
+1. Quy chế hoạt động cung cấp dịch vụ chứng thực hợp đồng điện tử phải công bố công khai trên trang chủ của website và bao gồm các nội dung sau:
+a) Quyền và nghĩa vụ của thương nhân, tổ chức cung cấp dịch vụ;
+b) Quyền và nghĩa vụ của người sử dụng dịch vụ;
+c) Mô tả phương thức và quy trình thực hiện hoạt động chứng thực hợp đồng điện tử;
+d) Giới hạn trách nhiệm của thương nhân, tổ chức cung cấp dịch vụ chứng thực hợp đồng điện tử;
+đ) Các quy định về an toàn thông tin, quản lý thông tin trong hoạt động cung cấp dịch vụ chứng thực hợp đồng điện tử;
+e) Cơ chế giải quyết khiếu nại, tranh chấp giữa các bên liên quan đến hoạt động cung cấp dịch vụ chứng thực hợp đồng điện tử;
+g) Biện pháp xử lý vi phạm đối với những người không tuân thủ quy chế hoạt động.
+2. Khi có thay đổi về một trong các nội dung nêu tại khoản 1 Điều này, thương nhân, tổ chức cung cấp dịch vụ chứng thực hợp đồng điện tử phải thông báo cho tất cả các đối tượng sử dụng dịch vụ ít nhất 05 ngày trước khi áp dụng những thay đổi đó.
+Chương III
+THỦ TỤC ĐĂNG KÝ HOẠT ĐỘNG ĐÁNH GIÁ TÍN NHIỆM WEBSITE THƯƠNG MẠI ĐIỆN TỬ
+Điều 21.[17] (được bãi bỏ)
+Điều 22. Hồ sơ đăng ký
+1. Đơn đăng ký hoạt động đánh giá tín nhiệm website thương mại điện tử (theo Mẫu TMĐT-2 tại Phụ lục ban hành kèm theo Thông tư này).
+2.[18] Bản sao từ sổ gốc hoặc bản sao có chứng thực hoặc bản sao xuất trình kèm bản chính để đối chiếu.
+Cá nhân, tổ chức trực tiếp thực hiện thủ tục hành chính tại cơ quan, tổ chức có quyền lựa chọn nộp một trong ba hình thức bản sao trên.
+3. Đề án hoạt động đánh giá tín nhiệm website thương mại điện tử bao gồm các nội dung tối thiểu sau:
+a) Tên chính thức của chương trình đánh giá tín nhiệm website thương mại điện tử;
+b) Mục đích hoạt động đánh giá tín nhiệm website thương mại điện tử;
+c) Giải trình kinh nghiệm, năng lực phù hợp với hoạt động đánh giá tín nhiệm;
+d) Phạm vi đánh giá tín nhiệm phù hợp với phạm vi hoạt động của thương nhân, tổ chức;
+đ) Thời gian và tần suất tiến hành hoạt động đánh giá tín nhiệm;
+e) Đối tượng hoặc loại hình website thương mại điện tử sẽ được đánh giá tín nhiệm;
+g) Các tiêu chí được áp dụng để đánh giá một website thương mại điện tử, trong đó phải bao gồm tiêu chí website thương mại điện tử đã hoàn thành việc thông báo hoặc đăng ký với Bộ Công Thương theo quy định tại Nghị định số 52/2013/NĐ-CP ;
+h) Quy trình, cách thức tiến hành đánh giá một website thương mại điện tử;
+i) Cách thức tổ chức hoạt động đánh giá tín nhiệm và lựa chọn nhân sự thực hiện việc đánh giá;
+k) Thiết kế biểu tượng tín nhiệm sẽ gắn lên các website thương mại điện tử được đánh giá;
+l) Phương án giám sát hoạt động của các website thương mại điện tử đã được gắn biểu tượng tín nhiệm;
+m) Quyền, nghĩa vụ của bên đánh giá tín nhiệm và bên có website được đánh giá tín nhiệm.
+Điều 23. Quy trình đăng ký
+1. Việc tiếp nhận, xử lý hồ sơ đăng ký hoạt động đánh giá tín nhiệm website thương mại điện tử được Bộ Công Thương thực hiện trực tuyến qua Cổng thông tin Quản lý hoạt động thương mại điện tử tại địa chỉ www.online.gov.vn.
+2. Để khai báo hồ sơ, thương nhân, tổ chức truy cập vào Cổng thông tin Quản lý hoạt động thương mại điện tử và tiến hành các bước sau:
+Bước 1: Thương nhân, tổ chức đăng ký tài khoản đăng nhập hệ thống bằng việc cung cấp những thông tin sau:
+- Tên thương nhân, tổ chức;
+- Số đăng ký kinh doanh của thương nhân hoặc số quyết định thành lập của tổ chức;
+- Lĩnh vực kinh doanh/hoạt động;
+- Địa chỉ trụ sở của thương nhân, tổ chức;
+Bước 2: Trong thời hạn 3 ngày làm việc, thương nhân, tổ chức nhận kết quả từ Bộ Công Thương qua địa chỉ thư điện tử đã đăng ký về một trong các nội dung sau:
+- Nếu thông tin đăng ký tài khoản đầy đủ, thương nhân, tổ chức được cấp một tài khoản đăng nhập hệ thống và tiến hành tiếp Bước 3;
+- Nếu đăng ký tài khoản bị từ chối hoặc yêu cầu bổ sung thông tin, thương nhân, tổ chức phải tiến hành đăng ký lại hoặc bổ sung thông tin theo yêu cầu.
+Bước 3: Thương nhân, tổ chức đăng nhập vào tài khoản của mình trên thống, chọn chức năng Đăng ký hoạt động đánh giá tín nhiệm website thương mại điện tử, tiến hành khai báo thông tin theo mẫu và đính kèm hồ sơ đăng ký quy định tại Điều 22 Thông tư này.
+Bước 4: Trong thời hạn 15 ngày làm việc, thương nhân, tổ chức nhận thông tin phản hồi của Bộ Công Thương qua thư điện tử về một trong các nội dung sau:
+- Xác nhận hồ sơ đăng ký đầy đủ, hợp lệ và yêu cầu thương nhân, tổ chức thực hiện tiếp Bước 5;
+- Thông báo hồ sơ đăng ký không hợp lệ hoặc yêu cầu bổ sung thông tin. Khi đó thương nhân, tổ chức quay về Bước 3 để khai báo lại hoặc bổ sung các thông tin, hồ sơ theo yêu cầu.
+Bước 5: Sau khi nhận được thông báo xác nhận hồ sơ đầy đủ và hợp lệ, thương nhân, tổ chức gửi về Bộ Công Thương (Cục Thương mại điện tử và Kinh tế số [19]) bộ hồ sơ đăng ký hoàn chỉnh (bản giấy) theo quy định tại Điều 22 Thông tư này.
+3. Thương nhân, tổ chức có trách nhiệm theo dõi tình trạng xử lý hồ sơ qua thư điện tử hoặc tài khoản truy cập hệ thống đã được cấp để tiến hành cập nhật và chỉnh sửa thông tin theo yêu cầu.
+4. Trong thời hạn 30 ngày làm việc kể từ khi nhận được thông báo yêu cầu bổ sung thông tin ở Bước 4 theo quy định tại Khoản 2 Điều này, nếu thương nhân, tổ chức không có phản hồi thì hồ sơ đăng ký trên hệ thống sẽ bị chấm dứt và thương nhân, tổ chức phải tiến hành đăng ký lại từ đầu.
+Điều 24. Xác nhận đăng ký
+1. Thời gian xác nhận đăng ký: 7 ngày làm việc kể từ ngày nhận được hồ sơ đăng ký bản giấy đầy đủ, hợp lệ do thương nhân, tổ chức gửi trực tiếp hoặc qua đường bưu điện về Bộ Công Thương (Cục Thương mại điện tử và Kinh tế số[20]) khi hoàn thành quy trình đăng ký quy định tại Khoản 2 Điều 23 Thông tư này. Trường hợp hồ sơ bản giấy gửi về không khớp với những tài liệu, thông tin mà thương nhân, tổ chức đã khai báo trực tuyến, Bộ Công Thương thông báo qua địa chỉ thư điện tử mà thương nhân, tổ chức đã đăng ký để thương nhân, tổ chức hoàn chỉnh hồ sơ.
+2. Khi xác nhận đăng ký, Bộ Công Thương sẽ gửi thông báo về việc xác nhận đăng ký cho thương nhân, tổ chức qua địa chỉ thư điện tử đã đăng ký, đồng thời đưa tên thương nhân, tổ chức vào danh sách các thương nhân, tổ chức cung cấp dịch vụ đánh giá tín nhiệm đã đăng ký trên Cổng thông tin Quản lý hoạt động thương mại điện tử.
+3. Sau khi được xác nhận đăng ký, biểu tượng tín nhiệm của thương nhân, tổ chức đánh giá tín nhiệm website thương mại điện tử cùng với danh sách các website được gắn biểu tượng này sẽ được công bố trên Cổng thông tin Quản lý hoạt động thương mại điện tử.
+Điều 25. Sửa đổi, bổ sung thông tin đã đăng ký
+1. Thương nhân, tổ chức đánh giá tín nhiệm website thương mại điện tử phải thông báo sửa đổi, bổ sung thông tin đăng ký trong thời hạn 7 ngày làm việc kể từ ngày có một trong những thay đổi sau:
+a) Thay đổi tên thương nhân, tổ chức;
+b) Thay đổi người đại diện của thương nhân, tổ chức; thay đổi người chịu trách nhiệm về hoạt động đánh giá tín nhiệm website thương mại điện tử;
+c) Thay đổi địa chỉ trụ sở giao dịch hoặc thông tin liên hệ;
+d) Thay đổi tiêu chí và quy trình đánh giá tín nhiệm website thương mại điện tử hoặc các nội dung khác của Đề án hoạt động đánh giá tín nhiệm website thương mại điện tử được quy định tại Khoản 3 Điều 22 Thông tư này.
+2. Việc thông báo sửa đổi, bổ sung thông tin đăng ký được thực hiện trực tuyến qua tài khoản truy cập hệ thống đã được cấp khi tiến hành đăng ký hoặc bằng văn bản gửi trực tiếp hoặc qua đường bưu điện về Bộ Công Thương (Cục Thương mại điện tử và Kinh tế số[21]), kèm theo bản sao các giấy tờ, tài liệu chứng minh sự thay đổi (nếu có).
+3. Trong thời hạn 7 ngày làm việc kể từ ngày nhận được thông báo đầy đủ, chính xác của thương nhân, tổ chức theo quy định tại Khoản 2 Điều này, Bộ Công Thương tiến hành xem xét việc xác nhận hoặc không xác nhận thông tin sửa đổi, bổ sung và phản hồi lại cho thương nhân, tổ chức qua tài khoản truy cập hệ thống đã được cấp; trường hợp không xác nhận phải nêu rõ lý do.
+Điều 26. Hủy bỏ, chấm dứt đăng ký
+1. Bộ Công Thương chấm dứt đăng ký đối với thương nhân, tổ chức đánh giá tín nhiệm website thương mại điện tử trong các trường hợp sau:
+a) Theo đề nghị của thương nhân, tổ chức đó;
+b) Thương nhân, tổ chức ngừng hoạt động đánh giá tín nhiệm website thương mại điện tử;
+c) Thương nhân, tổ chức đăng ký hoạt động đánh giá tín nhiệm với tần suất đánh giá thường xuyên, liên tục nhưng quá 1 năm mà không tiến hành hoạt động này.
+d) Thương nhân, tổ chức đánh giá tín nhiệm website thương mại điện tử không thực hiện nghĩa vụ theo quy định tại Khoản 4 Điều 61 Nghị định số 52/2013/NĐ-CP và tiếp tục tái phạm sau khi đã bị nhắc nhở;
+đ) Thương nhân, tổ chức đánh giá tín nhiệm website thương mại điện tử bị hủy bỏ đăng ký theo quy định tại Khoản 2 Điều 61 Nghị định số 52/2013/NĐ-CP .
+2. Thương nhân, tổ chức đánh giá tín nhiệm website thương mại điện tử khi ngừng hoạt động phải thông báo cho Bộ Công Thương trước 15 ngày làm việc để chấm dứt đăng ký. Việc thông báo này được thực hiện trực tuyến qua tài khoản truy cập hệ thống đã được cấp khi tiến hành đăng ký hoặc bằng văn bản gửi trực tiếp hoặc qua đường bưu điện về Bộ Công Thương (Cục Thương mại điện tử và Kinh tế số[22]).
+3. Khi chấm dứt hoặc hủy bỏ đăng ký, Bộ Công Thương sẽ rút tên thương nhân, tổ chức khỏi danh sách các thương nhân, tổ chức đánh giá tín nhiệm website thương mại điện tử đã đăng ký, đồng thời xóa biểu tượng tín nhiệm của thương nhân, tổ chức đó cùng với danh sách các website được gắn biểu tượng này trên Cổng thông tin Quản lý hoạt động thương mại điện tử.
+Điều 27. Nghĩa vụ báo cáo định kỳ của thương nhân, tổ chức đánh giá tín nhiệm website thương mại điện tử
+1. Trước ngày 05 hàng tháng, thương nhân, tổ chức phải cập nhật trên Cổng thông tin Quản lý hoạt động thương mại điện tử danh sách các website thương mại điện tử được mình gắn biểu tượng tín nhiệm tính đến cuối tháng trước đó.
+2.[23] Trước ngày 15 tháng 01 hằng năm, thương nhân, tổ chức đánh giá tín nhiệm website thương mại điện tử phải báo cáo kết quả hoạt động đánh giá tín nhiệm của năm trước đó với Bộ Công Thương (Cục Thương mại điện tử và Kinh tế số) bằng phương thức qua dịch vụ bưu chính hoặc trực tuyến thông qua tài khoản của thương nhân, tổ chức tại Cổng thông tin Quản lý hoạt động thương mại điện tử theo mẫu TMĐT-3 và mẫu TMĐT-4 tại Phụ lục ban hành kèm theo Thông tư này.
+3. Để phục vụ công tác thanh tra, kiểm tra của cơ quan quản lý nhà nước hoặc làm rõ thông tin phản ánh của tổ chức, cá nhân theo quy định tại Điều 31 Thông tư này, thương nhân, tổ chức đánh giá tín nhiệm website thương mại điện tử có nghĩa vụ báo cáo, cung cấp thông tin về các website do mình gắn biểu tượng tín nhiệm khi được Bộ Công Thương yêu cầu.
+Chương IV
+CÔNG BỐ THÔNG TIN TRÊN CỔNG THÔNG TIN QUẢN LÝ HOẠT ĐỘNG THƯƠNG MẠI ĐIỆN TỬ
+Điều 28. Công bố danh sách các website thương mại điện tử đã thực hiện thủ tục thông báo và đăng ký
+1. Ngay sau khi website thương mại điện tử hoàn thành thủ tục thông báo hoặc đăng ký theo các quy định tại Thông tư này và nhận được xác nhận của Bộ Công Thương, thông tin về website sẽ được đưa vào danh sách website thương mại điện tử đã thông báo hoặc đăng ký để công bố công khai trên Cổng thông tin Quản lý hoạt động thương mại điện tử.
+2. Thông tin công bố bao gồm các thông tin quy định tại Khoản 2 Điều 65 Nghị định số 52/2013/NĐ-CP .
+3. Khi một website cung cấp dịch vụ thương mại điện tử bị chấm dứt hoặc hủy bỏ đăng ký, thông tin về website sẽ bị rút khỏi danh sách này và chuyển sang chế độ website đã chấm dứt đăng ký hoặc chuyển vào danh sách website vi phạm quy định của pháp luật theo quy định tại Điều 30 Thông tư này.
+Điều 28a. Công bố danh sách doanh nghiệp dẫn đầu thị trường trong lĩnh vực dịch vụ thương mại điện tử[24]
+1. Trước ngày 15 tháng 3 hàng năm, Bộ Công Thương công bố nhóm 05 doanh nghiệp dẫn đầu thị trường của năm trước đó.
+2. Thông tin công bố bao gồm:
+a) Tên thương nhân, tổ chức cung cấp dịch vụ thương mại điện tử;
+b) Tên website, ứng dụng cung cấp dịch vụ thương mại điện tử.
+Điều 29. Công bố danh sách các thương nhân, tổ chức đánh giá tín nhiệm website thương mại điện tử đã thực hiện thủ tục đăng ký
+1. Ngay sau khi thương nhân, tổ chức hoạt động đánh giá tín nhiệm website thương mại điện tử hoàn thành thủ tục đăng ký theo các quy định tại Thông tư này và nhận được xác nhận của Bộ Công Thương, thông tin về thương nhân, tổ chức sẽ được đưa vào danh sách các thương nhân, tổ chức đánh giá tín nhiệm website thương mại điện tử đã đăng ký để công bố công khai trên Cổng thông tin Quản lý hoạt động thương mại điện tử.
+2. Thông tin công bố bao gồm các thông tin quy định tại Khoản 2 Điều 66 Nghị định số 52/2013/NĐ-CP .
+3. Khi bị chấm dứt hoặc hủy bỏ đăng ký, thông tin về thương nhân, tổ chức đánh giá tín nhiệm website thương mại điện tử sẽ bị rút khỏi danh sách này và chuyển sang chế độ đã chấm dứt đăng ký hoặc chuyển vào danh sách các thương nhân, tổ chức vi phạm quy định của pháp luật.
+Điều 29a. Công bố danh sách các thương nhân, tổ chức cung cấp dịch vụ chứng thực hợp đồng điện tử đã thực hiện thủ tục đăng ký [25]
+1. Danh sách thương nhân, tổ chức cung cấp dịch vụ chứng thực hợp đồng điện tử đã hoàn thành thủ tục đăng ký và nhận được xác nhận của Bộ Công Thương được công bố công khai trên Cổng thông tin Quản lý hoạt động thương mại điện tử.
+2. Thông tin công bố bao gồm:
+a) Tên thương nhân, tổ chức cung cấp dịch vụ chứng thực hợp đồng điện tử;
+b) Số đăng ký kinh doanh hoặc số quyết định thành lập của thương nhân, tổ chức;
+c) Địa chỉ trụ sở, số điện thoại và địa chỉ thư điện tử của thương nhân, tổ chức;
+3. Khi bị chấm dứt hoặc hủy bỏ đăng ký, thông tin về thương nhân, tổ chức cung cấp dịch vụ chứng thực hợp đồng điện tử sẽ bị rút khỏi danh sách này và chuyển sang chế độ đã chấm dứt đăng ký hoặc chuyển vào danh sách các thương nhân, tổ chức vi phạm quy định của pháp luật.
+Điều 30. Công bố danh sách các website thương mại điện tử vi phạm quy định của pháp luật
+1. Bộ Công Thương công bố trên Cổng thông tin Quản lý hoạt động thương mại điện tử danh sách các website thương mại điện tử vi phạm pháp luật theo quy định tại Điều 4 Nghị định số 52/2013/NĐ-CP và các quy định về xử lý vi phạm hành chính trong thương mại điện tử.
+2. Thông tin công bố bao gồm:
+a) Tên website thương mại điện tử;
+b) Tên và thông tin của thương nhân, tổ chức, cá nhân sở hữu website;
+c) Hành vi vi phạm của thương nhân, tổ chức, cá nhân.
+Điều 31. Tiếp nhận thông tin phản ánh và công bố danh sách website thương mại điện tử bị phản ánh về việc có dấu hiệu vi phạm pháp luật
+1. Bộ Công Thương tiếp nhận phản ánh của tổ chức, cá nhân về các hành vi sau trên website thương mại điện tử:
+a) Vi phạm các quy định về thông báo và đăng ký website thương mại điện tử;
+b) Vi phạm các quy định về giao kết hợp đồng trong thương mại điện tử tại Nghị định số 52/2013/NĐ-CP ;
+c) Vi phạm các quy định về trách nhiệm của người sở hữu website thương mại điện tử bán hàng hoặc người cung cấp dịch vụ thương mại điện tử tại Nghị định số 52/2013/NĐ-CP ;
+d) Vi phạm các quy định về bảo vệ thông tin cá nhân và an toàn thanh toán trong thương mại điện tử tại Nghị định số 52/2013/NĐ-CP ;
+đ) Các vi phạm khác quy định tại Điều 4 Nghị định số 52/2013/NĐ-CP .
+2. Tổ chức, cá nhân thực hiện việc phản ánh trực tuyến trên Cổng thông tin Quản lý hoạt động thương mại điện tử tại địa chỉ www.online.gov.vn. Khi thực hiện phản ánh, tổ chức, cá nhân phải cung cấp các thông tin tối thiểu sau:
+a) Họ tên, số chứng minh thư nhân dân, địa chỉ cư trú, số điện thoại và địa chỉ thư điện tử của người phản ánh;
+b) Địa chỉ website thương mại điện tử nơi diễn ra hành vi bị phản ánh;
+c) Hành vi bị phản ánh;
+d) Tóm tắt nội dung phản ánh;
+đ) Các tài liệu, bằng chứng chứng minh hành vi vi phạm (nếu có).
+3. Trong thời hạn 5 ngày làm việc, tổ chức, cá nhân thực hiện phản ánh nhận trả lời của Bộ Công Thương qua địa chỉ thư điện tử đã cung cấp về một trong các nội dung sau:
+- Xác nhận thông tin phản ánh đầy đủ, hợp lệ và được tính vào số lượng phản ánh quy định tại điểm a Khoản 4 Điều này;
+- Thông báo thông tin phản ánh không hợp lệ hoặc yêu cầu bổ sung thông tin.
+4. Việc công bố thông tin phản ánh đối với một website thương mại điện tử trên Cổng thông tin Quản lý hoạt động thương mại điện tử được thực hiện như sau:
+a) Website thương mại điện tử có trên 5 (năm) ý kiến phản ánh từ các tổ chức, cá nhân khác nhau về một hoặc nhiều hành vi nêu tại Khoản 1 Điều này sẽ nhận được thông báo của Bộ Công Thương yêu cầu giải trình về những ý kiến phản ánh nói trên;
+b) Sau thời hạn 10 ngày làm việc kể từ ngày nhận được yêu cầu giải trình của Bộ Công Thương, nếu thương nhân, tổ chức, cá nhân sở hữu website thương mại điện tử không phản hồi hoặc không giải trình được về các ý kiến phản ánh, thì website đó sẽ bị đưa vào danh sách website thương mại điện tử bị phản ánh về việc có dấu hiệu vi phạm pháp luật và có thể bị xử lý vi phạm hành chính theo quy định của pháp luật.
+Chương V
+ĐIỀU KHOẢN THI HÀNH
+Điều 32. Trách nhiệm thi hành
+1. Bộ trưởng Bộ Công Thương giao Cục Thương mại điện tử và Kinh tế số[26] thực hiện các thủ tục thông báo, đăng ký website thương mại điện tử, đăng ký hoạt động đánh giá tín nhiệm website thương mại điện tử và công bố thông tin trên Cổng thông tin Quản lý hoạt động thương mại điện tử theo các quy định tại Thông tư này.
+2. Các cơ quan, đơn vị có liên quan thuộc Bộ Công Thương có trách nhiệm phối hợp tham gia công tác quản lý nhà nước đối với hoạt động thương mại điện tử theo thẩm quyền.
+3. Sở Công Thương các tỉnh, thành phố trực thuộc Trung ương trong phạm vi chức năng, quyền hạn của mình phối hợp với Cục Thương mại điện tử và Kinh tế số[27] trong việc thẩm tra, xác minh các thông tin thông báo, đăng ký; theo dõi, cập nhật và công bố thông tin trên Cổng thông tin Quản lý hoạt động thương mại điện tử.
+Điều 33. Hiệu lực thi hành[28]
+1. Thông tư này có hiệu lực thi hành kể từ ngày 20 tháng 01 năm 2015.
+2. Thông tư này thay thế Thông tư số 12/2013/TT-BCT ngày 20 tháng 6 năm 2013 của Bộ Công Thương quy định thủ tục thông báo, đăng ký và công bố thông tin liên quan đến website thương mại điện tử.
+3. Các thương nhân, tổ chức, cá nhân đã tiến hành thông báo, đăng ký theo quy định tại Thông tư số 12/2013/TT-BCT phải tiến hành bổ sung thông tin hồ sơ để tuân thủ các quy định tại Thông tư này trong vòng 90 ngày kể từ ngày Thông tư có hiệu lực.
+4. Trong quá trình thực hiện Thông tư này, nếu có phát sinh vướng mắc, thương nhân hoặc các tổ chức, cá nhân có liên quan kịp thời phản ánh về Bộ Công Thương để xem xét, xử lý./.
+Nơi nhận:
+- Văn phòng Chính phủ (để đăng Công báo);
+- Bộ Tư pháp (để theo dõi);
+- Văn phòng Bộ (để đăng website BCT);
+- Vụ Pháp chế (để đăng CSDLQG);
+- Lưu: VT, TMĐT.
+XÁC THỰC VĂN BẢN HỢP NHẤT
+BỘ TRƯỞNG
+Nguyễn Hồng Diên
+PHỤ LỤC
+Các biểu mẫu ban hành kèm theo Thông tư số 47/2014/TT-BCT ngày 05 tháng 12 năm 2014 của Bộ trưởng Bộ Công Thương
+1.[29] Đơn đăng ký website cung cấp dịch vụ thương mại điện tử (Mẫu TMĐT-1).
+2. Đơn đăng ký hoạt động đánh giá tín nhiệm website thương mại điện tử (Mẫu TMĐT-2).
+3.[30] Mẫu đề cương Báo cáo về tình hình hoạt động của website cung cấp dịch vụ thương mại điện tử/ ứng dụng cung cấp dịch vụ thương mại điện tử (Mẫu TMĐT-3).
+4.[31] Mẫu đề cương Báo cáo kết quả đánh giá tín nhiệm website thương mại điện tử (Mẫu TMĐT-4).
+MẪU TMĐT-1
+TÊN THƯƠNG NHÂN,
+TỔ CHỨC
+-------
+CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+Độc lập - Tự do - Hạnh phúc
+---------------
+Số: ……..
+……, ngày…… tháng…..năm….
+ĐƠN ĐĂNG KÝ WEBSITE CUNG CẤP DỊCH VỤ THƯƠNG MẠI ĐIỆN TỬ
+Kính gửi: Cục Thương mại điện tử và Kinh tế số[32] - Bộ Công Thương
+1. Tên thương nhân, tổ chức sở hữu website/ứng dụng cung cấp dịch vụ thương mại điện tử:
+- Tên đăng ký: ………………………………………………………………………………
+- Tên giao dịch: …………………………………………………………………………….
+STT
+Nội dung thông tin
+1a. Thông tin người đại diện theo pháp luật của thương nhân/tổ chức
+1b. Thông tin người chịu trách nhiệm đối với website/ứng dụng cung cấp dịch vụ thương mại điện tử[33]
+1
+Họ và tên người liên hệ
+………………………………..
+………………………………..
+………………………………..
+………………………………..
+………………………………..
+………………………………..
+2
+Chức danh
+………………………………..
+………………………………..
+………………………………..
+………………………………..
+3
+Địa chỉ liên hệ
+………………………………..
+………………………………..
+………………………………..
+………………………………..
+4
+Số điện thoại di động
+………………………………..
+………………………………..
+………………………………..
+………………………………..
+5
+Địa chỉ email
+………………………………..
+………………………………..
+………………………………..
+………………………………..
+6
+Các phương thức liên hệ trực tuyến (viber, zalo,...)
+………………………………..
+………………………………..
+………………………………..
+………………………………..
+2. Địa chỉ trụ sở: …………………………………………………………………………………….
+Điện thoại: Fax: Email:
+3. Số, ngày cấp, nơi cấp Giấy chứng nhận đăng ký kinh doanh hoặc đăng ký doanh nghiệp (đối với thương nhân) hoặc Giấy phép kinh doanh (đối với nhà đầu tư nước ngoài) hoặc Quyết định thành lập (đối với tổ chức):
+Loại Giấy chứng nhận/Quyết định thành lập:
+Số: Ngày cấp: Nơi cấp:
+4. Tên miền Internet của website hoặc tên ứng dụng cung cấp dịch vụ thương mại điện tử: …….
+5. Loại hình dịch vụ cung cấp trên website/ứng dụng:
+□ Dịch vụ sàn giao dịch thương mại điện tử
+□ Dịch vụ khuyến mại trực tuyến
+□ Dịch vụ đấu giá trực tuyến
+□ Dịch vụ khác (đề nghị nêu rõ: )
+6. Các loại hàng hóa hoặc dịch vụ chủ yếu được giao dịch trên website/ứng dụng:
+□ Hàng điện tử, gia dụng
+□ Máy tính, điện thoại, thiết bị văn phòng
+□ Ô tô, xe máy, xe đạp
+□ Thời trang, mỹ phẩm, chăm sóc sức khỏe
+□ Công nghiệp, xây dựng
+□ Thiết bị nội thất, ngoại thất
+□ Bất động sản
+□ Sách, văn phòng phẩm
+□ Hoa, quà tặng, đồ chơi
+□ Thực phẩm, đồ uống
+□ Dịch vụ lưu trú và du lịch
+□ Dịch vụ việc làm
+□ Dịch vụ khác
+□ Hàng hóa khác
+7. Đơn vị cung cấp dịch vụ Hosting: ……………………………………………………………
+Nơi nhận:
+- Như trên;
+- Cơ quan chủ quản (nếu có);
+- Lưu:
+CHỮ KÝ NGƯỜI ĐẠI DIỆN THEO PHÁP LUẬT
+(Ký tên, đóng dấu)
+MẪU TMĐT-2
+TÊN THƯƠNG NHÂN,
+TỔ CHỨC
+-------
+CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+Độc lập - Tự do - Hạnh phúc
+---------------
+Số: ……..
+……, ngày…… tháng…..năm….
+ĐƠN ĐĂNG KÝ HOẠT ĐỘNG ĐÁNH GIÁ TÍN NHIỆM WEBSITE THƯƠNG MẠI ĐIỆN TỬ
+Kính gửi: Cục Thương mại điện tử và Kinh tế số[34] - Bộ Công Thương
+1. Tên thương nhân, tổ chức đánh giá tín nhiệm website thương mại điện tử:
+Tên đăng ký:
+Tên giao dịch:
+2. Số, ngày cấp, nơi cấp Giấy chứng nhận đăng ký doanh nghiệp hoặc Giấy chứng nhận đầu tư (đối với thương nhân) hoặc Quyết định thành lập (đối với tổ chức):
+Loại Giấy chứng nhận/Quyết định thành lập:
+Số: Ngày cấp: Nơi cấp:
+3. Lĩnh vực hoạt động chính của thương nhân/tổ chức: …………………………………………..
+4. Tên và chức danh người đại diện thương nhân/tổ chức: ………………………………………
+5. Tên cơ quan chủ quản (nếu có): ………………………………………………………………….
+6. Tên, chức danh người chịu trách nhiệm chính về hoạt động đánh giá tín nhiệm website thương mại điện tử:
+7. Tên chính thức của chương trình đánh giá tín nhiệm:
+8. Đối tượng hoặc loại hình website thương mại điện tử sẽ tiến hành đánh giá:
+9. Thời gian và tần suất tiến hành hoạt động đánh giá tín nhiệm website thương mại điện tử:
+O Một lần (nêu cụ thể thời gian tiến hành: ………………………………………………………..)
+O Định kỳ trong một giai đoạn (nêu cụ thể: ……………………………………………………….)
+O Liên tục, có thời hạn (nêu cụ thể thời hạn: ……………………………………………………..)
+O Liên tục, không thời hạn
+10. Cơ chế giám sát các website thương mại điện tử đã được gắn biểu tượng tín nhiệm:
+□ Thường xuyên rà soát hoạt động của các website (tần suất rà soát: ……………………….)
+□ Yêu cầu các website có báo cáo định kỳ (tần suất báo cáo: …………………………………)
+□ Cơ chế khác (nêu cụ thể: ………………………………………………………………………...)
+11. Tên miền Internet của website phục vụ hoạt động đánh giá tín nhiệm website thương mại điện tử:
+12. Địa chỉ trụ sở: …………………………………………………………………………………….
+Điện thoại: Fax: Email:
+Nơi nhận:
+- Như trên;
+- Cơ quan chủ quản (nếu có);
+- Lưu:
+CHỮ KÝ NGƯỜI ĐẠI DIỆN THEO PHÁP LUẬT
+(Ký tên, đóng dấu)
+Mẫu TMĐT-3
+Mẫu đề cương Báo cáo về tình hình hoạt động của website cung cấp dịch vụ thương mại điện tử/ ứng dụng cung cấp dịch vụ thương mại điện tử
+1. Tên thương nhân, tổ chức
+2. Địa chỉ
+3. Điện thoại/Fax/Email
+4. Tình hình hoạt động của website/ứng dụng cung cấp dịch vụ thương mại điện tử
+- Mô hình hoạt động, phạm vi hoạt động
+- Nguồn vốn đầu tư
+- Tiện ích, công cụ hỗ trợ và chính sách trên website/ ứng dụng cung cấp dịch vụ thương mại điện tử
+- Tình hình kinh doanh trên các website, ứng dụng cung cấp dịch vụ thương mại điện tử
+- Các khó khăn, trở ngại khi vận hành website, ứng dụng cung cấp dịch vụ thương mại điện tử
+5. Các kiến nghị, đề xuất (nếu có)
+Mẫu TMĐT-4
+Mẫu đề cương Báo cáo kết quả đánh giá tín nhiệm website thương mại điện tử
+1. Tên thương nhân, tổ chức
+2. Địa chỉ
+3. Điện thoại/Fax/Email
+4. Kết quả đánh giá tín nhiệm website thương mại điện tử
+5. Các kiến nghị, đề xuất (nếu có)
+[1] Thông tư số 04/2016/TT-BCT sửa đổi, bổ sung một số Thông tư của Bộ trưởng Bộ Công Thương về thủ tục hành chính trong lĩnh vực thương mại điện tử, hóa chất, sản xuất kinh doanh rượu, nhượng quyền thương mại, hoạt động mua bán hàng hóa qua sở giao dịch hàng hóa, năng lượng, an toàn thực phẩm và điện lực, có hiệu lực kể từ ngày 20 tháng 7 năm 2016 có căn cứ ban hành như sau:
+“Căn cứ Nghị định số 95/2012/NĐ-CP ngày 12 tháng 11 năm 2012 của Chính phủ quy định chức năng, nhiệm vụ, quyền hạn và cơ cấu tổ chức của Bộ Công Thương;
+Căn cứ Nghị định số 63/2010/NĐ-CP ngày 08 tháng 6 năm 2010 của Chính phủ về kiểm soát thủ tục hành chính;
+Căn cứ Nghị định số 48/2013/NĐ-CP ngày 14 tháng 5 năm 2013 của Chính phủ sửa đổi, bổ sung một số điều của các nghị định liên quan đến kiểm soát thủ tục hành chính;
+Thực hiện Chỉ thị số 17/CT-TTg ngày 20 tháng 6 năm 2014 của Thủ tướng Chính phủ về một số biện pháp chấn chỉnh tình trạng lạm dụng yêu cầu nộp bản sao có chứng thực đối với giấy tờ, văn bản khi thực hiện thủ tục hành chính;
+Theo đề nghị của Vụ trưởng Vụ Pháp chế,
+Bộ trưởng Bộ Công Thương ban hành Thông tư sửa đổi, bổ sung một số Thông tư của Bộ trưởng Bộ Công Thương về thủ tục hành chính trong lĩnh vực thương mại điện tử, hóa chất, sản xuất kinh doanh rượu, nhượng quyền thương mại, hoạt động mua bán hàng hóa qua sở giao dịch hàng hóa, năng lượng, an toàn thực phẩm và điện lực.”
+Thông tư số 21/2018/TT-BCT sửa đổi một số điều của Thông tư số 47/2014/TT-BCT ngày 05/12/2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31/12/2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 18 tháng 10 năm 2018 có căn cứ ban hành như sau:
+“Căn cứ Nghị định số 98/2017/NĐ-CP ngày 18 tháng 8 năm 2017 của Chính phủ quy định chức năng, nhiệm vụ, quyền hạn và cơ cấu tổ chức của Bộ Công Thương;
+Căn cứ Nghị định số 52/2013/NĐ-CP ngày 16 tháng 5 năm 2013 của Chính phủ về thương mại điện tử;
+Căn cứ Nghị định số 08/2018/NĐ-CP ngày 15 tháng 01 năm 2018 của Chính phủ sửa đổi một số Nghị định liên quan đến điều kiện đầu tư kinh doanh thuộc phạm vi quản lý nhà nước của Bộ Công Thương;
+Theo đề nghị của Cục trưởng Cục Thương mại điện tử và Kinh tế số, Bộ trưởng Bộ Công Thương ban hành Thông tư sửa đổi một số điều của Thông tư số 47/2014/TT-BCT ngày 05/12/2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31/12/2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động.”
+Thông tư số 42/2019/TT-BCT sửa đổi, bổ sung một số quy định về chế độ báo cáo định kỳ tại các Thông tư do Bộ trưởng Bộ Công Thương ban hành hoặc liên tịch ban hành, có hiệu lực kể từ ngày 05 tháng 02 năm 2020 có căn cứ ban hành như sau:
+“Căn cứ Nghị định số 98/2017/NĐ-CP ngày 18 tháng 8 năm 2017 của Chính phủ quy định chức năng, nhiệm vụ, quyền hạn và cơ cấu tổ chức của Bộ Công Thương;
+Căn cứ Nghị định số 09/2019/NĐ-CP ngày 24 tháng 01 năm 2019 của Chính phủ quy định về chế độ báo cáo của cơ quan hành chính nhà nước;
+Theo đề nghị của Chánh Văn phòng Bộ;
+Bộ trưởng Bộ Công Thương ban hành Thông tư sửa đổi, bổ sung một số quy định về chế độ báo cáo định kỳ tại các Thông tư do Bộ trưởng Bộ Công Thương ban hành hoặc liên tịch ban hành. ”
+Thông tư số 01/2022/TT-BCT sửa đổi, bổ sung một số điều của Thông tư số 47/2014/TT-BCT ngày 05 tháng 12 năm 2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31 tháng 12 năm 2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 08 tháng 3 năm 2022 có căn cứ ban hành như sau:
+“Căn cứ Nghị định số 98/2017/NĐ-CP ngày 18 tháng 8 năm 2017 của Chính phủ quy định chức năng, nhiệm vụ, quyền hạn và cơ cấu tổ chức của Bộ Công Thương;
+Căn cứ Nghị định số 52/2013/NĐ-CP ngày 16 tháng 5 năm 2013 của Chính phủ về thương mại điện tử và Nghị định số 85/2021/NĐ-CP ngày 25 tháng 9 năm 2021 của Chính phủ sửa đổi, bổ sung một số điều của Nghị định số 52/2013/NĐ-CP ngày 16 tháng 5 năm 2013 của Chính phủ về thương mại điện tử;
+Căn cứ Nghị định số 08/2018/NĐ-CP ngày 15 tháng 01 năm 2018 của Chính phủ sửa đổi một số Nghị định liên quan đến điều kiện đầu tư kinh doanh thuộc phạm vi quản lý nhà nước của Bộ Công Thương;
+Theo đề nghị của Cục trưởng Cục Thương mại điện tử và Kinh tế số,
+Bộ trưởng Bộ Công Thương ban hành Thông tư sửa đổi, bổ sung một số điều của Thông tư số 47/2014/TT-BCT ngày 05 tháng 12 năm 2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31 tháng 12 năm 2015 của Bộ Công thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động. ”
+[2] Khoản này được bãi bỏ theo quy định tại điểm a khoản 1 Điều 3 Thông tư số 01/2022/TT-BCT sửa đổi, bổ sung một số điều của Thông tư số 47/2014/TT-BCT ngày 05 tháng 12 năm 2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31 tháng 12 năm 2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 08 tháng 3 năm 2022.
+[3] Điều này được bãi bỏ theo quy định tại điểm a khoản 1 Điều 3 Thông tư số 01/2022/TT-BCT sửa đổi, bổ sung một số điều của Thông tư số 47/2014/TT-BCT ngày 05 tháng 12 năm 2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31 tháng 12 năm 2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 08 tháng 3 năm 2022.
+[4] Điều này được bãi bỏ theo quy định tại điểm a khoản 1 Điều 3 Thông tư số 01/2022/TT-BCT sửa đổi, bổ sung một số điều của Thông tư số 47/2014/TT-BCT ngày 05 tháng 12 năm 2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31 tháng 12 năm 2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 08 tháng 3 năm 2022.
+[5] Điều này được sửa đổi, bổ sung theo quy định tại khoản 1 Điều 1 Thông tư số 01/2022/TT-BCT sửa đổi, bổ sung một số điều của Thông tư số 47/2014/TT-BCT ngày 05 tháng 12 năm 2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31 tháng 12 năm 2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 08 tháng 3 năm 2022.
+[6] Điều này được bãi bỏ theo quy định tại điểm a khoản 1 Điều 3 Thông tư số 01/2022/TT-BCT sửa đổi, bổ sung một số điều của Thông tư số 47/2014/TT-BCT ngày 05 tháng 12 năm 2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31 tháng 12 năm 2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 08 tháng 3 năm 2022.
+[7] Tên chương này được sửa đổi, bổ sung theo quy định tại khoản 2 Điều 1 Thông tư số 01/2022/TT-BCT sửa đổi, bổ sung một số điều của Thông tư số 47/2014/TT-BCT ngày 05 tháng 12 năm 2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31 tháng 12 năm 2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 08 tháng 3 năm 2022.
+[8] Điều này được bãi bỏ theo quy định tại khoản 1 Điều 1 Thông tư số 21/2018/TT-BCT sửa đổi một số điều của Thông tư số 47/2014/TT-BCT ngày 05/12/2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31/12/2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 18 tháng 10 năm 2018.
+[9] Điều này được bãi bỏ theo quy định tại điểm a khoản 1 Điều 3 Thông tư số 01/2022/TT-BCT sửa đổi, bổ sung một số điều của Thông tư số 47/2014/TT-BCT ngày 05 tháng 12 năm 2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31 tháng 12 năm 2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 08 tháng 3 năm 2022.
+[10] Khoản này được sửa đổi, bổ sung theo quy định tại Điều 11 Thông tư số 04/2016/TT-BCT sửa đổi, bổ sung một số Thông tư của Bộ trưởng Bộ Công Thương về thủ tục hành chính trong lĩnh vực thương mại điện tử, hóa chất, sản xuất kinh doanh rượu, nhượng quyền thương mại, hoạt động mua bán hàng hóa qua sở giao dịch hàng hóa, năng lượng, an toàn thực phẩm và điện lực, có hiệu lực kể từ ngày 20 tháng 7 năm 2016.
+[11] Cụm từ “Cục Thương mại điện tử và Công nghệ thông tin” được thay thế bằng cụm từ “Cục Thương mại điện tử và Kinh tế số” theo quy định tại khoản 4 Điều 1 Thông tư số 21/2018/TT-BCT sửa đổi một số điều của Thông tư số 47/2014/TT-BCT ngày 05/12/2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31/12/2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 18 tháng 10 năm 2018.
+[12] Cụm từ “Cục Thương mại điện tử và Công nghệ thông tin” được thay thế bằng cụm từ “Cục Thương mại điện tử và Kinh tế số” theo quy định tại khoản 4 Điều 1 Thông tư số 21/2018/TT-BCT sửa đổi một số điều của Thông tư số 47/2014/TT-BCT ngày 05/12/2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31/12/2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 18 tháng 10 năm 2018.
+[13] Cụm từ “Cục Thương mại điện tử và Công nghệ thông tin” được thay thế bằng cụm từ “Cục Thương mại điện tử và Kinh tế số” theo quy định tại khoản 4 Điều 1 Thông tư số 21/2018/TT-BCT sửa đổi một số điều của Thông tư số 47/2014/TT-BCT ngày 05/12/2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31/12/2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 18 tháng 10 năm 2018.
+[14] Cụm từ “Cục Thương mại điện tử và Công nghệ thông tin” được thay thế bằng cụm từ “Cục Thương mại điện tử và Kinh tế số” theo quy định tại khoản 4 Điều 1 Thông tư số 21/2018/TT-BCT sửa đổi một số điều của Thông tư số 47/2014/TT-BCT ngày 05/12/2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31/12/2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 18 tháng 10 năm 2018.
+[15] Điều này được sửa đổi, bổ sung theo quy định tại khoản 3 Điều 1 Thông tư số 01/2022/TT-BCT sửa đổi, bổ sung một số điều của Thông tư số 47/2014/TT-BCT ngày 05 tháng 12 năm 2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31 tháng 12 năm 2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 08 tháng 3 năm 2022.
+[16] Điều này được bổ sung theo quy định tại khoản 4 Điều 1 Thông tư số 01/2022/TT-BCT sửa đổi, bổ sung một số điều của Thông tư số 47/2014/TT-BCT ngày 05 tháng 12 năm 2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31 tháng 12 năm 2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 08 tháng 3 năm 2022.
+[17] Điều này được bãi bỏ theo quy định tại khoản 3 Điều 1 Thông tư số 21/2018/TT-BCT sửa đổi một số điều của Thông tư số 47/2014/TT-BCT ngày 05/12/2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31/12/2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 18 tháng 10 năm 2018.
+[18] Khoản này được sửa đổi, bổ sung theo quy định tại Điều 11 Thông tư số 04/2016/TT-BCT sửa đổi, bổ sung một số Thông tư của Bộ trưởng Bộ Công Thương về thủ tục hành chính trong lĩnh vực thương mại điện tử, hóa chất, sản xuất kinh doanh rượu, nhượng quyền thương mại, hoạt động mua bán hàng hóa qua sở giao dịch hàng hóa, năng lượng, an toàn thực phẩm và điện lực, có hiệu lực kể từ ngày 20 tháng 7 năm 2016.
+[19] Cụm từ “Cục Thương mại điện tử và Công nghệ thông tin” được thay thế bằng cụm từ “Cục Thương mại điện tử và Kinh tế số” theo quy định tại khoản 4 Điều 1 Thông tư số 21/2018/TT-BCT sửa đổi một số điều của Thông tư số 47/2014/TT-BCT ngày 05/12/2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31/12/2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 18 tháng 10 năm 2018.
+[20] Cụm từ “Cục Thương mại điện tử và Công nghệ thông tin” được thay thế bằng cụm từ “Cục Thương mại điện tử và Kinh tế số” theo quy định tại khoản 4 Điều 1 Thông tư số 21/2018/TT-BCT sửa đổi một số điều của Thông tư số 47/2014/TT-BCT ngày 05/12/2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31/12/2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 18 tháng 10 năm 2018.
+[21] Cụm từ “Cục Thương mại điện tử và Công nghệ thông tin” được thay thế bằng cụm từ “Cục Thương mại điện tử và Kinh tế số” theo quy định tại khoản 4 Điều 1 Thông tư số 21/2018/TT-BCT sửa đổi một số điều của Thông tư số 47/2014/TT-BCT ngày 05/12/2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31/12/2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 18 tháng 10 năm 2018.
+[22] Cụm từ “Cục Thương mại điện tử và Công nghệ thông tin” được thay thế bằng cụm từ “Cục Thương mại điện tử và Kinh tế số” theo quy định tại khoản 4 Điều 1 Thông tư số 21/2018/TT-BCT sửa đổi một số điều của Thông tư số 47/2014/TT-BCT ngày 05/12/2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31/12/2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 18 tháng 10 năm 2018.
+[23] Khoản này được sửa đổi, bổ sung theo quy định tại khoản 1 Điều 33 Thông tư số 42/2019/TT-BCT sửa đổi, bổ sung một số quy định về chế độ báo cáo định kỳ tại các Thông tư do Bộ trưởng Bộ Công Thương ban hành hoặc liên tịch ban hành, có hiệu lực kể từ ngày 05 tháng 02 năm 2020.
+[24] Điều này được bổ sung theo quy định tại khoản 5 Điều 1 Thông tư số 01/2022/TT-BCT sửa đổi, bổ sung một số điều của Thông tư số 47/2014/TT-BCT ngày 05 tháng 12 năm 2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31 tháng 12 năm 2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 08 tháng 3 năm 2022.
+[25] Điều này được bổ sung theo quy định tại khoản 6 Điều 1 Thông tư số 01/2022/TT-BCT sửa đổi, bổ sung một số điều của Thông tư số 47/2014/TT-BCT ngày 05 tháng 12 năm 2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31 tháng 12 năm 2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 08 tháng 3 năm 2022.
+[26] Cụm từ “Cục Thương mại điện tử và Công nghệ thông tin” được thay thế bằng cụm từ “Cục Thương mại điện tử và Kinh tế số” theo quy định tại khoản 4 Điều 1 Thông tư số 21/2018/TT-BCT sửa đổi một số điều của Thông tư số 47/2014/TT-BCT ngày 05/12/2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31/12/2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 18 tháng 10 năm 2018.
+[27] Cụm từ “Cục Thương mại điện tử và Công nghệ thông tin” được thay thế bằng cụm từ “Cục Thương mại điện tử và Kinh tế số” theo quy định tại khoản 4 Điều 1 Thông tư số 21/2018/TT-BCT sửa đổi một số điều của Thông tư số 47/2014/TT-BCT ngày 05/12/2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31/12/2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 18 tháng 10 năm 2018.
+[28] Điều 12 Thông tư số 04/2016/TT-BCT sửa đổi, bổ sung một số Thông tư của Bộ trưởng Bộ Công Thương về thủ tục hành chính trong lĩnh vực thương mại điện tử, hóa chất, sản xuất kinh doanh rượu, nhượng quyền thương mại, hoạt động mua bán hàng hóa qua sở giao dịch hàng hóa, năng lượng, an toàn thực phẩm và điện lực, có hiệu lực kể từ ngày 20 tháng 7 năm 2016 quy định như sau:
+“Điều 12. Hiệu lực thi hành
+Thông tư này có hiệu lực thi hành từ ngày 20 tháng 7 năm 2016. Trong quá trình thực hiện, nếu có vướng mắc, tổ chức, cá nhân gửi ý kiến về Bộ Công Thương để xem xét, hướng dẫn giải quyết. ”
+Điều 3 Thông tư số 21/2018/TT-BCT sửa đổi một số điều của Thông tư số 47/2014/TT-BCT ngày 05/12/2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31/12/2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 18 tháng 10 năm 2018 quy định như sau:
+“Điều 3. Điều khoản thi hành
+1. Thông tư này có hiệu lực kể từ ngày 18 tháng 10 năm 2018.
+2. Trong quá trình thực hiện Thông tư này, nếu có phát sinh vướng mắc, thương nhân hoặc các tổ chức, cá nhân có liên quan kịp thời phản ánh về Bộ Công Thương để xem xét, xử lý.”
+Điều 37 Thông tư số 42/2019/TT-BCT sửa đổi, bổ sung một số quy định về chế độ báo cáo định kỳ tại các Thông tư do Bộ trưởng Bộ Công Thương ban hành hoặc liên tịch ban hành, có hiệu lực kể từ ngày 05 tháng 02 năm 2020 quy định như sau:
+“Điều 37. Hiệu lực thi hành
+1. Thông tư này có hiệu lực thi hành kể từ ngày 05 tháng 02 năm 2020.
+2. Bãi bỏ các quy định sau:
+a) Khoản 6 Điều 1 Thông tư số 33/2016/TT-BCT ngày 23 tháng 12 năm 2016 của Bộ trưởng Bộ Công Thương sửa đổi, bổ sung một số điều của Thông tư số 36/2015/TT-BCT ngày 28 tháng 10 năm 2015 ban hành Quy chuẩn kỹ thuật quốc gia đối với sản phẩm khăn giấy và giấy vệ sinh.
+b) Điều 4 Thông tư số 51/2018/TT-BCT ngày 19 tháng 12 năm 2018 của Bộ trưởng Bộ Công Thương sửa đổi, bổ sung một số điều của Thông tư liên tịch số 47/2011/TTLT-BCT-BTNMT ngày 30 tháng 12 năm 2011 của Bộ trưởng Bộ Công Thương và Bộ trưởng Bộ Tài nguyên và Môi trường quy định việc quản lý nhập khẩu, xuất khẩu và tạm nhập - tái xuất các chất làm suy giảm tầng ô-dôn theo quy định của Nghị định thư Montreal về các chất làm suy giảm tầng ô-dôn.
+c) Khoản 20 Điều 1 Thông tư số 31/2018/TT-BCT ngày 05 tháng 10 năm 2018 của Bộ trưởng Công Thương sửa đổi, bổ sung một số điều của Thông tư số 27/2013/TT-BCT ngày 31 tháng 10 năm 2013 quy định về kiểm tra hoạt động điện lực và sử dụng điện, giải quyết tranh chấp hợp đồng mua bán điện.
+d) Điều 29 Thông tư số 43/2013/TT-BCT ngày 31 tháng 12 năm 2013 của Bộ trưởng Bộ Công Thương quy định nội dung, trình tự, thủ tục lập, thẩm định, phê duyệt và điều chỉnh Quy hoạch phát triển điện lực
+3. Các chế độ báo cáo định kỳ trong lĩnh vực Công Thương hiện hành phải đảm bảo thời gian chốt số liệu báo cáo theo quy định tại Điều 12 của Nghị định số 09/2019/NĐ-CP .
+4. Trong quá trình thực hiện nếu có vướng mắc, các tổ chức, cá nhân phản ánh về Bộ Công Thương để được hướng dẫn, giải quyết.”
+Điều 4 Thông tư số 01/2022/TT-BCT sửa đổi, bổ sung một số điều của Thông tư số 47/2014/TT-BCT ngày 05 tháng 12 năm 2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31 tháng 12 năm 2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 08 tháng 3 năm 2022 quy định như sau:
+“Điều 4. Điều khoản thi hành
+1. Thông tư này có hiệu lực kể từ ngày 08 tháng 03 năm 2022.
+2. Trong quá trình thực hiện Thông tư này, nếu có phát sinh vướng mắc, thương nhân hoặc tổ chức, cá nhân có liên quan kịp thời phản ánh về Bộ Công Thương để được xem xét, xử lý. ”
+[29] Phụ lục này được thay thế theo quy định tại điểm a khoản 1 Điều 3 Thông tư số 01/2022/TT-BCT sửa đổi, bổ sung một số điều của Thông tư số 47/2014/TT-BCT ngày 05 tháng 12 năm 2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31 tháng 12 năm 2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 08 tháng 3 năm 2022.
+[30] Phụ lục này được bổ sung theo quy định tại khoản 2 Điều 33 Thông tư số 42/2019/TT-BCT sửa đổi, bổ sung một số quy định về chế độ báo cáo định kỳ tại các Thông tư do Bộ trưởng Bộ Công Thương ban hành hoặc liên tịch ban hành, có hiệu lực kể từ ngày 05 tháng 02 năm 2020
+[31] Phụ lục này được bổ sung theo quy định tại khoản 2 Điều 33 Thông tư số 42/2019/TT-BCT sửa đổi, bổ sung một số quy định về chế độ báo cáo định kỳ tại các Thông tư do Bộ trưởng Bộ Công Thương ban hành hoặc liên tịch ban hành, có hiệu lực kể từ ngày 05 tháng 02 năm 2020
+[32] Cụm từ “Cục Thương mại điện tử và Công nghệ thông tin” được thay thế bằng cụm từ “Cục Thương mại điện tử và Kinh tế số” theo quy định tại khoản 4 Điều 1 Thông tư số 21/2018/TT-BCT sửa đổi một số điều của Thông tư số 47/2014/TT-BCT ngày 05/12/2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31/12/2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 18 tháng 10 năm 2018.
+[33] Bao gồm đầu mối tiếp nhận yêu cầu thông tin trực tuyến đối với thương nhân, tổ chức Việt Nam thiết lập sàn giao dịch thương mại điện tử có chức năng đặt hàng trực tuyến; hoặc Văn phòng đại diện/đại diện theo ủy quyền tại Việt Nam đối với thương nhân, tổ chức nước ngoài cung cấp dịch vụ thương mại điện tử tại Việt Nam.
+[34] Cụm từ “Cục Thương mại điện tử và Công nghệ thông tin” được thay thế bằng cụm từ “Cục Thương mại điện tử và Kinh tế số” theo quy định tại khoản 4 Điều 1 Thông tư số 21/2018/TT-BCT sửa đổi một số điều của Thông tư số 47/2014/TT-BCT ngày 05/12/2014 của Bộ Công Thương quy định về quản lý website thương mại điện tử và Thông tư số 59/2015/TT-BCT ngày 31/12/2015 của Bộ Công Thương quy định về quản lý hoạt động thương mại điện tử qua ứng dụng trên thiết bị di động, có hiệu lực kể từ ngày 18 tháng 10 năm 2018.
+Nội dung VB
+Văn bản gốc
+Tiếng anh
+Lược đồ
+VB liên quan
+Bản án áp dụng
+Vui lòng Đăng ký tài khoản hoặc đăng nhập để xem và tải văn bản gốc.
+Tầng 5, Toà Nhà TTM BUILDING, Số 309 Bạch Đằng , Phường 2 , Quận Bình Thạnh, Thành phố Hồ Chí Minh
+0971-654-238 (Hotline/ Zalo)
+[email protected]
+Thông tin dịch vụ
+Giới thiệu
+Giải pháp
+Bảng giá
+Liên hệ
+Dữ liệu pháp lý
+Bản án
+Hợp đồng mẫu
+Văn bản pháp luật
+Tra cứu mã HS
+Thuật ngữ pháp lý
+Bài viết
+Chính sách và Hướng dẫn
+Điều khoản sử dụng
+Chính sách bảo mật
+Hướng dẫn sử dụng
+Hướng dẫn thanh toán
+© 2026 Caselaw Việt Nam | All rights seserved
+Ghi rõ nguồn Caselaw Việt Nam (https://caselaw.vn) khi trích dẫn, sử dụng thông tin, tài liệu từ địa chỉ này.
+Tạo tài khoản
+Đăng ký bằng Google
+HOẶC
+Họ và tên
+Email
+Số điện thoại
+Mật khẩu
+Xác nhận mật khẩu
+Giới tính Nam Nữ
+Tôi đồng ý với Điều khoản sử dụng website Caselaw Việt Nam
+Đăng ký
+Đã có Tài khoản? Đăng nhập
+Đăng nhập
+Đăng nhập bằng Google
+HOẶC
+Email
+Mật khẩu Quên mật khẩu
+Đăng nhập
+Chưa có tài khoản? Đăng ký

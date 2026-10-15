@@ -50,6 +50,7 @@ class ManifestMemberDTO(BaseModel):
     document_id: str
     filename: str
     role: ManifestDocumentRole
+    document_number: str | None = Field(default=None, min_length=1, max_length=160)
     included: bool
     order_index: int
     page_count: int = 0

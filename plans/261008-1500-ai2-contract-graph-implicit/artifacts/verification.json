@@ -1,0 +1,55 @@
+{
+  "stage": "cook",
+  "plan": "261008-1500-ai2-contract-graph-implicit",
+  "checks": [
+    {
+      "name": "live_trials_same_gpt55_model",
+      "status": "PASS"
+    },
+    {
+      "name": "hg1_lock_and_decisions_sha",
+      "status": "PASS"
+    },
+    {
+      "name": "empty_response_fail_closed",
+      "status": "PASS"
+    },
+    {
+      "name": "dataset_verify",
+      "status": "PASS"
+    },
+    {
+      "name": "eval_225_passed",
+      "status": "PASS"
+    },
+    {
+      "name": "targeted_ruff",
+      "status": "PASS"
+    },
+    {
+      "name": "independent_tester",
+      "status": "PASS"
+    },
+    {
+      "name": "independent_reviewer",
+      "status": "PASS"
+    },
+    {
+      "name": "decision_keep_off_insufficient_n",
+      "status": "PASS"
+    },
+    {
+      "name": "budget_and_rank_recorded",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P5",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-10T06:10:00+07:00",
+  "blastRadius": {
+    "unavailable": true,
+    "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF-ai2-contract-graph"
+  },
+  "run_seq": null
+}

@@ -29,7 +29,11 @@ from app.contracts.models import (
     ToolEnvelope,
     VersionPins,
 )
-from app.pipeline.ai1_snapshot_adapter import SnapshotAdapterResult, SnapshotContractError, fold_for_match
+from app.pipeline.ai1_snapshot_adapter import (
+    SnapshotAdapterResult,
+    SnapshotContractError,
+    fold_for_match,
+)
 from app.pipeline.citations import CitationResolver, quote_digest
 from app.tools.store import DossierRecord
 
@@ -202,6 +206,9 @@ def adapt_ocr_lab_snapshot(
         # Legacy routing only understands body/annex.  Raw contract role is
         # retained separately and independent batch mode prevents comparison.
         role=source_role if source_role in {"body", "annex"} else "body",
+        document_number=_optional_text(
+            snapshot.get("document_number") or snapshot.get("contract_number")
+        ),
         digest=digest,
         n_pages=len(pages),
         document_role=source_role or None,
@@ -603,6 +610,11 @@ def _optional_int(value: Any) -> int | None:
         return int(value) if value is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def _optional_text(value: Any) -> str | None:
+    text = str(value).strip() if value is not None else ""
+    return text or None
 
 
 def _optional_float(value: Any) -> float | None:

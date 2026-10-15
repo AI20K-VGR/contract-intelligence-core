@@ -1,80 +1,128 @@
-# Deploy `develop` to the online server over SSH, then check it from outside.
+# =============================================================================
+# Deploy the exact develop commit after it is pushed (including a PR merge).
+# Manual dispatch is supported only from develop. See deploy/README.md.
 #
-# Runs on every push to develop (i.e. after a PR is merged) and on demand
-# ("Run workflow" deploys the branch it is started from).
-# The server is prepared once by hand (deploy/README.md, steps 1-3): clone in
+# Pull requests into develop run only the `preflight` job (policy + deploy
+# tests); `deploy` never runs on a PR. Merging to develop IS a production deploy:
+# there is no staging stage.
+#
+# Server: prepared once by hand (deploy/README.md steps 1-3): clone in
 # /opt/contract-intelligence, deploy/bootstrap.sh, deploy/.env.prod and
 # ai-service/.env filled in. This workflow only updates and restarts it.
 #
-# Repository secrets:
-#   DEPLOY_HOST         server address (IP or name)
-#   DEPLOY_USER         SSH user (root, or a user with passwordless sudo)
-#   DEPLOY_SSH_KEY      private key whose public half is in that user's authorized_keys
-#   DEPLOY_KNOWN_HOSTS  the server's line(s) from `ssh-keyscan -t ed25519 <host>`,
-#                       checked by hand once, so the runner never trusts an unknown host
-#   DEPLOY_DB_PUBLIC_IP optional: public IP of a DB server of its own; the check
-#                       from outside then also proves its database ports closed
-# Without DEPLOY_HOST the job reports "not configured" and succeeds.
-#
-# AWS server whose security group admits SSH from the operator only
-# (docs/DOC-15-cicd-github-actions.md): set the repository VARIABLES
-#   DEPLOY_SECURITY_GROUP_ID  the app server's security group, e.g. sg-070e3d258f1793c3e
-#   DEPLOY_AWS_REGION         its region, e.g. ap-southeast-2
-# and the secrets AWS_DEPLOY_ACCESS_KEY_ID / AWS_DEPLOY_SECRET_ACCESS_KEY of an
-# IAM user that may only add and remove rules on that group. The job then
-# opens port 22 to this runner's IP alone and closes it again at the end, even
-# when the deploy fails. Without DEPLOY_SECURITY_GROUP_ID nothing changes.
-#
-# Hosts behind Cloudflare's proxy: set the repository variable
-# DEPLOY_BEHIND_CLOUDFLARE=true (DEPLOY_HOST must then be the server's IP), so
-# the check from outside probes the server, not Cloudflare.
+# Repository secrets (required unless noted):
+#   DEPLOY_HOST                  server address (IP or name)
+#   DEPLOY_USER                  SSH user (root, or one with passwordless sudo)
+#   DEPLOY_SSH_KEY               private key whose public half is in authorized_keys
+#   DEPLOY_KNOWN_HOSTS           `ssh-keyscan -t ed25519 <host>` line(s), checked by
+#                                hand once, so the runner never trusts an unknown host
+#   DEPLOY_DB_PUBLIC_IP          (optional) DB server address; the external check
+#                                asserts its Postgres ports are closed to the Internet
+#   AWS_DEPLOY_ACCESS_KEY_ID /
+#   AWS_DEPLOY_SECRET_ACCESS_KEY (only with DEPLOY_SECURITY_GROUP_ID) IAM key that may
+#                                open/close port 22 for this runner on that group
+# Repository variables:
+#   DEPLOY_SECURITY_GROUP_ID     (optional) AWS security group; enables the
+#                                open/close-SSH steps. Unset = those steps are skipped
+#   DEPLOY_AWS_REGION            region of that group
+#   DEPLOY_BEHIND_CLOUDFLARE     "true" when the hostnames sit behind Cloudflare: the
+#                                external check then probes DEPLOY_HOST directly and
+#                                asserts 80/443 refuse non-Cloudflare callers
 #
 # Who may deploy is decided by the "production" environment, not by this file
-# (deploy/README.md, "Duyệt trước khi deploy").
+# (deploy/README.md, "Duyệt trước khi deploy"; DOC-15).
+# =============================================================================
 name: deploy
 
 on:
   push:
+    branches: [develop]
+  pull_request:
     branches: [develop]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# One deploy at a time; a newer push waits instead of interrupting a build.
 concurrency:
   group: deploy-server
   cancel-in-progress: false
 
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Reject refs outside develop before production is in scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            if [[ "$BASE_REF" != "develop" ]]; then
+              echo "::error::Validation is allowed only for PRs targeting develop (got $BASE_REF)."
+              exit 1
+            fi
+          else
+            if [[ "$REF" != "refs/heads/develop" ]]; then
+              echo "::error::Deployment is allowed only from refs/heads/develop (got $REF)."
+              exit 1
+            fi
+            if [[ "$EVENT_NAME" != "push" && "$EVENT_NAME" != "workflow_dispatch" ]]; then
+              echo "::error::Unsupported deployment event: $EVENT_NAME."
+              exit 1
+            fi
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate deploy readiness and workflow policy
+        run: |
+          python -m pip install --disable-pip-version-check 'pytest==9.1.1' 'PyYAML==6.0.3'
+          python -m pytest deploy/tests/test_keycloak_configure.py -q
+
   deploy:
+    needs: preflight
+    if: needs.preflight.result == 'success' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    # Approval gate: when the "production" environment has required reviewers
-    # (repo Settings → Environments), the job waits for one of them. Until an
-    # admin adds that rule the job starts at once, as before.
     environment: production
     env:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
       APP_DIR: /opt/contract-intelligence
     steps:
-      - name: Is a server configured?
-        id: target
+      - name: Require complete SSH configuration
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
-          if [ -z "$DEPLOY_HOST" ]; then
-            echo "::notice::DEPLOY_HOST is not set: nothing deployed (see .github/workflows/deploy.yml)."
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "configured=true" >> "$GITHUB_OUTPUT"
+          missing=()
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS; do
+            value=${!name-}
+            if [[ -z "$value" ]]; then
+              echo "::error::Required deployment setting $name is missing."
+              missing+=("$name")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            exit 1
+          fi
+          if [[ ! "$DEPLOY_HOST" =~ ^[A-Za-z0-9.-]+$ || ! "$DEPLOY_USER" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            echo "::error::DEPLOY_HOST or DEPLOY_USER contains unsupported characters."
+            exit 1
           fi
 
       - uses: actions/checkout@v4
-        if: steps.target.outputs.configured == 'true'
 
       - name: Open SSH to this runner only (AWS security group)
         id: ssh_window
-        if: steps.target.outputs.configured == 'true' && vars.DEPLOY_SECURITY_GROUP_ID != ''
+        if: vars.DEPLOY_SECURITY_GROUP_ID != ''
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_DEPLOY_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_DEPLOY_SECRET_ACCESS_KEY }}
@@ -82,8 +130,7 @@ jobs:
           SG: ${{ vars.DEPLOY_SECURITY_GROUP_ID }}
         run: bash deploy/ssh_window.sh open "$SG"
 
-      - name: SSH key and pinned host key
-        if: steps.target.outputs.configured == 'true'
+      - name: Install SSH identity and pinned host key
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
@@ -102,34 +149,39 @@ jobs:
             ServerAliveInterval 30
           CONFIG
 
-      - name: Update the checkout and run deploy/deploy.sh
-        if: steps.target.outputs.configured == 'true'
+      - name: Deploy the exact triggering SHA
         env:
           SHA: ${{ github.sha }}
-          BRANCH: ${{ github.ref_name }}
         run: |
-          ssh server "APP_DIR='$APP_DIR' SHA='$SHA' BRANCH='$BRANCH' bash -s" <<'REMOTE'
+          ssh server "APP_DIR='$APP_DIR' SHA='$SHA' bash -s" <<'REMOTE'
           set -euo pipefail
           sudo=""; [ "$(id -u)" -eq 0 ] || sudo="sudo"
           cd "$APP_DIR"
-          $sudo git fetch --quiet origin "$BRANCH"
-          $sudo git checkout --quiet "$BRANCH"
-          # Fast-forward only: a server checkout that diverged is a problem to look at, not to overwrite.
-          $sudo git merge --ff-only "$SHA"
+          if ! $sudo git diff --quiet || ! $sudo git diff --cached --quiet || [ -n "$($sudo git ls-files --others --exclude-standard)" ]; then
+            echo "deployment checkout has local changes; refusing to deploy over them" >&2
+            exit 1
+          fi
+          $sudo git fetch --quiet origin "$SHA"
+          $sudo git checkout --detach "$SHA"
+          deployed_sha=$($sudo git rev-parse HEAD)
+          [ "$deployed_sha" = "$SHA" ] || { echo "deploy SHA mismatch" >&2; exit 1; }
           $sudo deploy/deploy.sh
+          deployed_sha=$($sudo git rev-parse HEAD)
+          [ "$deployed_sha" = "$SHA" ] || { echo "deploy source changed during release" >&2; exit 1; }
           REMOTE
 
-      - name: Check from outside the server
-        if: steps.target.outputs.configured == 'true'
+      - name: Check HTTPS, authentication, and external exposure
         env:
           DB_PUBLIC_IP: ${{ secrets.DEPLOY_DB_PUBLIC_IP }}
-          # Behind Cloudflare the hostnames resolve to Cloudflare: probe the
-          # ports on the server itself (DEPLOY_HOST is its IP).
           ORIGIN_IP: ${{ vars.DEPLOY_BEHIND_CLOUDFLARE == 'true' && secrets.DEPLOY_HOST || '' }}
         run: |
           hosts=$(ssh server "sudo=''; [ \"\$(id -u)\" -eq 0 ] || sudo=sudo; \$sudo grep -E '^(API_HOST|AUTH_HOST|APP_HOST)=' '$APP_DIR/deploy/.env.prod'")
           value() { printf '%s\n' "$hosts" | grep -E "^$1=" | tail -1 | cut -d= -f2-; }
-          bash deploy/check_external.sh "$(value API_HOST)" "$(value AUTH_HOST)" "$(value APP_HOST)" "$DB_PUBLIC_IP"
+          api_host=$(value API_HOST)
+          auth_host=$(value AUTH_HOST)
+          app_host=$(value APP_HOST)
+          [[ -n "$api_host" && -n "$auth_host" ]] || { echo "::error::API_HOST or AUTH_HOST is missing in deploy/.env.prod"; exit 1; }
+          bash deploy/check_external.sh "$api_host" "$auth_host" "$app_host" "$DB_PUBLIC_IP"
 
       # Last step, and after a failure too: the rule opened above must not stay.
       - name: Close SSH again (AWS security group)

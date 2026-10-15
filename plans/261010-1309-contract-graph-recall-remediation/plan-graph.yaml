@@ -1,0 +1,53 @@
+# Phase DAG for 261010-1309-contract-graph-recall-remediation.
+edges:
+  - {from: P1, to: P2}
+  - {from: P2, to: P3}
+  - {from: P3, to: P4}
+  - {from: P4, to: P5}
+subtasks:
+  P1:
+    files_to_create:
+      - evals/contract_graph/pairs/recall_diagnostic.py
+      - evals/contract_graph/tests/test_cg_pairs_recall_diagnostic.py
+      - evals/contract_graph/reports/l2-p6-recall-diagnostic.json
+      - evals/contract_graph/reports/l2-p6-recall-diagnostic.md
+    files_to_modify:
+      - evals/contract_graph/pairs/run.py
+    post: [verification-P1.json]
+  P2:
+    files_to_modify:
+      - ai-service/app/pipeline/contract_graph/pair_candidates.py
+      - ai-service/tests/test_contract_graph_pair_candidates.py
+      - evals/contract_graph/pairs/candidate_eval.py
+      - evals/contract_graph/tests/test_cg_pairs_candidate_eval.py
+      - evals/contract_graph/reports/l2-p6-candidate-coverage.json
+      - evals/contract_graph/reports/l2-p6-candidate-coverage.md
+    post: [verification-P2.json]
+  P3:
+    files_to_modify:
+      - ai-service/app/pipeline/contract_graph/pair_classifier.py
+      - ai-service/app/pipeline/contract_graph/pair_builder.py
+      - ai-service/tests/test_contract_graph_pair_classifier.py
+      - ai-service/tests/test_contract_graph_pair_builder.py
+      - evals/contract_graph/pairs/predictor.py
+      - evals/contract_graph/reports/l2-p6-classifier-calibration.json
+      - evals/contract_graph/reports/l2-p6-classifier-calibration.md
+    post: [verification-P3.json]
+  P4:
+    files_to_create:
+      - plans/261010-1309-contract-graph-recall-remediation/reports/hg2-sizing.json
+      - plans/261010-1309-contract-graph-recall-remediation/reports/hg2-review.md
+    files_to_modify:
+      - evals/contract_graph/pairs/manifest.json
+      - evals/contract_graph/pairs/review.py
+      - plans/261010-1309-contract-graph-recall-remediation/plan.md
+    post: [verification-P4.json]
+  P5:
+    files_to_modify:
+      - evals/contract_graph/pairs/bakeoff.py
+      - evals/contract_graph/tests/test_cg_pairs_bakeoff.py
+      - evals/contract_graph/reports/l2-p6-bakeoff.json
+      - evals/contract_graph/reports/l2-p6-bakeoff.md
+      - evals/contract_graph/reports/l2-p6-decision.json
+      - docs/ai2/AI2-20-contract-graph-pairs.vi.md
+    post: [verification-P5.json, review-decision.json]

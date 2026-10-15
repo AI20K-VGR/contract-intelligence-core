@@ -1,0 +1,11 @@
+{
+  "verdict": "PASS",
+  "reviewer": "agent:cook_review",
+  "role": "reviewer",
+  "rationale": "P4T/P4U review found no unresolved Critical or Important issue. The bounded VALUE_MISMATCH window and abstention diagnostic/coverage behavior are verified by 129 focused offline tests; Ruff and diff checks pass. One malformed-diagnostic-input Suggestion is recorded in plans/reports/code-review-261010-2022-contract-graph-quality-recovery-r2.md. Product quality remains NOT_EVALUATED, held-out/model evaluation was waived, and runtime remains OFF.",
+  "plan_hash": "fb1b2620138c",
+  "effort": "xhigh",
+  "strategy": "independent-final-review",
+  "rounds_run": 2,
+  "run_seq": null
+}

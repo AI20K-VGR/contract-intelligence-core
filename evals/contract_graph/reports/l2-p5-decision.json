@@ -1,0 +1,197 @@
+{
+ "budget_blocked_variants": [
+  "E"
+ ],
+ "decisions_sha256": "1271c998e07c6085345522e0da394b293ae6de6ea19a03b20962170e3f805a64",
+ "feasibility": {
+  "expected_n": {
+   "CONFLICT": 0.0,
+   "DUPLICATE": 4.578947368421052,
+   "GENERAL_SPECIFIC": 45.78947368421052,
+   "REFERENCE": 0.0
+  },
+  "skipped_variants": {},
+  "status": "E retained"
+ },
+ "mcnemar": {
+  "C_vs_B": {
+   "b": 2,
+   "c": 0,
+   "conclusive": false,
+   "lower": 0.34238022750665315,
+   "method": "mcnemar-wilson",
+   "n_disc": 2,
+   "n_items": 101,
+   "upper": 1.0
+  },
+  "C_vs_E": {
+   "b": 2,
+   "c": 5,
+   "conclusive": false,
+   "lower": 0.08221892400405678,
+   "method": "mcnemar-wilson",
+   "n_disc": 7,
+   "n_items": 101,
+   "upper": 0.6410655481673806
+  }
+ },
+ "per_label": {
+  "CONFLICT": {
+   "additional_docs_estimate": null,
+   "cluster_lower": 0,
+   "conf": 0.95,
+   "k": 0,
+   "method": "wilson",
+   "min_n_all_pass": 22,
+   "min_n_needed": null,
+   "n": 0,
+   "passed": false,
+   "precision_observed": {
+    "denominator": 0,
+    "passed": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "precision_weighted": null,
+   "rate": null,
+   "recall_observed": {
+    "denominator": 30,
+    "passed": 0,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.1135
+    ]
+   },
+   "recall_weighted": 0.0,
+   "sizing_note": "Ước tính giữ tỷ lệ đo, dùng floor(p*n); null: chưa có cỡ hữu hạn được chứng minh. all-pass là trường hợp tốt nhất.",
+   "trial": 1,
+   "wilson_lower": 0.0,
+   "wilson_upper": 1.0
+  },
+  "DUPLICATE": {
+   "additional_docs_estimate": null,
+   "cluster_lower": 0,
+   "conf": 0.95,
+   "k": 0,
+   "method": "wilson",
+   "min_n_all_pass": 22,
+   "min_n_needed": null,
+   "n": 0,
+   "passed": false,
+   "precision_observed": {
+    "denominator": 0,
+    "passed": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "precision_weighted": null,
+   "rate": null,
+   "recall_observed": {
+    "denominator": 29,
+    "passed": 0,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.117
+    ]
+   },
+   "recall_weighted": 0.0,
+   "sizing_note": "Ước tính giữ tỷ lệ đo, dùng floor(p*n); null: chưa có cỡ hữu hạn được chứng minh. all-pass là trường hợp tốt nhất.",
+   "trial": 1,
+   "wilson_lower": 0.0,
+   "wilson_upper": 1.0
+  },
+  "GENERAL_SPECIFIC": {
+   "additional_docs_estimate": null,
+   "cluster_lower": 0.02567962434474358,
+   "conf": 0.95,
+   "k": 4,
+   "method": "wilson",
+   "min_n_all_pass": 22,
+   "min_n_needed": null,
+   "n": 27,
+   "passed": false,
+   "precision_observed": {
+    "denominator": 18,
+    "passed": 4,
+    "rate": 0.2222,
+    "wilson95": [
+     0.09,
+     0.4522
+    ]
+   },
+   "precision_weighted": 0.1802,
+   "rate": 0.14814814814814814,
+   "recall_observed": {
+    "denominator": 34,
+    "passed": 4,
+    "rate": 0.1176,
+    "wilson95": [
+     0.0467,
+     0.2662
+    ]
+   },
+   "recall_weighted": 0.1176,
+   "sizing_note": "Ước tính giữ tỷ lệ đo, dùng floor(p*n); null: chưa có cỡ hữu hạn được chứng minh. all-pass là trường hợp tốt nhất.",
+   "trial": 2,
+   "wilson_lower": 0.059158318596448906,
+   "wilson_upper": 0.32479063346829484
+  },
+  "REFERENCE": {
+   "additional_docs_estimate": null,
+   "cluster_lower": 0.0,
+   "conf": 0.95,
+   "k": 0,
+   "method": "wilson",
+   "min_n_all_pass": 22,
+   "min_n_needed": null,
+   "n": 5,
+   "passed": false,
+   "precision_observed": {
+    "denominator": 3,
+    "passed": 0,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.5615
+    ]
+   },
+   "precision_weighted": 0.0,
+   "rate": 0.0,
+   "recall_observed": {
+    "denominator": 8,
+    "passed": 0,
+    "rate": 0.0,
+    "wilson95": [
+     0.0,
+     0.3244
+    ]
+   },
+   "recall_weighted": 0.0,
+   "sizing_note": "Ước tính giữ tỷ lệ đo, dùng floor(p*n); null: chưa có cỡ hữu hạn được chứng minh. all-pass là trường hợp tốt nhất.",
+   "trial": 1,
+   "wilson_lower": 0.0,
+   "wilson_upper": 0.43449149475208104
+  }
+ },
+ "recommendation_only": true,
+ "thresholds": {
+  "min_n": 60,
+  "min_wilson_lower": 0.85
+ },
+ "thresholds_source": "review_policy.py",
+ "variants_run": [
+  "C",
+  "B",
+  "E"
+ ],
+ "verdict": "KEEP_OFF_INSUFFICIENT_N",
+ "weighted_discrepancies": []
+}

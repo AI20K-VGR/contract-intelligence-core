@@ -139,6 +139,11 @@ def server_query_policy_flags() -> dict[str, Any]:
     }
 
 
+def stored_dossier_content_sharing_consent(metadata: Any) -> bool:
+    """Only an explicitly stored boolean true grants dossier content consent."""
+    return isinstance(metadata, dict) and metadata.get("ai2_content_sharing_consent") is True
+
+
 def _document_ref(item: dict[str, Any]) -> str | None:
     raw_nested = item.get("citation")
     nested: dict[str, Any] = raw_nested if isinstance(raw_nested, dict) else {}
@@ -262,4 +267,5 @@ __all__ = [
     "get_query_limiter",
     "save_query_trace",
     "server_query_policy_flags",
+    "stored_dossier_content_sharing_consent",
 ]

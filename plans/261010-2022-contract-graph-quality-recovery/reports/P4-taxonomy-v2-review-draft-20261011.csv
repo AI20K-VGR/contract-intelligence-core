@@ -1,0 +1,2 @@
+pair_id,old_gold_label,old_gold_direction,v12_prediction,v12_direction,review_reason,decision,label_fixed,direction_fixed,note
+82bffd5ba8a15422,GENERAL_SPECIFIC,A,REFERENCE,B,Gold was approved under rubric v1 while v12 treats a numbered citation as REFERENCE evidence; re-adjudicate against rubric v2,,,,

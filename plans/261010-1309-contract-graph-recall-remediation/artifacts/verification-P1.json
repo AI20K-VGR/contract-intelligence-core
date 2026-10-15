@@ -1,0 +1,31 @@
+{
+  "stage": "cook",
+  "plan": "261010-1309-contract-graph-recall-remediation",
+  "checks": [
+    {
+      "name": "diagnostic_unit",
+      "status": "PASS"
+    },
+    {
+      "name": "eval_regression",
+      "status": "PASS"
+    },
+    {
+      "name": "diagnostic_report",
+      "status": "PASS"
+    },
+    {
+      "name": "heldout_unchanged",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P1",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-10T06:26:28+00:00",
+  "blastRadius": {
+    "unavailable": true,
+    "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF-ai2-contract-graph"
+  },
+  "run_seq": null
+}

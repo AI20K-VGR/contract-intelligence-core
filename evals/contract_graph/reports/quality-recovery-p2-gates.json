@@ -1,0 +1,55 @@
+{
+  "schema": "contract-graph-quality-recovery-p2-gates/1",
+  "phase": "P2",
+  "status": "IMPLEMENTATION_VERIFIED",
+  "generated_at": "2026-10-11",
+  "product_quality_verdict": "NOT_EVALUATED",
+  "provider_requests": 0,
+  "human_review_lock_created": false,
+  "protocol": {
+    "schema": "contract-graph-quality-dataset/1",
+    "frame_version": 1,
+    "readiness": {
+      "labels": ["CONFLICT", "DUPLICATE", "GENERAL_SPECIFIC", "REFERENCE"],
+      "min_n": 60,
+      "wilson95_lower_floor": 0.85,
+      "requires_recall_and_precision_per_label": true,
+      "requires_observed_and_unreviewed_false_duplicate_zero": true,
+      "requires_cluster_precision_gate": true
+    },
+    "lock_behavior": {
+      "dev_review_lock_without_report": true,
+      "versioned_report_lock": true,
+      "raw_evidence_recomputed_at_preflight": true,
+      "heldout_blocked_without_new_protocol_lock": true,
+      "legacy_report_can_authorize_new_protocol": false
+    }
+  },
+  "cluster_feasibility": {
+    "method": "harness.scripts.wilson.cluster_adjusted",
+    "cluster_pattern": "all observations correct; 12/12 conservative precision successes per independent cluster",
+    "five_clusters": {
+      "K": 5,
+      "N": 60,
+      "route": "cluster-floor",
+      "lower": 0.5655175352168254,
+      "passes_0_85": false
+    },
+    "thirty_clusters": {
+      "K": 30,
+      "N": 360,
+      "route": "icc",
+      "lower": 0.9894419431113063,
+      "passes_0_85": true
+    },
+    "p3_recommendation": "Keep all thresholds. The plan minimum of five clusters is not sufficient for the cluster-Wilson lower gate. Before human review, estimate feasibility per label and target at least 30 independent contributing clusters as a planning minimum; calculate actual required clusters from real sizes/outcomes. Keep OFF and report quantitative blocker if infeasible."
+  },
+  "tests": {
+    "focused_command": "$env:PYTHONPATH='ai-service;.'; .\\ai-service\\.venv\\Scripts\\python.exe -m pytest -q evals/contract_graph/tests/test_cg_pairs_score.py evals/contract_graph/tests/test_cg_pairs_predictor.py evals/contract_graph/tests/test_cg_pairs_bakeoff.py evals/contract_graph/tests/test_cg_pairs_run.py -m 'not live' --basetemp .harness/state/pytest-quality-P2-targeted",
+    "focused_result": "153 passed, 1 skipped in 3.88s",
+    "regression_command": "$env:PYTHONPATH='ai-service;.'; .\\ai-service\\.venv\\Scripts\\python.exe -m pytest -q evals/contract_graph/tests -m 'not live' --basetemp .harness/state/pytest-quality-P2-regression",
+    "regression_result": "296 passed, 1 skipped in 8.72s",
+    "py_compile": "PASS",
+    "git_diff_check": "PASS"
+  }
+}

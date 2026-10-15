@@ -1,0 +1,75 @@
+{
+  "phase": "P5",
+  "plan": "261011-1654-ai2-graph-ui",
+  "stage": "cook",
+  "verdict": "PASS",
+  "checks": [
+    {
+      "name": "regression",
+      "status": "PASS",
+      "detail": "AI-service preserves FAILED stage receipts and terminal job status; Backend adapter rejects malformed job_status and preserves graph FAILED; Frontend distinguishes job outcome from stage outcome. Focused Backend adapter: 17 passed; AI-service trace/read focused: 36 passed; independent final regression: 1 passed."
+    },
+    {
+      "name": "integration",
+      "status": "PASS",
+      "detail": "1612 passed, 9 skipped; PostgreSQL-dependent skip details are retained in suite output."
+    },
+    {
+      "name": "unit",
+      "status": "PASS",
+      "detail": "661 passed, 18 skipped; PostgreSQL-only tests skipped because CI_TEST_POSTGRES_URL is not configured."
+    },
+    {
+      "name": "unit",
+      "status": "PASS",
+      "detail": "37 files, 145 tests passed after Vitest 5 upgrade."
+    },
+    {
+      "name": "unit",
+      "status": "PASS",
+      "detail": "0 errors, 13 warnings."
+    },
+    {
+      "name": "unit",
+      "status": "PASS",
+      "detail": "Production build passed; existing >500 kB chunk advisory."
+    },
+    {
+      "name": "manual",
+      "status": "PASS",
+      "detail": "320 CSS px viewport/main/body/document; keyboard focus trap both directions; Escape and navigation close with focus restoration; resizing to 800 px closes dialog and removes trap. Receipt and screenshot in reports/live-ui-320-verification.json and ai2-graph-live-320px.png."
+    },
+    {
+      "name": "e2e",
+      "status": "PASS",
+      "detail": "Authenticated owner graph/trace API and linked document retrieval, anonymous 401 and unauthorized same-tenant 403. Uses synthetic PDFs and directly seeded graph/trace rows; does not prove OCR-to-graph generation."
+    },
+    {
+      "name": "security",
+      "status": "PASS",
+      "detail": "npm audit --audit-level=high has zero vulnerabilities; pip-audit on exported AI-service and Backend runtime requirements reports no known vulnerabilities; isolated clean npm ci passed."
+    },
+    {
+      "name": "security",
+      "status": "PASS",
+      "detail": "Updated security-scan.json and report; no unresolved high/critical finding in reviewed code/dependency scope."
+    },
+    {
+      "name": "contract",
+      "status": "PASS",
+      "detail": "AI2 graph runtime flags remain OFF; Frontend UI flag defaults OFF."
+    },
+    {
+      "name": "contract",
+      "status": "PASS",
+      "detail": "Independent code review confirmed the implementation fixes and source-level PASS. Reconciliation of the plan records is tracked separately by the active review-decision gate."
+    }
+  ],
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-11T17:12:35+00:00",
+  "blastRadius": {
+    "unavailable": true,
+    "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF-ai2-contract-graph"
+  },
+  "run_seq": null
+}

@@ -4,7 +4,7 @@
 **Ngày:** 20/09/2026  
 **Phạm vi:** Bản đồ đã có code, mock/mỏng, ngoài AI2. Không claim accuracy/SLA. Không `LEGAL_WINNER`.
 
-Lớp 20/09: gold HD hai nguồn (`fixtures/gold/hd_tong_hop_findings.json`); finding = thân↔phụ lục cùng `item_key`; review overlay session; SQLite lát mỏng `data/ai2` (không thay BE ACL). Coverage ≠ độ chính xác. OCR/RLS vẫn Ngoài AI2; vector recall hiện là capability tuỳ chọn, có discovery NineRouter và SQLite demo, chưa phải pgvector production. NineRouter dùng catalog riêng `/v1/models/embedding` (không chỉ `/v1/models`); runtime đã xác nhận `openrouter/openai/text-embedding-3-small` hoạt động với 1536 chiều. Vector vẫn mặc định tắt, cần bật feature flag khi benchmark/demo. Fixture catalog có đủ EC-001..EC-056 nhưng không phải tất cả đã chạy end-to-end.
+Lớp 20/09: gold HD hai nguồn (`fixtures/gold/hd_tong_hop_findings.json`); finding = thân↔phụ lục cùng `item_key`; review overlay session; SQLite lát mỏng `data/ai2` (không thay BE ACL). Coverage ≠ độ chính xác. OCR/RLS vẫn Ngoài AI2; vector recall hiện là capability tuỳ chọn, có discovery NineRouter và SQLite demo, chưa phải pgvector production. NineRouter dùng catalog riêng `/v1/models/embedding` (không chỉ `/v1/models`); runtime đã xác nhận `openrouter/openai/text-embedding-3-small` hoạt động với 1536 chiều. Cấu hình runtime hiện bật vector recall mặc định; demo/store SQLite không đồng nghĩa đã có pgvector production. Fixture catalog có đủ EC-001..EC-056 nhưng không phải tất cả đã chạy end-to-end.
 
 Nguồn: [AI2-01](AI2-01-business-policy-perspective.vi.md) … [AI2-05](AI2-05-architecture.vi.md), [AI2-04](AI2-04-edge-case-test-matrix.vi.md).
 
@@ -144,7 +144,7 @@ Không BM25 mặc định. Câu không khớp → INSUFFICIENT + gợi ý.
 | `too_broad` | Tóm tắt cả HĐ | L0 refuse |
 | `unscoped` | Câu mở | Safe state hiện tại; cần mở rộng bounded free-form + grounding theo Outcome Contract |
 
-Ngoài phạm vi: tư vấn, winner, tóm tắt toàn văn, vector index production/pgvector và cost ledger. Embedding recall demo đã có nhưng mặc định tắt.
+Ngoài phạm vi: tư vấn, winner, tóm tắt toàn văn, vector index production/pgvector và cost ledger. Embedding recall được bật mặc định trong runtime hiện tại; vector index production/pgvector vẫn ngoài phạm vi.
 
 ## 9. DOC-01 / DOC-02 / DOC-03 — AI2 vs ngoài (LF-2.0)
 

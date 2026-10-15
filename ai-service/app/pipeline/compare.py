@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections import defaultdict
 from decimal import Decimal
 from uuid import uuid4
@@ -15,6 +16,7 @@ from app.contracts.models import (
     ModelDisposition,
     ReviewState,
 )
+from app.pipeline.relation_markers import annex_amendment_title_targets
 
 AMEND_RE = re.compile(r"sửa|sua|thay thế|thay the|điều chỉnh|dieu chinh|amends?", re.I)
 ANNEX_REF_RE = re.compile(r"(?:phụ lục|phu luc)\s+(\d+)", re.I)
@@ -44,6 +46,7 @@ def compare_facts(
     *,
     annex_labels_present: set[str] | None = None,
     relation_pairs: set[tuple[str, str]] | None = None,
+    require_relation_for_cross_document: bool = False,
 ) -> tuple[list[Candidate], list[EvidenceIssue]]:
     """One finding = two sources in the same contract context. No legal winner."""
     annex_labels_present = annex_labels_present or set()
@@ -64,14 +67,23 @@ def compare_facts(
         compact = _dedupe_facts(group)
         issues.extend(_missing_pairing_evidence(compact, item, relation_pairs))
         if _pairing_count(compact) > MAX_PAIRINGS_PER_ITEM:
-            issues.append(EvidenceIssue(
-                issue_id=f"pairing-cap:{item}",
-                missing="PAIRING_COVERAGE_CAPPED",
-                reason=f"Pairing cap {MAX_PAIRINGS_PER_ITEM} reached for item {item}; remaining pairs need review.",
-                citation=compact[0].citation if compact else None,
-                review_state=ReviewState.NEEDS_REVIEW,
-            ))
-        out.extend(_pair_two_sources(compact, item, relation_pairs))
+            issues.append(
+                EvidenceIssue(
+                    issue_id=f"pairing-cap:{item}",
+                    missing="PAIRING_COVERAGE_CAPPED",
+                    reason=f"Pairing cap {MAX_PAIRINGS_PER_ITEM} reached for item {item}; remaining pairs need review.",
+                    citation=compact[0].citation if compact else None,
+                    review_state=ReviewState.NEEDS_REVIEW,
+                )
+            )
+        out.extend(
+            _pair_two_sources(
+                compact,
+                item,
+                relation_pairs,
+                require_relation_for_cross_document=require_relation_for_cross_document,
+            )
+        )
 
     fee_keys = {ctx[0] for ctx in keyed if ctx[0] and not str(ctx[0]).startswith("mst")}
     scopes = [k for k in fee_keys if k in {"X", "Y"} or str(k).startswith("scope")]
@@ -102,14 +114,20 @@ def _is_identity_fact(fact: Fact) -> bool:
     return (
         role.startswith(("party_", "mst_party_"))
         or key.startswith("party_")
-        or bool(fact.scope and fact.scope.startswith("contract-unit:") and key.startswith("mst_party_"))
+        or bool(
+            fact.scope and fact.scope.startswith("contract-unit:") and key.startswith("mst_party_")
+        )
     )
 
 
 def _compare_contract_identities(facts: list[Fact]) -> list[Candidate]:
     grouped: dict[tuple[str, str], dict[str, list[Fact]]] = defaultdict(lambda: defaultdict(list))
     for fact in facts:
-        if not _is_identity_fact(fact) or not fact.scope or not fact.scope.startswith("contract-unit:"):
+        if (
+            not _is_identity_fact(fact)
+            or not fact.scope
+            or not fact.scope.startswith("contract-unit:")
+        ):
             continue
         if not fact.citation.source_file_id or fact.source_role == "annex":
             continue
@@ -125,17 +143,26 @@ def _compare_contract_identities(facts: list[Fact]) -> list[Candidate]:
             if len(unique) == 1:
                 representatives.append(next(iter(unique.values())))
         for index, left in enumerate(representatives):
-            for right in representatives[index + 1:]:
-                if " ".join(left.raw_value.split()).casefold() == " ".join(right.raw_value.split()).casefold():
+            for right in representatives[index + 1 :]:
+                if (
+                    " ".join(left.raw_value.split()).casefold()
+                    == " ".join(right.raw_value.split()).casefold()
+                ):
                     continue
-                output.append(_cand(
-                    left, right, FindingType.COMPARABLE_DIFFERENCE,
-                    Disposition.COMPARABLE_DIFFERENCE, ReviewState.NEEDS_REVIEW,
-                    ModelDisposition.UNCLEAR,
-                    "Định danh khác nhau giữa hai hợp đồng trong cùng PDF; cần người duyệt, "
-                    "AI2 không kết luận bên nào thắng.",
-                    ComparisonScope.CONTRACT_CONTRACT, item,
-                ))
+                output.append(
+                    _cand(
+                        left,
+                        right,
+                        FindingType.COMPARABLE_DIFFERENCE,
+                        Disposition.COMPARABLE_DIFFERENCE,
+                        ReviewState.NEEDS_REVIEW,
+                        ModelDisposition.UNCLEAR,
+                        "Định danh khác nhau giữa hai hợp đồng trong cùng PDF; cần người duyệt, "
+                        "AI2 không kết luận bên nào thắng.",
+                        ComparisonScope.CONTRACT_CONTRACT,
+                        item,
+                    )
+                )
     return output
 
 
@@ -144,7 +171,11 @@ def _context_key(f: Fact) -> tuple:
 
 
 def _pair_two_sources(
-    group: list[Fact], item: str, relation_pairs: set[tuple[str, str]]
+    group: list[Fact],
+    item: str,
+    relation_pairs: set[tuple[str, str]],
+    *,
+    require_relation_for_cross_document: bool = False,
 ) -> list[Candidate]:
     """Body↔annex (and at most one within-doc pair). No N×N, no annex tournament."""
     bodies = [f for f in group if (f.source_role or "body") != "annex"]
@@ -164,11 +195,16 @@ def _pair_two_sources(
                     break
                 cand = _pair(body_rep, annex_rep, item)
                 if cand:
-                    if not _relation_confirmed(body_rep, annex_rep, relation_pairs):
-                        cand = cand.model_copy(update={
-                            "reason": "relation_unconfirmed; " + cand.reason,
-                            "review_state": ReviewState.NEEDS_REVIEW,
-                        })
+                    relation_confirmed = _relation_confirmed(body_rep, annex_rep, relation_pairs)
+                    if require_relation_for_cross_document and not relation_confirmed:
+                        continue
+                    if not relation_confirmed:
+                        cand = cand.model_copy(
+                            update={
+                                "reason": "relation_unconfirmed; " + cand.reason,
+                                "review_state": ReviewState.NEEDS_REVIEW,
+                            }
+                        )
                     out.append(cand)
                     emitted += 1
             if emitted >= MAX_PAIRINGS_PER_ITEM:
@@ -206,7 +242,9 @@ def _relation_key(left: str, right: str) -> tuple[str, str]:
 def _relation_confirmed(left: Fact, right: Fact, relation_pairs: set[tuple[str, str]]) -> bool:
     left_file, right_file = left.citation.source_file_id, right.citation.source_file_id
     return (
-        not left_file or not right_file or left_file == right_file
+        not left_file
+        or not right_file
+        or left_file == right_file
         or _relation_key(left.citation.node_id, right.citation.node_id) in relation_pairs
     )
 
@@ -293,15 +331,27 @@ def _pair(left: Fact, right: Fact, item: str) -> Candidate | None:
         )
     if left.tax_basis and right.tax_basis and left.tax_basis != right.tax_basis:
         return _cand(
-            left, right, FindingType.GAP, Disposition.NOT_COMPARABLE,
-            ReviewState.NOT_COMPARABLE, ModelDisposition.INCOMPLETE,
-            "Khác cơ sở thuế; không so trực tiếp các giá trị.", scope, item,
+            left,
+            right,
+            FindingType.GAP,
+            Disposition.NOT_COMPARABLE,
+            ReviewState.NOT_COMPARABLE,
+            ModelDisposition.INCOMPLETE,
+            "Khác cơ sở thuế; không so trực tiếp các giá trị.",
+            scope,
+            item,
         )
     if bool(left.tax_basis) != bool(right.tax_basis) and (left.currency or right.currency):
         return _cand(
-            left, right, FindingType.NEEDS_EVIDENCE, Disposition.NEEDS_EVIDENCE,
-            ReviewState.INSUFFICIENT_EVIDENCE, ModelDisposition.INCOMPLETE,
-            "Thiếu căn cứ xác định giá trị đã gồm thuế hay chưa.", scope, item,
+            left,
+            right,
+            FindingType.NEEDS_EVIDENCE,
+            Disposition.NEEDS_EVIDENCE,
+            ReviewState.INSUFFICIENT_EVIDENCE,
+            ModelDisposition.INCOMPLETE,
+            "Thiếu căn cứ xác định giá trị đã gồm thuế hay chưa.",
+            scope,
+            item,
         )
     if left.unit and right.unit and left.unit != right.unit:
         if {left.unit, right.unit} == {"VND", "USD"} or (
@@ -360,10 +410,20 @@ def _pair(left: Fact, right: Fact, item: str) -> Candidate | None:
             scope,
             item,
         )
-    cite_blob = f"{right.citation.text_span} {left.citation.text_span} {right.raw_value} {left.raw_value}"
-    if str(item).startswith("penalty") or str(item) in {"A", "B"}:
+    cite_blob = (
+        f"{right.citation.text_span} {left.citation.text_span} {right.raw_value} {left.raw_value}"
+    )
+    subject_is_evidence = str(item).startswith("penalty") or str(item) in {"A", "B"}
+    if subject_is_evidence:
         cite_blob += f" {right.subject or ''} {left.subject or ''}"
-    is_amend = _explicit_amend_pair(left, right)
+    is_amend = _explicit_amend_pair(left, right) or (
+        subject_is_evidence
+        and any(
+            annex_amendment_title_targets(annex.subject, body.subject)
+            for annex, body in ((left, right), (right, left))
+            if annex.source_role == "annex" and body.source_role == "body"
+        )
+    )
     left_period, right_period = left.period_start, right.period_start
     if is_amend and scope != ComparisonScope.ANNEX_ANNEX:
         return _cand(
@@ -398,8 +458,8 @@ def _pair(left: Fact, right: Fact, item: str) -> Candidate | None:
                 FindingType.COMPARABLE_MATCH,
                 Disposition.COMPARABLE_MATCH,
                 ReviewState.PASS,
-            ModelDisposition.CONSISTENT,
-            "Cùng ngữ cảnh, hai nguồn khớp. Không vào hàng cảnh báo.",
+                ModelDisposition.CONSISTENT,
+                "Cùng ngữ cảnh, hai nguồn khớp. Không vào hàng cảnh báo.",
                 scope,
                 item,
             )
@@ -422,8 +482,8 @@ def _pair(left: Fact, right: Fact, item: str) -> Candidate | None:
                 FindingType.COMPARABLE_MATCH,
                 Disposition.COMPARABLE_MATCH,
                 ReviewState.PASS,
-            ModelDisposition.CONSISTENT,
-            "Cùng ngữ cảnh, hai nguồn khớp.",
+                ModelDisposition.CONSISTENT,
+                "Cùng ngữ cảnh, hai nguồn khớp.",
                 scope,
                 item,
             )
@@ -482,17 +542,33 @@ def _explicit_amend_pair(left: Fact, right: Fact) -> bool:
     for source, target in ((left, right), (right, left)):
         number = clause_number(target)
         source_text = f"{source.subject or ''} {source.citation.text_span}"
-        if number and AMEND_RE.search(source_text) and re.search(
-            rf"(?:sửa|sua|sửa đổi|sua doi|thay thế|thay the|điều chỉnh|dieu chinh|amends?)\s+(?:điều\s+|dieu\s+|article\s+)?{re.escape(number)}\b",
-            source_text,
-            re.I,
+        folded = unicodedata.normalize("NFD", source_text.casefold())
+        folded = "".join(char for char in folded if unicodedata.category(char) != "Mn")
+        if re.search(r"\b(?:khong|chua)\s+(?:duoc\s+)?(?:sua|thay the|dieu chinh)\b", folded):
+            continue
+        has_replacement_phrase = bool(re.search(r"\b(?:duoc\s+)?thay\s+bang\b", folded))
+        targets_clause = bool(
+            number
+            and re.search(
+                rf"(?:sửa|sua|sửa đổi|sua doi|thay thế|thay the|điều chỉnh|dieu chinh|amends?)\s+(?:điều\s+|dieu\s+|article\s+)?{re.escape(number)}\b",
+                source_text,
+                re.I,
+            )
+        )
+        if number and (
+            targets_clause
+            or (has_replacement_phrase and re.search(rf"\b{re.escape(number)}\b", folded))
         ):
             return True
         item = str(target.item_key or "")
-        if item and AMEND_RE.search(source_text) and re.search(
-            rf"(?:sửa|sua)\s+(?:mục\s+|item\s+)?{re.escape(item)}\s+(?:thành|thanh|to)\b",
-            source_text,
-            re.I,
+        if (
+            item
+            and AMEND_RE.search(source_text)
+            and re.search(
+                rf"(?:sửa|sua)\s+(?:mục\s+|item\s+)?{re.escape(item)}\s+(?:thành|thanh|to)\b",
+                source_text,
+                re.I,
+            )
         ):
             return True
     return False

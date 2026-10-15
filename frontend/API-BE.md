@@ -1,8 +1,8 @@
 # API Backend — lookup khi nối frontend
 
 Spec: **Contract Intelligence API** `1.1.0+sprint4-ai-integration` (DOC-05b + DOC-05c).  
-Đã chốt theo OpenAPI backend (envelope `{ data, meta }`, header `X-Backend-Version`).  
-Hợp đồng FE-BE: **DOC-05b `v1.7.0`**, header response `X-API-Contract: v1.7.0`. 4 endpoint `/notifications` của `v1.6.0` vẫn là đề xuất, backend chưa có ([24](#24-thông-báo-cá-nhân-đề-xuất-be-chưa-có)).
+Đã chốt theo OpenAPI backend (envelope `{ data, meta }`, header `X-Backend-Version`).
+Hợp đồng FE-BE: **DOC-05b `v2.1.0`**, header response `X-API-Contract: v2.1.0`. 4 endpoint `/notifications` của `v1.6.0` vẫn là đề xuất, backend chưa có ([24](#24-thông-báo-cá-nhân-đề-xuất-be-chưa-có)).
 
 Dùng file này khi bỏ mock: mở mục tương ứng màn hình / file `src/data/*`, copy endpoint + shape, nối `src/api/client.ts`.
 
@@ -83,7 +83,7 @@ type ApiResponse<T> = {
 }
 ```
 
-Header response: `X-Backend-Version`, `X-API-Contract` (hiện `v1.7.0`).
+Header response: `X-API-Contract` (hiện `v2.1.0`). `X-Backend-Version` chỉ có ở dev/test; bản online không gửi.
 
 ### Request headers (mọi endpoint trừ health)
 
@@ -273,6 +273,8 @@ RBAC list: **mọi user đã auth**.
 
 **FE:** `CreateDossierPage` ← `src/api/dossiers.ts` (`createDossier`, `patchDossier`)  
 Đã chốt OpenAPI: màn `/tao-ho-so` gọi **3b** `POST /api/v1/dossiers` → **202**. Multipart `contract` + `metadata` JSON `{ name }` + `annexes[]`. Nhận `dossier_id` + `job_id`, hiện **UPLOADED**.
+
+**Giới hạn (DOC-05b v2.0.1):** mỗi file tối đa 50 MiB (backend trả `413` JSON); trên bản online **cả request tối đa 100 MB** vì Cloudflare gói Free, quá thì Cloudflare trả `413` dạng **HTML** (không parse body). Bộ hồ sơ lớn hơn thì bớt phụ lục hoặc tải phụ lục qua `POST /dossiers/{id}/documents`.
 
 Mã vụ việc / phân loại / quyền riêng tư **không** nằm trong body POST (OpenAPI metadata chỉ `{ name, tags?, notes? }`). Sau 202 FE gọi `PATCH /dossiers/{id}` `{ metadata: { code, category, privacy } }`. PATCH lỗi không huỷ hồ sơ vừa tạo.
 
@@ -490,6 +492,8 @@ type DocumentDetailDTO = DocumentListItemDTO & {
 ### PDF gốc (binary, không envelope): `GET /api/v1/documents/{document_id}/content`
 
 `Content-Type: application/pdf`. Dùng blob URL cho viewer (màn citation compare). 404 nếu không có.
+
+**v2.0.2:** file đi thẳng từ storage theo từng khúc. `Range: bytes=a-b` (một khoảng) → `206` kèm `Content-Range`; khoảng ngoài file → `416`; `If-None-Match` khớp `ETag` (sha256 của file) → `304`. CORS cho đọc `Accept-Ranges`, `Content-Range`, `Content-Length`, `ETag`, nên pdf.js mở được bằng `getDocument({ url, httpHeaders })` để tải theo trang.
 
 ---
 
@@ -1185,16 +1189,11 @@ Người có quyền `read` gọi API sửa thì nhận **403**, `detail`: "Bạ
 
 ## 21. Lịch sử hỏi đáp
 
-### `GET /api/v1/dossiers/{dossier_id}/queries?scope=mine|all&limit=20&offset=0`
+### `GET /api/v1/dossiers/{dossier_id}/queries?limit=20&offset=0`
 
 Trả các lần hỏi đáp (`/ask`, `/query`, `/search`) trên hồ sơ, mới nhất trước. Dữ liệu lưu trong DB nên vẫn còn sau khi server khởi động lại.
 
-| Tham số                 | Ý nghĩa                                                                                     |
-| ----------------------- | ------------------------------------------------------------------------------------------- |
-| `scope=mine` (mặc định) | Chỉ câu hỏi của chính người gọi                                                             |
-| `scope=all`             | Câu hỏi của mọi người trên hồ sơ. **Chỉ chủ hồ sơ hoặc ADMINISTRATOR**, người khác nhận 403 |
-
-Lead chốt 14/10: ai tự xem của người đấy, không xem được dữ liệu của người khác. Frontend chỉ gọi `scope=mine`; backend sẽ bỏ `scope=all` ở PR riêng.
+Chỉ trả câu hỏi **của chính người gọi**, kể cả chủ hồ sơ và ADMINISTRATOR (Lead chốt 14/10, DOC-05b `v2.0.0`). `scope` chỉ còn nhận `mine` (mặc định); `scope=all` trả `422`. Frontend không gửi `scope=all`.
 
 Cần quyền xem hồ sơ (như `GET /dossiers/{id}`). Người khác tenant, hoặc có quyền chia sẻ đã hết hạn / bị tắt, nhận 403/404.
 
@@ -1378,3 +1377,19 @@ RBAC: **REVIEWER**, **ADMINISTRATOR**. `OPERATOR` nhận 403.
 | --- | ----------------------- |
 | 401 | Token không hợp lệ      |
 | 403 | Người gọi là `OPERATOR` |
+
+## 26. Đồ thị hợp đồng, vết xử lý và consent AI2 (v2.1.0)
+
+Đọc kết quả AI2 qua backend; frontend không gọi AI2 trực tiếp. Chi tiết ở DOC-05b, mục "Đồ thị hợp đồng, vết xử lý và consent AI2 (v2.1.0)".
+
+| Phương thức | Endpoint                                                         | Quyền                                                 | Ghi chú                                                                                                                                                         |
+| ----------- | ---------------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`       | `/api/v1/dossiers/{id}/ai2/contract-graph/{graph_kind}`          | đọc trích dẫn                                         | `graph_kind`: `pair` (Quan hệ điều khoản) hoặc `operation` (Sửa đổi điều khoản). Query bắt buộc `job_id`, `snapshot_digest`; tuỳ chọn `cursor`, `limit` (1–100) |
+| `GET`       | `/api/v1/dossiers/{id}/ai2/contract-graph/{graph_kind}/evidence` | đọc trích dẫn                                         | Bằng chứng của một quan hệ: `job_id`, `snapshot_digest`, `node_id`, `citation_ref`                                                                              |
+| `GET`       | `/api/v1/dossiers/{id}/ai2/processing-trace`                     | đọc trích dẫn                                         | Vết xử lý AI2: `job_id`, `snapshot_digest`                                                                                                                      |
+| `PATCH`     | `/api/v1/dossiers/{id}/ai2-content-sharing-consent`              | chủ hồ sơ hoặc ADMINISTRATOR (`my_access.can_manage`) | Body `{"enabled": true}` hoặc `false`. Trả `{dossier_id, enabled, effective_from: "next_request"}`                                                              |
+
+- `snapshot_digest` phải là của hồ sơ hiện tại, không thì `409 AI2_SNAPSHOT_CHANGED`. `next_cursor` gửi lại nguyên văn; con trỏ hỏng `400 GRAPH_CURSOR_INVALID`, của lần chạy khác `409 GRAPH_CURSOR_STALE`.
+- Quan hệ do đồ thị sinh ra luôn ở trạng thái chờ rà soát; UI không hiển thị như đã duyệt.
+- Consent đọc ở `detail.metadata.ai2_content_sharing_consent === true`. Hồ sơ mới nhận mặc định của server (bản online: bật). Chỉ người có `can_manage` thấy ô bật/tắt; người khác chỉ thấy trạng thái. `PATCH /dossiers/{id}` thường không đổi được trường này.
+- `503` (`AI2_GRAPH_UNAVAILABLE`, `AI2_GRAPH_EVIDENCE_UNAVAILABLE`, `AI2_TRACE_UNAVAILABLE`): AI2 chưa trả được, cho thử lại.

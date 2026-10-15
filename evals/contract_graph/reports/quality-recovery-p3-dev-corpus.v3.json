@@ -1,0 +1,149 @@
+{
+  "schema": "contract-graph-quality-recovery-p3-report/3",
+  "dataset_id": "quality-recovery-dev-20261011-v3",
+  "created_at_utc": "2026-10-10T19:50:34.628023+00:00",
+  "status": "REVIEW_LOCKED_QUALITY_READINESS_BLOCKED",
+  "manifest_path": "evals/contract_graph/pairs/quality-recovery-manifest.v4.json",
+  "manifest_sha256": "cd4063217316971671b8992da9dbf50d00aa27613cd30d448862175e6b0059e3",
+  "reviewed_gold_sha256": "11355553a39300a5557941ae38edc450e9ef72f8f8926666b9fa7a835865a0b3",
+  "review_lock": {
+    "approved_by_label": {
+      "CONFLICT": 1,
+      "DUPLICATE": 2,
+      "GENERAL_SPECIFIC": 27,
+      "REFERENCE": 7,
+      "UNRELATED": 563
+    },
+    "dataset_id": "quality-recovery-dev-20261011-v3",
+    "human_approved": true,
+    "n_rows": 600,
+    "reviewed_gold_sha256": "11355553a39300a5557941ae38edc450e9ef72f8f8926666b9fa7a835865a0b3",
+    "schema": "contract-graph-quality-review-lock/1",
+    "source": "user-review"
+  },
+  "approved_gold_rows": 600,
+  "approved_label_counts": {
+    "CONFLICT": 1,
+    "DUPLICATE": 2,
+    "GENERAL_SPECIFIC": 27,
+    "REFERENCE": 7,
+    "UNRELATED": 563
+  },
+  "recall_frame_rows": 600,
+  "precision_frame_rows": 600,
+  "fresh_independent_clusters": 31,
+  "blind_ai_review": {
+    "rows": 150,
+    "label_counts": {
+      "CONFLICT": 1,
+      "DUPLICATE": 1,
+      "GENERAL_SPECIFIC": 5,
+      "REFERENCE": 3,
+      "UNRELATED": 140
+    },
+    "agreement_rows": 149,
+    "disagreement_rows": 1,
+    "disagreement_pair_ids": [
+      "e72c14394a514679"
+    ],
+    "annotation_sha256": "5a57402e59733c3547eaaef5fb548629c2f925f1ac39dc6ecd29b0a1416a1c79",
+    "is_human_independent_review": false
+  },
+  "human_independent_review": {
+    "status": "WAIVED_BY_USER",
+    "completed": false,
+    "human_human_agreement_claimed": false
+  },
+  "planning_yield_minima": {
+    "status": "WAIVED_FOR_CONTINUATION_BY_USER",
+    "readiness_evaluation": {
+      "status": "BLOCKED",
+      "approved_gold_rows": 600,
+      "positives_by_label": {
+        "CONFLICT": 1,
+        "DUPLICATE": 2,
+        "GENERAL_SPECIFIC": 27,
+        "REFERENCE": 7
+      },
+      "negative_count": 563,
+      "independent_clusters": 31,
+      "clusters_by_label": {
+        "CONFLICT": 1,
+        "DUPLICATE": 2,
+        "GENERAL_SPECIFIC": 15,
+        "REFERENCE": 6
+      },
+      "max_cluster_share_by_label": {
+        "GENERAL_SPECIFIC": 0.14814814814814814,
+        "CONFLICT": 1.0,
+        "DUPLICATE": 0.5,
+        "REFERENCE": 0.2857142857142857
+      },
+      "minimums": {
+        "positives_per_label": 60,
+        "negatives": 120,
+        "independent_clusters": 30,
+        "clusters_per_label": 3,
+        "max_cluster_share": 0.4
+      },
+      "reason_codes": [
+        "general_specific_positive_minimum_not_met",
+        "conflict_positive_minimum_not_met",
+        "conflict_cluster_minimum_not_met",
+        "conflict_cluster_dominance_exceeded",
+        "duplicate_positive_minimum_not_met",
+        "duplicate_cluster_minimum_not_met",
+        "duplicate_cluster_dominance_exceeded",
+        "reference_positive_minimum_not_met"
+      ]
+    }
+  },
+  "quality_readiness": {
+    "status": "BLOCKED",
+    "approved_gold_rows": 600,
+    "positives_by_label": {
+      "CONFLICT": 1,
+      "DUPLICATE": 2,
+      "GENERAL_SPECIFIC": 27,
+      "REFERENCE": 7
+    },
+    "negative_count": 563,
+    "independent_clusters": 31,
+    "clusters_by_label": {
+      "CONFLICT": 1,
+      "DUPLICATE": 2,
+      "GENERAL_SPECIFIC": 15,
+      "REFERENCE": 6
+    },
+    "max_cluster_share_by_label": {
+      "GENERAL_SPECIFIC": 0.14814814814814814,
+      "CONFLICT": 1.0,
+      "DUPLICATE": 0.5,
+      "REFERENCE": 0.2857142857142857
+    },
+    "minimums": {
+      "positives_per_label": 60,
+      "negatives": 120,
+      "independent_clusters": 30,
+      "clusters_per_label": 3,
+      "max_cluster_share": 0.4
+    },
+    "reason_codes": [
+      "general_specific_positive_minimum_not_met",
+      "conflict_positive_minimum_not_met",
+      "conflict_cluster_minimum_not_met",
+      "conflict_cluster_dominance_exceeded",
+      "duplicate_positive_minimum_not_met",
+      "duplicate_cluster_minimum_not_met",
+      "duplicate_cluster_dominance_exceeded",
+      "reference_positive_minimum_not_met"
+    ]
+  },
+  "hg_qr1_approval_receipt_sha256": "616b802240f971fc54f8444c41c9323e79becbf2a069fb51b2c2a2028a7e3733",
+  "limitations": [
+    "AI second-pass annotations are not a substitute for independent human annotation.",
+    "The approved corpus is too sparse for the planned per-label readiness minima; quality readiness remains BLOCKED.",
+    "No classifier quality PASS, held-out permission, production enablement, or P4 readiness is asserted.",
+    "User-approved deviations permit continuation and a review lock; they do not waive later measured quality gates."
+  ]
+}

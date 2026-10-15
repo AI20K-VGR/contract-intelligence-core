@@ -1,0 +1,13 @@
+{"actor": "user:dungskbg2004@gmail.com", "kind": "open", "mark": "9b9f27bb659b0cebbd17a13da9e1505610694c93", "phase": "P1", "ts": "2026-10-13T17:32:26+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "verify", "phase": "P1", "sha": ["04b5f57b707d8aba824f5e144429f84de35a9ab4", "84dcbfbee77c7794132878f3e1b85efdf56513a8"], "ts": "2026-10-13T19:03:49+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "open", "mark": "04b5f57b707d8aba824f5e144429f84de35a9ab4", "phase": "P2", "ts": "2026-10-13T19:04:00+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "verify", "phase": "P2", "sha": [], "ts": "2026-10-13T19:57:00+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "open", "mark": "04b5f57b707d8aba824f5e144429f84de35a9ab4", "phase": "P3", "ts": "2026-10-13T19:57:11+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "verify", "phase": "P3", "sha": ["7680f1fe08c5d9b016a4a695d7bdca65e9a11a4b", "faccf56486e34091a44dc60178d3c192bff2c396", "5e29ac5dc18723a1a79b318638b48ccced18f220"], "ts": "2026-10-13T20:26:52+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "open", "mark": "7680f1fe08c5d9b016a4a695d7bdca65e9a11a4b", "phase": "P4", "ts": "2026-10-13T20:27:00+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "verify", "phase": "P4", "sha": [], "ts": "2026-10-13T20:46:27+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "open", "mark": "7680f1fe08c5d9b016a4a695d7bdca65e9a11a4b", "phase": "P5", "ts": "2026-10-13T20:46:34+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "verify", "phase": "P5", "sha": [], "ts": "2026-10-13T21:02:01+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "open", "mark": "7680f1fe08c5d9b016a4a695d7bdca65e9a11a4b", "phase": "P6", "ts": "2026-10-13T21:02:40+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "verify", "phase": "P6", "sha": [], "ts": "2026-10-13T21:02:40+00:00"}
+{"actor": "user:dungskbg2004@gmail.com", "kind": "verify", "phase": "P5", "sha": ["09317268334018e7c8d1f9fc5e72c93a30021c80", "721284312edac5b33b91c26c31deddc7801359e4", "349ec6d41ef7c52322f7b4fa27f41b357a5cbc53", "508f0c351dfb73a3f2697abf9656a4c54cfef535", "f90536c8f88024fdbdc4ef509edfabbf8a3e30fb", "bb1eb900141df93c1d196176248a007fa1b79ced", "c770692762e48958c3a3b341689a166dc5029356"], "ts": "2026-10-13T23:00:09+00:00"}
