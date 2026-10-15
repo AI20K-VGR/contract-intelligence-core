@@ -24,6 +24,10 @@ FROM caddy:2.8-alpine
 COPY --from=build /app/dist /srv
 # Client-side routes (/dossiers/…) have no file: answer them with index.html.
 # Hashed bundles under /assets never change; index.html must always be fresh.
+# no-transform: Cloudflare (Web Analytics automatic setup) injects a beacon
+# script from static.cloudflareinsights.com into HTML it may transform. The CSP
+# in deploy/frontend.caddy allows no remote scripts, so the browser blocked it
+# and logged a CSP violation on every page. no-transform stops the injection.
 COPY <<'EOF' /etc/caddy/Caddyfile
 {
 	admin off
@@ -37,7 +41,7 @@ COPY <<'EOF' /etc/caddy/Caddyfile
 	@assets path /assets/*
 	header @assets Cache-Control "public, max-age=31536000, immutable"
 	@page not path /assets/*
-	header @page Cache-Control "no-cache"
+	header @page Cache-Control "no-cache, no-transform"
 
 	try_files {path} /index.html
 	file_server
