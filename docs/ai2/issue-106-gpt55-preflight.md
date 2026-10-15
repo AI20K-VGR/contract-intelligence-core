@@ -20,6 +20,11 @@ Probe giới hạn 1 completion token có thể bị GPT-5.5 từ chối với H
   `reasoning_tokens`; `truncated_by_reasoning` chỉ được ghi khi content rỗng và hết output cap.
 - Caller `/readyz` trong deploy/E2E chờ tối đa 90 giây, đủ cho mặc định probe LLM và embedding.
   Khi tùy chỉnh timeout vượt mức này, người vận hành cần điều chỉnh cả caller.
+- Vòng chờ readiness của deploy có ngân sách tổng 600 giây. Mỗi lần probe bị giới hạn
+  bởi thời gian còn lại và `timeout` của hệ điều hành; khi hết hạn, deploy in log AI2
+  và thất bại rõ ràng thay vì chờ đến khi GitHub hủy job. Có tối đa 5 giây dọn tiến trình
+  sau tín hiệu kết thúc nếu Docker CLI không thoát.
+  Bước lấy log chẩn đoán cũng bị giới hạn 10 giây, cộng tối đa 5 giây dọn tiến trình.
 - Giữ nguyên hard cap `max_output_tokens` của inference và semantic profile;
   không tự cộng token reasoning hoặc thêm retry ngầm.
 - BE worker truyền lại consent của đúng hồ sơ ở lần dựng request có semantic profile.
