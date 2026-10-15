@@ -19,7 +19,11 @@ import { useDossierPermissions } from '../auth/dossierPermissions'
 import { MaterialIcon } from '../components/icons'
 import { SplitPageStrip } from '../components/SplitPageStrip'
 import { progressPath } from '../data/dossiers'
-import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
+import {
+  useHeaderShowsPageTitle,
+  usePageBreadcrumb,
+  usePageTitle,
+} from '../hooks/usePageTitle'
 import {
   addPart,
   initialParts,
@@ -56,6 +60,11 @@ export function SplitConfirmPage() {
   const [warn, setWarn] = useState(false)
 
   usePageTitle(dossier?.name ?? 'Xác nhận tách file')
+  usePageBreadcrumb([
+    { label: backLabel, to: backTo },
+    { label: 'Xác nhận tách file' },
+    ...(dossier?.name ? [{ label: dossier.name }] : []),
+  ])
   const titleInHeader = useHeaderShowsPageTitle()
 
   // File cần tách là tệp hợp đồng người dùng vừa tải lên.
@@ -157,26 +166,12 @@ export function SplitConfirmPage() {
 
   return (
     <div className="flex w-full flex-col gap-space-lg pb-margin-lg">
-      <div className="flex flex-col gap-space-sm pt-space-md">
-        <nav className="flex items-center gap-space-xs font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">
-          <Link className="hover:text-primary" to={backTo}>
-            {backLabel}
-          </Link>
-          <MaterialIcon name="chevron_right" className="text-[14px]" />
-          <span className="font-semibold text-on-surface">
-            Xác nhận tách file
-          </span>
-        </nav>
-        {titleInHeader ? null : (
-          <h1 className="font-headline-lg text-headline-lg text-primary">
-            Xác nhận tách file
-          </h1>
-        )}
-        <p className="max-w-3xl font-body-md text-body-md text-on-surface-variant">
-          File này gồm cả hợp đồng và phụ lục. Chọn trang đầu tiên của phụ lục
-          để chia file. Mỗi phần sẽ thành một tài liệu riêng rồi mới OCR.
-        </p>
-      </div>
+      {/* Header đã hiện Hồ sơ › Xác nhận tách file › tên hồ sơ. */}
+      {titleInHeader ? null : (
+        <h1 className="pt-space-md font-headline-lg text-headline-lg text-primary">
+          Xác nhận tách file
+        </h1>
+      )}
 
       {loadError ? (
         <div className="rounded-lg bg-error-container px-space-md py-space-sm font-body-sm text-body-sm text-on-error-container">
@@ -190,9 +185,13 @@ export function SplitConfirmPage() {
         </p>
       ) : null}
 
-      {dossier && source && !done ? (
-        <div className="grid grid-cols-1 items-start gap-space-lg xl:grid-cols-12">
-          <section className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-lg shadow-sm xl:col-span-8">
+      {dossier && source ? (
+        // Tách xong thì giữ trang, khóa thao tác trong lúc chờ chuyển sang OCR.
+        <div
+          aria-disabled={done ? true : undefined}
+          className={`flex flex-col gap-space-lg ${done ? 'pointer-events-none opacity-60' : ''}`}
+        >
+          <section className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-lg shadow-sm">
             <div className="flex items-center gap-space-md">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-700">
                 <MaterialIcon name="picture_as_pdf" className="text-[24px]" />
@@ -207,21 +206,6 @@ export function SplitConfirmPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-space-lg gap-y-1 rounded-lg bg-surface-container-low px-space-md py-space-sm font-body-sm text-body-sm text-on-surface-variant">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-sm bg-amber-400" />
-                Hợp đồng
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-sm bg-sky-500" />
-                Phụ lục
-              </span>
-              <span>
-                Bấm <strong className="text-on-surface">Phụ lục từ đây</strong>{' '}
-                ở trang đầu tiên của phụ lục.
-              </span>
-            </div>
-
             <SplitPageStrip
               disabled={saving}
               documentId={source.id}
@@ -231,13 +215,20 @@ export function SplitConfirmPage() {
             />
           </section>
 
-          <aside className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-lg shadow-sm xl:sticky xl:top-space-md xl:col-span-4">
+          <section className="flex flex-col gap-space-md rounded-xl bg-surface-container-lowest p-space-lg shadow-sm">
             <div className="flex items-center justify-between gap-space-sm">
-              <h2 className="font-title-sm text-title-sm font-semibold text-on-surface">
-                Các phần sau khi tách
-              </h2>
+              <div className="flex flex-col">
+                <h2 className="font-title-sm text-title-sm font-semibold text-on-surface">
+                  Các phần sau khi tách
+                </h2>
+                <p className="font-body-sm text-body-sm text-on-surface-variant">
+                  {parts.length > 1
+                    ? `File sẽ thành ${parts.length} tài liệu riêng.`
+                    : 'Giữ nguyên một tài liệu.'}
+                </p>
+              </div>
               <button
-                className="inline-flex h-8 items-center gap-1 rounded-md bg-surface-container-low px-space-sm font-body-sm text-body-sm text-on-surface hover:bg-surface-container disabled:opacity-50"
+                className="inline-flex h-9 items-center gap-1 rounded-lg border border-brand-300 bg-brand-50 px-space-sm font-body-sm text-body-sm font-semibold text-brand-800 hover:bg-brand-100 disabled:opacity-50"
                 disabled={saving || !canAdd}
                 type="button"
                 onClick={() =>
@@ -254,62 +245,90 @@ export function SplitConfirmPage() {
                 const last = index === resolved.length - 1
                 const draft = parts[index]
                 const annex = part.role === 'annex'
+                const valid = part.pageEnd >= part.pageStart
+                const count = valid ? part.pageEnd - part.pageStart + 1 : 0
+                const total = Math.max(pageCount, 1)
                 return (
                   <li
                     key={part.key}
-                    className={`flex flex-col gap-space-sm rounded-lg border-l-4 bg-surface-container-low px-space-md py-space-sm ${
-                      annex ? 'border-sky-500' : 'border-amber-400'
-                    }`}
+                    className="grid grid-cols-[auto_1fr_auto] items-center gap-x-space-md gap-y-space-sm rounded-lg bg-surface-container-low px-space-md py-space-sm md:grid-cols-[auto_13rem_11rem_1fr_auto]"
                   >
-                    <div className="flex items-center justify-between gap-space-sm">
-                      <span className="font-label-md text-label-md font-semibold text-on-surface">
-                        Phần {index + 1}
+                    <span
+                      className={`flex h-8 w-8 items-center justify-center rounded-full font-label-md text-label-md font-bold ${
+                        annex
+                          ? 'bg-brand-300 text-brand-900'
+                          : 'bg-brand-700 text-white'
+                      }`}
+                    >
+                      {index + 1}
+                    </span>
+                    <select
+                      aria-label={`Vai trò của phần ${index + 1}`}
+                      className="h-9 w-full rounded-md bg-surface-container-lowest px-2 font-body-sm text-body-sm font-semibold text-on-surface ring-1 ring-surface-container-high"
+                      disabled={saving}
+                      value={part.role}
+                      onChange={(event) =>
+                        updatePart(part.key, {
+                          role: event.target.value as SplitRole,
+                        })
+                      }
+                    >
+                      <option value="contract">{roleLabels.contract}</option>
+                      <option value="annex">{roleLabels.annex}</option>
+                    </select>
+                    <div className="col-start-2 row-start-2 flex items-center gap-1.5 font-body-sm text-body-sm text-on-surface-variant md:col-start-auto md:row-start-auto">
+                      Trang
+                      <span className="font-code-sm text-code-sm font-semibold text-on-surface">
+                        {part.pageStart}
                       </span>
-                      <span className="font-code-sm text-code-sm text-on-surface-variant">
-                        {part.pageEnd >= part.pageStart
-                          ? `Trang ${part.pageStart}–${part.pageEnd} · ${part.pageEnd - part.pageStart + 1} trang`
-                          : 'Chưa hợp lệ'}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-space-sm">
-                      <select
-                        aria-label={`Vai trò của phần ${index + 1}`}
-                        className="h-9 min-w-0 flex-1 rounded-md bg-surface-container-lowest px-2 font-body-sm text-body-sm text-on-surface ring-1 ring-surface-container-high"
-                        disabled={saving}
-                        value={part.role}
-                        onChange={(event) =>
-                          updatePart(part.key, {
-                            role: event.target.value as SplitRole,
-                          })
-                        }
-                      >
-                        <option value="contract">{roleLabels.contract}</option>
-                        <option value="annex">{roleLabels.annex}</option>
-                      </select>
-                      <label className="inline-flex items-center gap-1.5 font-body-sm text-body-sm text-on-surface-variant">
-                        đến trang
+                      –
+                      {last ? (
+                        <span className="font-code-sm text-code-sm font-semibold text-on-surface">
+                          {pageCount}
+                        </span>
+                      ) : (
                         <input
                           aria-label={`Trang cuối của phần ${index + 1}`}
-                          className="h-9 w-16 rounded-md bg-surface-container-lowest px-2 text-center font-code-sm text-code-sm text-on-surface ring-1 ring-surface-container-high disabled:bg-surface-container disabled:text-on-surface-variant"
-                          disabled={last || saving}
+                          className="h-8 w-14 rounded-md bg-surface-container-lowest px-1 text-center font-code-sm text-code-sm font-semibold text-on-surface ring-1 ring-surface-container-high"
+                          disabled={saving}
                           max={pageCount}
                           min={part.pageStart}
                           type="number"
-                          value={
-                            last ? pageCount : (draft?.end ?? part.pageEnd)
-                          }
+                          value={draft?.end ?? part.pageEnd}
                           onChange={(event) =>
                             updatePart(part.key, {
                               end: Number.parseInt(event.target.value, 10) || 0,
                             })
                           }
                         />
-                      </label>
+                      )}
+                    </div>
+                    {/* Vị trí của phần trong cả file. */}
+                    <div className="col-span-3 flex items-center gap-space-sm md:col-span-1">
+                      <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-surface-container-high">
+                        {valid ? (
+                          <span
+                            className={`absolute inset-y-0 rounded-full ${annex ? 'bg-brand-300' : 'bg-brand-700'}`}
+                            style={{
+                              left: `${((part.pageStart - 1) / total) * 100}%`,
+                              width: `${(count / total) * 100}%`,
+                            }}
+                          />
+                        ) : null}
+                      </div>
+                      <span
+                        className={`w-16 shrink-0 text-right font-code-sm text-code-sm ${valid ? 'text-on-surface-variant' : 'text-error'}`}
+                      >
+                        {valid ? `${count} trang` : 'Sai trang'}
+                      </span>
+                    </div>
+                    <div className="col-start-3 row-start-1 flex w-9 justify-end md:col-start-auto md:row-start-auto">
                       {parts.length > 1 ? (
                         <button
                           aria-label={`Xóa phần ${index + 1}`}
                           className="flex h-9 w-9 items-center justify-center rounded-md text-secondary hover:bg-surface-container hover:text-error disabled:opacity-50"
                           disabled={saving}
+                          title="Xóa phần này"
                           type="button"
                           onClick={() =>
                             setParts((current) => removePart(current, part.key))
@@ -349,9 +368,9 @@ export function SplitConfirmPage() {
               </div>
             ) : null}
 
-            <div className="flex flex-col gap-space-sm border-t border-surface-container pt-space-md">
+            <div className="flex flex-col-reverse gap-space-sm border-t border-surface-container pt-space-md sm:flex-row sm:items-center sm:justify-end">
               <button
-                className="inline-flex h-11 items-center justify-center gap-1.5 rounded-lg bg-primary px-space-lg font-label-md text-label-md font-semibold text-on-primary disabled:opacity-50"
+                className="inline-flex h-11 items-center justify-center gap-1.5 rounded-lg bg-primary px-space-lg font-label-md text-label-md font-semibold text-on-primary disabled:opacity-50 sm:order-last"
                 disabled={saving || problem !== null}
                 type="button"
                 onClick={() => (warn ? void confirm() : askConfirm())}
@@ -367,7 +386,7 @@ export function SplitConfirmPage() {
               </button>
               {warn ? (
                 <button
-                  className="h-9 rounded-lg font-body-sm text-body-sm text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface disabled:opacity-50"
+                  className="h-11 rounded-lg px-space-lg font-body-sm text-body-sm text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface disabled:opacity-50"
                   disabled={saving}
                   type="button"
                   onClick={() => setWarn(false)}
@@ -376,41 +395,43 @@ export function SplitConfirmPage() {
                 </button>
               ) : (
                 <Link
-                  className="flex h-9 items-center justify-center rounded-lg font-body-sm text-body-sm text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
+                  className="flex h-11 items-center justify-center rounded-lg px-space-lg font-body-sm text-body-sm text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
                   to={backTo}
                 >
                   Để sau
                 </Link>
               )}
             </div>
-          </aside>
+          </section>
         </div>
       ) : null}
 
       {done ? (
-        <section className="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm">
-          <p className="flex items-center gap-1.5 font-title-sm text-title-sm font-semibold text-on-surface">
-            <MaterialIcon
-              name="check_circle"
-              className="text-[22px] text-emerald-600"
-            />
-            Đã tách thành {done.documents.length} tài liệu
-          </p>
-          <ul className="mt-space-sm flex flex-col gap-1">
-            {done.documents.map((item) => (
-              <li
-                key={item.id}
-                className="font-body-sm text-body-sm text-on-surface"
-              >
-                {roleLabels[item.role as SplitRole] ?? item.role} · trang{' '}
-                {item.page_start}–{item.page_end} ({item.page_count} trang)
-              </li>
-            ))}
-          </ul>
-          <p className="mt-space-sm font-body-sm text-body-sm text-on-surface-variant">
-            Đang chuyển sang tiến trình OCR…
-          </p>
-        </section>
+        <div
+          className="fixed top-20 right-6 z-[70] flex w-[min(24rem,calc(100vw-3rem))] items-start gap-space-md rounded-lg border border-surface-container bg-surface-container-lowest px-space-lg py-space-md font-body-sm text-body-sm text-on-surface shadow-md"
+          role="status"
+        >
+          <MaterialIcon
+            name="check_circle"
+            className="shrink-0 text-[20px] text-emerald-600"
+          />
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className="font-semibold">
+              Đã tách thành {done.documents.length} tài liệu
+            </p>
+            <ul className="flex flex-col text-on-surface-variant">
+              {done.documents.map((item) => (
+                <li key={item.id}>
+                  {roleLabels[item.role as SplitRole] ?? item.role} · trang{' '}
+                  {item.page_start}–{item.page_end}
+                </li>
+              ))}
+            </ul>
+            <p className="text-on-surface-variant">
+              Đang chuyển sang tiến trình OCR…
+            </p>
+          </div>
+        </div>
       ) : null}
     </div>
   )
