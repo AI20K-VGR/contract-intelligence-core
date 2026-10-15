@@ -52,7 +52,9 @@ __version__ = "2.0.0"
 # v2.0.0: bỏ scope=all của GET /dossiers/{id}/queries; ai hỏi chỉ xem lịch sử của mình.
 # v2.0.1: ghi giới hạn tải hồ sơ (50 MiB mỗi file, 100 MB mỗi request trên bản online).
 # v2.0.2: /documents/{id}/content nhận Range (206/416) và If-None-Match (304), có ETag.
-__api_contract__ = "v2.0.2"
+# v3.0.0: token không có role ứng dụng → 403; /ai/jobs chỉ ADMINISTRATOR; batch
+#         cancel/resume chỉ người tạo hoặc ADMINISTRATOR (#96). Thu hẹp quyền nên MAJOR.
+__api_contract__ = "v3.0.0"
 
 # AI service contract version (DOC-05c) — wrap khi AI service sẵn sàng
 __ai_contract__ = "v1.0.0"

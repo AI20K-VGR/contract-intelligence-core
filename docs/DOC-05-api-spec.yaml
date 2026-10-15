@@ -39,7 +39,8 @@ info:
     - Phân trang: cursor (`?cursor=&limit=`), mặc định limit=50, tối đa 200
     - Header phản hồi `X-Trace-Id` để debug
     - Header `Idempotency-Key` cho các mutation POST quan trọng
-    - Tài liệu OpenAPI UI: `GET /docs` (Swagger UI), `GET /redoc`
+    - Tài liệu OpenAPI UI: `GET /docs` (Swagger UI), `GET /redoc`, `GET /openapi.json`, chỉ ở dev/test;
+      staging/prod không phục vụ (DOC-05b v3.0.0)
 
     ## Optimistic concurrency cho review
     Mọi API trả về fact/finding/clause… ở chế độ "effective" đều kèm `current_version`.
@@ -923,6 +924,9 @@ paths:
     post:
       tags: [batches]
       summary: Huỷ bỏ xử lý batch (dừng toàn bộ các job đang chờ chạy)
+      description: |
+        OPERATOR chỉ huỷ được batch do chính mình tạo; batch của người khác trả 404 như batch
+        không tồn tại. ADMINISTRATOR huỷ được mọi batch trong tenant (DOC-05b v3.0.0).
       operationId: cancelBatch
       x-rbac: [OPERATOR, ADMINISTRATOR]
       responses:
@@ -937,7 +941,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
-          $ref: '#/components/responses/NotFound'
+          description: Không có batch này, hoặc batch của OPERATOR khác
         '409':
           description: Batch already completed or cannot be cancelled
           content:
@@ -975,6 +979,9 @@ paths:
     post:
       tags: [batches]
       summary: Bỏ auto_paused của batch
+      description: |
+        OPERATOR chỉ tiếp tục được batch do chính mình tạo; batch của người khác trả 404.
+        ADMINISTRATOR: mọi batch trong tenant (DOC-05b v3.0.0).
       operationId: resumeBatch
       x-rbac: [OPERATOR, ADMINISTRATOR]
       responses:
@@ -984,6 +991,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiEnvelopeBatchSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Không có batch này, hoặc batch của OPERATOR khác
+        '409':
+          description: Batch không ở trạng thái tiếp tục được
 
   # ─── Documents & Pages ───────────────────────────────────────────────────
   /documents/{document_id}:
