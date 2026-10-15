@@ -6,10 +6,11 @@
 	# What the app may load, and who may frame it. Sources: the app itself,
 	# the API (fetch, the /grafana iframe), Keycloak (token calls, the silent
 	# renew iframe) and Google Fonts. pdf.js runs its worker from /assets and
-	# draws page previews from blob: URLs. 'unsafe-inline' for styles only:
+	# draws page previews from blob: URLs; 'wasm-unsafe-eval' lets pdf.js (6.x) run its
+	# WebAssembly image decoders (not JavaScript eval). 'unsafe-inline' for styles only:
 	# components set style attributes. No inline or remote scripts.
 	header {
-		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://{$API_HOST} https://{$AUTH_HOST}; frame-src 'self' https://{$API_HOST} https://{$AUTH_HOST}; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self' https://{$AUTH_HOST}; frame-ancestors 'self'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://{$API_HOST} https://{$AUTH_HOST}; frame-src 'self' https://{$API_HOST} https://{$AUTH_HOST}; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self' https://{$AUTH_HOST}; frame-ancestors 'self'"
 		X-Frame-Options "SAMEORIGIN"
 		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
 	}
