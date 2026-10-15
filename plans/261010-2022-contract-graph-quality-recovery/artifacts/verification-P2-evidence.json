@@ -1,0 +1,26 @@
+{
+  "stage": "cook",
+  "plan": "261010-2022-contract-graph-quality-recovery",
+  "phase": "P2",
+  "checks": [
+    {"name": "focused_offline_tests", "status": "PASS", "result": "153 passed, 1 skipped in 3.88s"},
+    {"name": "contract_graph_offline_regression", "status": "PASS", "result": "296 passed, 1 skipped in 8.72s"},
+    {"name": "py_compile_owned_modules", "status": "PASS"},
+    {"name": "git_diff_check_owned_files", "status": "PASS"},
+    {"name": "provider_requests", "status": "PASS", "result": "0"},
+    {"name": "product_quality", "status": "NOT_EVALUATED", "result": "No live provider calls or real-data evaluation; no product PASS claimed."}
+  ],
+  "verdict": "PASS",
+  "actor": "developer",
+  "ts": "2026-10-11",
+  "evidence": {
+    "report_json": "evals/contract_graph/reports/quality-recovery-p2-gates.json",
+    "report_markdown": "evals/contract_graph/reports/quality-recovery-p2-gates.md",
+    "cluster_feasibility": {
+      "five_clusters_12_of_12_each_lower": 0.5655175352168254,
+      "thirty_clusters_12_of_12_each_lower": 0.9894419431113063,
+      "threshold": 0.85,
+      "recommendation": "P3 must retain the thresholds and target at least 30 independent contributing clusters as a planning minimum; verify actual feasibility per label before review."
+    }
+  }
+}

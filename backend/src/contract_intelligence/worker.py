@@ -260,7 +260,7 @@ async def _freeze_semantic_profile(
         return None  # Frozen legacy OFF pin survives retry and later producer enable.
     if (
         "semantic_profile" not in payload
-        and os.getenv("AI2_SEMANTIC_ENABLED", "false").strip().casefold() != "true"
+        and os.getenv("AI2_SEMANTIC_ENABLED", "true").strip().casefold() != "true"
     ):
         # Legacy processing adds no database roundtrip. The existing worker commit
         # persists this OFF pin together with its durable handoff; retry keeps it.
@@ -284,7 +284,7 @@ async def _freeze_semantic_profile(
             if profile is not None
             else None
         )
-    if os.getenv("AI2_SEMANTIC_ENABLED", "false").strip().casefold() != "true":
+    if os.getenv("AI2_SEMANTIC_ENABLED", "true").strip().casefold() != "true":
         payload["semantic_profile"] = None
     else:
         config = json.loads(os.environ.get("AI2_SEMANTIC_PROFILE_CONFIG", "{}"))
@@ -956,6 +956,7 @@ async def _persist_ai2_snapshot_identity(
     dossier_id: str,
     snapshot_digest: str,
     snapshot_id: str = "",
+    ai2_job_id: str = "",
 ) -> None:
     """Persist the AI2 snapshot identity used to bind later queries.
 
@@ -976,6 +977,9 @@ async def _persist_ai2_snapshot_identity(
     snapshot_id = str(snapshot_id or "").strip()
     if snapshot_id:
         metadata["ai2_snapshot_id"] = snapshot_id
+    ai2_job_id = str(ai2_job_id or "").strip()
+    if ai2_job_id:
+        metadata["ai2_job_id"] = ai2_job_id
     dossier.metadata_json = metadata
     await session.flush()
 
@@ -1207,6 +1211,22 @@ async def _manifest_inputs(
     return members, list(relation_result.scalars().all()), documents
 
 
+async def _dossier_content_sharing_consent(
+    session: AsyncSession, *, dossier_id: str, tenant_id: str
+) -> bool:
+    result = await session.execute(
+        select(DossierORM.metadata_json).where(
+            DossierORM.id == dossier_id,
+            DossierORM.tenant_id == tenant_id,
+        )
+    )
+    metadata = result.scalar_one_or_none()
+    if not isinstance(metadata, dict):
+        return False
+    consent = metadata.get("ai2_content_sharing_consent")
+    return consent if isinstance(consent, bool) else False
+
+
 async def _run_ai2_if_ready(
     session: AsyncSession,
     *,
@@ -1248,6 +1268,9 @@ async def _run_ai2_if_ready(
     members, relations, documents = await _manifest_inputs(
         session, manifest_id=manifest.id, dossier_id=dossier_id
     )
+    content_sharing_consent = await _dossier_content_sharing_consent(
+        session, dossier_id=dossier_id, tenant_id=tenant_id
+    )
     shape_error = _dossier_shape_error(members)
     if shape_error is not None:
         code, detail = shape_error
@@ -1266,6 +1289,50 @@ async def _run_ai2_if_ready(
     snapshots = _durable_snapshots_from_run(durable_run)
     budget = ai2_deadline_seconds(sum(int(d.page_count or 0) for d in documents))
     attempt = _ai2_attempt(durable_run)
+    request = build_processing_request(
+        dossier_id=dossier_id,
+        run_id=run_id,
+        snapshots=snapshots,
+        documents=documents,
+        members=members,
+        relations=relations,
+        snapshot_created_at=_snapshot_created_at(durable_run) if durable_run else {},
+        attempt=attempt,
+        max_processing_seconds=budget,
+        content_sharing_consent=content_sharing_consent,
+    )
+    if request is None:
+        logger.info(
+            "worker.ai2.waiting_for_snapshots",
+            dossier_id=dossier_id,
+            run_id=run_id,
+            snapshot_count=len(snapshots),
+        )
+        return
+
+    query_snapshot_digest = _ai2_query_snapshot_digest(request)
+
+    await update_pipeline_run_status(
+        session,
+        tenant_id=tenant_id,
+        run_id=run_id,
+        status="running",
+    )
+    await update_pipeline_step(
+        session,
+        tenant_id=tenant_id,
+        run_id=run_id,
+        step="S4",
+        status="running",
+        metrics={
+            "service": "ai2",
+            "contract": "be.ai2.processing.request.v1",
+            "attempt": attempt,
+            "budget_seconds": budget,
+        },
+    )
+    await session.commit()
+
     ai2_job_id = ""
     try:
         # Profile resolution and request construction are part of the handled
@@ -1461,6 +1528,7 @@ async def _finalize_ai2_success(
         dossier_id=dossier_id,
         snapshot_digest=snapshot_digest,
         snapshot_id=snapshot_id,
+        ai2_job_id=ai2_job_id,
     )
     for step in ("S4", "S5", "S6", "S7", "S9", "S10"):
         await update_pipeline_step(
@@ -2069,6 +2137,9 @@ async def _run_ai2_reindex(
     members, relations, documents = await _manifest_inputs(
         session, manifest_id=manifest.id, dossier_id=dossier_id
     )
+    content_sharing_consent = await _dossier_content_sharing_consent(
+        session, dossier_id=dossier_id, tenant_id=tenant_id
+    )
     attempt = _ai2_attempt(run) + 1
     budget = ai2_deadline_seconds(sum(int(d.page_count or 0) for d in documents))
     request = build_processing_request(
@@ -2081,6 +2152,7 @@ async def _run_ai2_reindex(
         snapshot_created_at=_snapshot_created_at(run),
         attempt=attempt,
         max_processing_seconds=budget,
+        content_sharing_consent=content_sharing_consent,
     )
     if request is None:
         await refuse(reason="snapshots")
@@ -2143,6 +2215,7 @@ async def _run_ai2_reindex(
         dossier_id=dossier_id,
         snapshot_digest=_ai2_query_snapshot_digest(request),
         snapshot_id=snapshot_id,
+        ai2_job_id=ai2_job_id,
     )
     add_audit_event(
         session,

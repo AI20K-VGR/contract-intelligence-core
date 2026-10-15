@@ -1,0 +1,44 @@
+{
+  "run_id": "contract-pairs-261009-cx-gpt6sol",
+  "metric": "recall_any",
+  "wilson_E_worst_trial": {
+    "k": 9,
+    "n": 101,
+    "lower": 0.047589237771987515,
+    "upper": 0.16073921421997342,
+    "method": "wilson",
+    "conf": 0.95
+  },
+  "mcnemar_C_vs_B": {
+    "b": 1,
+    "c": 0,
+    "n_disc": 1,
+    "lower": 0.20654931437723745,
+    "upper": 1.0,
+    "conclusive": false,
+    "method": "mcnemar-wilson"
+  },
+  "mcnemar_C_vs_E": {
+    "b": 0,
+    "c": 6,
+    "n_disc": 6,
+    "lower": 0.0,
+    "upper": 0.3903342879021653,
+    "conclusive": true,
+    "method": "mcnemar-wilson"
+  },
+  "diff_E_vs_C_trial2": {
+    "diff": 0.0495049504950495,
+    "lower": -0.02169053546439307,
+    "upper": 0.12507979293117652,
+    "conclusive": false,
+    "method": "wilson-difference"
+  },
+  "cli_commands": [
+    "wilson.py --k 9 --n 101 --method wilson --json",
+    "wilson.py --mcnemar --b 1 --c 0 --json",
+    "wilson.py --mcnemar --b 0 --c 6 --json",
+    "wilson.py --diff --k1 9 --n1 101 --k2 4 --n2 101 --json"
+  ],
+  "note": "Cluster-adjusted intervals are recomputed in l2-p5-decision.json from document clusters; no cluster file was fabricated."
+}

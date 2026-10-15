@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
-from app.llm.client import NineRouterClient
+import httpx
+import pytest
+from openai import BadRequestError
+
+from app.llm.client import LLMEmptyResponseError, NineRouterClient
 from app.pipeline.runtime import ProcessingRuntime
 
 
@@ -12,7 +17,9 @@ def test_runtime_normalizes_through_complete_json() -> None:
     client = NineRouterClient(api_key="sk-test", model="gh/gpt-4o-mini")
 
     def create(**_kwargs: object) -> SimpleNamespace:
-        message = SimpleNamespace(content='{"normalized": "CONG TY CO PHAN PHUC THINH", "unit": null}')
+        message = SimpleNamespace(
+            content='{"normalized": "CONG TY CO PHAN PHUC THINH", "unit": null}'
+        )
         return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=None)
 
     client._client.chat.completions.create = create  # type: ignore[method-assign]
@@ -29,6 +36,103 @@ def test_runtime_normalizes_through_complete_json() -> None:
     assert trace["trace_id"]
     assert trace["http_calls"] == 1
     assert "raw=" not in str(trace)
+
+
+@pytest.mark.parametrize(
+    ("model", "temperature_expected"),
+    [("gpt-5.5", False), ("openai/gpt-5.5", False), ("gh/gpt-4o-mini", True)],
+)
+def test_reasoning_models_omit_unsupported_temperature(
+    model: str, temperature_expected: bool
+) -> None:
+    client = NineRouterClient(api_key="sk-test", model=model)
+    captured: dict[str, object] = {}
+
+    def create(**kwargs: object) -> SimpleNamespace:
+        captured.update(kwargs)
+        return SimpleNamespace(
+            model="gpt-5.5-2026-04-23",
+            choices=[SimpleNamespace(message=SimpleNamespace(content='{"ok":true}'))],
+            usage=None,
+        )
+
+    client._client.chat.completions.create = create  # type: ignore[method-assign]
+    assert client.complete_json("system", "user") == {"ok": True}
+    if temperature_expected:
+        assert captured["temperature"] == 0
+    else:
+        assert "temperature" not in captured
+
+
+@pytest.mark.parametrize("fallback", [False, True])
+def test_trace_records_served_model(fallback: bool) -> None:
+    client = NineRouterClient(api_key="sk-test", model="gh/gpt-4o-mini")
+    calls = 0
+
+    def create(**_kwargs: object) -> SimpleNamespace:
+        nonlocal calls
+        calls += 1
+        if fallback and calls == 1:
+            response = httpx.Response(400, request=httpx.Request("POST", "http://example.test"))
+            raise BadRequestError(
+                "unsupported response_format", response=response, body={"param": "response_format"}
+            )
+        return SimpleNamespace(
+            model="anthropic/claude-x",
+            usage=None,
+            choices=[SimpleNamespace(message=SimpleNamespace(content='{"ok": true}'))],
+        )
+
+    client._client.chat.completions.create = create
+    assert client.complete_json("system", "user") == {"ok": True}
+    assert client.traces[-1]["model"] == "gh/gpt-4o-mini"
+    assert client.traces[-1]["served_model"] == "anthropic/claude-x"
+    assert client.traces[-1]["fallback_without_json_format"] is fallback
+
+
+def test_parse_failure_records_safe_error_trace_with_usage() -> None:
+    client = NineRouterClient(api_key="sk-test", model="ag/claude-sonnet-4-6")
+    usage = SimpleNamespace(prompt_tokens=11, completion_tokens=7, total_tokens=18)
+
+    def create(**_kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(
+            model="anthropic/claude-sonnet-4-6",
+            usage=usage,
+            choices=[SimpleNamespace(message=SimpleNamespace(content="{bad-json}"))],
+        )
+
+    client._client.chat.completions.create = create
+    with pytest.raises(json.JSONDecodeError):
+        client.complete_json("system", "user")
+    trace = client.traces[-1]
+    assert trace["error_type"] == "ResponseParseError"
+    assert trace["served_model"] == "anthropic/claude-sonnet-4-6"
+    assert (
+        trace["prompt_tokens"] == 11
+        and trace["completion_tokens"] == 7
+        and trace["total_tokens"] == 18
+    )
+
+
+def test_empty_response_fails_closed_with_safe_trace() -> None:
+    client = NineRouterClient(api_key="sk-test", model="gemini/gemini-3.8-flash")
+    usage = SimpleNamespace(prompt_tokens=11, completion_tokens=0, total_tokens=11)
+
+    def create(**_kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(
+            model="gemini-3.8-flash",
+            usage=usage,
+            choices=[SimpleNamespace(message=SimpleNamespace(content=""))],
+        )
+
+    client._client.chat.completions.create = create
+    with pytest.raises(LLMEmptyResponseError):
+        client.complete_json("system", "user")
+    trace = client.traces[-1]
+    assert trace["error_type"] == "EmptyResponseError"
+    assert trace["response_empty"] is True
+    assert trace["served_model"] == "gemini-3.8-flash"
+    assert trace["completion_tokens"] == 0 and trace["total_tokens"] == 11
 
 
 def test_runtime_snapshot_reports_remaining_budgets_without_payload_data() -> None:

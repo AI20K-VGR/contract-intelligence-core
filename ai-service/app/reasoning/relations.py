@@ -16,6 +16,7 @@ from app.contracts.models import (
     ReviewState,
 )
 from app.pipeline.citations import CitationResolver, quote_digest
+from app.pipeline.relation_markers import defined_term, has_amend_marker
 from app.tools.store import DossierRecord
 
 CLAUSE_RE = re.compile(r"(?:điều|dieu|article)\s+(\d+(?:\.\d+)?)", re.I)
@@ -57,7 +58,9 @@ def doc_side(ancestors: list[str] | None, label: str | None) -> str:
     return "Thân HĐ"
 
 
-def related_node_ids(seed_ids: list[str], outline: list[dict[str, Any]]) -> tuple[list[str], list[dict[str, Any]]]:
+def related_node_ids(
+    seed_ids: list[str], outline: list[dict[str, Any]]
+) -> tuple[list[str], list[dict[str, Any]]]:
     by_id = {n["node_id"]: n for n in outline}
     seeds = [by_id[i] for i in seed_ids if i in by_id]
     keys = {clause_key(n.get("raw_label"), n.get("text")) for n in seeds}
@@ -120,7 +123,9 @@ def _member_side(record: DossierRecord, node_id: str) -> str:
     node = by_id.get(node_id)
     if node is None:
         return ""
-    file_role = {item.file_id: item.role for item in record.source_files}.get(node.source_file_id or "")
+    file_role = {item.file_id: item.role for item in record.source_files}.get(
+        node.source_file_id or ""
+    )
     if file_role in {"body", "annex"}:
         return file_role
     labels: list[str] = []
@@ -172,10 +177,12 @@ def render_same_item_relations(record: DossierRecord) -> dict[str, Any] | None:
         lines.append(sentence)
         for fact in [*bodies, *annexes]:
             if fact.citation and fact.citation.node_id:
-                citations.append({
-                    "node_id": fact.citation.node_id,
-                    "text_span": (fact.citation.text_span or fact.raw_value)[:200],
-                })
+                citations.append(
+                    {
+                        "node_id": fact.citation.node_id,
+                        "text_span": (fact.citation.text_span or fact.raw_value)[:200],
+                    }
+                )
     if not wrote:
         return None
     return {
@@ -288,14 +295,20 @@ def render_relation_verdict(record: DossierRecord) -> dict[str, Any]:
         annex = annex_clauses[number]
         annex_label = _short_clause_title(annex.raw_label)
         body_label = _short_clause_title(body.raw_label)
-        amended = bool(re.search(r"sửa|sua|thay", _normalize_relation_text(annex.raw_label or ""), re.I))
-        action = "phụ lục có chữ sửa điều này" if amended else "cùng số điều, phụ lục không ghi chữ sửa"
+        amended = bool(
+            re.search(r"sửa|sua|thay", _normalize_relation_text(annex.raw_label or ""), re.I)
+        )
+        action = (
+            "phụ lục có chữ sửa điều này" if amended else "cùng số điều, phụ lục không ghi chữ sửa"
+        )
         lines.append(f"- Điều {number}: thân «{body_label}»; phụ lục «{annex_label}» — {action}.")
         for node in (body, annex):
-            citations.append({
-                "node_id": node.node_id,
-                "text_span": (node.raw_label or "")[:160],
-            })
+            citations.append(
+                {
+                    "node_id": node.node_id,
+                    "text_span": (node.raw_label or "")[:160],
+                }
+            )
     return {
         "review_state": ReviewState.NEEDS_REVIEW.value,
         "answer": "\n".join(lines),
@@ -315,7 +328,9 @@ def _short_clause_title(label: str | None) -> str:
 
 
 def render_related_answer(packed: list[dict[str, Any]], rels: list[dict[str, Any]]) -> str:
-    lines = ["Các đoạn liên quan trên thân HĐ và phụ lục (trích nguyên văn). Không suy ra điều nào thắng / thứ tự hiệu lực."]
+    lines = [
+        "Các đoạn liên quan trên thân HĐ và phụ lục (trích nguyên văn). Không suy ra điều nào thắng / thứ tự hiệu lực."
+    ]
     for n in packed:
         side = n.get("side") or ""
         path = n.get("path") or n.get("label") or n.get("node_id")
@@ -333,7 +348,9 @@ def render_related_answer(packed: list[dict[str, Any]], rels: list[dict[str, Any
                     f"- Cùng {r.get('clause')}: {r.get('left_side')} ({r.get('left')}) ↔ {r.get('right_side')} ({r.get('right')})"
                 )
             elif r.get("type") == "AMENDS":
-                lines.append(f"- {r.get('side')} có ngôn ngữ sửa/điều chỉnh {r.get('clause')} ({r.get('from')})")
+                lines.append(
+                    f"- {r.get('side')} có ngôn ngữ sửa/điều chỉnh {r.get('clause')} ({r.get('from')})"
+                )
     return "\n".join(lines)
 
 
@@ -380,16 +397,16 @@ def render_comparison_answer(packed: list[dict[str, Any]], query: str = "") -> s
 
     if "thiet bi" in annex_folded or "dich vu" in annex_folded:
         annex_sentence = (
-            f'Trong khi đó, {annex_label} liệt kê các thiết bị và dịch vụ, '
+            f"Trong khi đó, {annex_label} liệt kê các thiết bị và dịch vụ, "
             f'ví dụ như "{annex_text}".'
         )
         conclusion = (
-            f'Điều này cho thấy {body_label} tập trung vào định nghĩa và giải thích, '
-            f'còn {annex_label} cung cấp thông tin chi tiết về các thiết bị và dịch vụ cụ thể.'
+            f"Điều này cho thấy {body_label} tập trung vào định nghĩa và giải thích, "
+            f"còn {annex_label} cung cấp thông tin chi tiết về các thiết bị và dịch vụ cụ thể."
         )
     else:
         annex_sentence = f'Trong khi đó, {annex_label} cung cấp thông tin theo nội dung "{annex_title or annex_text}"; ví dụ là "{annex_text}".'
-        conclusion = f'Điều này cho thấy {body_label} và {annex_label} đang mô tả hai phạm vi nội dung khác nhau trong cùng hồ sơ.'
+        conclusion = f"Điều này cho thấy {body_label} và {annex_label} đang mô tả hai phạm vi nội dung khác nhau trong cùng hồ sơ."
 
     return " ".join(
         [
@@ -424,11 +441,17 @@ def _comparison_detail(items: list[dict[str, Any]], *, prefer: str) -> dict[str,
     if not candidates:
         return None
     if prefer == "working_day":
-        working = [item for item in candidates if "ngay lam viec" in _comparison_fold(_comparison_text(item))]
+        working = [
+            item
+            for item in candidates
+            if "ngay lam viec" in _comparison_fold(_comparison_text(item))
+        ]
         if working:
             return working[0]
     if prefer == "table_row":
-        rows = [item for item in candidates if re.match(r"^\s*\|\s*\d+\s*\|", _comparison_text(item))]
+        rows = [
+            item for item in candidates if re.match(r"^\s*\|\s*\d+\s*\|", _comparison_text(item))
+        ]
         if rows:
             return rows[0]
     return candidates[0]
@@ -448,7 +471,9 @@ def _comparison_label(item: dict[str, Any], fallback: str) -> str:
 
 def _comparison_title(value: str) -> str:
     text = re.sub(r"^\s*(?:ĐIỀU|DIEU|ARTICLE)\s+\d+\.?\s*", "", value, flags=re.I).strip()
-    text = re.sub(r"^\s*(?:PHỤ LỤC|PHU LUC|ANNEX|APPENDIX)\s+\d+\s*[-–:]?\s*", "", text, flags=re.I).strip()
+    text = re.sub(
+        r"^\s*(?:PHỤ LỤC|PHU LUC|ANNEX|APPENDIX)\s+\d+\s*[-–:]?\s*", "", text, flags=re.I
+    ).strip()
     return text[:160]
 
 
@@ -456,12 +481,6 @@ _REFERENCE_PATTERNS = (
     ("ANNEX", re.compile("(?:ph\\u1ee5\\s+l\\u1ee5c|phu luc|annex)\\s+(\\d+)", re.I)),
     ("CLAUSE", re.compile("(?:\\u0111i\\u1ec1u|dieu|article)\\s+(\\d+(?:\\.\\d+)?)", re.I)),
 )
-_DEFINE_RE = re.compile(
-    "(?:\\u0111\\u1ecbnh ngh\\u0129a|dinh nghia|defined as|c\\u00f3 ngh\\u0129a l\\u00e0|co nghia la|shall mean)"
-    r"\\s*[:\\-]?\\s*[\\\"“]?([^\\\"”\\.;\\n]{2,100})",
-    re.I,
-)
-_DEFINE_ASCII_RE = re.compile(r'(?:dinh nghia|defined as|co nghia la|shall mean)\s*[:\-]?\s*["“]?([^"”\.;\n]{2,100})', re.I)
 
 
 def build_relation_graph(record: DossierRecord) -> RelationGraph:
@@ -469,9 +488,12 @@ def build_relation_graph(record: DossierRecord) -> RelationGraph:
 
     digest = record.pins.source_snapshot_digest
     evidence_nodes = sorted(record.evidence_nodes(), key=lambda node: (node.order, node.node_id))
-    graph_id = "graph:" + hashlib.sha256(
-        f"{digest}|{','.join(node.node_id for node in evidence_nodes)}".encode("utf-8")
-    ).hexdigest()[:24]
+    graph_id = (
+        "graph:"
+        + hashlib.sha256(
+            f"{digest}|{','.join(node.node_id for node in evidence_nodes)}".encode("utf-8")
+        ).hexdigest()[:24]
+    )
     source_roles = {source.file_id: source.role for source in record.source_files}
     graph_nodes = [
         RelationNode(
@@ -493,7 +515,9 @@ def build_relation_graph(record: DossierRecord) -> RelationGraph:
 
     def citation(node_id: str, span: str | None = None) -> Citation:
         node = by_id[node_id]
-        page = next((item for item in record.pages if item.page_revision_id == node.page_revision_id), None)
+        page = next(
+            (item for item in record.pages if item.page_revision_id == node.page_revision_id), None
+        )
         if page is None:
             page = next(
                 (
@@ -538,9 +562,12 @@ def build_relation_graph(record: DossierRecord) -> RelationGraph:
         if key in seen_edges:
             return
         seen_edges.add(key)
-        edge_id = "edge:" + hashlib.sha256(
-            f"{digest}|{from_id}|{to_id}|{relation_type.value}".encode("utf-8")
-        ).hexdigest()[:24]
+        edge_id = (
+            "edge:"
+            + hashlib.sha256(
+                f"{digest}|{from_id}|{to_id}|{relation_type.value}".encode("utf-8")
+            ).hexdigest()[:24]
+        )
         edges.append(
             RelationEdge(
                 edge_id=edge_id,
@@ -605,11 +632,29 @@ def build_relation_graph(record: DossierRecord) -> RelationGraph:
                 if len(targets) == 1:
                     target_id = targets[0]
                     refs = [citation(node.node_id, match.group(0)), citation(target_id)]
-                    add_edge(node.node_id, target_id, RelationType.REFERENCES, RelationSupport.EXPLICIT_TEXT, refs)
+                    add_edge(
+                        node.node_id,
+                        target_id,
+                        RelationType.REFERENCES,
+                        RelationSupport.EXPLICIT_TEXT,
+                        refs,
+                    )
                     if _explicit_amend_reference(blob, match.group(1)) and kind == "CLAUSE":
-                        add_edge(node.node_id, target_id, RelationType.AMENDS, RelationSupport.EXPLICIT_TEXT, refs)
+                        add_edge(
+                            node.node_id,
+                            target_id,
+                            RelationType.AMENDS,
+                            RelationSupport.EXPLICIT_TEXT,
+                            refs,
+                        )
                 elif not targets:
-                    issues.append(_graph_issue(digest, f"missing {kind.lower()} {match.group(1)}", citation(node.node_id, match.group(0))))
+                    issues.append(
+                        _graph_issue(
+                            digest,
+                            f"missing {kind.lower()} {match.group(1)}",
+                            citation(node.node_id, match.group(0)),
+                        )
+                    )
                 else:
                     issue_citation = citation(node.node_id, match.group(0))
                     issue_key = (
@@ -620,17 +665,23 @@ def build_relation_graph(record: DossierRecord) -> RelationGraph:
                     )
                     if issue_key not in seen_issues:
                         seen_issues.add(issue_key)
-                        issues.append(_graph_issue(digest, f"ambiguous {kind.lower()} {match.group(1)}", issue_citation))
+                        issues.append(
+                            _graph_issue(
+                                digest, f"ambiguous {kind.lower()} {match.group(1)}", issue_citation
+                            )
+                        )
 
     for definition in evidence_nodes:
         definition_blob = f"{definition.raw_label}\n{definition.text}"
-        match = _DEFINE_RE.search(definition_blob) or _DEFINE_ASCII_RE.search(_normalize_relation_text(definition_blob))
-        if not match:
+        term = defined_term(definition_blob)
+        if not term:
             continue
-        term = match.group(1).strip(" \\t\\\"“”'()")
-        term_id = "term:" + hashlib.sha256(
-            f"{digest}|{definition.node_id}|{term.casefold()}".encode("utf-8")
-        ).hexdigest()[:24]
+        term_id = (
+            "term:"
+            + hashlib.sha256(
+                f"{digest}|{definition.node_id}|{term.casefold()}".encode("utf-8")
+            ).hexdigest()[:24]
+        )
         if not any(node.node_id == term_id for node in graph_nodes):
             graph_nodes.append(
                 RelationNode(
@@ -652,13 +703,18 @@ def build_relation_graph(record: DossierRecord) -> RelationGraph:
         )
         normalized_term = _normalize_relation_text(term)
         for usage in evidence_nodes:
-            if usage.node_id != definition.node_id and normalized_term in _normalize_relation_text(usage.text):
+            if usage.node_id != definition.node_id and normalized_term in _normalize_relation_text(
+                usage.text
+            ):
                 add_edge(
                     term_id,
                     usage.node_id,
                     RelationType.USES_DEFINED_TERM,
                     RelationSupport.HEURISTIC,
-                    [citation(definition.node_id, definition.text or definition.raw_label), citation(usage.node_id, term)],
+                    [
+                        citation(definition.node_id, definition.text or definition.raw_label),
+                        citation(usage.node_id, term),
+                    ],
                 )
 
     return RelationGraph(
@@ -695,7 +751,12 @@ def _normalize_relation_text(value: str) -> str:
 def _resolve_reference(kind: str, value: str, source: Any, nodes: list[Any]) -> list[str]:
     if kind == "CLAUSE":
         key = f"dieu {value}"
-        return [node.node_id for node in nodes if _robust_clause_key(node.raw_label, node.text) == key and node.node_id != source.node_id]
+        return [
+            node.node_id
+            for node in nodes
+            if _robust_clause_key(node.raw_label, node.text) == key
+            and node.node_id != source.node_id
+        ]
     needle = _normalize_relation_text(f"phu luc {value}")
     wanted = int(value) if str(value).isdigit() else None
     candidates = []
@@ -714,17 +775,22 @@ def _resolve_reference(kind: str, value: str, source: Any, nodes: list[Any]) -> 
         if node.node_id not in candidates:
             continue
         label = _normalize_relation_text(node.raw_label or "").strip()
-        if wanted is not None and re.match(rf"^phu\s+luc\s+0*{wanted}\b", label) and not re.search(
-            r"\b(tiep\s+theo|continued|continue)\b", label
+        if (
+            wanted is not None
+            and re.match(rf"^phu\s+luc\s+0*{wanted}\b", label)
+            and not re.search(r"\b(tiep\s+theo|continued|continue)\b", label)
         ):
             primary.append(node.node_id)
     return primary if len(primary) == 1 else candidates
 
 
 def _graph_issue(digest: str, missing: str, citation: Citation) -> EvidenceIssue:
-    issue_id = "graph-issue:" + hashlib.sha256(
-        f"{digest}|{missing}|{citation.node_id}|{citation.text_span}".encode("utf-8")
-    ).hexdigest()[:24]
+    issue_id = (
+        "graph-issue:"
+        + hashlib.sha256(
+            f"{digest}|{missing}|{citation.node_id}|{citation.text_span}".encode("utf-8")
+        ).hexdigest()[:24]
+    )
     return EvidenceIssue(
         issue_id=issue_id,
         missing=missing,
@@ -734,10 +800,18 @@ def _graph_issue(digest: str, missing: str, citation: Citation) -> EvidenceIssue
     )
 
 
+def _has_amend_marker(value: str) -> bool:
+    return has_amend_marker(value) or has_amend_marker(_normalize_relation_text(value))
+
+
 def _explicit_amend_reference(value: str, target_number: str) -> bool:
     """Require a specific amendment marker tied to the referenced clause."""
     normalized = _normalize_relation_text(value)
-    number = re.escape(str(int(target_number))) if str(target_number).isdigit() else re.escape(target_number)
+    number = (
+        re.escape(str(int(target_number)))
+        if str(target_number).isdigit()
+        else re.escape(target_number)
+    )
     marker = r"(?:sua doi|thay the|dieu chinh|amends?)"
     target = rf"(?:dieu|article)\s+0*{number}\b"
     return bool(

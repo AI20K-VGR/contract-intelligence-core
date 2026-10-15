@@ -1,0 +1,70 @@
+{
+  "phase": "P5",
+  "plan": "261011-1654-ai2-graph-ui",
+  "checks": [
+    {
+      "detail": "22 tests passed across 3 focused frontend files",
+      "status": "PASS",
+      "name": "focused-p5"
+    },
+    {
+      "detail": "137 tests passed across 36 files",
+      "status": "PASS",
+      "name": "frontend-suite"
+    },
+    {
+      "detail": "0 errors; 13 existing warnings",
+      "status": "PASS",
+      "name": "frontend-lint"
+    },
+    {
+      "detail": "Production build passed; existing chunk-size warning remains",
+      "status": "PASS",
+      "name": "frontend-build"
+    },
+    {
+      "detail": "Feature gate remains OFF by default and prevents requests when closed",
+      "status": "PASS",
+      "name": "feature-gate"
+    },
+    {
+      "detail": "Synthetic scrubbed fixture and bundle metrics recorded",
+      "status": "PASS",
+      "name": "renderer-spike"
+    },
+    {
+      "detail": "9 AI2 graph read API tests passed",
+      "status": "PASS",
+      "name": "ai2-projection"
+    },
+    {
+      "detail": "13 Backend graph adapter tests passed",
+      "status": "PASS",
+      "name": "backend-adapter"
+    },
+    {
+      "detail": "Both graph contract schema JSON files parse",
+      "status": "PASS",
+      "name": "schemas"
+    },
+    {
+      "detail": "Not executed: in-app browser unavailable; no browser layout result claimed",
+      "status": "SKIP",
+      "name": "manual-320px"
+    },
+    {
+      "detail": "Not executed: Backend and Keycloak were unavailable; Compose startup conflicted with existing stopped ci-kafka container; existing stack containers left untouched",
+      "status": "SKIP",
+      "name": "live-citation"
+    }
+  ],
+  "verdict": "PASS_WITH_RISK",
+  "stage": "cook",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-11T14:31:14+00:00",
+  "blastRadius": {
+    "unavailable": true,
+    "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF-ai2-contract-graph"
+  },
+  "run_seq": null
+}

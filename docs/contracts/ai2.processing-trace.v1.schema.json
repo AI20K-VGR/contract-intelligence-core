@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vsf.example/contracts/ai2.processing-trace.v1.schema.json",
+  "title": "AI2 Processing Trace v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "trace_status", "snapshot_digest", "status", "stages"],
+  "properties": {
+    "schema_version": { "const": "ai2.processing-trace.v1" },
+    "trace_status": { "enum": ["AVAILABLE", "UNAVAILABLE"] },
+    "job_status": { "enum": ["QUEUED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED"] },
+    "snapshot_digest": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "execution_id": { "type": ["string", "null"], "maxLength": 128 },
+    "status": {
+      "enum": ["COMPLETE", "IN_PROGRESS", "INTERRUPTED_UNKNOWN", "INCOMPLETE_UNKNOWN", "TRACE_UNAVAILABLE"]
+    },
+    "reason_code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,63}$" },
+    "stages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["stage_id", "status", "started_ms", "duration_ms", "item_count", "reason_code"],
+        "properties": {
+          "stage_id": { "enum": ["contract_graph_operation", "contract_graph_pairs"] },
+          "status": { "enum": ["RUNNING", "COMPLETED", "FAILED", "SKIPPED", "INTERRUPTED_UNKNOWN", "INCOMPLETE_UNKNOWN"] },
+          "started_ms": { "type": ["integer", "null"], "minimum": 0 },
+          "duration_ms": { "type": ["integer", "null"], "minimum": 0 },
+          "item_count": { "type": ["integer", "null"], "minimum": 0 },
+          "reason_code": { "type": ["string", "null"], "pattern": "^[A-Z][A-Z0-9_]{0,63}$" }
+        }
+      }
+    }
+  }
+}

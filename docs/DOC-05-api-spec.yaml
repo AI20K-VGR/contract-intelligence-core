@@ -597,6 +597,212 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
 
+  /dossiers/{dossier_id}/ai2/contract-graph/{graph_kind}:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    get:
+      tags: [dossiers]
+      summary: Trang các cạnh đồ thị hợp đồng AI2
+      description: |
+        Cần quyền đọc trích dẫn (`CITATION_READ`). `snapshot_digest` phải bằng `ai2_snapshot_digest` hiện tại của hồ sơ.
+        `next_cursor` là con trỏ ký HMAC; gửi lại nguyên văn. DOC-05b v2.1.0.
+      operationId: getDossierAi2ContractGraph
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      parameters:
+        - name: graph_kind
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [operation, pair]
+        - name: job_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: snapshot_digest
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Con trỏ không hợp lệ (`GRAPH_CURSOR_INVALID`)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: '`AI2_SNAPSHOT_CHANGED`, `AI2_GRAPH_STALE` hoặc `GRAPH_CURSOR_STALE`'
+        '503':
+          description: AI2 không trả được dữ liệu (`AI2_GRAPH_UNAVAILABLE`, `AI2_GRAPH_CURSOR_UNAVAILABLE`)
+  /dossiers/{dossier_id}/ai2/contract-graph/{graph_kind}/evidence:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    get:
+      tags: [dossiers]
+      summary: Bằng chứng cho một nút đồ thị hợp đồng AI2
+      description: |
+        Cần `CITATION_READ`. DOC-05b v2.1.0.
+      operationId: getDossierAi2ContractGraphEvidence
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      parameters:
+        - name: graph_kind
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [operation, pair]
+        - name: job_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: snapshot_digest
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: node_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: citation_ref
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Con trỏ không hợp lệ (`GRAPH_CURSOR_INVALID`)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: '`AI2_SNAPSHOT_CHANGED`, `AI2_GRAPH_STALE` hoặc `GRAPH_CURSOR_STALE`'
+        '503':
+          description: AI2 không trả được dữ liệu (`AI2_GRAPH_EVIDENCE_UNAVAILABLE`)
+  /dossiers/{dossier_id}/ai2/processing-trace:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    get:
+      tags: [dossiers]
+      summary: Vết xử lý AI2 của một lần chạy
+      description: |
+        Cần `CITATION_READ`. DOC-05b v2.1.0.
+      operationId: getDossierAi2ProcessingTrace
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      parameters:
+        - name: job_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: snapshot_digest
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Con trỏ không hợp lệ (`GRAPH_CURSOR_INVALID`)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: '`AI2_SNAPSHOT_CHANGED`, `AI2_GRAPH_STALE` hoặc `GRAPH_CURSOR_STALE`'
+        '503':
+          description: AI2 không trả được dữ liệu (`AI2_TRACE_UNAVAILABLE`)
+  /dossiers/{dossier_id}/ai2-content-sharing-consent:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    patch:
+      tags: [dossiers]
+      summary: Bật hoặc tắt việc gửi nội dung hồ sơ ra LLM bên ngoài
+      description: |
+        Chỉ chủ hồ sơ hoặc `ADMINISTRATOR` (`DOSSIER_MANAGE`). Ghi audit `ai2.content_sharing_consent_changed`.
+        Có hiệu lực từ request kế tiếp. `PATCH /dossiers/{dossier_id}` thường không đổi được giá trị này.
+        DOC-05b v2.1.0, DEC-BE-AI2-01 D6.
+      operationId: updateDossierAi2ContentSharingConsent
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              additionalProperties: false
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Đã ghi
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [dossier_id, enabled, effective_from]
+                properties:
+                  dossier_id:
+                    type: string
+                  enabled:
+                    type: boolean
+                  effective_from:
+                    type: string
+                    enum: [next_request]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: '`enabled` không phải boolean thật'
   /dossiers/{dossier_id}/ai2/reindex:
     parameters:
       - $ref: '#/components/parameters/DossierId'

@@ -167,6 +167,7 @@ class ManifestItemORM(Base):
     document_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     filename: Mapped[str] = mapped_column(Text, nullable=False)
     doc_type: Mapped[str] = mapped_column(Text, nullable=False)  # contract | annex | other
+    document_number: Mapped[str | None] = mapped_column(Text, nullable=True)
     sha256: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidence: Mapped[float] = mapped_column(
         String,

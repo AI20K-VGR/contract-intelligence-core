@@ -4,7 +4,14 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 
 class ReviewState(str, Enum):
@@ -129,6 +136,9 @@ class DossierDocument(BaseModel):
     )
     role: Literal["body", "annex"]
     source_digest: str = Field(pattern=r"^[a-fA-F0-9]{64}$")
+    # Explicit identity used to safely resolve operations that name a
+    # numbered contract/annex. It is metadata, not an AI2 inference.
+    document_number: str | None = Field(default=None, min_length=1, max_length=160)
 
 
 class DossierManifest(BaseModel):
@@ -334,6 +344,7 @@ class SourceFile(BaseModel):
     file_id: str
     filename: str
     role: Literal["body", "annex"] = "body"
+    document_number: str | None = Field(default=None, min_length=1, max_length=160)
     digest: str = ""
     n_pages: int = 0
     # Raw producer metadata is retained when an upstream document role is not
@@ -611,7 +622,9 @@ class SemanticProfile(SemanticClosedModel):
     tenant_id: str = Field(min_length=1)
     version: int = Field(ge=1, strict=True)
     digest: str = Field(pattern=r"^[a-f0-9]{64}$")
-    contract_type: Literal["SALES", "SUPPLY_SERVICE", "LEASE", "CONSTRUCTION_WORK", "EMPLOYMENT", "NDA"]
+    contract_type: Literal[
+        "SALES", "SUPPLY_SERVICE", "LEASE", "CONSTRUCTION_WORK", "EMPLOYMENT", "NDA"
+    ]
     alias_version: int = Field(ge=0, strict=True)
     alias_digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     aliases: list[SemanticAlias] = Field(default_factory=list)
@@ -627,8 +640,9 @@ class SemanticProfile(SemanticClosedModel):
         from app.pipeline.tenant_aliases import ApprovedAlias, ApprovedAliasSnapshot
 
         payload = self.model_dump(mode="json", exclude={"digest"})
-        expected = hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True,
-                                             separators=(",", ":")).encode()).hexdigest()
+        expected = hashlib.sha256(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
         if self.digest != expected:
             raise ValueError("semantic profile digest mismatch")
         if self.activation_state != "ACTIVE" and self.aliases:
@@ -636,8 +650,11 @@ class SemanticProfile(SemanticClosedModel):
         if self.alias_version == 0 and (self.aliases or self.alias_digest is not None):
             raise ValueError("unversioned alias profile")
         if self.alias_version:
-            snapshot = ApprovedAliasSnapshot(self.tenant_id, self.alias_version,
-                tuple(ApprovedAlias(**a.model_dump()) for a in self.aliases))
+            snapshot = ApprovedAliasSnapshot(
+                self.tenant_id,
+                self.alias_version,
+                tuple(ApprovedAlias(**a.model_dump()) for a in self.aliases),
+            )
             if snapshot.digest != self.alias_digest:
                 raise ValueError("alias digest mismatch")
         return self
@@ -670,13 +687,16 @@ class SemanticSlot(SemanticClosedModel):
             raise ValueError("typed value required")
         if self.value_type == "DECIMAL":
             from decimal import InvalidOperation
+
             try:
                 valid = Decimal(self.value).is_finite()
             except InvalidOperation as exc:
                 raise ValueError("invalid decimal text") from exc
             if not valid:
                 raise ValueError("finite decimal required")
-        if self.state == "GROUNDED" and (not self.value or not self.value.strip() or not self.evidence):
+        if self.state == "GROUNDED" and (
+            not self.value or not self.value.strip() or not self.evidence
+        ):
             raise ValueError("grounded value and evidence required")
         if self.state == "ABSENT" and (self.value is not None or not self.evidence):
             raise ValueError("absent requires source and null value")
@@ -698,7 +718,9 @@ class SemanticKey(SemanticClosedModel):
             raise ValueError("unknown key cannot carry identity")
         if self.certainty == "DEFINITE" and (not self.key or any(not s.strip() for s in self.key)):
             raise ValueError("definite key needs identity")
-        if self.method == "TENANT_ALIAS" and (not self.alias_digest or not self.alias_version or not self.alias_proposal_ids):
+        if self.method == "TENANT_ALIAS" and (
+            not self.alias_digest or not self.alias_version or not self.alias_proposal_ids
+        ):
             raise ValueError("tenant alias provenance required")
         return self
 
@@ -730,9 +752,18 @@ class SemanticPair(SemanticClosedModel):
     pair_id: str
     left_id: str
     right_id: str
-    disposition: Literal["DUPLICATE", "COMPARABLE_DIFFERENCE", "NOT_COMPARABLE", "GENERAL_VS_SPECIFIC",
-                         "SCOPE_DIFFERS", "NEEDS_REVIEW_UNPARSED", "NEEDS_REVIEW_BACKOFF", "GRADUATED",
-                         "CUMULATIVE", "CONFLICT_CANDIDATE"]
+    disposition: Literal[
+        "DUPLICATE",
+        "COMPARABLE_DIFFERENCE",
+        "NOT_COMPARABLE",
+        "GENERAL_VS_SPECIFIC",
+        "SCOPE_DIFFERS",
+        "NEEDS_REVIEW_UNPARSED",
+        "NEEDS_REVIEW_BACKOFF",
+        "GRADUATED",
+        "CUMULATIVE",
+        "CONFLICT_CANDIDATE",
+    ]
     reason: str
     left_evidence: list[SemanticEvidence] = Field(min_length=1)
     right_evidence: list[SemanticEvidence] = Field(min_length=1)
@@ -761,18 +792,36 @@ class SemanticTimeline(SemanticClosedModel):
 
         if self.date_value is not None:
             date.fromisoformat(self.date_value)
-        if self.proposed_value is not None and (self.relation != "AMENDS" or self.date_role != "EFFECTIVE"
-                or self.date_value is None or self.acceptance is None or self.acceptance.state != "GROUNDED"
-                or self.acceptance.value != "ACCEPTED" or self.target_id is None
-                or self.proposed_value.state != "GROUNDED"):
+        if self.proposed_value is not None and (
+            self.relation != "AMENDS"
+            or self.date_role != "EFFECTIVE"
+            or self.date_value is None
+            or self.acceptance is None
+            or self.acceptance.state != "GROUNDED"
+            or self.acceptance.value != "ACCEPTED"
+            or self.target_id is None
+            or self.proposed_value.state != "GROUNDED"
+        ):
             raise ValueError("unproven amendment proposal")
         if self.proposed_value is not None:
             import unicodedata
+
             def folded(value):
-                return "".join(c for c in unicodedata.normalize("NFD", value.casefold()).replace("đ", "d") if unicodedata.category(c) != "Mn")
-            if not any(folded(e.raw).startswith("cac ben dong y sua doi ") for e in self.acceptance.evidence):
+                return "".join(
+                    c
+                    for c in unicodedata.normalize("NFD", value.casefold()).replace("đ", "d")
+                    if unicodedata.category(c) != "Mn"
+                )
+
+            if not any(
+                folded(e.raw).startswith("cac ben dong y sua doi ")
+                for e in self.acceptance.evidence
+            ):
                 raise ValueError("affirmative amendment acceptance evidence required")
-            if not any(self.date_value in e.raw and "co hieu luc tu" in folded(e.raw) for e in self.evidence):
+            if not any(
+                self.date_value in e.raw and "co hieu luc tu" in folded(e.raw)
+                for e in self.evidence
+            ):
                 raise ValueError("effective date source required")
         return self
 
@@ -796,9 +845,12 @@ class SemanticCoverage(SemanticClosedModel):
         for groups in (self.by_family, self.by_slot, self.by_output):
             for values in groups.values():
                 if set(values) != {"attempted", "covered", "review", "missing"} or any(
-                        type(v) is not int or v < 0 for v in values.values()):
+                    type(v) is not int or v < 0 for v in values.values()
+                ):
                     raise ValueError("invalid semantic coverage counters")
-                if any(values[name] > values["attempted"] for name in ("covered", "review", "missing")):
+                if any(
+                    values[name] > values["attempted"] for name in ("covered", "review", "missing")
+                ):
                     raise ValueError("coverage counts exceed denominator")
         return self
 
@@ -828,48 +880,107 @@ class SemanticExtension(SemanticClosedModel):
     @model_validator(mode="after")
     def references(self):
         frames = {f.frame_id: f for f in self.frames}
-        if len(frames) != len(self.frames) or len(set(self.rows)) != len(self.rows) or set(self.rows) != set(frames):
+        if (
+            len(frames) != len(self.frames)
+            or len(set(self.rows)) != len(self.rows)
+            or set(self.rows) != set(frames)
+        ):
             raise ValueError("semantic row/frame identity mismatch")
         if any(f.dossier_id != self.dossier_id for f in self.frames):
             raise ValueError("semantic dossier mismatch")
-        if any(f.key.method == "TENANT_ALIAS" and (f.key.alias_version != self.alias_version
-                or f.key.alias_digest != self.alias_digest) for f in self.frames):
+        if any(
+            f.key.method == "TENANT_ALIAS"
+            and (
+                f.key.alias_version != self.alias_version or f.key.alias_digest != self.alias_digest
+            )
+            for f in self.frames
+        ):
             raise ValueError("semantic key alias pin mismatch")
         for pair in self.pairs:
-            if pair.left_id not in frames or pair.right_id not in frames or pair.left_id == pair.right_id:
+            if (
+                pair.left_id not in frames
+                or pair.right_id not in frames
+                or pair.left_id == pair.right_id
+            ):
                 raise ValueError("semantic pair target mismatch")
-            if pair.left_evidence != frames[pair.left_id].evidence or pair.right_evidence != frames[pair.right_id].evidence:
+            if (
+                pair.left_evidence != frames[pair.left_id].evidence
+                or pair.right_evidence != frames[pair.right_id].evidence
+            ):
                 raise ValueError("semantic pair evidence mismatch")
             if pair.disposition == "DUPLICATE":
                 left, right = frames[pair.left_id], frames[pair.right_id]
-                required = {"actor", "action", "modality_negation", "object_scope", "beneficiary",
-                            "condition", "exception", "temporal_trigger", "deadline"}
+                required = {
+                    "actor",
+                    "action",
+                    "modality_negation",
+                    "object_scope",
+                    "beneficiary",
+                    "condition",
+                    "exception",
+                    "temporal_trigger",
+                    "deadline",
+                }
                 if left.family == "PARAMETER" and "parameter" in left.slots:
-                    required.difference_update({"actor", "action", "modality_negation", "beneficiary"})
+                    required.difference_update(
+                        {"actor", "action", "modality_negation", "beneficiary"}
+                    )
                     required.add("parameter")
                 elif left.family == "DEFINITION":
-                    required = {"parameter", "definition", "object_scope", "condition", "exception", "temporal_trigger"}
+                    required = {
+                        "parameter",
+                        "definition",
+                        "object_scope",
+                        "condition",
+                        "exception",
+                        "temporal_trigger",
+                    }
                 if left.family == "REMEDY":
                     required.add("qualifier")
                 if left.family in {"REMEDY", "PARAMETER"} or any(
-                        f.slots.get("amount") and f.slots["amount"].value is not None or
-                        f.slots.get("action") and f.slots["action"].value in {"PAY", "COMPENSATE", "PENALTY"}
-                        for f in (left, right)):
+                    f.slots.get("amount")
+                    and f.slots["amount"].value is not None
+                    or f.slots.get("action")
+                    and f.slots["action"].value in {"PAY", "COMPENSATE", "PENALTY"}
+                    for f in (left, right)
+                ):
                     required.update({"amount", "unit", "currency", "base", "period"})
-                required.update(name for f in (left, right) for name, slot in f.slots.items()
-                                if slot.state in {"GROUNDED", "ABSENT"})
-                if (left.key.certainty != "DEFINITE" or right.key.certainty != "DEFINITE" or left.key.key != right.key.key
-                        or left.family != right.family or left.profile != right.profile
-                        or any(name not in f.slots or f.slots[name].state in {"UNKNOWN", "UNSUPPORTED"}
-                               for f in (left, right) for name in required)
-                        or any(e.citation.validation_status != "VALID" for f in (left, right) for e in f.evidence)):
+                required.update(
+                    name
+                    for f in (left, right)
+                    for name, slot in f.slots.items()
+                    if slot.state in {"GROUNDED", "ABSENT"}
+                )
+                if (
+                    left.key.certainty != "DEFINITE"
+                    or right.key.certainty != "DEFINITE"
+                    or left.key.key != right.key.key
+                    or left.family != right.family
+                    or left.profile != right.profile
+                    or any(
+                        name not in f.slots or f.slots[name].state in {"UNKNOWN", "UNSUPPORTED"}
+                        for f in (left, right)
+                        for name in required
+                    )
+                    or any(
+                        e.citation.validation_status != "VALID"
+                        for f in (left, right)
+                        for e in f.evidence
+                    )
+                ):
                     raise ValueError("DUPLICATE requires assessed grounded evidence")
                 key_fields = {"qualifier"} if left.family == "REMEDY" else set()
-                if left.family != "DEFINITION" and not (left.family == "PARAMETER" and "parameter" in left.slots):
+                if left.family != "DEFINITION" and not (
+                    left.family == "PARAMETER" and "parameter" in left.slots
+                ):
                     key_fields.add("action")
                 for name in required - key_fields:
                     a, b = left.slots[name], right.slots[name]
-                    values = (Decimal(a.value), Decimal(b.value)) if a.value_type == b.value_type == "DECIMAL" else (a.value, b.value)
+                    values = (
+                        (Decimal(a.value), Decimal(b.value))
+                        if a.value_type == b.value_type == "DECIMAL"
+                        else (a.value, b.value)
+                    )
                     if a.state != b.state or a.value_type != b.value_type or values[0] != values[1]:
                         raise ValueError("DUPLICATE cannot hide assessed slot differences")
         if len({p.pair_id for p in self.pairs}) != len(self.pairs):
@@ -877,14 +988,23 @@ class SemanticExtension(SemanticClosedModel):
         for edge in self.timeline:
             if edge.source_id not in frames:
                 raise ValueError("semantic timeline source missing")
-            allowed = {(frames[x].document_id, frames[x].snapshot_id) for x in (edge.source_id, edge.target_id) if x in frames}
-            evidence = [*edge.evidence, *(edge.acceptance.evidence if edge.acceptance else []),
-                        *(edge.proposed_value.evidence if edge.proposed_value else [])]
+            allowed = {
+                (frames[x].document_id, frames[x].snapshot_id)
+                for x in (edge.source_id, edge.target_id)
+                if x in frames
+            }
+            evidence = [
+                *edge.evidence,
+                *(edge.acceptance.evidence if edge.acceptance else []),
+                *(edge.proposed_value.evidence if edge.proposed_value else []),
+            ]
             if any((e.document_id, e.snapshot_id) not in allowed for e in evidence):
                 raise ValueError("semantic timeline evidence scope mismatch")
             if edge.target_id not in frames and "missing_target" not in edge.reasons:
                 raise ValueError("missing timeline target must remain visible")
-            if edge.proposed_value and any(e.citation.validation_status != "VALID" for e in evidence):
+            if edge.proposed_value and any(
+                e.citation.validation_status != "VALID" for e in evidence
+            ):
                 raise ValueError("amendment proposal citations must verify")
         if len({e.edge_id for e in self.timeline}) != len(self.timeline):
             raise ValueError("duplicate timeline edge")
@@ -907,6 +1027,17 @@ class IndexContribution(BaseModel):
     extraction_version: int
     proposed_index_version: str
     publish: Literal["propose"] = "propose"
+
+    @model_serializer(mode="wrap")
+    def omit_empty_optional_extensions(self, handler: Any) -> dict[str, Any]:
+        payload = handler(self)
+        if not self.payment_schedules:
+            payload.pop("payment_schedules", None)
+        if not self.boq_checks:
+            payload.pop("boq_checks", None)
+        if self.semantic_extension is None:
+            payload.pop("semantic_extension", None)
+        return payload
 
 
 class JobResult(BaseModel):

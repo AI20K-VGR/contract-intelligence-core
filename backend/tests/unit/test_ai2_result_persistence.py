@@ -625,7 +625,7 @@ async def test_worker_does_not_pin_aliases_after_the_expert_assignment_expired(m
         "policy_digest": HASH,
         "alias_digest": digest_json({"tenant_id": TENANT_ID, "version": 3, "aliases": [alias]}),
     }
-    monkeypatch.setenv("AI2_SEMANTIC_ENABLED", "true")
+    monkeypatch.delenv("AI2_SEMANTIC_ENABLED", raising=False)
     monkeypatch.setenv(
         "AI2_SEMANTIC_PROFILE_CONFIG",
         json.dumps(
