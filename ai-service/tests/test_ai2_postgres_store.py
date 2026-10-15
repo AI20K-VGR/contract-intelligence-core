@@ -28,8 +28,9 @@ def test_queued_signed_raw_payload_survives_pg_reload(pg_url, monkeypatch, seman
     payload = _body_only_request()
     if semantic:
         payload["semantic_profile"] = semantic_profile().model_dump(mode="json")
-        payload["service_envelope"] = build_service_envelope(payload, secret="test-secret", tenant_id="tenant_a",
-            dossier_id=payload["dossier_id"])
+        payload["service_envelope"] = build_service_envelope(
+            payload, secret="test-secret", tenant_id="tenant_a", dossier_id=payload["dossier_id"]
+        )
     expected = copy.deepcopy(payload)
     background = BackgroundTasks()
     # Do not run the scheduled worker; reproduce an accepted queued job across store recreation.
@@ -37,19 +38,26 @@ def test_queued_signed_raw_payload_survives_pg_reload(pg_url, monkeypatch, seman
     reopened = PostgresJobStore(pg_url)
     stored = reopened.get(queued["job_id"])
     assert stored["request"] == expected
-    assert verify_service_envelope(stored["request"]).payload_sha256 == expected["service_envelope"]["payload_sha256"]
+    assert (
+        verify_service_envelope(stored["request"]).payload_sha256
+        == expected["service_envelope"]["payload_sha256"]
+    )
     monkeypatch.setattr(main, "JOB_STORE", reopened)
     main._execute_wire_job(queued["job_id"], stored["request"])
     assert reopened.get(queued["job_id"])["status"] == "SUCCEEDED"
 
 
-def test_job_persists_its_own_record_when_another_job_changes_shared_store(pg_url, monkeypatch):
+@pytest.mark.parametrize("consent", [True, False])
+def test_job_persists_its_own_record_when_another_job_changes_shared_store(
+    pg_url, monkeypatch, consent
+):
     import copy
 
     from fastapi.testclient import TestClient
     from test_a1_query_digest import _body_only_request, _poll
 
     from app.api import main
+    from app.security.service_envelope import build_service_envelope
     from app.tools.jobs import PostgresJobStore
     from app.tools.query_store import load_query_snapshot
     from app.tools.store import InMemorySnapshotStore
@@ -70,11 +78,16 @@ def test_job_persists_its_own_record_when_another_job_changes_shared_store(pg_ur
 
     monkeypatch.setattr(main, "run_idp", interleaved)
     payload = _body_only_request()
+    payload["policy_flags"]["egress_allowed"] = consent
+    payload["service_envelope"] = build_service_envelope(
+        payload, secret="test-secret", tenant_id="tenant_a", dossier_id=payload["dossier_id"]
+    )
     with TestClient(main.app) as client:
         response = client.post("/jobs/idp", json=payload)
         assert response.status_code == 202
         wire = _poll(client, response.json()["job_id"], payload["dossier_id"])
     record, envelope = load_query_snapshot(payload["dossier_id"], tenant_id="tenant_a")
+    assert record.content_sharing_consent is consent
     assert wire["status"] == "SUCCEEDED"
     assert (
         record.pins.source_snapshot_digest
@@ -330,7 +343,8 @@ def test_nonce_conflict_rolls_back_new_job(pg_url):
         store.create_or_get(**args, idempotency_key=uuid4().hex, request_fingerprint="second")
 
 
-def test_query_snapshot_survives_engine_restart(pg_url, monkeypatch):
+@pytest.mark.parametrize("consent", [True, False])
+def test_query_snapshot_survives_engine_restart(pg_url, monkeypatch, consent):
     from app.db.engine import get_engine
     from app.tools.persist import record_to_dict
     from app.tools.query_store import load_query_snapshot, save_query_snapshot
@@ -338,10 +352,12 @@ def test_query_snapshot_survives_engine_restart(pg_url, monkeypatch):
 
     monkeypatch.setenv("AI2_DATABASE_URL", pg_url)
     record, envelope = llm_units_record(), llm_units_envelope()
+    record.content_sharing_consent = consent
     record.dossier_id = uuid4().hex
     save_query_snapshot(record, envelope)
     get_engine(pg_url).dispose()
     loaded = load_query_snapshot(record.dossier_id, tenant_id=record.tenant_id)
+    assert loaded[0].content_sharing_consent is consent
     assert record_to_dict(loaded[0]) == record_to_dict(record)
     assert loaded[1] == envelope
     assert load_query_snapshot(record.dossier_id, tenant_id="wrong-tenant") is None
