@@ -15,6 +15,7 @@ import {
   deleteDossier,
   loadDocumentOcrPages,
   rerunDossierOcr,
+  retryDossierFailed,
   restartOcrErrorMessage,
   type OcrPageRow,
 } from '../api/dossiers'
@@ -593,6 +594,24 @@ export function AnalysisProgressPage() {
     }
   }
 
+  async function retry() {
+    if (!dossierId || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      if (failure.retry === 'none') {
+        setBusy(false)
+        return
+      }
+      await retryDossierFailed(dossierId, failure.retry)
+      setAttempt((value) => value + 1)
+      setBusy(false)
+    } catch (cause) {
+      setError(restartOcrErrorMessage(cause))
+      setBusy(false)
+    }
+  }
+
   const failedLabel = cancelled
     ? 'Đã hủy lần xử lý'
     : ai2Failed
@@ -845,6 +864,23 @@ export function AnalysisProgressPage() {
               <span>Hủy tiến trình này</span>
             </button>
           )}
+          {canManageRun && failed && failure.retry !== 'none' ? (
+            <button
+              className="font-body-sm text-body-sm text-primary hover:underline flex items-center gap-space-xs disabled:opacity-60"
+              disabled={busy}
+              type="button"
+              onClick={() => {
+                void retry()
+              }}
+            >
+              <MaterialIcon name="refresh" className="text-[16px]" />
+              <span>
+                {failure.retry === 'ai2'
+                  ? 'Chạy lại AI2'
+                  : 'Chạy lại phần OCR lỗi'}
+              </span>
+            </button>
+          ) : null}
         </div>
         <div className="flex items-center gap-space-sm">
           {canDelete ? (
