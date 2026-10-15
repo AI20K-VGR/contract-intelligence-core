@@ -60,14 +60,12 @@ def semantic_record():
     return record
 
 
-def test_semantic_job_default_off_then_full_three_and_exact_decimal(monkeypatch):
+def test_semantic_job_defaults_on_and_explicit_false_disables(monkeypatch):
     record = semantic_record()
     monkeypatch.delenv("AI2_SEMANTIC_ENABLED", raising=False)
-    result = run_idp(record, envelope())
-    assert result.contribution.semantic_extension is None
-    monkeypatch.setenv("AI2_SEMANTIC_ENABLED", "true")
     monkeypatch.setenv(
-        "AI2_SEMANTIC_CONTEXT_CAPS", json.dumps(record.semantic_profile.context_bounds.model_dump())
+        "AI2_SEMANTIC_CONTEXT_CAPS",
+        json.dumps(record.semantic_profile.context_bounds.model_dump()),
     )
     result = run_idp(record, envelope())
     extension = result.contribution.semantic_extension
@@ -81,6 +79,14 @@ def test_semantic_job_default_off_then_full_three_and_exact_decimal(monkeypatch)
     reopened = record_from_dict(record_to_dict(record))
     assert reopened.semantic_extension == extension
     assert reopened.semantic_profile == record.semantic_profile
+
+    monkeypatch.setenv("AI2_SEMANTIC_ENABLED", "false")
+    disabled = run_idp(record, envelope())
+    assert disabled.contribution.semantic_extension is None
+    assert any(
+        issue.missing == "SEMANTIC_PRODUCER_DISABLED"
+        for issue in disabled.contribution.evidence_issues
+    )
 
 
 def test_profile_digest_tenant_closed_and_mutation():

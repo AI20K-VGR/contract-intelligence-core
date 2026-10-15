@@ -1,0 +1,2803 @@
+{
+ "by_pair": {
+  "nd50-2021": {
+   "all": {
+    "n_gold": 26,
+    "n_pred": 30,
+    "op_lexical_agreement": {
+     "denominator": 26,
+     "passed": 26,
+     "rate": 1.0,
+     "wilson95": [
+      0.8713,
+      1.0
+     ]
+    },
+    "op_precision": {
+     "denominator": 30,
+     "passed": 26,
+     "rate": 0.8667,
+     "wilson95": [
+      0.7032,
+      0.9469
+     ]
+    },
+    "src_found": {
+     "denominator": 26,
+     "passed": 26,
+     "rate": 1.0,
+     "wilson95": [
+      0.8713,
+      1.0
+     ]
+    },
+    "target_accuracy": {
+     "denominator": 26,
+     "passed": 13,
+     "rate": 0.5,
+     "wilson95": [
+      0.3206,
+      0.6794
+     ]
+    }
+   },
+   "by_op": {
+    "INSERTION": {
+     "n_gold": 9,
+     "n_pred": 11,
+     "op_lexical_agreement": {
+      "denominator": 9,
+      "passed": 9,
+      "rate": 1.0,
+      "wilson95": [
+       0.7008,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 11,
+      "passed": 9,
+      "rate": 0.8182,
+      "wilson95": [
+       0.523,
+       0.9486
+      ]
+     },
+     "src_found": {
+      "denominator": 9,
+      "passed": 9,
+      "rate": 1.0,
+      "wilson95": [
+       0.7008,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 9,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.2992
+      ]
+     }
+    },
+    "REPEAL": {
+     "n_gold": 0,
+     "n_pred": 0,
+     "op_lexical_agreement": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     }
+    },
+    "SUBSTITUTION": {
+     "n_gold": 17,
+     "n_pred": 19,
+     "op_lexical_agreement": {
+      "denominator": 17,
+      "passed": 17,
+      "rate": 1.0,
+      "wilson95": [
+       0.8157,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 19,
+      "passed": 17,
+      "rate": 0.8947,
+      "wilson95": [
+       0.6861,
+       0.9706
+      ]
+     },
+     "src_found": {
+      "denominator": 17,
+      "passed": 17,
+      "rate": 1.0,
+      "wilson95": [
+       0.8157,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 17,
+      "passed": 13,
+      "rate": 0.7647,
+      "wilson95": [
+       0.5274,
+       0.9045
+      ]
+     }
+    }
+   },
+   "marker_hit": {
+    "denominator": 29,
+    "passed": 29,
+    "rate": 1.0,
+    "wilson95": [
+     0.883,
+     1.0
+    ]
+   },
+   "n_gold_other": 0,
+   "n_pred_on_other": 0
+  },
+  "tt01-2022-bct": {
+   "all": {
+    "n_gold": 12,
+    "n_pred": 11,
+    "op_lexical_agreement": {
+     "denominator": 12,
+     "passed": 6,
+     "rate": 0.5,
+     "wilson95": [
+      0.2538,
+      0.7462
+     ]
+    },
+    "op_precision": {
+     "denominator": 11,
+     "passed": 6,
+     "rate": 0.5455,
+     "wilson95": [
+      0.2801,
+      0.7873
+     ]
+    },
+    "src_found": {
+     "denominator": 12,
+     "passed": 6,
+     "rate": 0.5,
+     "wilson95": [
+      0.2538,
+      0.7462
+     ]
+    },
+    "target_accuracy": {
+     "denominator": 6,
+     "passed": 2,
+     "rate": 0.3333,
+     "wilson95": [
+      0.0968,
+      0.7
+     ]
+    }
+   },
+   "by_op": {
+    "INSERTION": {
+     "n_gold": 3,
+     "n_pred": 3,
+     "op_lexical_agreement": {
+      "denominator": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "wilson95": [
+       0.4385,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "wilson95": [
+       0.4385,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "wilson95": [
+       0.4385,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.5615
+      ]
+     }
+    },
+    "REPEAL": {
+     "n_gold": 5,
+     "n_pred": 3,
+     "op_lexical_agreement": {
+      "denominator": 5,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.4345
+      ]
+     },
+     "op_precision": {
+      "denominator": 3,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.5615
+      ]
+     },
+     "src_found": {
+      "denominator": 5,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.4345
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     }
+    },
+    "SUBSTITUTION": {
+     "n_gold": 4,
+     "n_pred": 5,
+     "op_lexical_agreement": {
+      "denominator": 4,
+      "passed": 3,
+      "rate": 0.75,
+      "wilson95": [
+       0.3006,
+       0.9544
+      ]
+     },
+     "op_precision": {
+      "denominator": 5,
+      "passed": 3,
+      "rate": 0.6,
+      "wilson95": [
+       0.2307,
+       0.8824
+      ]
+     },
+     "src_found": {
+      "denominator": 4,
+      "passed": 3,
+      "rate": 0.75,
+      "wilson95": [
+       0.3006,
+       0.9544
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 3,
+      "passed": 2,
+      "rate": 0.6667,
+      "wilson95": [
+       0.2077,
+       0.9385
+      ]
+     }
+    }
+   },
+   "marker_hit": {
+    "denominator": 11,
+    "passed": 10,
+    "rate": 0.9091,
+    "wilson95": [
+     0.6226,
+     0.9838
+    ]
+   },
+   "n_gold_other": 0,
+   "n_pred_on_other": 0
+  },
+  "tt119-2014-btc": {
+   "all": {
+    "n_gold": 11,
+    "n_pred": 10,
+    "op_lexical_agreement": {
+     "denominator": 11,
+     "passed": 8,
+     "rate": 0.7273,
+     "wilson95": [
+      0.4343,
+      0.9025
+     ]
+    },
+    "op_precision": {
+     "denominator": 10,
+     "passed": 8,
+     "rate": 0.8,
+     "wilson95": [
+      0.4902,
+      0.9433
+     ]
+    },
+    "src_found": {
+     "denominator": 11,
+     "passed": 8,
+     "rate": 0.7273,
+     "wilson95": [
+      0.4343,
+      0.9025
+     ]
+    },
+    "target_accuracy": {
+     "denominator": 8,
+     "passed": 6,
+     "rate": 0.75,
+     "wilson95": [
+      0.4093,
+      0.9285
+     ]
+    }
+   },
+   "by_op": {
+    "INSERTION": {
+     "n_gold": 2,
+     "n_pred": 2,
+     "op_lexical_agreement": {
+      "denominator": 2,
+      "passed": 2,
+      "rate": 1.0,
+      "wilson95": [
+       0.3424,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 2,
+      "passed": 2,
+      "rate": 1.0,
+      "wilson95": [
+       0.3424,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 2,
+      "passed": 2,
+      "rate": 1.0,
+      "wilson95": [
+       0.3424,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 2,
+      "passed": 1,
+      "rate": 0.5,
+      "wilson95": [
+       0.0945,
+       0.9055
+      ]
+     }
+    },
+    "REPEAL": {
+     "n_gold": 0,
+     "n_pred": 0,
+     "op_lexical_agreement": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     }
+    },
+    "SUBSTITUTION": {
+     "n_gold": 9,
+     "n_pred": 8,
+     "op_lexical_agreement": {
+      "denominator": 9,
+      "passed": 6,
+      "rate": 0.6667,
+      "wilson95": [
+       0.3542,
+       0.8794
+      ]
+     },
+     "op_precision": {
+      "denominator": 8,
+      "passed": 6,
+      "rate": 0.75,
+      "wilson95": [
+       0.4093,
+       0.9285
+      ]
+     },
+     "src_found": {
+      "denominator": 9,
+      "passed": 6,
+      "rate": 0.6667,
+      "wilson95": [
+       0.3542,
+       0.8794
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 6,
+      "passed": 5,
+      "rate": 0.8333,
+      "wilson95": [
+       0.4365,
+       0.9699
+      ]
+     }
+    }
+   },
+   "marker_hit": {
+    "denominator": 10,
+    "passed": 10,
+    "rate": 1.0,
+    "wilson95": [
+     0.7225,
+     1.0
+    ]
+   },
+   "n_gold_other": 0,
+   "n_pred_on_other": 0
+  },
+  "tt13-2023-btc": {
+   "all": {
+    "n_gold": 4,
+    "n_pred": 3,
+    "op_lexical_agreement": {
+     "denominator": 4,
+     "passed": 3,
+     "rate": 0.75,
+     "wilson95": [
+      0.3006,
+      0.9544
+     ]
+    },
+    "op_precision": {
+     "denominator": 3,
+     "passed": 3,
+     "rate": 1.0,
+     "wilson95": [
+      0.4385,
+      1.0
+     ]
+    },
+    "src_found": {
+     "denominator": 4,
+     "passed": 3,
+     "rate": 0.75,
+     "wilson95": [
+      0.3006,
+      0.9544
+     ]
+    },
+    "target_accuracy": {
+     "denominator": 3,
+     "passed": 3,
+     "rate": 1.0,
+     "wilson95": [
+      0.4385,
+      1.0
+     ]
+    }
+   },
+   "by_op": {
+    "INSERTION": {
+     "n_gold": 0,
+     "n_pred": 0,
+     "op_lexical_agreement": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     }
+    },
+    "REPEAL": {
+     "n_gold": 0,
+     "n_pred": 0,
+     "op_lexical_agreement": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     }
+    },
+    "SUBSTITUTION": {
+     "n_gold": 4,
+     "n_pred": 3,
+     "op_lexical_agreement": {
+      "denominator": 4,
+      "passed": 3,
+      "rate": 0.75,
+      "wilson95": [
+       0.3006,
+       0.9544
+      ]
+     },
+     "op_precision": {
+      "denominator": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "wilson95": [
+       0.4385,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 4,
+      "passed": 3,
+      "rate": 0.75,
+      "wilson95": [
+       0.3006,
+       0.9544
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "wilson95": [
+       0.4385,
+       1.0
+      ]
+     }
+    }
+   },
+   "marker_hit": {
+    "denominator": 3,
+    "passed": 3,
+    "rate": 1.0,
+    "wilson95": [
+     0.4385,
+     1.0
+    ]
+   },
+   "n_gold_other": 0,
+   "n_pred_on_other": 0
+  },
+  "tt130-2016-btc": {
+   "all": {
+    "n_gold": 6,
+    "n_pred": 6,
+    "op_lexical_agreement": {
+     "denominator": 6,
+     "passed": 5,
+     "rate": 0.8333,
+     "wilson95": [
+      0.4365,
+      0.9699
+     ]
+    },
+    "op_precision": {
+     "denominator": 6,
+     "passed": 5,
+     "rate": 0.8333,
+     "wilson95": [
+      0.4365,
+      0.9699
+     ]
+    },
+    "src_found": {
+     "denominator": 6,
+     "passed": 5,
+     "rate": 0.8333,
+     "wilson95": [
+      0.4365,
+      0.9699
+     ]
+    },
+    "target_accuracy": {
+     "denominator": 5,
+     "passed": 5,
+     "rate": 1.0,
+     "wilson95": [
+      0.5655,
+      1.0
+     ]
+    }
+   },
+   "by_op": {
+    "INSERTION": {
+     "n_gold": 0,
+     "n_pred": 0,
+     "op_lexical_agreement": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     }
+    },
+    "REPEAL": {
+     "n_gold": 0,
+     "n_pred": 0,
+     "op_lexical_agreement": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     }
+    },
+    "SUBSTITUTION": {
+     "n_gold": 6,
+     "n_pred": 6,
+     "op_lexical_agreement": {
+      "denominator": 6,
+      "passed": 5,
+      "rate": 0.8333,
+      "wilson95": [
+       0.4365,
+       0.9699
+      ]
+     },
+     "op_precision": {
+      "denominator": 6,
+      "passed": 5,
+      "rate": 0.8333,
+      "wilson95": [
+       0.4365,
+       0.9699
+      ]
+     },
+     "src_found": {
+      "denominator": 6,
+      "passed": 5,
+      "rate": 0.8333,
+      "wilson95": [
+       0.4365,
+       0.9699
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 5,
+      "passed": 5,
+      "rate": 1.0,
+      "wilson95": [
+       0.5655,
+       1.0
+      ]
+     }
+    }
+   },
+   "marker_hit": {
+    "denominator": 6,
+    "passed": 6,
+    "rate": 1.0,
+    "wilson95": [
+     0.6097,
+     1.0
+    ]
+   },
+   "n_gold_other": 0,
+   "n_pred_on_other": 0
+  },
+  "tt14-2019-nhnn": {
+   "all": {
+    "n_gold": 3,
+    "n_pred": 13,
+    "op_lexical_agreement": {
+     "denominator": 3,
+     "passed": 1,
+     "rate": 0.3333,
+     "wilson95": [
+      0.0615,
+      0.7923
+     ]
+    },
+    "op_precision": {
+     "denominator": 13,
+     "passed": 1,
+     "rate": 0.0769,
+     "wilson95": [
+      0.0137,
+      0.3331
+     ]
+    },
+    "src_found": {
+     "denominator": 3,
+     "passed": 1,
+     "rate": 0.3333,
+     "wilson95": [
+      0.0615,
+      0.7923
+     ]
+    },
+    "target_accuracy": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
+     ]
+    }
+   },
+   "by_op": {
+    "INSERTION": {
+     "n_gold": 2,
+     "n_pred": 1,
+     "op_lexical_agreement": {
+      "denominator": 2,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.6576
+      ]
+     },
+     "op_precision": {
+      "denominator": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.7935
+      ]
+     },
+     "src_found": {
+      "denominator": 2,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.6576
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     }
+    },
+    "REPEAL": {
+     "n_gold": 0,
+     "n_pred": 0,
+     "op_lexical_agreement": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     }
+    },
+    "SUBSTITUTION": {
+     "n_gold": 1,
+     "n_pred": 12,
+     "op_lexical_agreement": {
+      "denominator": 1,
+      "passed": 1,
+      "rate": 1.0,
+      "wilson95": [
+       0.2065,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 12,
+      "passed": 1,
+      "rate": 0.0833,
+      "wilson95": [
+       0.0149,
+       0.3539
+      ]
+     },
+     "src_found": {
+      "denominator": 1,
+      "passed": 1,
+      "rate": 1.0,
+      "wilson95": [
+       0.2065,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.7935
+      ]
+     }
+    }
+   },
+   "marker_hit": {
+    "denominator": 13,
+    "passed": 1,
+    "rate": 0.0769,
+    "wilson95": [
+     0.0137,
+     0.3331
+    ]
+   },
+   "n_gold_other": 0,
+   "n_pred_on_other": 0
+  },
+  "tt21-2018-bct": {
+   "all": {
+    "n_gold": 14,
+    "n_pred": 2,
+    "op_lexical_agreement": {
+     "denominator": 14,
+     "passed": 2,
+     "rate": 0.1429,
+     "wilson95": [
+      0.0401,
+      0.3994
+     ]
+    },
+    "op_precision": {
+     "denominator": 2,
+     "passed": 2,
+     "rate": 1.0,
+     "wilson95": [
+      0.3424,
+      1.0
+     ]
+    },
+    "src_found": {
+     "denominator": 14,
+     "passed": 2,
+     "rate": 0.1429,
+     "wilson95": [
+      0.0401,
+      0.3994
+     ]
+    },
+    "target_accuracy": {
+     "denominator": 2,
+     "passed": 2,
+     "rate": 1.0,
+     "wilson95": [
+      0.3424,
+      1.0
+     ]
+    }
+   },
+   "by_op": {
+    "INSERTION": {
+     "n_gold": 0,
+     "n_pred": 0,
+     "op_lexical_agreement": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     }
+    },
+    "REPEAL": {
+     "n_gold": 2,
+     "n_pred": 2,
+     "op_lexical_agreement": {
+      "denominator": 2,
+      "passed": 2,
+      "rate": 1.0,
+      "wilson95": [
+       0.3424,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 2,
+      "passed": 2,
+      "rate": 1.0,
+      "wilson95": [
+       0.3424,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 2,
+      "passed": 2,
+      "rate": 1.0,
+      "wilson95": [
+       0.3424,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 2,
+      "passed": 2,
+      "rate": 1.0,
+      "wilson95": [
+       0.3424,
+       1.0
+      ]
+     }
+    },
+    "SUBSTITUTION": {
+     "n_gold": 12,
+     "n_pred": 0,
+     "op_lexical_agreement": {
+      "denominator": 12,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.2425
+      ]
+     },
+     "op_precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 12,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.2425
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     }
+    }
+   },
+   "marker_hit": {
+    "denominator": 2,
+    "passed": 2,
+    "rate": 1.0,
+    "wilson95": [
+     0.3424,
+     1.0
+    ]
+   },
+   "n_gold_other": 0,
+   "n_pred_on_other": 0
+  },
+  "tt23-2016-nhnn": {
+   "all": {
+    "n_gold": 6,
+    "n_pred": 1,
+    "op_lexical_agreement": {
+     "denominator": 6,
+     "passed": 1,
+     "rate": 0.1667,
+     "wilson95": [
+      0.0301,
+      0.5635
+     ]
+    },
+    "op_precision": {
+     "denominator": 1,
+     "passed": 1,
+     "rate": 1.0,
+     "wilson95": [
+      0.2065,
+      1.0
+     ]
+    },
+    "src_found": {
+     "denominator": 6,
+     "passed": 1,
+     "rate": 0.1667,
+     "wilson95": [
+      0.0301,
+      0.5635
+     ]
+    },
+    "target_accuracy": {
+     "denominator": 1,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.7935
+     ]
+    }
+   },
+   "by_op": {
+    "INSERTION": {
+     "n_gold": 0,
+     "n_pred": 0,
+     "op_lexical_agreement": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     }
+    },
+    "REPEAL": {
+     "n_gold": 2,
+     "n_pred": 0,
+     "op_lexical_agreement": {
+      "denominator": 2,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.6576
+      ]
+     },
+     "op_precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 2,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.6576
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     }
+    },
+    "SUBSTITUTION": {
+     "n_gold": 4,
+     "n_pred": 1,
+     "op_lexical_agreement": {
+      "denominator": 4,
+      "passed": 1,
+      "rate": 0.25,
+      "wilson95": [
+       0.0456,
+       0.6994
+      ]
+     },
+     "op_precision": {
+      "denominator": 1,
+      "passed": 1,
+      "rate": 1.0,
+      "wilson95": [
+       0.2065,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 4,
+      "passed": 1,
+      "rate": 0.25,
+      "wilson95": [
+       0.0456,
+       0.6994
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 1,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.7935
+      ]
+     }
+    }
+   },
+   "marker_hit": {
+    "denominator": 1,
+    "passed": 1,
+    "rate": 1.0,
+    "wilson95": [
+     0.2065,
+     1.0
+    ]
+   },
+   "n_gold_other": 0,
+   "n_pred_on_other": 0
+  },
+  "tt26-2015-btc": {
+   "all": {
+    "n_gold": 17,
+    "n_pred": 16,
+    "op_lexical_agreement": {
+     "denominator": 17,
+     "passed": 12,
+     "rate": 0.7059,
+     "wilson95": [
+      0.4687,
+      0.8672
+     ]
+    },
+    "op_precision": {
+     "denominator": 16,
+     "passed": 12,
+     "rate": 0.75,
+     "wilson95": [
+      0.505,
+      0.8982
+     ]
+    },
+    "src_found": {
+     "denominator": 17,
+     "passed": 13,
+     "rate": 0.7647,
+     "wilson95": [
+      0.5274,
+      0.9045
+     ]
+    },
+    "target_accuracy": {
+     "denominator": 13,
+     "passed": 10,
+     "rate": 0.7692,
+     "wilson95": [
+      0.4974,
+      0.9182
+     ]
+    }
+   },
+   "by_op": {
+    "INSERTION": {
+     "n_gold": 2,
+     "n_pred": 3,
+     "op_lexical_agreement": {
+      "denominator": 2,
+      "passed": 2,
+      "rate": 1.0,
+      "wilson95": [
+       0.3424,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 3,
+      "passed": 2,
+      "rate": 0.6667,
+      "wilson95": [
+       0.2077,
+       0.9385
+      ]
+     },
+     "src_found": {
+      "denominator": 2,
+      "passed": 2,
+      "rate": 1.0,
+      "wilson95": [
+       0.3424,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 2,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.6576
+      ]
+     }
+    },
+    "REPEAL": {
+     "n_gold": 3,
+     "n_pred": 1,
+     "op_lexical_agreement": {
+      "denominator": 3,
+      "passed": 1,
+      "rate": 0.3333,
+      "wilson95": [
+       0.0615,
+       0.7923
+      ]
+     },
+     "op_precision": {
+      "denominator": 1,
+      "passed": 1,
+      "rate": 1.0,
+      "wilson95": [
+       0.2065,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 3,
+      "passed": 1,
+      "rate": 0.3333,
+      "wilson95": [
+       0.0615,
+       0.7923
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 1,
+      "passed": 1,
+      "rate": 1.0,
+      "wilson95": [
+       0.2065,
+       1.0
+      ]
+     }
+    },
+    "SUBSTITUTION": {
+     "n_gold": 12,
+     "n_pred": 12,
+     "op_lexical_agreement": {
+      "denominator": 12,
+      "passed": 9,
+      "rate": 0.75,
+      "wilson95": [
+       0.4677,
+       0.9111
+      ]
+     },
+     "op_precision": {
+      "denominator": 12,
+      "passed": 9,
+      "rate": 0.75,
+      "wilson95": [
+       0.4677,
+       0.9111
+      ]
+     },
+     "src_found": {
+      "denominator": 12,
+      "passed": 10,
+      "rate": 0.8333,
+      "wilson95": [
+       0.552,
+       0.953
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 10,
+      "passed": 9,
+      "rate": 0.9,
+      "wilson95": [
+       0.5958,
+       0.9821
+      ]
+     }
+    }
+   },
+   "marker_hit": {
+    "denominator": 16,
+    "passed": 16,
+    "rate": 1.0,
+    "wilson95": [
+     0.8064,
+     1.0
+    ]
+   },
+   "n_gold_other": 0,
+   "n_pred_on_other": 0
+  },
+  "tt27-2014-nhnn": {
+   "all": {
+    "n_gold": 6,
+    "n_pred": 6,
+    "op_lexical_agreement": {
+     "denominator": 6,
+     "passed": 3,
+     "rate": 0.5,
+     "wilson95": [
+      0.1876,
+      0.8124
+     ]
+    },
+    "op_precision": {
+     "denominator": 6,
+     "passed": 3,
+     "rate": 0.5,
+     "wilson95": [
+      0.1876,
+      0.8124
+     ]
+    },
+    "src_found": {
+     "denominator": 6,
+     "passed": 3,
+     "rate": 0.5,
+     "wilson95": [
+      0.1876,
+      0.8124
+     ]
+    },
+    "target_accuracy": {
+     "denominator": 3,
+     "passed": 3,
+     "rate": 1.0,
+     "wilson95": [
+      0.4385,
+      1.0
+     ]
+    }
+   },
+   "by_op": {
+    "INSERTION": {
+     "n_gold": 0,
+     "n_pred": 0,
+     "op_lexical_agreement": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     }
+    },
+    "REPEAL": {
+     "n_gold": 0,
+     "n_pred": 0,
+     "op_lexical_agreement": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     }
+    },
+    "SUBSTITUTION": {
+     "n_gold": 6,
+     "n_pred": 6,
+     "op_lexical_agreement": {
+      "denominator": 6,
+      "passed": 3,
+      "rate": 0.5,
+      "wilson95": [
+       0.1876,
+       0.8124
+      ]
+     },
+     "op_precision": {
+      "denominator": 6,
+      "passed": 3,
+      "rate": 0.5,
+      "wilson95": [
+       0.1876,
+       0.8124
+      ]
+     },
+     "src_found": {
+      "denominator": 6,
+      "passed": 3,
+      "rate": 0.5,
+      "wilson95": [
+       0.1876,
+       0.8124
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 3,
+      "passed": 3,
+      "rate": 1.0,
+      "wilson95": [
+       0.4385,
+       1.0
+      ]
+     }
+    }
+   },
+   "marker_hit": {
+    "denominator": 6,
+    "passed": 6,
+    "rate": 1.0,
+    "wilson95": [
+     0.6097,
+     1.0
+    ]
+   },
+   "n_gold_other": 0,
+   "n_pred_on_other": 0
+  },
+  "tt43-2018-nhnn": {
+   "all": {
+    "n_gold": 8,
+    "n_pred": 0,
+    "op_lexical_agreement": {
+     "denominator": 8,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.3244
+     ]
+    },
+    "op_precision": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    },
+    "src_found": {
+     "denominator": 8,
+     "passed": 0,
+     "rate": 0.0,
+     "wilson95": [
+      0.0,
+      0.3244
+     ]
+    },
+    "target_accuracy": {
+     "denominator": 0,
+     "passed": 0,
+     "rate": null,
+     "wilson95": [
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "by_op": {
+    "INSERTION": {
+     "n_gold": 0,
+     "n_pred": 0,
+     "op_lexical_agreement": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     }
+    },
+    "REPEAL": {
+     "n_gold": 0,
+     "n_pred": 0,
+     "op_lexical_agreement": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "op_precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     }
+    },
+    "SUBSTITUTION": {
+     "n_gold": 8,
+     "n_pred": 0,
+     "op_lexical_agreement": {
+      "denominator": 8,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.3244
+      ]
+     },
+     "op_precision": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     },
+     "src_found": {
+      "denominator": 8,
+      "passed": 0,
+      "rate": 0.0,
+      "wilson95": [
+       0.0,
+       0.3244
+      ]
+     },
+     "target_accuracy": {
+      "denominator": 0,
+      "passed": 0,
+      "rate": null,
+      "wilson95": [
+       0.0,
+       1.0
+      ]
+     }
+    }
+   },
+   "marker_hit": {
+    "denominator": 0,
+    "passed": 0,
+    "rate": null,
+    "wilson95": [
+     0.0,
+     1.0
+    ]
+   },
+   "n_gold_other": 0,
+   "n_pred_on_other": 0
+  }
+ },
+ "dataset": {
+  "manifest_sha256": "f74399ae07193ba8975e2cb58e8d83af8abaaa112c00a3b9c31c24b615b05220",
+  "pairs": 11
+ },
+ "ground_truth": "vbhn-note auto-gold (approved=false)",
+ "missed_gold": [
+  {
+   "note_no": 2,
+   "op": "REPEAL",
+   "pair_id": "tt01-2022-bct",
+   "src_address": "diem a khoan 1 dieu 3",
+   "target_address": "khoan 2 dieu 1"
+  },
+  {
+   "note_no": 3,
+   "op": "REPEAL",
+   "pair_id": "tt01-2022-bct",
+   "src_address": "diem a khoan 1 dieu 3",
+   "target_address": "dieu 3"
+  },
+  {
+   "note_no": 4,
+   "op": "REPEAL",
+   "pair_id": "tt01-2022-bct",
+   "src_address": "diem a khoan 1 dieu 3",
+   "target_address": "dieu 4"
+  },
+  {
+   "note_no": 6,
+   "op": "REPEAL",
+   "pair_id": "tt01-2022-bct",
+   "src_address": "diem a khoan 1 dieu 3",
+   "target_address": "dieu 6"
+  },
+  {
+   "note_no": 9,
+   "op": "REPEAL",
+   "pair_id": "tt01-2022-bct",
+   "src_address": "diem a khoan 1 dieu 3",
+   "target_address": "dieu 13"
+  },
+  {
+   "note_no": 29,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt01-2022-bct",
+   "src_address": "diem a khoan 1 dieu 3",
+   "target_address": null
+  },
+  {
+   "note_no": 21,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt119-2014-btc",
+   "src_address": "khoan 3 dieu 3",
+   "target_address": "diem đ khoan 3 dieu 12"
+  },
+  {
+   "note_no": 22,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt119-2014-btc",
+   "src_address": "khoan 3 dieu 3",
+   "target_address": "khoan 4 dieu 12"
+  },
+  {
+   "note_no": 23,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt119-2014-btc",
+   "src_address": "khoan 3 dieu 3",
+   "target_address": "diem d khoan 4 dieu 12"
+  },
+  {
+   "note_no": 34,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt13-2023-btc",
+   "src_address": "khoan 3 dieu 1",
+   "target_address": "khoan 2 dieu 18"
+  },
+  {
+   "note_no": 36,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt130-2016-btc",
+   "src_address": "khoan 3 dieu 1",
+   "target_address": "khoan 4 dieu 18"
+  },
+  {
+   "note_no": 30,
+   "op": "INSERTION",
+   "pair_id": "tt14-2019-nhnn",
+   "src_address": "khoan 1 dieu 2",
+   "target_address": null
+  },
+  {
+   "note_no": 31,
+   "op": "INSERTION",
+   "pair_id": "tt14-2019-nhnn",
+   "src_address": "khoan 1 dieu 2",
+   "target_address": null
+  },
+  {
+   "note_no": 11,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt21-2018-bct",
+   "src_address": "khoan 4 dieu 1",
+   "target_address": "khoan 2 dieu 15"
+  },
+  {
+   "note_no": 12,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt21-2018-bct",
+   "src_address": "khoan 4 dieu 1",
+   "target_address": "khoan 1 dieu 16"
+  },
+  {
+   "note_no": 13,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt21-2018-bct",
+   "src_address": "khoan 4 dieu 1",
+   "target_address": "khoan 2 dieu 17"
+  },
+  {
+   "note_no": 14,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt21-2018-bct",
+   "src_address": "khoan 4 dieu 1",
+   "target_address": "khoan 2 dieu 18"
+  },
+  {
+   "note_no": 19,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt21-2018-bct",
+   "src_address": "khoan 4 dieu 1",
+   "target_address": "khoan 2 dieu 23"
+  },
+  {
+   "note_no": 20,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt21-2018-bct",
+   "src_address": "khoan 4 dieu 1",
+   "target_address": "khoan 1 dieu 24"
+  },
+  {
+   "note_no": 21,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt21-2018-bct",
+   "src_address": "khoan 4 dieu 1",
+   "target_address": "khoan 2 dieu 25"
+  },
+  {
+   "note_no": 22,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt21-2018-bct",
+   "src_address": "khoan 4 dieu 1",
+   "target_address": "khoan 2 dieu 26"
+  },
+  {
+   "note_no": 26,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt21-2018-bct",
+   "src_address": "khoan 4 dieu 1",
+   "target_address": "khoan 1 dieu 32"
+  },
+  {
+   "note_no": 27,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt21-2018-bct",
+   "src_address": "khoan 4 dieu 1",
+   "target_address": "khoan 3 dieu 32"
+  },
+  {
+   "note_no": 32,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt21-2018-bct",
+   "src_address": "khoan 4 dieu 1",
+   "target_address": null
+  },
+  {
+   "note_no": 34,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt21-2018-bct",
+   "src_address": "khoan 4 dieu 1",
+   "target_address": null
+  },
+  {
+   "note_no": 5,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt23-2016-nhnn",
+   "src_address": "khoan 1 dieu 1",
+   "target_address": "khoan 1 dieu 1"
+  },
+  {
+   "note_no": 6,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt23-2016-nhnn",
+   "src_address": "khoan 2 dieu 1",
+   "target_address": "khoan 2 dieu 3"
+  },
+  {
+   "note_no": 8,
+   "op": "REPEAL",
+   "pair_id": "tt23-2016-nhnn",
+   "src_address": "dieu 2",
+   "target_address": "dieu 4"
+  },
+  {
+   "note_no": 9,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt23-2016-nhnn",
+   "src_address": "khoan 4 dieu 1",
+   "target_address": "dieu 5"
+  },
+  {
+   "note_no": 14,
+   "op": "REPEAL",
+   "pair_id": "tt23-2016-nhnn",
+   "src_address": "dieu 2",
+   "target_address": "dieu 11"
+  },
+  {
+   "note_no": 14,
+   "op": "REPEAL",
+   "pair_id": "tt26-2015-btc",
+   "src_address": "khoan 4 dieu 4",
+   "target_address": "khoan 22 dieu 7"
+  },
+  {
+   "note_no": 17,
+   "op": "REPEAL",
+   "pair_id": "tt26-2015-btc",
+   "src_address": "khoan 7 dieu 1",
+   "target_address": "khoan 3 dieu 10"
+  },
+  {
+   "note_no": 19,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt26-2015-btc",
+   "src_address": "khoan 8 dieu 1",
+   "target_address": "khoan 11 dieu 10"
+  },
+  {
+   "note_no": 30,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt26-2015-btc",
+   "src_address": "khoan 10 dieu 1",
+   "target_address": "khoan 3 dieu 15"
+  },
+  {
+   "note_no": 15,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt27-2014-nhnn",
+   "src_address": "dieu 2",
+   "target_address": "diem d khoan 1 dieu 12"
+  },
+  {
+   "note_no": 16,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt27-2014-nhnn",
+   "src_address": "dieu 2",
+   "target_address": "khoan 2 dieu 16"
+  },
+  {
+   "note_no": 22,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt27-2014-nhnn",
+   "src_address": "dieu 2",
+   "target_address": "dieu 19"
+  },
+  {
+   "note_no": 10,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt43-2018-nhnn",
+   "src_address": "khoan 1 dieu 1",
+   "target_address": "diem v khoan 1 dieu 5"
+  },
+  {
+   "note_no": 23,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt43-2018-nhnn",
+   "src_address": "khoan 2 dieu 1",
+   "target_address": "khoan 8 dieu 19"
+  },
+  {
+   "note_no": 24,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt43-2018-nhnn",
+   "src_address": "khoan 2 dieu 1",
+   "target_address": "khoan 8 dieu 19"
+  },
+  {
+   "note_no": 25,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt43-2018-nhnn",
+   "src_address": "khoan 2 dieu 1",
+   "target_address": "khoan 1 dieu 19"
+  },
+  {
+   "note_no": 26,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt43-2018-nhnn",
+   "src_address": "khoan 2 dieu 1",
+   "target_address": "khoan 2 dieu 19"
+  },
+  {
+   "note_no": 27,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt43-2018-nhnn",
+   "src_address": "khoan 2 dieu 1",
+   "target_address": "khoan 3 dieu 19"
+  },
+  {
+   "note_no": 28,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt43-2018-nhnn",
+   "src_address": "khoan 2 dieu 1",
+   "target_address": "khoan 3 dieu 19"
+  },
+  {
+   "note_no": 29,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt43-2018-nhnn",
+   "src_address": "khoan 2 dieu 1",
+   "target_address": "khoan 3 dieu 19"
+  }
+ ],
+ "overall": {
+  "all": {
+   "n_gold": 113,
+   "n_pred": 98,
+   "op_lexical_agreement": {
+    "denominator": 113,
+    "passed": 67,
+    "rate": 0.5929,
+    "wilson95": [
+     0.5007,
+     0.679
+    ]
+   },
+   "op_precision": {
+    "denominator": 98,
+    "passed": 67,
+    "rate": 0.6837,
+    "wilson95": [
+     0.5862,
+     0.7673
+    ]
+   },
+   "src_found": {
+    "denominator": 113,
+    "passed": 68,
+    "rate": 0.6018,
+    "wilson95": [
+     0.5096,
+     0.6873
+    ]
+   },
+   "target_accuracy": {
+    "denominator": 68,
+    "passed": 44,
+    "rate": 0.6471,
+    "wilson95": [
+     0.5284,
+     0.75
+    ]
+   }
+  },
+  "by_op": {
+   "INSERTION": {
+    "n_gold": 18,
+    "n_pred": 20,
+    "op_lexical_agreement": {
+     "denominator": 18,
+     "passed": 16,
+     "rate": 0.8889,
+     "wilson95": [
+      0.672,
+      0.969
+     ]
+    },
+    "op_precision": {
+     "denominator": 20,
+     "passed": 16,
+     "rate": 0.8,
+     "wilson95": [
+      0.584,
+      0.9193
+     ]
+    },
+    "src_found": {
+     "denominator": 18,
+     "passed": 16,
+     "rate": 0.8889,
+     "wilson95": [
+      0.672,
+      0.969
+     ]
+    },
+    "target_accuracy": {
+     "denominator": 16,
+     "passed": 1,
+     "rate": 0.0625,
+     "wilson95": [
+      0.0111,
+      0.2833
+     ]
+    }
+   },
+   "REPEAL": {
+    "n_gold": 12,
+    "n_pred": 6,
+    "op_lexical_agreement": {
+     "denominator": 12,
+     "passed": 3,
+     "rate": 0.25,
+     "wilson95": [
+      0.0889,
+      0.5323
+     ]
+    },
+    "op_precision": {
+     "denominator": 6,
+     "passed": 3,
+     "rate": 0.5,
+     "wilson95": [
+      0.1876,
+      0.8124
+     ]
+    },
+    "src_found": {
+     "denominator": 12,
+     "passed": 3,
+     "rate": 0.25,
+     "wilson95": [
+      0.0889,
+      0.5323
+     ]
+    },
+    "target_accuracy": {
+     "denominator": 3,
+     "passed": 3,
+     "rate": 1.0,
+     "wilson95": [
+      0.4385,
+      1.0
+     ]
+    }
+   },
+   "SUBSTITUTION": {
+    "n_gold": 83,
+    "n_pred": 72,
+    "op_lexical_agreement": {
+     "denominator": 83,
+     "passed": 48,
+     "rate": 0.5783,
+     "wilson95": [
+      0.4709,
+      0.6788
+     ]
+    },
+    "op_precision": {
+     "denominator": 72,
+     "passed": 48,
+     "rate": 0.6667,
+     "wilson95": [
+      0.5518,
+      0.7647
+     ]
+    },
+    "src_found": {
+     "denominator": 83,
+     "passed": 49,
+     "rate": 0.5904,
+     "wilson95": [
+      0.4829,
+      0.6899
+     ]
+    },
+    "target_accuracy": {
+     "denominator": 49,
+     "passed": 40,
+     "rate": 0.8163,
+     "wilson95": [
+      0.6864,
+      0.9002
+     ]
+    }
+   }
+  },
+  "marker_hit": {
+   "denominator": 97,
+   "passed": 84,
+   "rate": 0.866,
+   "wilson95": [
+    0.7841,
+    0.92
+   ]
+  },
+  "n_gold_other": 0,
+  "n_pred_on_other": 0
+ },
+ "predictor": "baseline",
+ "target_mismatches": [
+  {
+   "gold_target_address": "diem c khoan 1 dieu 3",
+   "note_no": 3,
+   "op": "SUBSTITUTION",
+   "pair_id": "nd50-2021",
+   "pred_target_address": "diem c dieu 3",
+   "src_address": "diem a khoan 2 dieu 1"
+  },
+  {
+   "gold_target_address": "diem đ khoan 1 dieu 3",
+   "note_no": 4,
+   "op": "SUBSTITUTION",
+   "pair_id": "nd50-2021",
+   "pred_target_address": "diem đ dieu 3",
+   "src_address": "diem b khoan 2 dieu 1"
+  },
+  {
+   "gold_target_address": "diem e khoan 1 dieu 3",
+   "note_no": 5,
+   "op": "SUBSTITUTION",
+   "pair_id": "nd50-2021",
+   "pred_target_address": "diem e dieu 3",
+   "src_address": "diem c khoan 2 dieu 1"
+  },
+  {
+   "gold_target_address": "diem g khoan 1 dieu 3",
+   "note_no": 6,
+   "op": "SUBSTITUTION",
+   "pair_id": "nd50-2021",
+   "pred_target_address": "diem g dieu 3",
+   "src_address": "diem d khoan 2 dieu 1"
+  },
+  {
+   "gold_target_address": "diem i1 khoan 1 dieu 3",
+   "note_no": 7,
+   "op": "INSERTION",
+   "pair_id": "nd50-2021",
+   "pred_target_address": "diem i1 dieu 3",
+   "src_address": "diem đ khoan 2 dieu 1"
+  },
+  {
+   "gold_target_address": "diem d1 khoan 2 dieu 3",
+   "note_no": 8,
+   "op": "INSERTION",
+   "pair_id": "nd50-2021",
+   "pred_target_address": "diem d1 dieu 3",
+   "src_address": "diem e khoan 2 dieu 1"
+  },
+  {
+   "gold_target_address": "diem d2 khoan 2 dieu 3",
+   "note_no": 9,
+   "op": "INSERTION",
+   "pair_id": "nd50-2021",
+   "pred_target_address": "diem d2 dieu 3",
+   "src_address": "diem e khoan 2 dieu 1"
+  },
+  {
+   "gold_target_address": "khoan 5 dieu 4",
+   "note_no": 11,
+   "op": "INSERTION",
+   "pair_id": "nd50-2021",
+   "pred_target_address": "khoan 4 dieu 4",
+   "src_address": "khoan 3 dieu 1"
+  },
+  {
+   "gold_target_address": "khoan 7 dieu 7",
+   "note_no": 12,
+   "op": "INSERTION",
+   "pair_id": "nd50-2021",
+   "pred_target_address": "khoan 6 dieu 7",
+   "src_address": "khoan 4 dieu 1"
+  },
+  {
+   "gold_target_address": "diem d1 khoan 3 dieu 15",
+   "note_no": 13,
+   "op": "INSERTION",
+   "pair_id": "nd50-2021",
+   "pred_target_address": "diem d1 dieu 15",
+   "src_address": "diem a khoan 5 dieu 1"
+  },
+  {
+   "gold_target_address": "diem d1 khoan 5 dieu 15",
+   "note_no": 14,
+   "op": "INSERTION",
+   "pair_id": "nd50-2021",
+   "pred_target_address": "diem d1 dieu 15",
+   "src_address": "diem b khoan 5 dieu 1"
+  },
+  {
+   "gold_target_address": "diem a1 khoan 4 dieu 18",
+   "note_no": 15,
+   "op": "INSERTION",
+   "pair_id": "nd50-2021",
+   "pred_target_address": "diem a1 dieu 18",
+   "src_address": "diem a khoan 6 dieu 1"
+  },
+  {
+   "gold_target_address": "khoan 5a dieu 18",
+   "note_no": 16,
+   "op": "INSERTION",
+   "pair_id": "nd50-2021",
+   "pred_target_address": "khoan 5 dieu 18",
+   "src_address": "diem b khoan 6 dieu 1"
+  },
+  {
+   "gold_target_address": null,
+   "note_no": 7,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt01-2022-bct",
+   "pred_target_address": null,
+   "src_address": "khoan 2 dieu 1"
+  },
+  {
+   "gold_target_address": "dieu 20a",
+   "note_no": 16,
+   "op": "INSERTION",
+   "pair_id": "tt01-2022-bct",
+   "pred_target_address": "dieu 20",
+   "src_address": "khoan 4 dieu 1"
+  },
+  {
+   "gold_target_address": "dieu 28a",
+   "note_no": 24,
+   "op": "INSERTION",
+   "pair_id": "tt01-2022-bct",
+   "pred_target_address": "dieu 28",
+   "src_address": "khoan 5 dieu 1"
+  },
+  {
+   "gold_target_address": "dieu 29a",
+   "note_no": 25,
+   "op": "INSERTION",
+   "pair_id": "tt01-2022-bct",
+   "pred_target_address": "dieu 29",
+   "src_address": "khoan 6 dieu 1"
+  },
+  {
+   "gold_target_address": "khoan 3 dieu 12",
+   "note_no": 20,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt119-2014-btc",
+   "pred_target_address": "dieu 12",
+   "src_address": "khoan 3 dieu 3"
+  },
+  {
+   "gold_target_address": "diem a khoan 4 dieu 14",
+   "note_no": 27,
+   "op": "INSERTION",
+   "pair_id": "tt119-2014-btc",
+   "pred_target_address": "khoan 4 dieu 14",
+   "src_address": "khoan 5 dieu 3"
+  },
+  {
+   "gold_target_address": "dieu 17",
+   "note_no": 17,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt14-2019-nhnn",
+   "pred_target_address": null,
+   "src_address": "khoan 1 dieu 1"
+  },
+  {
+   "gold_target_address": null,
+   "note_no": 7,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt23-2016-nhnn",
+   "pred_target_address": "dieu 5",
+   "src_address": "khoan 3 dieu 1"
+  },
+  {
+   "gold_target_address": "khoan 3a dieu 4",
+   "note_no": 4,
+   "op": "INSERTION",
+   "pair_id": "tt26-2015-btc",
+   "pred_target_address": "dieu 4",
+   "src_address": "khoan 2 dieu 1"
+  },
+  {
+   "gold_target_address": "khoan 14a dieu 14",
+   "note_no": 28,
+   "op": "INSERTION",
+   "pair_id": "tt26-2015-btc",
+   "pred_target_address": "dieu 14",
+   "src_address": "diem b khoan 9 dieu 1"
+  },
+  {
+   "gold_target_address": "diem b khoan 3 dieu 16",
+   "note_no": 31,
+   "op": "SUBSTITUTION",
+   "pair_id": "tt26-2015-btc",
+   "pred_target_address": "khoan 3 dieu 16",
+   "src_address": "khoan 11 dieu 1"
+  }
+ ],
+ "unmatched_predictions": [
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "nd50-2021",
+   "src_address": "khoan 2 dieu 1",
+   "target_address": "khoan 2 dieu 3"
+  },
+  {
+   "op": "INSERTION",
+   "pair_id": "nd50-2021",
+   "src_address": "khoan 5 dieu 1",
+   "target_address": "khoan 5 dieu 15"
+  },
+  {
+   "op": "INSERTION",
+   "pair_id": "nd50-2021",
+   "src_address": "khoan 6 dieu 1",
+   "target_address": "khoan 5 dieu 18"
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "nd50-2021",
+   "src_address": "khoan 14 dieu 1",
+   "target_address": "khoan 3 dieu 38"
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt01-2022-bct",
+   "src_address": "khoan 1 dieu 1",
+   "target_address": "khoan 2 dieu 2"
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt01-2022-bct",
+   "src_address": "khoan 2 dieu 1",
+   "target_address": "khoan 1 dieu 5"
+  },
+  {
+   "op": "REPEAL",
+   "pair_id": "tt01-2022-bct",
+   "src_address": "khoan 1 dieu 1",
+   "target_address": null
+  },
+  {
+   "op": "REPEAL",
+   "pair_id": "tt01-2022-bct",
+   "src_address": "diem a khoan 1 dieu 1",
+   "target_address": "khoan 2 dieu 1"
+  },
+  {
+   "op": "REPEAL",
+   "pair_id": "tt01-2022-bct",
+   "src_address": "khoan 2 dieu 1",
+   "target_address": "khoan 2 dieu 1"
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt119-2014-btc",
+   "src_address": "diem a khoan 6 dieu 3",
+   "target_address": "diem c khoan 3 dieu 15"
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt119-2014-btc",
+   "src_address": "diem c khoan 6 dieu 3",
+   "target_address": "diem c khoan 4 dieu 15"
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt130-2016-btc",
+   "src_address": "khoan 1 dieu 1",
+   "target_address": "dieu 4"
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt14-2019-nhnn",
+   "src_address": "khoan 2 dieu 1",
+   "target_address": null
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt14-2019-nhnn",
+   "src_address": "khoan 3 dieu 1",
+   "target_address": null
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt14-2019-nhnn",
+   "src_address": "khoan 4 dieu 1",
+   "target_address": null
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt14-2019-nhnn",
+   "src_address": "khoan 5 dieu 1",
+   "target_address": null
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt14-2019-nhnn",
+   "src_address": "khoan 6 dieu 1",
+   "target_address": null
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt14-2019-nhnn",
+   "src_address": "khoan 7 dieu 1",
+   "target_address": null
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt14-2019-nhnn",
+   "src_address": "khoan 8 dieu 1",
+   "target_address": null
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt14-2019-nhnn",
+   "src_address": "khoan 9 dieu 1",
+   "target_address": null
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt14-2019-nhnn",
+   "src_address": "khoan 10 dieu 1",
+   "target_address": null
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt14-2019-nhnn",
+   "src_address": "khoan 11 dieu 1",
+   "target_address": null
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt14-2019-nhnn",
+   "src_address": "khoan 12 dieu 1",
+   "target_address": null
+  },
+  {
+   "op": "INSERTION",
+   "pair_id": "tt14-2019-nhnn",
+   "src_address": "diem b khoan 12 dieu 1",
+   "target_address": "dieu 4"
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt26-2015-btc",
+   "src_address": "khoan 9 dieu 1",
+   "target_address": "dieu 14"
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt26-2015-btc",
+   "src_address": "diem a khoan 12 dieu 1",
+   "target_address": "khoan 3 dieu 18"
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt26-2015-btc",
+   "src_address": "diem c khoan 12 dieu 1",
+   "target_address": "khoan 5 dieu 18"
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt27-2014-nhnn",
+   "src_address": "khoan 1 dieu 1",
+   "target_address": "khoan 3 dieu 4"
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt27-2014-nhnn",
+   "src_address": "khoan 2 dieu 1",
+   "target_address": "khoan 2 dieu 5"
+  },
+  {
+   "op": "SUBSTITUTION",
+   "pair_id": "tt27-2014-nhnn",
+   "src_address": "khoan 6 dieu 1",
+   "target_address": "dieu 17"
+  }
+ ]
+}

@@ -1,0 +1,20 @@
+schema: plan-approval/v1
+plan: 261010-2022-contract-graph-quality-recovery
+plan_hash: 85df1a26def0
+file_hashes:
+  plan.md: d03b8863de67
+  phases/phase-1-evidence-and-pair-telemetry.md: 24dadb4ad53d
+  phases/phase-2-direction-aware-quality-gates.md: f1617c87cb56
+  phases/phase-3-rubric-and-reviewed-development-corpus.md: a45caf1cb715
+  phases/phase-4-bounded-development-experiments.md: 44170e48c472
+  phases/phase-4u-bounded-candidates-and-abstention.md: 944b7fbcc0a4
+  phases/phase-5-fresh-heldout-and-product-verdict.md: 41674806d7f1
+  plan-graph.yaml: 7e71816ced71
+author: user:dungskbg2004@gmail.com
+reviewer: user:dungskbg2004@gmail.com
+verdict: APPROVED
+rationale: Synced P1/P2 technical checklists to their PASS receipts, clarified P3
+  independent annotation remains waived/not completed, and reconciled phase labels
+  and final acceptance with the approved technical-only outcome.
+ts: '2026-10-11T07:53:36.106951+00:00'
+run_seq: null

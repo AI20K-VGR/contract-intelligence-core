@@ -1,0 +1,18 @@
+schema: plan-approval/v1
+plan: 261007-1735-ai2-contract-graph-op-first
+plan_hash: 5bb4112af401
+file_hashes:
+  plan.md: 4bb8f040ce29
+  phases/phase-1-vbhn-eval-harness.md: 6e411ad6fce4
+  phases/phase-2-address-resolver.md: 37e49b3bb0f9
+  phases/phase-3-operation-parser.md: 85ffb4894d60
+  phases/phase-4-edge-storage.md: 75a9a02c8b57
+  plan-graph.yaml: 961c1d7862fb
+author: 'decisions: []'
+reviewer: user:unknown
+verdict: APPROVED
+rationale: 'User approved 2026-10-08 after red-team (15/15 fixed) and validate (Q1
+  user reviews gold sample; Q3 suppress legacy AMENDMENT_SIGNAL when flag on). Keep:
+  4 strictly sequential phases, no independent cluster.'
+ts: '2026-10-07T18:25:25.350443+00:00'
+run_seq: null

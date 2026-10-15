@@ -21,6 +21,7 @@ class ManifestItem(BaseEntity[str]):
     document_id: str = ""
     filename: str = ""
     doc_type: str = ""  # contract | annex (legacy field name = role)
+    document_number: str | None = None
     sha256: str = ""
     confidence: str = "0"
     order_index: int = 0
@@ -35,6 +36,7 @@ class ManifestItem(BaseEntity[str]):
             "document_id": self.document_id,
             "filename": self.filename,
             "doc_type": self.doc_type,
+            "document_number": self.document_number,
             "sha256": self.sha256,
             "confidence": self.confidence,
             "order_index": self.order_index,

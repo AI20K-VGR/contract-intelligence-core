@@ -5,14 +5,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from app.contracts.models import IndexContribution
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "semantic_v2_cases.json"
-# Inside the repository (repo/docs/contracts), never above it.
-CONTRACT = ROOT.parent / "docs" / "contracts" / "ai2-semantic-v2.md"
+CONTRACT = ROOT.parent / "docs" / "ai2" / "semantic-v2-eval-runbook.md"
 
 
 def test_fixture_covers_positive_and_negative_alignment_cases() -> None:
@@ -26,20 +23,20 @@ def test_fixture_covers_positive_and_negative_alignment_cases() -> None:
     assert not any("dos_" in json.dumps(case, ensure_ascii=False) for case in cases)
 
 
-# Runs once the contract is committed at CONTRACT; until then it is skipped,
-# naming the exact path it looked for.
-@pytest.mark.skipif(not CONTRACT.exists(), reason=f"contract not found at {CONTRACT}")
-def test_contract_separates_semantic_and_arithmetic_outputs() -> None:
-    contract = CONTRACT.read_text(encoding="utf-8")
+def test_runbook_keeps_semantic_candidates_review_only() -> None:
+    runbook = CONTRACT.read_text(encoding="utf-8")
 
-    assert "CONFLICT_CANDIDATE" in contract
-    assert "ARITHMETIC_INCONSISTENCY" in contract
-    assert "two valid citations" in contract
-    assert "NEEDS_REVIEW" in contract
+    assert "CONFLICT_CANDIDATE" in runbook
+    assert "COMPARABLE_DIFFERENCE" in runbook
+    assert "NEEDS_REVIEW" in runbook
+    assert "legal winner" in runbook
 
 
 def test_old_wire_payload_can_omit_semantic_extension() -> None:
     contribution = IndexContribution(extraction_version=1, proposed_index_version="idx_1")
 
     assert contribution.semantic_extension is None
-    assert "semantic_extension" not in contribution.model_dump(exclude_none=True)
+    payload = contribution.model_dump()
+    assert "semantic_extension" not in payload
+    assert "payment_schedules" not in payload
+    assert "boq_checks" not in payload

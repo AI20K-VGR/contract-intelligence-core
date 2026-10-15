@@ -42,11 +42,15 @@ def _bounded(fn, *args, **kwargs):
 
 def _rate_limited(retry_after: str | None = None) -> openai.RateLimitError:
     headers = {"retry-after": retry_after} if retry_after else {}
-    return openai.RateLimitError("rate limited", response=httpx.Response(429, request=_REQ, headers=headers), body=None)
+    return openai.RateLimitError(
+        "rate limited", response=httpx.Response(429, request=_REQ, headers=headers), body=None
+    )
 
 
 def _unavailable(status: int = 503) -> openai.APIStatusError:
-    return openai.InternalServerError("overloaded", response=httpx.Response(status, request=_REQ), body=None)
+    return openai.InternalServerError(
+        "overloaded", response=httpx.Response(status, request=_REQ), body=None
+    )
 
 
 class FakeClock:
@@ -179,7 +183,10 @@ def test_non_retryable_bad_request_is_not_retried(monkeypatch):
     monkeypatch.setenv("AI2_LLM_MAX_RETRIES", "3")
     clock = FakeClock()
     runtime = _runtime(clock, max_llm_calls=10)
-    bad = lambda: openai.BadRequestError("bad", response=httpx.Response(400, request=_REQ), body=None)  # noqa: E731
+
+    def bad():
+        return openai.BadRequestError("bad", response=httpx.Response(400, request=_REQ), body=None)
+
     client = RaisingLLM(bad)
 
     assert _bounded(runtime.complete_json, client, "system", "user") is None
@@ -223,7 +230,9 @@ def test_slow_llm_call_is_cut_at_the_processing_deadline():
 def test_egress_denied_is_a_review_note_not_a_block():
     llm = EchoLLM()
 
-    result = _bounded(run_idp, llm_units_record(egress_approved=False), llm_units_envelope(), llm=llm)
+    result = _bounded(
+        run_idp, llm_units_record(egress_approved=False), llm_units_envelope(), llm=llm
+    )
 
     assert result.status == JobStatus.SUCCEEDED
     assert result.review_state == ReviewState.NEEDS_REVIEW
@@ -264,7 +273,9 @@ class FakeEmbeddings:
         return [[1.0, 0.0, 0.0] for _ in texts]
 
 
-def _signed_query(main, monkeypatch, tmp_path, *, cap: str, egress: str = "true") -> tuple[dict, FakeEmbeddings]:
+def _signed_query(
+    main, monkeypatch, tmp_path, *, cap: str, egress: str = "true"
+) -> tuple[dict, FakeEmbeddings]:
     from fastapi.testclient import TestClient
 
     from app.reasoning.vector_recall import VectorRecallService
@@ -278,17 +289,26 @@ def _signed_query(main, monkeypatch, tmp_path, *, cap: str, egress: str = "true"
     monkeypatch.setenv("AI2_QUERY_MAX_EMBEDDING_TOKENS", cap)
     monkeypatch.setenv("AI2_VECTOR_DB", str(tmp_path / "vectors.sqlite"))
     monkeypatch.setattr(main, "EMBEDDING_CLIENT", fake)
-    monkeypatch.setattr(main, "VECTOR_RECALL", VectorRecallService(embedding_client=fake, enabled=True))
+    monkeypatch.setattr(
+        main, "VECTOR_RECALL", VectorRecallService(embedding_client=fake, enabled=True)
+    )
     main.STORE._dossiers.clear()
-    main.STORE.put(mock_record())
+    record = mock_record()
+    record.content_sharing_consent = True
+    main.STORE.put(record)
     payload = {
         "query": "Các bên thoả thuận gì về việc thanh toán và nghiệm thu?",
         "dossier_id": "dossier_001",
         "snapshot_version": "ai1.snapshot.v1",
+        "content_sharing_consent": True,
     }
     payload["service_envelope"] = build_service_envelope(
-        payload, secret="test-secret", tenant_id="tenant_a", dossier_id="dossier_001",
-        actor_id="user_001", scopes=["ai2.query"],
+        payload,
+        secret="test-secret",
+        tenant_id="tenant_a",
+        dossier_id="dossier_001",
+        actor_id="user_001",
+        scopes=["ai2.query"],
     )
     try:
         response = TestClient(main.app).post("/query", json=payload)
@@ -393,7 +413,9 @@ def _http_llm(handler):
 
     client = NineRouterClient(base_url="https://provider.test/v1", api_key="test-local")
     client._client = openai.OpenAI(
-        api_key="test-local", base_url="https://provider.test/v1", max_retries=0,
+        api_key="test-local",
+        base_url="https://provider.test/v1",
+        max_retries=0,
         http_client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
     _ = client._client.chat.completions
@@ -402,13 +424,34 @@ def _http_llm(handler):
 
 def _provider_reply(request, *, status=200, param="response_format"):
     if status != 200:
-        return httpx.Response(status, request=request, json={
-            "error": {"message": "unsupported parameter", "type": "invalid_request_error", "param": param},
-        })
-    return httpx.Response(200, request=request, json={
-        "id": "completion-test", "object": "chat.completion", "created": 1, "model": "test",
-        "choices": [{"index": 0, "message": {"role": "assistant", "content": "{}"}, "finish_reason": "stop"}],
-    })
+        return httpx.Response(
+            status,
+            request=request,
+            json={
+                "error": {
+                    "message": "unsupported parameter",
+                    "type": "invalid_request_error",
+                    "param": param,
+                },
+            },
+        )
+    return httpx.Response(
+        200,
+        request=request,
+        json={
+            "id": "completion-test",
+            "object": "chat.completion",
+            "created": 1,
+            "model": "test",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "{}"},
+                    "finish_reason": "stop",
+                }
+            ],
+        },
+    )
 
 
 def test_format_fallback_reserves_each_http_request_before_sending():
@@ -429,6 +472,7 @@ def test_failed_format_fallback_is_counted_against_retry_budget():
 
     def handler(request):
         import json
+
         requests.append(request)
         payload = json.loads(request.content)
         return _provider_reply(request, status=400 if "response_format" in payload else 429)
@@ -479,8 +523,11 @@ def test_call_timeout_cancels_fallback_even_before_the_job_deadline():
 
     client = _http_llm(handler)
     runtime = ProcessingRuntime(
-        egress_allowed=True, max_llm_calls=3, max_processing_seconds=2,
-        call_timeout_seconds=0.03, max_attempts=1,
+        egress_allowed=True,
+        max_llm_calls=3,
+        max_processing_seconds=2,
+        call_timeout_seconds=0.03,
+        max_attempts=1,
     )
     assert runtime.complete_json(client, "system", "user") is None
     assert _codes(runtime) == ["LLM_TIMEOUT"]
@@ -520,8 +567,10 @@ def test_over_cap_dossier_skips_embedding_capability_discovery(tmp_path):
 
     runtime = ProcessingRuntime(egress_allowed=True, max_embedding_tokens=1)
     service = VectorRecallService(
-        embedding_client=ColdEmbeddings(), index=SQLiteVectorIndex(tmp_path / "cold.sqlite"),
-        enabled=True, runtime=runtime,
+        embedding_client=ColdEmbeddings(),
+        index=SQLiteVectorIndex(tmp_path / "cold.sqlite"),
+        enabled=True,
+        runtime=runtime,
     )
     result = service.recall(mock_record(), "Thanh toán?")
     assert result.status == "BUDGET_EXCEEDED"
@@ -544,10 +593,15 @@ def test_live_worker_lease_covers_the_processing_budget(monkeypatch, tmp_path):
     monkeypatch.setattr(main, "STORE", InMemorySnapshotStore())
     monkeypatch.setattr(main, "WIRE_JOBS", {})
     from app.tools import query_store
+
     monkeypatch.setattr(query_store, "save_query_snapshot", lambda *_args: None)
     job, _ = store.create_or_get(
-        tenant_id="tenant_a", dossier_id=payload["dossier_id"], request_id=payload["request_id"],
-        idempotency_key=payload["idempotency_key"], attempt=1, request=payload,
+        tenant_id="tenant_a",
+        dossier_id=payload["dossier_id"],
+        request_id=payload["request_id"],
+        idempotency_key=payload["idempotency_key"],
+        attempt=1,
+        request=payload,
         wire={"status": "QUEUED", "result": None, "errors": []},
     )
     original_run = main.run_idp
@@ -570,11 +624,17 @@ def test_case_timeout_does_not_keep_the_test_process_alive():
     from pathlib import Path
 
     source = Path(__file__).read_text(encoding="utf-8")
-    helper = next(node for node in ast.parse(source).body if isinstance(node, ast.FunctionDef) and node.name == "_bounded")
+    helper = next(
+        node
+        for node in ast.parse(source).body
+        if isinstance(node, ast.FunctionDef) and node.name == "_bounded"
+    )
     code = "import time\nCASE_BOUND_SECONDS=.02\n"
     code += ast.get_source_segment(source, helper)
     code += "\ntry:\n _bounded(time.sleep, 10)\nexcept TimeoutError:\n print('caller_timed_out', flush=True)\n"
-    completed = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=2)
+    completed = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, timeout=2
+    )
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "caller_timed_out"
 
@@ -591,7 +651,11 @@ def test_real_embedding_discovery_is_charged_before_provider_requests(tmp_path, 
 
     def create(**kwargs):
         sent.extend(kwargs["input"])
-        return {"data": [{"index": i, "embedding": [1.0, 0.0, 0.0]} for i in range(len(kwargs["input"]))]}
+        return {
+            "data": [
+                {"index": i, "embedding": [1.0, 0.0, 0.0]} for i in range(len(kwargs["input"]))
+            ]
+        }
 
     record = mock_record()
     record.egress_approved = True
@@ -601,12 +665,16 @@ def test_real_embedding_discovery_is_charged_before_provider_requests(tmp_path, 
     cap = corpus_tokens + extra_tokens
     runtime = ProcessingRuntime(egress_allowed=True, max_embedding_tokens=cap)
     client = OpenAICompatibleEmbeddingClient(
-        api_key="probe-only", model="fake-embed", dimensions=3,
+        api_key="probe-only",
+        model="fake-embed",
+        dimensions=3,
         client=SimpleNamespace(embeddings=SimpleNamespace(create=create)),
     )
     service = VectorRecallService(
-        embedding_client=client, index=SQLiteVectorIndex(tmp_path / "discovery.sqlite"),
-        enabled=True, runtime=runtime,
+        embedding_client=client,
+        index=SQLiteVectorIndex(tmp_path / "discovery.sqlite"),
+        enabled=True,
+        runtime=runtime,
     )
     result = service.recall(record, query)
     provider_tokens = sum(tokens(text) for text in sent)

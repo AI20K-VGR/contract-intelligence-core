@@ -1,0 +1,263 @@
+{
+  "schema": "contract-graph-quality-recovery-p4-development/1",
+  "status": "BLOCKED",
+  "technical_status": "PASS",
+  "quality_status": "BLOCKED",
+  "dataset_id": "quality-recovery-dev-20261011-v3",
+  "quality_manifest": {
+    "path": "evals/contract_graph/pairs/quality-recovery-manifest.v4.json",
+    "sha256": "cd4063217316971671b8992da9dbf50d00aa27613cd30d448862175e6b0059e3",
+    "reviewed_gold_sha256": "11355553a39300a5557941ae38edc450e9ef72f8f8926666b9fa7a835865a0b3",
+    "review_lock_source": "user-review"
+  },
+  "heldout_accessed": false,
+  "candidate_experiment": {
+    "candidate_version": "pairs-cand-v3",
+    "top_k": 40,
+    "frame_rows": 600,
+    "approved_positive_rows": {
+      "CONFLICT": 1,
+      "DUPLICATE": 2,
+      "GENERAL_SPECIFIC": 27,
+      "REFERENCE": 7
+    },
+    "B40": {
+      "candidate_count": 720,
+      "frame_pair_hits": 55,
+      "positive_hits": {
+        "CONFLICT": "0/1",
+        "DUPLICATE": "1/2",
+        "GENERAL_SPECIFIC": "8/27",
+        "REFERENCE": "1/7"
+      }
+    },
+    "C40": {
+      "candidate_count": 1000,
+      "frame_pair_hits": 69,
+      "positive_hits": {
+        "CONFLICT": "1/1",
+        "DUPLICATE": "1/2",
+        "GENERAL_SPECIFIC": "8/27",
+        "REFERENCE": "1/7"
+      }
+    },
+    "C80": {
+      "candidate_count": 1646,
+      "frame_pair_hits": 107,
+      "positive_hits": {
+        "CONFLICT": "1/1",
+        "DUPLICATE": "1/2",
+        "GENERAL_SPECIFIC": "10/27",
+        "REFERENCE": "1/7"
+      }
+    },
+    "C_uncapped": {
+      "candidate_count": 11143,
+      "frame_pair_hits": 424,
+      "positive_hits": {
+        "CONFLICT": "1/1",
+        "DUPLICATE": "2/2",
+        "GENERAL_SPECIFIC": "22/27",
+        "REFERENCE": "4/7"
+      }
+    },
+    "finding": "C / 40 covers 11/37 approved positives, C / 80 covers 13/37, and uncapped C covers 29/37 while emitting 11,143 candidates. A dev-only reconciliation of all 37 approved positive frame rows found 8 uncapped misses (5 GENERAL_SPECIFIC, 3 REFERENCE); all 8 are absent from the current candidate source rules rather than removed by the cap, Luong-1, or eligibility exclusions."
+  },
+  "classifier_oracle": {
+    "run_id": "P4-oracle20-v1",
+    "status": "COMPLETED",
+    "requested_model": "cx/gpt-5.5",
+    "served_model": "gpt-5.5",
+    "labeler_model": "gpt-4o-mini-2024-07-18",
+    "pairs": 20,
+    "exact_label_and_direction": "13/20",
+    "exact_accuracy": 0.65,
+    "by_gold_label": {
+      "CONFLICT": "0/1",
+      "DUPLICATE": "2/2",
+      "GENERAL_SPECIFIC": "3/5",
+      "REFERENCE": "1/4",
+      "UNRELATED": "7/8"
+    },
+    "false_duplicate_predictions": 0,
+    "elapsed_seconds": 32.062,
+    "tokens_total": 11988,
+    "ledger_sha256": "54babd923ccd601a85d7825a0bef0148b2a4ded1fea4f5bd9f923426032082a7",
+    "limitations": [
+      "Stratified positive-enriched 20-pair classifier-only diagnostic; not a quality estimate.",
+      "Candidate generation and citation validation are outside this oracle.",
+      "Candidate ranking changed after this oracle; use it only as a classifier diagnostic, not as final-source confirmation."
+    ]
+  },
+  "prompt_ablation": {
+    "status": "COMPLETED_NO_WINNER",
+    "hypothesis": "A compact ordered checklist might improve recall of non-duplicate relations without creating false DUPLICATE predictions.",
+    "comparison": "baseline pairs-v7 versus checklist pairs-v7-checklist",
+    "baseline_exact": [
+      14,
+      14
+    ],
+    "checklist_exact": [
+      15,
+      14
+    ],
+    "decision": "KEEP_BASELINE",
+    "reason": "Worst-trial total exact and all worst-trial per-label counts tie; two trials per variant on a 20-pair positive-enriched sample are insufficient to establish a winner."
+  },
+  "runs": {
+    "oracle_completed": 1,
+    "baseline_repeats_completed": 2,
+    "prompt_ablation_repeats_completed": 2,
+    "heldout_runs_completed": 0
+  },
+  "quality_readiness": {
+    "status": "BLOCKED",
+    "positive_minimum_per_label": 60,
+    "independent_clusters": 31,
+    "positives_by_label": {
+      "CONFLICT": 1,
+      "DUPLICATE": 2,
+      "GENERAL_SPECIFIC": 27,
+      "REFERENCE": 7
+    },
+    "reason_codes": [
+      "general_specific_positive_minimum_not_met",
+      "conflict_positive_minimum_not_met",
+      "conflict_cluster_minimum_not_met",
+      "conflict_cluster_dominance_exceeded",
+      "duplicate_positive_minimum_not_met",
+      "duplicate_cluster_minimum_not_met",
+      "duplicate_cluster_dominance_exceeded",
+      "reference_positive_minimum_not_met"
+    ],
+    "continuation_waiver": "Small positive support does not prevent continued bounded dev experiments by user instruction; it remains inadequate for a confident Wilson-floor PASS."
+  },
+  "human_independent_review": {
+    "150_row_ai_blind_annotation_complete": true,
+    "independent_human_annotation_complete": false,
+    "waiver": "User explicitly waived a second human reviewer; AI annotation remains non-independent and is not represented as human review."
+  },
+  "blockers": [
+    "Candidate coverage at K=40 is 11/37 positive rows overall and below 95% for every positive label.",
+    "Approved positive support remains below the 60-per-label quality floor.",
+    "Candidate coverage is 11/37 at K=40; uncapped C is 29/37 at the cost of 11,143 candidates. Eight approved positives (5 GENERAL_SPECIFIC, 3 REFERENCE) are not proposed by any current source rule.",
+    "Classifier worst-trial exact is 14/20 for both baseline and checklist. The sample has only 1 CONFLICT and 2 DUPLICATE positives; the Wilson recall floor cannot be established from this support, and observed CONFLICT recall is 0/1.",
+    "The user waived independent second human review. The approved 600-row gold remains human-approved; the 150-row AI annotation remains AI-only.",
+    "P5/held-out remains locked; no held-out files were read or scored.",
+    "Classifier results do not meet recall quality: worst-trial CONFLICT is 0/1 (Wilson lower bound 0); user accepts low gold for continuing diagnostics but has not waived the 0.85 recall Wilson floor."
+  ],
+  "code_sha256": {
+    "ai-service/app/pipeline/contract_graph/pair_candidates.py": "df32cab58637c30a13e55e8721dbe2974d09c296145f0a543eb9e76bfe53f211",
+    "ai-service/app/pipeline/contract_graph/pair_classifier.py": "7ac9091e862e78616509a326878d7af8f8fbddce9abf1f17ff0a4a77e72c3c05",
+    "ai-service/app/pipeline/contract_graph/pair_builder.py": "4c988cfbf12b8b12b96c3600975254eeb3eb91ae58309651f72f89fc7c5e3c56",
+    "evals/contract_graph/pairs/predictor.py": "044e068ac785aec6fce01a6dc3cf1131e52a032473d65702bb648243e02c801d",
+    "evals/contract_graph/pairs/score.py": "78e165138416df004430c736a04d435c844f89632115b1a8e6b93da1e666762b"
+  },
+  "verification": {
+    "candidate_classifier_eval_tests": "100 passed",
+    "builder_consent_flag_predictor_regressions": "105 passed in 144.10s",
+    "candidate_tdd": "Regression failed before implementation and passed after the ranking fix.",
+    "runtime_flag": "OFF",
+    "prompt_variant_test": "included in 100 passing focused tests"
+  },
+  "candidate_root_cause": {
+    "scope": "HG-QR1 approved dev positives only",
+    "uncapped_candidate_misses": 8,
+    "by_label": {
+      "GENERAL_SPECIFIC": 5,
+      "REFERENCE": 3
+    },
+    "cause": "no_current_candidate_source_rule",
+    "excluded_by_luong1": 0,
+    "heldout_accessed": false,
+    "note": "All 37 approved positive frame rows were joined to uncapped runtime candidates across the 32 dev documents; the 8 misses are absent from current candidate source rules."
+  },
+  "prompt_experiments": {
+    "sample": "same preregistered 20 HG-QR1 dev pairs as P4-oracle20-v1",
+    "baseline": {
+      "prompt_version": "pairs-v7",
+      "repeats": 2,
+      "trials": [
+        {
+          "run_id": "P4-baseline-r1",
+          "exact": "14/20",
+          "false_duplicate": 0,
+          "served_model": "gpt-5.5",
+          "elapsed_seconds": 26.86,
+          "tokens_total": 12053
+        },
+        {
+          "run_id": "P4-baseline-r2",
+          "exact": "14/20",
+          "false_duplicate": 0,
+          "served_model": "gpt-5.5",
+          "elapsed_seconds": 27.906,
+          "tokens_total": 12323
+        }
+      ],
+      "worst_trial_exact": "14/20",
+      "worst_trial_by_label": {
+        "CONFLICT": "0/1",
+        "DUPLICATE": "2/2",
+        "REFERENCE": "1/4",
+        "GENERAL_SPECIFIC": "4/5",
+        "UNRELATED": "7/8"
+      },
+      "false_duplicate_observed": 0
+    },
+    "checklist": {
+      "prompt_version": "pairs-v7-checklist",
+      "repeats": 2,
+      "trials": [
+        {
+          "run_id": "P4-checklist-r1",
+          "exact": "15/20",
+          "false_duplicate": 0,
+          "served_model": "gpt-5.5",
+          "elapsed_seconds": 29.875,
+          "tokens_total": 12993
+        },
+        {
+          "run_id": "P4-checklist-r2",
+          "exact": "14/20",
+          "false_duplicate": 0,
+          "served_model": "gpt-5.5",
+          "elapsed_seconds": 23.469,
+          "tokens_total": 12409
+        }
+      ],
+      "worst_trial_exact": "14/20",
+      "worst_trial_by_label": {
+        "CONFLICT": "0/1",
+        "DUPLICATE": "2/2",
+        "REFERENCE": "1/4",
+        "GENERAL_SPECIFIC": "4/5",
+        "UNRELATED": "7/8"
+      },
+      "false_duplicate_observed": 0
+    },
+    "decision": "KEEP_BASELINE",
+    "reason": "Worst-trial overall and per-label results tie; checklist has no repeatable gain at n=20. Diagnostic only; it does not satisfy the Wilson quality gate.",
+    "aggregate": {
+      "baseline_trials": 2,
+      "baseline_exact_total": "28/40",
+      "checklist_trials": 2,
+      "checklist_exact_total": "29/40",
+      "baseline_worst_trial": "14/20",
+      "checklist_worst_trial": "14/20",
+      "tokens_total": 49778,
+      "elapsed_seconds_total": 108.11,
+      "served_model": "gpt-5.5",
+      "false_duplicate_total": 0
+    }
+  },
+  "protocol_waivers": {
+    "independent_second_human_review": "waived by user",
+    "minimum_positive_support_for_dev_continuation": "user accepts the existing small gold set for continued dev diagnostics",
+    "unchanged_gates": [
+      "recall Wilson lower bound >= 0.85",
+      "candidate coverage target",
+      "heldout/P5 lock"
+    ]
+  }
+}

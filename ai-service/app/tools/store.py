@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from app.contracts.models import (
     BoqCheckProjection,
@@ -23,6 +24,9 @@ from app.contracts.models import (
     VersionPins,
 )
 from app.tools.bounded import BoundedDict
+
+if TYPE_CHECKING:  # flag off must not import the contract-graph model
+    from app.contracts.contract_graph import ContractEdge, PairRelation
 
 
 @dataclass
@@ -57,6 +61,17 @@ class DossierRecord:
     citation_index: dict[str, Citation] = field(default_factory=dict)
     review_items: list[ReviewItem] = field(default_factory=list)
     events: list[ContractEvent] = field(default_factory=list)
+    # D8: edges reach the job store on the record, never on ``JobResult`` (its dump is persisted).
+    # Not part of ``record_to_dict``; the latest successful job replaces the
+    # persisted edge view with this list, including an empty list when graph
+    # enrichment did not run.
+    contract_edges: list[ContractEdge] = field(default_factory=list)
+    contract_graph_ran: bool = False
+    contract_graph_stage_status: str | None = None
+    content_sharing_consent: bool = False
+    pair_relations: list[PairRelation] = field(default_factory=list)
+    pair_relations_ran: bool = False
+    pair_relations_stage_status: str | None = None
     semantic_profile: SemanticProfile | None = None
     semantic_extension: SemanticExtension | None = None
     semantic_snapshots: dict[str, str] = field(default_factory=dict)

@@ -1,0 +1,26 @@
+﻿{
+  "date": "2026-10-11",
+  "url": "http://127.0.0.1:5174/manual-ai2-graph.html",
+  "fixture": "synthetic cross-document graph with three relation types",
+  "result": {
+    "demoDisclaimer": true,
+    "timeline": true,
+    "graph": true,
+    "relationReference": true,
+    "relationConflict": true,
+    "relationGeneralSpecific": true,
+    "apiRequests": [],
+    "pageErrors": 0,
+    "edgeLabelBox": { "x": 350, "width": 260 },
+    "timestampYear1970": false
+  },
+  "limitations": [
+    "Synthetic fixture only; does not exercise AI2 graph generation.",
+    "No Backend APIs are called; this does not exercise Backend ACL.",
+    "User visual acceptance remains pending."
+  ],
+  "screenshot": "../../../docs/assets/manual-ai2-graph-offline.png",
+  "frontendTests": { "filesPassed": 36, "testsPassed": 141 },
+  "lint": { "errors": 0, "warnings": 13 },
+  "build": "PASS; existing large chunk warning"
+}

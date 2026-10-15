@@ -1,5 +1,7 @@
 # Triển khai online — Linux + Docker Compose
 
+H??ng d?n ch?y stack AI2 c?c b? n?m t?i [docs/AI2-LOCAL-SETUP.md](../docs/AI2-LOCAL-SETUP.md).
+
 Chạy toàn bộ stack (Keycloak, Postgres ×2, Kafka, MinIO, backend, backend-worker, AI1, AI2, giám sát) trên một máy chủ cloud Linux, bằng chính `docker-compose.yml` của dự án cộng với `deploy/compose.prod.yml`. Caddy đứng trước, lo HTTPS. Frontend có thể chạy trên cùng máy (tuỳ chọn).
 
 Hai Postgres có thể chạy trên một máy riêng (DB server): xem "Tách DB ra máy riêng". Trên AWS dùng cách này (mục "Triển khai trên AWS EC2").

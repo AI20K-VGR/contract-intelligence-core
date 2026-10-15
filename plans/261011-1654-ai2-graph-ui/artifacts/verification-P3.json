@@ -1,0 +1,47 @@
+{
+  "stage": "cook",
+  "plan": "261011-1654-ai2-graph-ui",
+  "checks": [
+    {
+      "name": "focused-backend",
+      "status": "PASS"
+    },
+    {
+      "name": "backend-ruff",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend-client",
+      "status": "PASS"
+    },
+    {
+      "name": "full-backend-suite",
+      "status": "PASS"
+    },
+    {
+      "name": "full-ai2-suite",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend-suite",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend-lint",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend-build",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P3",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-11T13:35:58+00:00",
+  "blastRadius": {
+    "unavailable": true,
+    "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF-ai2-contract-graph"
+  },
+  "run_seq": null
+}

@@ -70,40 +70,25 @@ feature branch  ──PR──▶  develop  ──release PR──▶  main
 
 ## 🚀 Bắt đầu nhanh
 
-Cần Docker Desktop, Node.js 20+ và [`uv`](https://docs.astral.sh/uv/) (chỉ khi chạy backend ngoài Docker).
+Hướng dẫn chạy sạch từ một checkout duy nhất, cấu hình AI2, kiểm tra graph và xử lý lỗi nằm tại [docs/AI2-LOCAL-SETUP.md](docs/AI2-LOCAL-SETUP.md). Cần Docker Desktop/Compose v2 và Node.js 20+; cài [`uv`](https://docs.astral.sh/uv/) nếu chạy Python ngoài Docker.
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/AI20K-VGR/contract-intelligence-core.git
 cd contract-intelligence-core
 
-# Tạo file env từ mẫu rồi điền giá trị cần thiết
-cp backend/.env.example backend/.env
+# Cấu hình khóa AI1/AI2 cục bộ trong file bị gitignore
 cp ai-service/.env.example ai-service/.env
 
-# Dựng toàn bộ stack: Keycloak, PostgreSQL, Kafka, MinIO, backend, worker, AI1, AI2, giám sát
 docker compose up -d --build
 
-# Frontend
-cd frontend && npm ci && npm run dev
+cd frontend
+npm ci
+npm run dev
 ```
 
-Kiểm tra:
+Chi tiết ports, đăng nhập local, OCR, graph, query, consent và troubleshooting: [hướng dẫn local đầy đủ](docs/AI2-LOCAL-SETUP.md).
 
-- API: http://127.0.0.1:8000/health trả `status: ok`, tài liệu API tại http://127.0.0.1:8000/docs
-- Keycloak: http://localhost:8080
-- Frontend: http://localhost:5173
-
-Chạy backend ngoài Docker (vẫn cần DB, Kafka, MinIO, Keycloak từ compose):
-
-```bash
-cd backend
-uv sync --extra dev
-uv run alembic upgrade heads
-uv run uvicorn contract_intelligence.main:app --reload    # API
-uv run python -m contract_intelligence.worker             # worker
-```
-
-Kiểm tra trước khi mở PR backend:
+### Kiểm tra Backend trước khi mở PR
 
 ```bash
 cd backend

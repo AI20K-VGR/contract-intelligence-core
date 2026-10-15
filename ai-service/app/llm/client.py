@@ -19,6 +19,10 @@ class LLMRequestBudgetExceeded(RuntimeError):
     """No provider request may start after the per-job call quota is spent."""
 
 
+class LLMEmptyResponseError(RuntimeError):
+    """The provider completed a request without returning assistant content."""
+
+
 def _is_format_error(error: Exception) -> bool:
     if not isinstance(error, _FORMAT_ERRORS):
         return False
@@ -34,6 +38,14 @@ def _is_format_error(error: Exception) -> bool:
         any(token in message for token in ("response_format", "json_object"))
         and any(token in message for token in ("unsupported", "not supported", "invalid"))
     )
+
+
+def _sampling_options(model: str) -> dict[str, Any]:
+    """Keep deterministic sampling where supported; reasoning GPT-5 rejects temperature."""
+    provider_model = model.rsplit("/", 1)[-1].strip().casefold()
+    if provider_model.startswith("gpt-5"):
+        return {}
+    return {"temperature": 0}
 
 
 def call_with_timeout(fn: Callable[[], Any], seconds: float, *, name: str = "ai2-llm") -> Any:
@@ -90,7 +102,7 @@ class NineRouterClient:
             self.api_key = os.getenv("AI2_LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
         else:
             self.api_key = api_key
-        self.model = model or os.getenv("AI2_LLM_MODEL", "gpt-4o-mini")
+        self.model = model or os.getenv("AI2_LLM_MODEL", "gpt-5.5")
         self.strong_model = strong_model or os.getenv("AI2_LLM_STRONG_MODEL", self.model)
         if timeout is None:
             timeout = float(os.getenv("AI2_LLM_TIMEOUT_SECONDS", "45"))
@@ -116,6 +128,7 @@ class NineRouterClient:
         SDK timeout, e.g. with the time left before a job deadline."""
 
         model = self.strong_model if strong else self.model
+        sampling_options = _sampling_options(model)
         request_options: dict[str, Any] = {} if timeout is None else {"timeout": timeout}
         if max_output_tokens is not None:
             if type(max_output_tokens) is not int or max_output_tokens <= 0:
@@ -144,10 +157,10 @@ class NineRouterClient:
                 model=model,
                 messages=messages,
                 response_format={"type": "json_object"},
-                temperature=0,
+                **sampling_options,
                 **request_options,
             )
-            text = resp.choices[0].message.content or "{}"
+            text = resp.choices[0].message.content or ""
         except Exception as first_error:
             # Only a rejected request shape is worth a second request without
             # JSON mode; 429/5xx/timeouts go back to the caller's retry policy.
@@ -167,10 +180,10 @@ class NineRouterClient:
                 resp = self._client.chat.completions.create(
                     model=model,
                     messages=messages,
-                    temperature=0,
+                    **sampling_options,
                     **request_options,
                 )
-                text = resp.choices[0].message.content or "{}"
+                text = resp.choices[0].message.content or ""
             except Exception as second_error:
                 trace["error_type"] = type(second_error).__name__
                 trace["http_calls"] = self.last_http_calls
@@ -178,17 +191,30 @@ class NineRouterClient:
                 self.traces.append(trace)
                 NineRouterClient.all_traces.append(dict(trace))
                 raise
-        data = _parse_json(text)
+        trace["served_model"] = getattr(resp, "model", None)
         trace["latency_ms"] = round((time.perf_counter() - started) * 1000, 1)
         trace["http_calls"] = self.last_http_calls
         trace["response_chars"] = len(text)
-        trace["json_keys"] = sorted(data)[:32]
         usage = getattr(resp, "usage", None)
         if usage is not None:
             for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
                 value = getattr(usage, key, None)
                 if value is not None:
                     trace[key] = value
+        if not isinstance(text, str) or not text.strip():
+            trace["error_type"] = "EmptyResponseError"
+            trace["response_empty"] = True
+            self.traces.append(trace)
+            NineRouterClient.all_traces.append(dict(trace))
+            raise LLMEmptyResponseError("provider returned an empty assistant response")
+        try:
+            data = _parse_json(text)
+        except json.JSONDecodeError:
+            trace["error_type"] = "ResponseParseError"
+            self.traces.append(trace)
+            NineRouterClient.all_traces.append(dict(trace))
+            raise
+        trace["json_keys"] = sorted(data)[:32]
         self.traces.append(trace)
         NineRouterClient.all_traces.append(dict(trace))
         return data

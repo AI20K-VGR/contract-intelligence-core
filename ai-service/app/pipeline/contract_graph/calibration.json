@@ -1,0 +1,11 @@
+{
+ "schema": "contract-graph-calibration.v1",
+ "ground_truth": "approved-only",
+ "ops": {
+  "INSERTION": {"n": 0, "k": 0, "report": null},
+  "SUBSTITUTION": {"n": 0, "k": 0, "report": null},
+  "REPEAL": {"n": 0, "k": 0, "report": null},
+  "REJECTION": {"n": 0, "k": 0, "report": null},
+  "SCOPE_LIMIT": {"n": 0, "k": 0, "report": null}
+ }
+}

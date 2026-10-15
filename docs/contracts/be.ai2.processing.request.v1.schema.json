@@ -65,24 +65,12 @@
         "source_digest"
       ],
       "properties": {
-        "member_id": {
-          "$ref": "#/$defs/id"
-        },
-        "document_id": {
-          "$ref": "#/$defs/id"
-        },
-        "snapshot_id": {
-          "$ref": "#/$defs/id"
-        },
-        "role": {
-          "enum": [
-            "body",
-            "annex"
-          ]
-        },
-        "source_digest": {
-          "$ref": "#/$defs/sha256"
-        }
+        "member_id": {"$ref": "#/$defs/id"},
+        "document_id": {"$ref": "#/$defs/id"},
+        "snapshot_id": {"$ref": "#/$defs/id"},
+        "role": {"enum": ["body", "annex"]},
+        "source_digest": {"$ref": "#/$defs/sha256"},
+        "document_number": {"type": ["string", "null"], "minLength": 1, "maxLength": 160}
       }
     },
     "relation": {
