@@ -6,7 +6,7 @@ Trạng thái ngày 14/10/2026. Tài liệu này mô tả các workflow trong `.
 
 - **CI:** mỗi PR chạy kiểm tra theo phần code bị sửa (backend, ai-service, frontend) cộng `pr-guard`.
 - **CD:** mỗi lần push vào `develop` (tức là merge PR), workflow `deploy` SSH vào server, cập nhật code, chạy `deploy/deploy.sh`, rồi kiểm tra server từ bên ngoài.
-- **Server đích hiện tại vẫn là server cũ** `150.95.104.132` (`contract-intelligence.tech`). Cặp server AWS ở Sydney đã dựng và chạy thử được, nhưng chưa chuyển dữ liệu và chưa nhận deploy tự động (xem "Chuyển CD sang AWS").
+- **Server đích là app server AWS** `52.63.103.239` (Sydney) từ 14/10/2026: dữ liệu đã chuyển từ server cũ `150.95.104.132`, DNS `contract-intelligence.tech` trỏ AWS, và lần merge #77 đã tự deploy lên đó. Cả ba tên miền đứng sau Cloudflare (`deploy/README.md`, "Đứng sau Cloudflare").
 
 ## Chi phí AWS và cảnh báo
 
@@ -77,7 +77,7 @@ Một lần chạy tối đa 60 phút. `concurrency: deploy-server` bảo đảm
 
 | Secret | Giá trị | Có chưa (14/10) |
 |---|---|---|
-| `DEPLOY_HOST` | IP hoặc tên server | Có, trỏ server cũ |
+| `DEPLOY_HOST` | IP hoặc tên server | Có, trỏ app server AWS `52.63.103.239` (14/10) |
 | `DEPLOY_USER` | User SSH: `root`, hoặc user có `sudo` không hỏi mật khẩu | Có |
 | `DEPLOY_SSH_KEY` | Khoá bí mật riêng cho GitHub Actions | Có |
 | `DEPLOY_KNOWN_HOSTS` | Dòng `ssh-keyscan -t ed25519 <host>`, đã so tay với khoá của server | Có |
@@ -96,7 +96,7 @@ GitHub → Actions → `deploy` → Run workflow, chọn nhánh. Workflow deploy
 
 ## Chuyển CD sang AWS
 
-Việc cần làm theo thứ tự. **Bước 1 đã xong** (14/10); bước 2–5 làm lúc chuyển hẳn sang AWS.
+**Đã xong cả 5 bước ngày 14/10/2026.** Các mục dưới ghi lại cách đã làm, để làm lại khi đổi máy chủ.
 
 ### 1. Cho runner SSH được vào app server — đã làm
 
@@ -148,7 +148,7 @@ ssh -i ~/.ssh/ci-deploy-aws.pem ubuntu@52.63.103.239 \
 | `DEPLOY_KNOWN_HOSTS` | Dòng `ssh-keyscan` ở bước 2 |
 | `DEPLOY_DB_PUBLIC_IP` | Bỏ trống, hoặc gắn Elastic IP cho DB server rồi điền (thêm khoảng $3,6/tháng) |
 
-Cùng lúc đặt hai **repo variable** (Settings → Secrets and variables → Actions → Variables, hoặc `gh variable set`): `DEPLOY_SECURITY_GROUP_ID=sg-070e3d258f1793c3e` và `DEPLOY_AWS_REGION=ap-southeast-2`, để bật bước mở/đóng cổng 22.
+Cùng lúc đặt các **repo variable** (Settings → Secrets and variables → Actions → Variables, hoặc `gh variable set`): `DEPLOY_SECURITY_GROUP_ID=sg-070e3d258f1793c3e` và `DEPLOY_AWS_REGION=ap-southeast-2` để bật bước mở/đóng cổng 22, và `DEPLOY_BEHIND_CLOUDFLARE=true` khi các tên miền đứng sau Cloudflare. Biến cuối cho bước kiểm tra từ bên ngoài dò cổng trên `DEPLOY_HOST` thay vì địa chỉ của Cloudflare, và kiểm rằng máy chủ từ chối 80/443 với người gọi không phải Cloudflare.
 
 DB server chỉ có IP công khai tự cấp, nên **IP này đổi mỗi lần stop/start**. Điền `DEPLOY_DB_PUBLIC_IP` mà không gắn Elastic IP thì sau lần start tiếp theo, bước kiểm tra sẽ kiểm nhầm một IP không còn là của mình.
 

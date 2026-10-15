@@ -1,7 +1,22 @@
 # Public entry point. Caddy obtains and renews Let's Encrypt certificates for
 # both hosts (sslip.io names resolve to the VPS IP, so no DNS setup is needed).
+#
+# Behind Cloudflare (deploy/compose.cloudflare.yml, deploy/README.md "Đứng sau
+# Cloudflare"): TLS uses a Cloudflare Origin Certificate imported from
+# /etc/caddy/tls/, and the client address comes from CF-Connecting-IP, trusted
+# only on connections from Cloudflare's ranges. Without that override both
+# imports are empty and the defaults below apply.
+
+{
+	servers {
+		trusted_proxies static {$CADDY_TRUSTED_PROXIES:private_ranges}
+		client_ip_headers {$CADDY_CLIENT_IP_HEADERS:X-Forwarded-For X-Real-IP}
+	}
+}
 
 (common) {
+	# Cloudflare Origin Certificate when mounted, Let's Encrypt otherwise.
+	import /etc/caddy/tls/*.caddy
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options "nosniff"
@@ -53,6 +68,12 @@
 	# tunnel (deploy/README.md). The backend reaches admin REST internally.
 	@admin path /admin /admin/*
 	respond @admin 404
+
+	# Keycloak asks browsers to keep theme files 30 days, and the path
+	# (/resources/<tag>/...) does not change when the theme does, so an edit to
+	# keycloak/themes/ would stay invisible that long. Ten minutes instead.
+	@theme path /resources/*
+	header @theme >Cache-Control "public, max-age=600"
 
 	reverse_proxy keycloak:8080
 }

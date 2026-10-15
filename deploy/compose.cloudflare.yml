@@ -1,0 +1,28 @@
+# =============================================================================
+# The public hosts sit behind Cloudflare's proxy (deploy/README.md, "Đứng sau
+# Cloudflare"). deploy.sh adds this file when deploy/certs/origin.pem exists.
+#
+#   - Caddy serves the Cloudflare Origin Certificate in deploy/certs/ (made
+#     once on the server, never committed) instead of Let's Encrypt: the
+#     security group admits Cloudflare only, so Let's Encrypt could not reach
+#     the server to renew.
+#   - The client address is read from CF-Connecting-IP, and only on
+#     connections coming from Cloudflare's ranges, so a direct caller cannot
+#     forge it. The backend and Keycloak then log and rate-limit real users.
+#
+# Cloudflare's IPv4 ranges: https://api.cloudflare.com/client/v4/ips. When
+# they change, update the list below and the AWS prefix list cloudflare-ipv4.
+# =============================================================================
+
+services:
+  caddy:
+    environment:
+      CADDY_TRUSTED_PROXIES: >-
+        173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22
+        141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20
+        197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13
+        104.24.0.0/14 172.64.0.0/13 131.0.72.0/22
+      CADDY_CLIENT_IP_HEADERS: CF-Connecting-IP
+    volumes:
+      - ./deploy/cloudflare-tls.caddy:/etc/caddy/tls/origin.caddy:ro
+      - ./deploy/certs:/etc/caddy/certs:ro
