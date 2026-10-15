@@ -164,21 +164,27 @@ async def get_batch_summary(
     return ApiResponse(data=await svc.get_summary(batch_id))
 
 
+def _batch_owner_filter(user: AuthenticatedUser) -> str | None:
+    """Batch an OPERATOR may change: their own. ADMINISTRATOR: any in the tenant."""
+    return None if user.role == "ADMINISTRATOR" else user.user_id
+
+
 @router.post(
     "/batches/{batch_id}/cancel",
     response_model=ApiResponse[BatchDetailDTO],
     responses={
         403: {"description": "Insufficient role"},
+        404: {"description": "No such batch, or another OPERATOR's batch"},
         409: {"description": "Batch already terminal"},
     },
 )
 async def cancel_batch(
     batch_id: Annotated[str, Path(min_length=1)],
     svc: BatchServiceDep,
-    _user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
 ) -> ApiResponse[BatchDetailDTO]:
-    """RBAC: ADMINISTRATOR inherits OPERATOR."""
-    row = await svc.cancel_batch(batch_id)
+    """Người tạo batch hoặc ADMINISTRATOR; batch của người khác trả 404."""
+    row = await svc.cancel_batch(batch_id, owner_id=_batch_owner_filter(user))
     item = BatchListItemDTO.from_row(row)
     return ApiResponse(data=BatchDetailDTO(**item.model_dump(), dossiers=row.get("dossiers") or []))
 
@@ -188,16 +194,17 @@ async def cancel_batch(
     response_model=ApiResponse[BatchDetailDTO],
     responses={
         403: {"description": "Insufficient role"},
+        404: {"description": "No such batch, or another OPERATOR's batch"},
         409: {"description": "Batch not resumable"},
     },
 )
 async def resume_batch(
     batch_id: Annotated[str, Path(min_length=1)],
     svc: BatchServiceDep,
-    _user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
 ) -> ApiResponse[BatchDetailDTO]:
-    """RBAC: ADMINISTRATOR inherits OPERATOR."""
-    row = await svc.resume_batch(batch_id)
+    """Người tạo batch hoặc ADMINISTRATOR; batch của người khác trả 404."""
+    row = await svc.resume_batch(batch_id, owner_id=_batch_owner_filter(user))
     item = BatchListItemDTO.from_row(row)
     return ApiResponse(data=BatchDetailDTO(**item.model_dump(), dossiers=row.get("dossiers") or []))
 

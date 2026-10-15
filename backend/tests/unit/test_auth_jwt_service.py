@@ -23,7 +23,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from contract_intelligence.config.settings import Settings
-from contract_intelligence.shared.auth.exceptions import AuthenticationError
+from contract_intelligence.shared.auth.exceptions import AuthenticationError, InsufficientRoleError
 from contract_intelligence.shared.auth.jwt_service import (
     JWTService,
     _JWKSCache,
@@ -215,14 +215,14 @@ class TestDecodeAccessToken:
         user = svc.decode_and_validate_access(token)
         assert user.role == "ADMINISTRATOR"
 
-    def test_fallback_to_operator_when_no_known_role(
+    def test_token_without_an_app_role_is_denied(
         self,
         keycloak_settings: Settings,
         keypair: tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey],
         cached_jwks: None,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """User không có role nào match → fallback OPERATOR."""
+        """User không có role nào match → 403, không còn mặc định OPERATOR."""
         private_key, _ = keypair
         monkeypatch.setattr(
             "contract_intelligence.shared.auth.jwt_service.get_settings",
@@ -234,8 +234,8 @@ class TestDecodeAccessToken:
             realm_roles=["some_other_role"],
         )
         svc = JWTService()
-        user = svc.decode_and_validate_access(token)
-        assert user.role == "OPERATOR"
+        with pytest.raises(InsufficientRoleError):
+            svc.decode_and_validate_access(token)
 
 
 # -----------------------------------------------------------------------------
@@ -403,7 +403,7 @@ class TestMapKeycloakRole:
         assert _map_keycloak_role(["ci_reviewer", "ci_operator"]) == "REVIEWER"
         assert _map_keycloak_role(["ci_operator"]) == "OPERATOR"
 
-    def test_empty_roles_fallback_operator(
+    def test_empty_roles_are_denied(
         self,
         keycloak_settings: Settings,
         monkeypatch: pytest.MonkeyPatch,
@@ -412,9 +412,10 @@ class TestMapKeycloakRole:
             "contract_intelligence.shared.auth.jwt_service.get_settings",
             lambda: keycloak_settings,
         )
-        assert _map_keycloak_role([]) == "OPERATOR"
+        with pytest.raises(InsufficientRoleError):
+            _map_keycloak_role([])
 
-    def test_unknown_role_fallback_operator(
+    def test_unknown_role_is_denied(
         self,
         keycloak_settings: Settings,
         monkeypatch: pytest.MonkeyPatch,
@@ -423,7 +424,8 @@ class TestMapKeycloakRole:
             "contract_intelligence.shared.auth.jwt_service.get_settings",
             lambda: keycloak_settings,
         )
-        assert _map_keycloak_role(["some_other_role"]) == "OPERATOR"
+        with pytest.raises(InsufficientRoleError):
+            _map_keycloak_role(["some_other_role", "default-roles-contract-intelligence"])
 
     def test_realm_role_names_priority_ignores_token_order(
         self,

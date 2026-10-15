@@ -334,7 +334,7 @@ class TestAiServiceHealth:
     async def test_ai_get_job_status_stub(
         self, client: AsyncClient, make_keycloak_token: Any
     ) -> None:  # noqa: E501
-        """GET /api/v1/ai/jobs/{id} — proxy qua StubAI."""
+        """GET /api/v1/ai/jobs/{id} — proxy qua StubAI, chỉ ADMINISTRATOR."""
         # Trước submit 1 job qua reocr để có job_id
         headers = _auth_headers(make_keycloak_token, role="OPERATOR")
         doc_id = await _contract_document_id(client, headers, name="Setup for reocr")
@@ -353,10 +353,15 @@ class TestAiServiceHealth:
         job_id = reocr.json()["data"]["job_id"]
         assert job_id is not None
 
-        # Proxy qua AI service proxy
+        # Job không gắn hồ sơ nên không kiểm được quyền theo hồ sơ: chỉ ADMINISTRATOR.
+        denied = await client.get(f"/api/v1/ai/jobs/{job_id}", headers=headers)
+        assert denied.status_code == 403
+        cancel = await client.delete(f"/api/v1/ai/jobs/{job_id}", headers=headers)
+        assert cancel.status_code == 403
+
         resp = await client.get(
             f"/api/v1/ai/jobs/{job_id}",
-            headers=headers,
+            headers=_auth_headers(make_keycloak_token, role="ADMINISTRATOR"),
         )
         assert resp.status_code == 200
         data = resp.json()["data"]
@@ -525,9 +530,9 @@ class TestSseEvents:
 
         # Ít nhất phải có event "run.started"
         # (run.completed có thể đến sau khi stream đóng)
-        assert any("run.started" in e for e in events_received), (
-            f"expected run.started event, got: {events_received}"
-        )
+        assert any(
+            "run.started" in e for e in events_received
+        ), f"expected run.started event, got: {events_received}"
 
     @pytest.mark.asyncio
     async def test_sse_stream_replays_cancel_and_closes(

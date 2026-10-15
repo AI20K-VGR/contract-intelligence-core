@@ -5,7 +5,6 @@ from __future__ import annotations
 from io import BytesIO
 
 from pypdf import PdfReader, PdfWriter
-from pypdf.errors import PyPdfError
 
 
 class InvalidPdfError(ValueError):
@@ -23,7 +22,9 @@ def count_pdf_pages(data: bytes) -> int:
             # Owner-password-only PDFs open with an empty user password.
             reader.decrypt("")
         pages = len(reader.pages)
-    except (PyPdfError, ValueError, KeyError, TypeError, OSError) as exc:
+    except Exception as exc:  # noqa: BLE001 — untrusted input: any parser failure is a bad PDF
+        # A crafted file can make pypdf fail in ways outside its own errors
+        # (RecursionError on deep nesting, IndexError, ...): still a 422, not a 500.
         msg = f"not a readable PDF: {type(exc).__name__}"
         raise InvalidPdfError(msg) from exc
     if pages < 1:
@@ -48,7 +49,9 @@ def extract_pdf_pages(data: bytes, page_start: int, page_end: int) -> bytes:
             writer.add_page(reader.pages[index])
         out = BytesIO()
         writer.write(out)
-    except (PyPdfError, KeyError, TypeError, OSError) as exc:
+    except InvalidPdfError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — untrusted input, see count_pdf_pages
         msg = f"cannot cut PDF: {type(exc).__name__}"
         raise InvalidPdfError(msg) from exc
     return out.getvalue()

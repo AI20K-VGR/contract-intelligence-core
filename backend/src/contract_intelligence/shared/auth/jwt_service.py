@@ -29,7 +29,11 @@ from typing import TYPE_CHECKING, Any
 import jwt
 
 from contract_intelligence.config.settings import get_settings
-from contract_intelligence.shared.auth.exceptions import AuthenticationError
+from contract_intelligence.shared.auth.exceptions import (
+    AuthenticationError,
+    InsufficientRoleError,
+    TokenExpiredError,
+)
 from contract_intelligence.shared.auth.schemas import (
     AuthenticatedUser,
     KeycloakTokenClaims,
@@ -196,7 +200,7 @@ class JWTService:
                 options={"require": ["exp", "iat", "sub"]},
             )
         except jwt.ExpiredSignatureError as exc:
-            raise AuthenticationError("Token has expired") from exc
+            raise TokenExpiredError from exc
         except jwt.InvalidIssuerError as exc:
             raise AuthenticationError(f"Invalid token issuer: {exc}") from exc
         except jwt.InvalidAudienceError as exc:
@@ -235,6 +239,9 @@ class JWTService:
 # -----------------------------------------------------------------------------
 
 
+_APP_ROLES = ("OPERATOR", "REVIEWER", "ADMINISTRATOR")
+
+
 def _map_keycloak_role(realm_roles: list[str]) -> str:
     """Map Keycloak realm_access.roles[] → RBAC role nội bộ.
 
@@ -246,7 +253,11 @@ def _map_keycloak_role(realm_roles: list[str]) -> str:
 
     Returns:
         Một trong "OPERATOR" | "REVIEWER" | "ADMINISTRATOR".
-        Mặc định "OPERATOR" nếu không match role nào (có log cảnh báo).
+
+    Raises:
+        InsufficientRoleError: token không có role ứng dụng nào (403). Trước đây
+            mặc định là OPERATOR, nên một tài khoản trong realm chưa được gán
+            role vẫn tải lên và xử lý được hồ sơ.
     """
     settings = get_settings()
     role_map = settings.keycloak_role_map
@@ -261,11 +272,11 @@ def _map_keycloak_role(realm_roles: list[str]) -> str:
     import structlog
 
     structlog.get_logger(__name__).warning(
-        "keycloak_role_unmapped_default_operator",
+        "keycloak_role_unmapped_denied",
         realm_roles=realm_roles,
         role_map_keys=sorted(role_map),
     )
-    return "OPERATOR"
+    raise InsufficientRoleError(_APP_ROLES)
 
 
 def _map_keycloak_claims_to_user(claims: KeycloakTokenClaims) -> AuthenticatedUser:
