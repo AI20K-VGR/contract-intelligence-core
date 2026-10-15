@@ -199,7 +199,7 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
 - AI2 (A3, A8): vector trên `/query` dựa vào egress của `/query`; trần embedding cho `/query` đọc từ env của AI2; đọc các cờ từ env và nhận cờ trong `policy_flags` là tuỳ chọn; viết test cho hai cam kết của mục này: egress tắt thì vẫn `SUCCEEDED`, vượt `max_llm_calls` thì trả `NEEDS_REVIEW`.
 - Backend (B3): sau khi AI2 deploy A8, thôi gửi `egress_allowed` và `use_vector`, bỏ các env cờ phía `backend` và `backend-worker`; nâng timeout `/query` lên 30 giây.
 
-- [x] Chương duyệt  - [x] Dũng duyệt (review PR #42, 30/09)  - [x] Trang duyệt (review PR #42, 30/09)  Ghi chú: bật trên bản online sau khi A8 deploy; tên model cho bước suy luận khó do Văn Dũng ghi. Quyết định 15/10 (`gpt-5.5`, mặc định bật): Trang chốt ở review PR #85; **Chương duyệt: chờ**; con số trần 30 USD: Trang xác nhận 15/10.
+- [x] Chương duyệt  - [x] Dũng duyệt (review PR #42, 30/09)  - [x] Trang duyệt (review PR #42, 30/09)  Ghi chú: bật trên bản online sau khi A8 deploy; tên model cho bước suy luận khó do Văn Dũng ghi. Quyết định 15/10 (`gpt-5.5`, mặc định bật): Trang chốt ở review PR #85; Chương duyệt 15/10 (review PR #85); con số trần 30 USD: Trang xác nhận 15/10.
 
 ## D7. Idempotency, attempt và retry
 
