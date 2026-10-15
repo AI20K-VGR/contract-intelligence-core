@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import hashlib
 import os
+from collections.abc import Sequence
+from datetime import datetime
 from typing import Any, BinaryIO, cast
 
 import structlog
@@ -317,6 +319,12 @@ class ContractService:
     async def review_counts(self, dossier_id: str) -> tuple[int, int]:
         """``(open_review_items, pending_conflicts)`` of the dossier."""
         return await self._dossier_repo.review_counts(dossier_id)
+
+    async def lifecycle(
+        self, dossier_ids: Sequence[str]
+    ) -> dict[str, tuple[bool, datetime | None]]:
+        """Return each dossier's lock and approval timestamp."""
+        return await self._dossier_repo.lifecycle(dossier_ids)
 
     async def list_documents(self, dossier_id: str) -> list[Document]:
         await self.get_dossier(dossier_id)

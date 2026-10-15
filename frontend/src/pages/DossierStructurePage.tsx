@@ -1038,6 +1038,17 @@ export function DossierStructurePage() {
               {phase === 'ready' ? (
 
                 <div className="flex w-full shrink-0 items-center gap-space-sm md:w-auto">
+                  {AI2_GRAPH_UI_ENABLED ? (
+                    <button
+                      aria-pressed={showAi2Graph}
+                      className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 font-body-sm text-body-sm font-semibold shadow-sm ${showAi2Graph ? 'border-primary bg-primary text-white' : 'border-outline-variant/30 bg-surface-container-lowest text-on-surface hover:bg-surface-container'}`}
+                      type="button"
+                      onClick={() => setShowAi2Graph((shown) => !shown)}
+                    >
+                      <MaterialIcon name="hub" className="text-[18px]" />
+                      Graph AI2
+                    </button>
+                  ) : null}
                   <Link
                     className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-outline-variant/30 bg-surface-container-lowest px-3 font-body-sm text-body-sm font-semibold text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] hover:bg-amber-50 hover:text-amber-950"
                     state={{ dossierId, name: detail?.name }}
@@ -1372,8 +1383,41 @@ export function DossierStructurePage() {
             />
           ) : null}
 
-          {phase === 'ready' &&
+          {phase === 'ready' && showAi2Graph && detail ? (
+            <div className="mb-space-sm flex flex-wrap items-center justify-between gap-space-sm rounded-xl border border-outline-variant/20 bg-surface-container-lowest p-space-sm">
+              <div className="flex flex-wrap items-center gap-space-xs" role="group" aria-label="Loại graph AI2">
+                {(['pair', 'amendment'] as const).map((kind) => (
+                  <button
+                    key={kind}
+                    aria-pressed={ai2GraphKind === kind}
+                    className={`rounded-full px-3 py-1.5 font-body-sm text-body-sm ${ai2GraphKind === kind ? 'bg-primary text-white' : 'bg-surface-container text-on-surface hover:bg-primary/10'}`}
+                    type="button"
+                    onClick={() => setAi2GraphKind(kind)}
+                  >
+                    {kind === 'pair' ? 'Quan hệ điều khoản' : 'Sửa đổi điều khoản'}
+                  </button>
+                ))}
+              </div>
+              <ContentSharingConsent
+                dossierId={dossierId}
+                enabled={detail.metadata?.ai2_content_sharing_consent === true}
+                onSaved={(enabled) =>
+                  setDetail((current) => current
+                    ? {
+                        ...current,
+                        metadata: {
+                          ...(current.metadata ?? {}),
+                          ai2_content_sharing_consent: enabled,
+                        },
+                      }
+                    : current)
+                }
+              />
+            </div>
+          ) : null}
 
+          {phase === 'ready' &&
+          !qaMode &&
           !reviewCiteId &&
           (activeMode !== 'tables' || showAi2Graph) ? (
             <div className="flex min-h-[520px] flex-1 flex-col pb-space-md">
@@ -1405,9 +1449,10 @@ export function DossierStructurePage() {
               ) : activeMode !== 'tables' ? (
                 (() => {
                   const shared = {
-                    markers,
+                    markers: prefs.highlightConflicts ? markers : undefined,
                     citationOf: citeOf,
                     focusId: citeId,
+                    autoScroll: prefs.autoScroll,
                     nodes,
                     title: detail?.name ?? 'Hợp đồng',
                     onCite: openTreeCite,
