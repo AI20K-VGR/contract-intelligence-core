@@ -74,9 +74,10 @@ services:
       KC_LOG_LEVEL: INFO
       KC_SPI_THEME_CACHE_THEMES: "true"
       KC_SPI_THEME_CACHE_TEMPLATES: "true"
-      # Empty = Keycloak's own default, a heap of up to 70% of the machine's
-      # RAM. Cap it on a small server (deploy/README.md, "Máy chủ ít RAM").
-      JAVA_OPTS_KC_HEAP: ${KEYCLOAK_HEAP_OPTS:-}
+      # Without a cap Keycloak takes a heap of up to 70% of the RAM it sees and
+      # never gives it back. 512 MiB is plenty for a few demo users
+      # (deploy/README.md, "Bộ nhớ").
+      JAVA_OPTS_KC_HEAP: ${KEYCLOAK_HEAP_OPTS:--Xms256m -Xmx512m}
     ports: !reset []
     # Theme is baked into the image; keep only the realm import.
     volumes: !override
@@ -94,7 +95,9 @@ services:
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      KAFKA_HEAP_OPTS: ${KAFKA_HEAP_OPTS:--Xmx512m -Xms512m}
+      # -Xms equal to -Xmx held the whole heap from the first minutes (620 MiB
+      # on an idle broker); start small and grow only when needed.
+      KAFKA_HEAP_OPTS: ${KAFKA_HEAP_OPTS:--Xmx512m -Xms128m}
 
   backend:
     environment:
@@ -215,6 +218,8 @@ services:
     image: caddy:2.8-alpine
     container_name: ci-caddy
     restart: unless-stopped
+    # Holds every TLS connection: a scan opening thousands must not OOM it.
+    mem_limit: ${CADDY_MEM_LIMIT:-256m}
     depends_on:
       - backend
       - keycloak

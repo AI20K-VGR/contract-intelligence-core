@@ -243,6 +243,10 @@ No polling means Backend owns the timeout.
 
 A result that arrives after the watchdog failed the run is dropped (job already `FAILED`) and audited. A retry sends `attempt + 1`, so a late result of the old attempt can never be persisted.
 
+### Today, over HTTP (PR #101)
+
+AI2 runs at most `AI2_MAX_CONCURRENT_JOBS` jobs at once (default 1); an accepted job waits `QUEUED` until a slot frees, and its `max_processing_seconds` starts when it leaves the queue. The Backend's poll deadline follows the same rule: it restarts on every `QUEUED` poll, and time spent `QUEUED` is capped separately by `AI2_MAX_QUEUE_WAIT_SECONDS` (default 1800 s, `AI2_TIMEOUT` on expiry). `WORKER_AI2_MAX_CONCURRENCY` is set from the same variable, so the Backend hands AI2 no more jobs than it runs and the rest wait in the Backend, where no deadline applies. The Kafka watchdog above keeps the same split: queued time never counts against the running budget.
+
 ## 9. Flow
 
 1. Upload → AI1 OCR over Kafka (DOC-05d) → every document persisted → job `EXTRACTED`.
@@ -310,3 +314,4 @@ A result that arrives after the watchdog failed the run is dropped (job already 
 | 2026-09-30 | v2.4: the timeout code is AI2's real `PROCESSING_TIMEOUT`, not `AI2_BUDGET_EXCEEDED`; retry follows the error code, so both sides must use one name |
 | 2026-09-30 | v2.3, after the AI2 review of DEC-BE-AI2-01 (PR #37): `query_binding` dropped for `query_snapshot_digest` in the payload (D10); at most 6 documents (from the request schema, `maxItems: 6`); retry rule (D7) |
 | 2026-09-30 | v2.2: where the dedupe store lives is the Lead's decision D11 (PR #37), not settled here; schema `ai2` is only option A (§7) |
+| 2026-10-15 | §8: on today's HTTP runtime AI2 runs `AI2_MAX_CONCURRENT_JOBS` jobs at once; `QUEUED` time is outside `max_processing_seconds` and capped by `AI2_MAX_QUEUE_WAIT_SECONDS` (PR #101) |

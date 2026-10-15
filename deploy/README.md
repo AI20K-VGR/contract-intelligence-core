@@ -63,6 +63,28 @@ Chạy được cho demo ít người dùng, chậm hơn và ít dư địa hơn
 
 Hồ sơ hàng trăm trang vẫn có thể đẩy máy vào swap. Máy 2 GB không đủ: stack dùng khoảng 2,7 GB ngay khi nhàn rỗi.
 
+### Bộ nhớ
+
+Đo trên bản online ngày 15/10/2026 (máy 8 GB, DB ở máy riêng): khi nhàn rỗi stack dùng khoảng 2,5 GB. Trước bản sửa này, AI2 giữ lại kết quả và bản ghi của mọi hồ sơ đã xử lý nên RAM chỉ tăng, không giảm: 142 MiB lúc khởi động, 1,3 GiB sau hai lượt xử lý ngày 14–15/10. AI1 cũng giữ snapshot OCR của mọi tài liệu. Đo lại AI2 với ba hồ sơ 202 trang liên tiếp: bản cũ 417 → 614 → 772 MiB, bản mới 230 → 288 → 281 MiB (đỉnh trong lúc xử lý khoảng 620 MiB).
+
+Mỗi container có trần bộ nhớ (`mem_limit` trong `docker-compose.yml`). Trần là giới hạn trên, không phải phần RAM giữ trước, nên tổng các trần được phép lớn hơn RAM của máy: trên app server tổng là khoảng 10 GiB (11 GiB nếu chạy cả hai Postgres trên cùng máy) cho máy 8 GB. Các service không chạm trần cùng lúc; trần chỉ chặn một service chạy loạn. Container vượt trần thì dùng swap tới mức bằng trần, sau đó bị khởi động lại, thay vì kéo cả máy vào swap. Đổi trần trong `deploy/.env.prod`:
+
+| Biến | Mặc định | Ghi chú |
+|---|---|---|
+| `AI2_MEM_LIMIT` | `2g` | Một hồ sơ 202 trang chạm đỉnh khoảng 620 MiB |
+| `AI1_MEM_LIMIT` | `1536m` | 8 trang OCR song song (`AI1_MAX_PAGES_IN_FLIGHT`) |
+| `BACKEND_MEM_LIMIT`, `BACKEND_WORKER_MEM_LIMIT` | `1g` | Upload giữ cả bộ hồ sơ (≤ 100 MB qua Cloudflare) trong RAM |
+| `KEYCLOAK_MEM_LIMIT` / `KEYCLOAK_HEAP_OPTS` | `1g` / `-Xms256m -Xmx512m` | Không đặt heap thì Keycloak lấy tới 70% RAM |
+| `KAFKA_MEM_LIMIT` / `KAFKA_HEAP_OPTS` | `1g` / `-Xmx512m -Xms128m` | `-Xms` bằng `-Xmx` giữ cả heap ngay từ đầu |
+| `MINIO_MEM_LIMIT`, `PROMETHEUS_MEM_LIMIT` | `768m`, `512m` | |
+| `CADDY_MEM_LIMIT` | `256m` | Giữ mọi kết nối TLS; công cụ quét mở hàng nghìn kết nối |
+
+AI2 chạy mỗi lần một hồ sơ (`AI2_MAX_CONCURRENT_JOBS=1`), và backend-worker gửi sang AI2 đúng chừng ấy hồ sơ cùng lúc (`WORKER_AI2_MAX_CONCURRENCY` lấy cùng biến trong `docker-compose.yml`). Hồ sơ đến sau chờ ở backend, ở bước AI2 (S4) chưa bắt đầu; chỗ chờ này không có hạn và được giữ qua restart (run vẫn `EXTRACTED`). Nếu một job vẫn phải chờ ở AI2 (`QUEUED`, ví dụ khi chạy nhiều backend-worker), backend không tính thời gian đó vào hạn xử lý và chỉ cho chờ tối đa `AI2_MAX_QUEUE_WAIT_SECONDS` giây (mặc định 1800). Chỉ tăng `AI2_MAX_CONCURRENT_JOBS` khi máy còn dư RAM: mỗi job cộng thêm khoảng 500 MiB lúc đỉnh.
+
+Theo dõi ở `/admin/monitoring` (Grafana, biểu đồ RAM theo container). Nếu một container cứ bị khởi động lại, kiểm tra bằng `docker inspect -f '{{.State.OOMKilled}}' ci-ai2-service` rồi tăng trần của nó.
+
+Máy đã cài trước bản này có thể còn `KAFKA_HEAP_OPTS="-Xmx512m -Xms512m"` trong `deploy/.env.prod` (chép từ bản mẫu cũ). Để trống dòng đó để dùng mặc định mới.
+
 ## Kế hoạch triển khai qua SSH
 
 ### Thông tin cần có trước khi bắt đầu
