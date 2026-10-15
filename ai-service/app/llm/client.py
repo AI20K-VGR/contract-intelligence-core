@@ -7,6 +7,7 @@ import re
 import threading
 import time
 import uuid
+from collections import deque
 from typing import Any, Callable
 
 from openai import BadRequestError, OpenAI, UnprocessableEntityError
@@ -73,8 +74,20 @@ def call_with_timeout(fn: Callable[[], Any], seconds: float, *, name: str = "ai2
     return outcome["value"]
 
 
+def _trace_history_size() -> int | None:
+    """Most recent traces kept process-wide: AI2_LLM_TRACE_HISTORY, 0 = all."""
+
+    try:
+        size = int(os.getenv("AI2_LLM_TRACE_HISTORY", "1000"))
+    except ValueError:
+        return 1000
+    return None if size <= 0 else size
+
+
 class NineRouterClient:
-    all_traces: list[dict[str, Any]] = []
+    # Shared by every client for the life of the process (live evals read it):
+    # bounded, or a long-running service keeps one entry per LLM call forever.
+    all_traces: deque[dict[str, Any]] = deque(maxlen=_trace_history_size())
 
     def __init__(
         self,
