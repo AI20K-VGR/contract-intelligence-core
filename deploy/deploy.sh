@@ -149,7 +149,7 @@ echo "[deploy] waiting for AI2 full LLM/vector readiness"
 ai2_ready=0
 for _ in $(seq 1 60); do
   if "${COMPOSE[@]}" exec -T ai2-service /app/.venv/bin/python -c \
-      "import urllib.request; urllib.request.urlopen('http://localhost:8002/readyz', timeout=5)" \
+      "import urllib.request; urllib.request.urlopen('http://localhost:8002/readyz', timeout=90)" \
       >/dev/null 2>&1; then
     ai2_ready=1
     break
