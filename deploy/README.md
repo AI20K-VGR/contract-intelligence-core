@@ -1,8 +1,10 @@
-# Triển khai online — 1 máy chủ Linux + Docker Compose
+# Triển khai online — Linux + Docker Compose
+
+H??ng d?n ch?y stack AI2 c?c b? n?m t?i [docs/AI2-LOCAL-SETUP.md](../docs/AI2-LOCAL-SETUP.md).
 
 Chạy toàn bộ stack (Keycloak, Postgres ×2, Kafka, MinIO, backend, backend-worker, AI1, AI2, giám sát) trên một máy chủ cloud Linux, bằng chính `docker-compose.yml` của dự án cộng với `deploy/compose.prod.yml`. Caddy đứng trước, lo HTTPS. Frontend có thể chạy trên cùng máy (tuỳ chọn).
 
-Hướng dẫn chạy stack AI2 cục bộ nằm tại [docs/AI2-LOCAL-SETUP.md](../docs/AI2-LOCAL-SETUP.md).
+Hai Postgres có thể chạy trên một máy riêng (DB server): xem "Tách DB ra máy riêng". Trên AWS dùng cách này (mục "Triển khai trên AWS EC2").
 
 Mọi thao tác làm qua SSH từ máy dev. Không cần công cụ của nhà cung cấp cloud nào.
 
@@ -63,7 +65,7 @@ Hồ sơ hàng trăm trang vẫn có thể đẩy máy vào swap. Máy 2 GB khô
 | Thông tin | Dùng để |
 |---|---|
 | IP công khai, user SSH, khoá SSH (hoặc mật khẩu) | Đăng nhập máy chủ |
-| Nhánh deploy | Workflow chỉ nhận `develop`; PR merge vào `develop` tạo push event và khởi chạy deploy |
+| Nhánh cần deploy (thường `develop`) | `git checkout` |
 | Quyền đọc repo từ máy chủ | Repo riêng tư thì cần Personal Access Token hoặc deploy key |
 | `MISTRAL_API_KEY`, `OPENAI_API_KEY` | AI1 OCR (`ai-service/.env`) |
 | `AI2_LLM_BASE_URL`, `AI2_LLM_API_KEY` | AI2 (`deploy/.env.prod`) |
@@ -123,7 +125,7 @@ sudo deploy/deploy.sh
 
 1. Build image (và frontend nếu có `APP_HOST`).
 2. `up -d`.
-3. Chờ PostgreSQL và Keycloak readiness probe healthy; Backend tự chạy `alembic upgrade head` rồi phải healthy.
+3. Chờ backend healthy. Backend tự chạy `alembic upgrade head`.
 4. Chạy `keycloak_configure.py`:
    - Thêm `FRONTEND_ORIGINS` vào redirect/web origins.
    - Đổi secret của client backend.
@@ -158,9 +160,168 @@ Trên `https://app-<ip>.sslip.io` (hoặc frontend ở máy dev trỏ vào serve
 | 5 | Đăng nhập `reviewer@ci.local`, thẩm định một xung đột | Trạng thái xung đột đổi |
 | 6 | Đăng nhập `admin@ci.local`, mở Giám sát hệ thống | Dashboard Grafana hiện, có số liệu OCR vừa chạy |
 
+## Tách DB ra máy riêng
+
+Hai Postgres (`backend-db` có pgvector, `keycloak-db`) chạy trên một DB server bằng `deploy/compose.db.yml`: cùng image, user, database và tuỳ chọn initdb như stack một máy, nên dump của stack một máy khôi phục được nguyên vẹn. Mọi thứ khác vẫn ở app server.
+
+| Máy | File | Env |
+|---|---|---|
+| DB server | `deploy/compose.db.yml` | `deploy/.env.db` (`bootstrap.sh --db` tạo) |
+| App server | `docker-compose.yml` + `deploy/compose.prod.yml` + `deploy/compose.external-db.yml` | `deploy/.env.prod` có `BACKEND_DB_HOST`, `BACKEND_DB_PORT`, `KEYCLOAK_DB_HOST`, `KEYCLOAK_DB_PORT` |
+
+- DB chỉ lắng nghe trên **IP nội bộ** của DB server (`DB_BIND_ADDR`): backend ở cổng 5432, Keycloak ở cổng 5433.
+- Docker mở cổng vượt qua `ufw`, nên thứ chặn người lạ là **firewall của nhà cung cấp**: chỉ cho app server vào 5432–5433.
+- Kết nối app → DB đi trong mạng nội bộ của nhà cung cấp, không mã hoá TLS.
+- `deploy.sh` tự thêm `compose.external-db.yml` khi `BACKEND_DB_HOST` có giá trị. Trước khi `up -d`, nó kiểm tra hai DB có trả lời không: không trả lời thì dừng, stack đang chạy không bị đụng tới.
+- `backup.sh` trên app server dump hai DB qua mạng. Không cần cài gì trên DB server.
+
+### Dựng DB server
+
+```bash
+ssh <user>@<db-server>
+sudo git clone https://github.com/AI20K-VGR/contract-intelligence-core.git /opt/contract-intelligence
+cd /opt/contract-intelligence && sudo git checkout <nhánh>
+sudo deploy/bootstrap.sh --db     # Docker, ufw chỉ SSH, swap, deploy/.env.db với IP nội bộ + mật khẩu ngẫu nhiên
+sudo docker compose -f deploy/compose.db.yml --env-file deploy/.env.db up -d --wait
+sudo cat deploy/.env.db           # chép DB_BIND_ADDR, 2 mật khẩu, 2 cổng sang app server
+```
+
+Kiểm tra `DB_BIND_ADDR` là IP **nội bộ** (AWS: `172.31.x.x` trong VPC mặc định), không phải IP công khai.
+
+### App server dùng DB server
+
+Làm Bước 1–3 của "Kế hoạch triển khai qua SSH", rồi sửa `deploy/.env.prod` trước Bước 4:
+
+```env
+BACKEND_DB_HOST=<DB_BIND_ADDR>
+BACKEND_DB_PORT=5432
+KEYCLOAK_DB_HOST=<DB_BIND_ADDR>
+KEYCLOAK_DB_PORT=5433
+BACKEND_DB_PASSWORD=<như deploy/.env.db>
+KEYCLOAK_DB_PASSWORD=<như deploy/.env.db>
+```
+
+Sau đó `sudo deploy/deploy.sh` như thường. Kiểm tra từ bên ngoài thì thêm IP công khai của DB server làm tham số thứ tư: `deploy/check_external.sh api-… auth-… app-… <ip-công-khai-db>`. Workflow `deploy` làm việc này khi có secret `DEPLOY_DB_PUBLIC_IP`.
+
+## Triển khai trên AWS EC2
+
+Hai máy EC2 trong cùng VPC, theo mục "Tách DB ra máy riêng". Giá và điều kiện gói miễn phí thay đổi theo thời gian: kiểm tra trên trang Billing và AWS Pricing Calculator trước khi tạo máy.
+
+Tài khoản của dự án (14/10/2026) có hai giới hạn:
+
+- **Chỉ dùng được region Sydney (`ap-southeast-2`).** Policy của Organization chặn EC2 ở các region khác, kể cả Singapore.
+- **Free plan chỉ cho chạy các loại máy Free Tier:** `t3.micro`, `t3.small`, `t4g.micro`, `t4g.small`, `t8i.micro`, `t8i.small`, `c7i-flex.large`, `m7i-flex.large`. Xem lại danh sách bằng `aws ec2 describe-instance-types --filters Name=free-tier-eligible,Values=true`.
+
+### Tạo máy
+
+| Mục | App server | DB server |
+|---|---|---|
+| AMI | Ubuntu Server 24.04 LTS, **x86-64** | Ubuntu Server 24.04 LTS, **Arm64** |
+| Loại máy | `m7i-flex.large` (2 vCPU, 8 GB, ~$87/tháng ở Sydney) | `t4g.small` (2 vCPU, 2 GB, ~$15/tháng) |
+| Đĩa gốc | 40 GB gp3 | 20 GB gp3 |
+| Security group | `ci-app`: TCP 22 từ IP người vận hành; TCP 80, 443 và UDP 443 từ mọi nơi | `ci-db`: TCP 5432–5433 **chỉ từ security group `ci-app`**; TCP 22 chỉ từ `ci-app` |
+| IP công khai | Elastic IP (bắt buộc, xem dưới) | IP tự cấp (chỉ để tải image; không cổng nào mở ra ngoài) |
+| Key pair | Tạo mới, giữ file `.pem`. User SSH là `ubuntu` | Cùng key pair |
+
+- Stack app chưa chạy trên ARM, nên app server dùng x86. Hai image Postgres có bản ARM, nên DB server dùng `t4g` cho rẻ.
+- App server 8 GB không cần các chỉnh ở "Máy chủ ít RAM". `c7i-flex.large` (4 GB, ~$81/tháng) rẻ hơn ít mà phải chỉnh, nên không chọn. Khi `ai1-worker` chạy nhiều replica, đặt `AI1_WORKER_REPLICAS=1`.
+- Dòng `t*`: đặt Credit specification là `standard`. `m7i-flex`/`c7i-flex` không dùng CPU credit.
+- SSH vào DB server đi qua app server: `ssh -J ubuntu@<elastic-ip> ubuntu@<ip-nội-bộ-db>`.
+
+Thứ tự: tạo hai security group, tạo DB server rồi app server, gắn Elastic IP cho app server, dựng DB server, rồi dựng app server.
+
+### Gắn Elastic IP trước khi chạy `bootstrap.sh` trên app server
+
+`bootstrap.sh` đọc IP công khai của máy và ghi vào `API_HOST`, `AUTH_HOST`, `APP_HOST` (`api-<ip>.sslip.io`, …) trong `deploy/.env.prod`. IP công khai mặc định của EC2 **đổi mỗi lần stop rồi start**; khi đó cả ba tên miền, chứng chỉ và cấu hình Keycloak đều sai.
+
+1. EC2 → Elastic IPs → Allocate, rồi Associate với app server.
+2. SSH bằng IP đó: `ssh -i <key>.pem ubuntu@<elastic-ip>`.
+3. Sau đó mới làm Bước 1–6 ở trên.
+
+Đã lỡ chạy `bootstrap.sh` trước khi gắn Elastic IP:
+
+- **Chưa chạy `deploy.sh`:** xoá `deploy/.env.prod` rồi chạy lại `bootstrap.sh`.
+- **Đã chạy `deploy.sh`:** không xoá file, vì mật khẩu trong đó đã nằm trong dữ liệu. Sửa tay `API_HOST`, `AUTH_HOST`, `APP_HOST`, `FRONTEND_ORIGINS` và `FRONTEND_BASE_URL` sang IP mới, rồi chạy lại `deploy.sh`.
+
+IP nội bộ của DB server không đổi khi stop/start, nên `BACKEND_DB_HOST` vẫn đúng.
+
+### Giữ chi phí thấp
+
+- Đặt cảnh báo ngân sách (Billing → Budgets) ngay khi tạo tài khoản, ví dụ ở $50, $100, $150.
+- Không dùng thì **stop** app server, đừng terminate: dữ liệu trên đĩa còn nguyên, chỉ còn trả tiền đĩa và Elastic IP. Start lại thì các container tự chạy (`restart: unless-stopped`) và địa chỉ không đổi. Stop cả DB server thì start nó **trước** app server.
+- Dòng `t3`/`t4g`: đặt Credit specification là `standard`. Chế độ `unlimited` tính thêm tiền khi CPU chạy cao kéo dài (build, OCR hồ sơ lớn).
+- Máy chạy bằng credits thì có ngày hết: bật "Backup ra ngoài máy" bên dưới trước khi có dữ liệu cần giữ.
+
+### Khác với máy chủ thường
+
+- **Thư:** EC2 chặn cổng 25 chiều ra theo mặc định. Đặt `SMTP_PORT=587` với nhà cung cấp SMTP, hoặc để mặc định (thư vào mailpit).
+- **Đổi máy chủ:** địa chỉ `sslip.io` đổi theo IP. Gửi nhóm frontend các biến `VITE_*` mà `deploy.sh` in ra, và cập nhật secret của workflow deploy trên GitHub (mục "Cài CI/CD") sang máy mới.
+
+## Chuyển sang máy mới cùng dữ liệu
+
+Chuyển hồ sơ, người dùng và file từ server đang chạy sang cặp app server + DB server mới. Làm sau khi máy mới đã chạy thử được với địa chỉ `sslip.io`. Có downtime từ bước 3 tới bước 7, thường 15–30 phút; báo nhóm trước.
+
+Trong các lệnh dưới, `COMPOSE` là lệnh compose của app server mới:
+
+```bash
+COMPOSE="docker compose -f docker-compose.yml -f deploy/compose.prod.yml -f deploy/compose.frontend.yml -f deploy/compose.external-db.yml --env-file deploy/.env.prod"
+```
+
+1. **Xoá dữ liệu chạy thử trên máy mới.** App server: `sudo $COMPOSE down -v`. DB server: `sudo docker compose -f deploy/compose.db.yml --env-file deploy/.env.db down -v && sudo docker compose -f deploy/compose.db.yml --env-file deploy/.env.db up -d --wait`.
+2. **Dùng env của server cũ.** Chép `deploy/.env.prod` và `ai-service/.env` của server cũ sang app server mới (`chmod 600`). Trong `deploy/.env.prod`, thêm hoặc sửa 6 dòng DB như mục "App server dùng DB server". Giữ nguyên mọi dòng khác:
+   - Mật khẩu admin Keycloak nằm trong dữ liệu Keycloak, và `deploy.sh` đăng nhập bằng `KEYCLOAK_ADMIN_PASSWORD`. Đổi giá trị này thì bước cấu hình Keycloak bị từ chối.
+   - `API_HOST`, `AUTH_HOST`, `APP_HOST` giữ tên miền đang dùng.
+3. **Dừng ghi trên server cũ rồi backup.**
+
+   ```bash
+   sudo docker compose -f docker-compose.yml -f deploy/compose.prod.yml -f deploy/compose.frontend.yml --env-file deploy/.env.prod \
+     stop frontend backend backend-worker keycloak ai1-worker ai2-service
+   sudo deploy/backup.sh     # in ra /var/backups/contract-intelligence/<thời điểm>
+   ```
+
+4. **Chép backup sang app server mới**, đi qua máy mình, không cần khoá SSH giữa hai server:
+
+   ```bash
+   ssh <user>@<server-cũ> "sudo tar -C /var/backups/contract-intelligence -cf - <thời điểm>" \
+     | ssh ubuntu@<elastic-ip> "sudo mkdir -p /var/backups/contract-intelligence && sudo tar -C /var/backups/contract-intelligence -xf -"
+   ```
+
+5. **Khôi phục hai DB vào DB server**, chạy trên app server mới. Role `ai2` phải có trước, vì `pg_dump` không lưu role; backend đặt lại mật khẩu và quyền của nó khi khởi động.
+
+   ```bash
+   cd /opt/contract-intelligence
+   B=/var/backups/contract-intelligence/<thời điểm>
+   envval() { grep -E "^$1=" deploy/.env.prod | tail -1 | cut -d= -f2-; }
+   pg() { sudo docker run --rm -i -e PGPASSWORD="$1" pgvector/pgvector:pg16 "${@:2}"; }
+   pg "$(envval BACKEND_DB_PASSWORD)" psql -h "$(envval BACKEND_DB_HOST)" -p "$(envval BACKEND_DB_PORT)" -U ci -d contract_intelligence \
+     -v ON_ERROR_STOP=1 -c "CREATE ROLE ai2 LOGIN"
+   pg "$(envval BACKEND_DB_PASSWORD)" pg_restore -h "$(envval BACKEND_DB_HOST)" -p "$(envval BACKEND_DB_PORT)" -U ci \
+     -d contract_intelligence --exit-on-error < "$B/backend.dump"
+   pg "$(envval KEYCLOAK_DB_PASSWORD)" pg_restore -h "$(envval KEYCLOAK_DB_HOST)" -p "$(envval KEYCLOAK_DB_PORT)" -U keycloak \
+     -d keycloak --exit-on-error < "$B/keycloak.dump"
+   ```
+
+6. **Trỏ tên miền sang máy mới.** Đổi bản ghi DNS của `API_HOST`, `AUTH_HOST`, `APP_HOST` sang Elastic IP mới, giữ nguyên cấu hình còn lại ở nhà cung cấp DNS. Chờ tới khi `dig +short <API_HOST>` trả về IP mới, hoặc IP của proxy nếu tên miền đi qua proxy.
+7. **Chạy stack mới:** `sudo deploy/deploy.sh`. Caddy xin chứng chỉ cho tên miền; backend chạy migration còn thiếu (nếu có) và đặt mật khẩu role `ai2`.
+8. **Khôi phục file MinIO**, rồi so số object với server cũ:
+
+   ```bash
+   sudo docker run --rm --user 0:0 --network ci-network -v "$B/minio:/backup:ro" \
+     -e MC_HOST_dst="http://$(envval MINIO_ROOT_USER):$(envval MINIO_ROOT_PASSWORD)@minio:9000" \
+     cgr.dev/chainguard/minio-client:latest mirror --overwrite /backup dst
+   find "$B/minio" -type f | wc -l     # phải bằng số object sau lệnh dưới
+   sudo docker run --rm --network ci-network \
+     -e MC_HOST_dst="http://$(envval MINIO_ROOT_USER):$(envval MINIO_ROOT_PASSWORD)@minio:9000" \
+     cgr.dev/chainguard/minio-client:latest ls --recursive dst | wc -l
+   ```
+
+9. **Kiểm tra:** chạy `deploy/check_external.sh` (kèm IP công khai của DB server) và Bước 6 "Chạy thử luồng chính". Mở một hồ sơ cũ: PDF gốc phải hiện, nghĩa là MinIO đã về đủ.
+10. **Cập nhật CI/CD:** đổi secret `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`, thêm `DEPLOY_DB_PUBLIC_IP` (mục "Cài CI/CD").
+11. **Giữ server cũ** (đã dừng app) khoảng một tuần rồi mới xoá. Có sự cố thì trỏ DNS về lại và `start` các service đã dừng.
+
 ## Cập nhật
 
-Tự động: workflow `deploy` (`.github/workflows/deploy.yml`) chạy sau mỗi push vào `develop` (bao gồm push do PR merge), hoặc bấm tay ở GitHub → Actions → `deploy` → Run workflow. Nó SSH vào server, checkout đúng SHA đã kích hoạt workflow, chạy `deploy/deploy.sh`, rồi chạy `deploy/check_external.sh` từ runner (tức từ bên ngoài server).
+Tự động: workflow `deploy` (`.github/workflows/deploy.yml`) chạy sau mỗi lần merge vào `develop`, hoặc bấm tay ở GitHub → Actions → `deploy` → Run workflow. Nó SSH vào server, fast-forward checkout tới commit vừa merge, chạy `deploy/deploy.sh`, rồi chạy `deploy/check_external.sh` từ runner (tức từ bên ngoài server).
 
 Bằng tay, trên server:
 
@@ -185,15 +346,9 @@ ssh-keyscan -t ed25519 <ip>        # so với khoá máy chủ đã biết rồi
 | `DEPLOY_SSH_KEY` | Nội dung file `deploy_key` (khoá bí mật). Xoá file sau khi khai |
 | `DEPLOY_KNOWN_HOSTS` | Dòng `ssh-keyscan` ở trên |
 
-Thiếu một trong bốn SSH secrets thì workflow **fail** với tên cấu hình bị thiếu; nó không báo xanh theo kiểu skip. Không xóa secret để tạm dừng deploy vì khi đó merge tạo ra một deploy check đỏ.
+Chưa có `DEPLOY_HOST` thì workflow báo "not configured" và không làm gì. Muốn tạm dừng deploy tự động (ví dụ khi bảo trì server), xoá secret `DEPLOY_HOST`.
 
-Workflow fetch và checkout đúng SHA tạo trigger, kiểm tra lại SHA trước/sau deploy, và không ghi đè checkout server có thay đổi cục bộ. Hai lần deploy không chạy chồng nhau; lần sau chờ lần trước xong. Sau đó runner kiểm tra HTTPS/API, OIDC issuer và các cổng nội bộ từ bên ngoài server.
-
-### Tự động deploy sau khi merge
-
-`.github/workflows/deploy.yml` chạy khi có push vào `develop`, vì vậy PR merge vào `develop` tự kích hoạt quy trình. `workflow_dispatch` chỉ được phép từ `develop`; preflight chạy trước production Environment và không nhận secrets. Deployment job chỉ được lên lịch khi preflight thành công.
-
-Environment `production` cần được giới hạn vào nhánh `develop` bởi repository admin. Có thể đặt thêm required reviewers; nếu đặt, lần deploy sẽ chờ duyệt và không còn tự hoàn tất ngay sau merge. Không thêm required reviewers nếu mục tiêu là autodeploy không chờ người duyệt. Branch ruleset và required CI checks cũng được quản lý trong GitHub Settings, không nằm trong YAML workflow.
+Workflow chỉ fast-forward: nếu checkout trên server có commit riêng thì deploy dừng lại, không ghi đè. Hai lần deploy không chạy chồng nhau; lần sau chờ lần trước xong.
 
 ### Duyệt trước khi deploy
 
@@ -201,17 +356,19 @@ Job `deploy` chạy trong GitHub Environment `production`. Khi environment này 
 
 Luật duyệt nằm ở cấu hình repo, không nằm trong file workflow, và **chỉ tài khoản có quyền admin repo đặt được**:
 
-- Giao diện: Settings → Environments → `production` → Deployment branches → Selected branches → `develop`. Bỏ trống Required reviewers nếu muốn deploy tự chạy không chờ người duyệt; thêm reviewer sẽ biến approval thành gate riêng.
-- Hoặc bằng API:
+- Giao diện: Settings → Environments → `production` → Required reviewers → thêm người duyệt (hiện là `Chuongpham2004`) → Save. Nên đặt thêm Deployment branches = `develop`.
+- Hoặc bằng API (thay `<id>` bằng kết quả của `gh api users/<login> --jq .id`):
 
   ```bash
-  gh api --method PUT repos/AI20K-VGR/contract-intelligence-core/environments/production --input - <<'JSON'
-  {"deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}}
+  gh api -X PUT repos/AI20K-VGR/contract-intelligence-core/environments/production --input - <<'JSON'
+  {"wait_timer": 0, "prevent_self_review": false,
+   "reviewers": [{"type": "User", "id": <id>}],
+   "deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}}
   JSON
-  gh api --method POST repos/AI20K-VGR/contract-intelligence-core/environments/production/deployment-branch-policies -f name=develop -f type=branch
+  gh api -X POST repos/AI20K-VGR/contract-intelligence-core/environments/production/deployment-branch-policies -f name=develop
   ```
 
-Environment settings không thể được đặt bằng workflow YAML và cần quyền admin repo. Kiểm tra protection rules: `gh api repos/AI20K-VGR/contract-intelligence-core/environments/production --jq .protection_rules`; kiểm tra nhánh được phép: `gh api repos/AI20K-VGR/contract-intelligence-core/environments/production/deployment-branch-policies`. Workflow có thêm preflight chỉ cho phép `develop`, nhưng không thay thế deployment branch policy của Environment.
+Chưa có luật này thì environment `production` chỉ là một cái tên: workflow chạy ngay như trước. Kiểm tra luật đã có chưa: `gh api repos/AI20K-VGR/contract-intelligence-core/environments/production --jq .protection_rules`.
 
 Server cài trước 02/10/2026 (trước issue #52) cần làm thêm một lần trước lần cập nhật đầu tiên:
 
@@ -251,13 +408,69 @@ Server đã cài từ trước không có `APP_HOST` nên không đổi gì. Mu�
 | Log backend / worker | `... logs -f backend backend-worker` |
 | Keycloak admin | Trên server lấy IP container: `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ci-keycloak`. Trên máy mình: `ssh -L 8080:<IP đó>:8080 <user>@<ip>`, rồi mở `http://localhost:8080/admin` (user `admin`, mật khẩu `KEYCLOAK_ADMIN_PASSWORD`) |
 | Đọc email (mailpit) | Như trên với `ci-mailpit` và cổng `8025`, rồi mở `http://localhost:8025` |
-| Backup | `sudo deploy/backup.sh` (2 DB + MinIO vào `/var/backups/contract-intelligence`, giữ 7 ngày). Cron: `0 2 * * * /opt/contract-intelligence/deploy/backup.sh >> /var/log/ci-backup.log 2>&1` |
-| Khôi phục DB backend | Chạy stack trước để backend tạo extension `vector` và role `ai2` (`pg_dump` không lưu role), rồi `docker exec -i ci-backend-db pg_restore -U ci -d contract_intelligence --clean < backend.dump` |
+| Backup | `sudo deploy/backup.sh` (2 DB + MinIO vào `/var/backups/contract-intelligence`, giữ 7 ngày; chép ra ngoài máy: xem "Backup ra ngoài máy" bên dưới). Cron: `0 2 * * * /opt/contract-intelligence/deploy/backup.sh >> /var/log/ci-backup.log 2>&1` |
+| Khôi phục DB backend | Chạy stack trước để backend tạo extension `vector` và role `ai2` (`pg_dump` không lưu role), rồi `docker exec -i ci-backend-db pg_restore -U ci -d contract_intelligence --clean < backend.dump`. DB ở máy riêng: xem bước 5 của "Chuyển sang máy mới cùng dữ liệu" |
 
 Mật khẩu admin Keycloak, mật khẩu tài khoản demo và mọi secret nằm trong `deploy/.env.prod` trên server (quyền 600, không commit). Gửi mật khẩu demo cho nhóm qua kênh riêng.
 
+### Cột "Đăng nhập gần nhất": bật login events cho realm đang chạy
+
+Trang Người dùng lấy `last_login_at` từ event `LOGIN` của Keycloak. `keycloak/realm-export.json` đã bật sẵn (`eventsEnabled: true`, `eventsExpiration: 2592000` = 30 ngày), nhưng Keycloak chỉ import file này khi realm **chưa tồn tại**. Realm đã chạy từ trước giữ cấu hình cũ của nó, và `deploy.sh` không sửa phần này. Realm chưa lưu event thì cột luôn trống.
+
+Kiểm tra và bật trên realm đang chạy:
+
+1. Mở Keycloak admin qua SSH tunnel (dòng "Keycloak admin" ở bảng trên), chọn realm `contract-intelligence`.
+2. **Realm settings → Events → User events settings**: bật **Save events**, đặt **Expiration** 30 ngày. Danh sách event được lưu phải có `LOGIN`. Bấm **Save**.
+3. **Clients → `contract-intel-backend` → Service accounts roles**: phải có role `view-events` của client `realm-management`. Thiếu thì backend nhận 403 khi đọc event.
+4. Đăng nhập một tài khoản rồi mở trang Người dùng: cột phải có giá trị. Nếu vẫn trống, tìm dòng `keycloak.login_events.failed` trong log backend.
+
+Chỉ các lần đăng nhập sau khi bật mới được ghi. Ai không đăng nhập quá 30 ngày thì cột trống.
+
+### Backup ra ngoài máy (Supabase Storage)
+
+Mặc định `deploy/backup.sh` chỉ lưu backup trên chính máy chủ; máy hỏng thì backup mất theo. Khi `BACKUP_S3_ENDPOINT` có giá trị trong `deploy/.env.prod`, mỗi lần chạy script còn làm thêm:
+
+1. Gom backup của lần chạy đó (2 DB + MinIO) thành một file, mã hoá AES-256 bằng `BACKUP_ENCRYPTION_PASSPHRASE`.
+2. Cắt thành các phần `BACKUP_PART_SIZE` (mặc định 45 MB) và đẩy lên `<bucket>/<thời điểm>/`, kèm file `SHA256SUMS`.
+3. Xoá các bản trên bucket cũ hơn `BACKUP_REMOTE_KEEP_DAYS` ngày (mặc định bằng bản local, 7 ngày).
+
+Đẩy lên lỗi thì script exit 1 và ghi `off-site copy FAILED` vào log; bản backup local vẫn còn nguyên. Lúc chạy, máy chủ cần thêm chỗ trống bằng dung lượng một bản backup cho file tạm.
+
+Cấu hình một lần:
+
+1. Trên Supabase: tạo một bucket **private** (ví dụ `ci-backups`), rồi tạo S3 access key trong phần cài đặt Storage.
+2. Điền vào `deploy/.env.prod`:
+
+   ```env
+   BACKUP_S3_ENDPOINT=https://<project-ref>.supabase.co/storage/v1/s3
+   BACKUP_S3_REGION=<vùng của project, ví dụ ap-southeast-1>
+   BACKUP_S3_BUCKET=ci-backups
+   BACKUP_S3_ACCESS_KEY_ID=...
+   BACKUP_S3_SECRET_ACCESS_KEY=...
+   BACKUP_ENCRYPTION_PASSPHRASE=<ít nhất 20 ký tự>
+   ```
+
+3. **Lưu `BACKUP_ENCRYPTION_PASSPHRASE` ở một nơi ngoài máy chủ** (trình quản lý mật khẩu của nhóm). Mất passphrase thì không đọc được backup; nếu chỉ để trên máy chủ thì nó mất cùng lúc với máy.
+
+   **Người giữ (Lead chốt ngày 14/10/2026):** Phạm Hoàng Chương giữ `BACKUP_ENCRYPTION_PASSPHRASE` và S3 access key của Supabase, có lưu một bản ngoài server. Lead đồng ý gửi bản backup **đã mã hoá** lên Supabase. Đổi người giữ thì ghi lại ở đây, và người cũ bàn giao cả passphrase lẫn key.
+4. Chạy thử `sudo deploy/backup.sh`, kiểm tra dòng `[backup] off-site: ...` và các file trên bucket.
+
+Giới hạn cần biết: Supabase đặt trần dung lượng cho mỗi file (gói miễn phí 50 MB) và tổng dung lượng Storage (gói miễn phí 1 GB). Mỗi đêm là một bản đầy đủ, nên 7 bản có thể vượt 1 GB khi hồ sơ nhiều; khi đó giảm `BACKUP_REMOTE_KEEP_DAYS` hoặc nâng gói.
+
+Khôi phục từ bucket: tải cả thư mục của một lần backup về, rồi:
+
+```bash
+sha256sum -c SHA256SUMS
+export BACKUP_ENCRYPTION_PASSPHRASE='...'
+cat backup.tar.enc.part-* \
+  | openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:BACKUP_ENCRYPTION_PASSPHRASE \
+  | tar -xf -
+```
+
+Kết quả là thư mục `<thời điểm>/` gồm `backend.dump`, `keycloak.dump` và `minio/`, giống bản backup local. Khôi phục DB theo dòng "Khôi phục DB backend" ở bảng trên.
+
 ## Giới hạn đã biết
 
-- **Kafka không lưu ra volume.** Mất message đang bay khi restart. Watchdog AI1 sẽ fail run bị ảnh hưởng với `AI1_TIMEOUT`, người dùng bấm chạy lại OCR.
-- **Một kết quả OCR gửi thẳng qua Kafka chỉ chứa được khoảng 144 trang** (khoảng 71 KiB/trang, trần 10 MiB), cho tới khi kết quả OCR đi qua MinIO + URI (DOC-11 §4.2 #2).
+- **Kafka không lưu ra volume.** Mất message đang bay khi restart: watchdog AI1 sẽ fail run bị ảnh hưởng với `AI1_TIMEOUT`, người dùng bấm chạy lại OCR. Offset cũng quay về 0 sau mỗi lần restart; mọi event backend gửi đều có `event_id`, nên worker không nhầm event mới với event đã xử lý trước khi restart.
+- Kết quả OCR lớn đi qua MinIO (`result_ref`), không gửi thẳng qua Kafka. Đã chạy thử local hồ sơ 200 trang (kết quả 6 MB).
 - **Có giám sát, chưa có cảnh báo.** Dashboard Grafana ở `/admin/monitoring` (docs/MONITORING.md). Chưa có Alertmanager, nên vẫn phải có người xem.

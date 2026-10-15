@@ -1,9 +1,7 @@
 import { ApiError, requestJson } from './client'
 
 export type ReOcrProfile =
-  | 'high_res_binarize'
-  | 'table_optimized'
-  | 'handwritten_vietnamese'
+  'high_res_binarize' | 'table_optimized' | 'handwritten_vietnamese'
 
 export const REOCR_PROFILES: Array<{ value: ReOcrProfile; label: string }> = [
   { value: 'high_res_binarize', label: 'Ảnh mờ, nhị phân độ phân giải cao' },

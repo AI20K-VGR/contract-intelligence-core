@@ -71,7 +71,7 @@ export const structureViews: {
   },
   {
     value: 'mindmap',
-    label: 'Sơ đồ',
+    label: 'Cây ngang',
     icon: 'account_tree',
     hint: 'Sơ đồ tư duy: gốc bên trái, nhánh rẽ sang phải.',
   },

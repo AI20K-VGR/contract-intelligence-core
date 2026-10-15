@@ -1,6 +1,7 @@
 """User Management APIs — B2B SaaS admin CRUD via Keycloak Admin API.
 
-RBAC: ADMINISTRATOR only.
+RBAC: ADMINISTRATOR only, except ``GET /users/directory`` (OPERATOR too), which
+lists who a dossier can be shared with.
 Guards: no self-modification; protect the last ADMINISTRATOR.
 """
 
@@ -18,6 +19,7 @@ from contract_intelligence.identity.interfaces.api.dependencies import UserRepos
 from contract_intelligence.infrastructure import keycloak_admin as kc
 from contract_intelligence.schemas.users import (
     UserCreateRequest,
+    UserDirectoryEntryDTO,
     UserDTO,
     UserPatchRequest,
     UserRole,
@@ -32,6 +34,8 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/users", tags=["Users"])
 
 AdminUser = Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))]
+# Whoever may share a dossier (shared/acl.py DOSSIER_MANAGE): OPERATOR, ADMINISTRATOR.
+SharingUser = Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))]
 
 _ROLE_VI = {
     "OPERATOR": "Vận hành",
@@ -135,6 +139,53 @@ async def list_users(
 
     return ApiResponse(
         data=result.items,
+        meta=ApiMeta(
+            page=(offset // limit) + 1,
+            page_size=limit,
+            total=result.total,
+        ),
+    )
+
+
+@router.get(
+    "/directory",
+    response_model=ApiResponse[list[UserDirectoryEntryDTO]],
+    summary="Tenant members a dossier can be shared with",
+)
+async def list_directory(
+    user: SharingUser,
+    q: Annotated[str | None, Query(description="Search email / display name")] = None,
+    role: Annotated[UserRole | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> ApiResponse[list[UserDirectoryEntryDTO]] | JSONResponse:
+    """RBAC: OPERATOR, ADMINISTRATOR. Active members of the caller's tenant only.
+
+    Returns ``id``, ``email``, ``display_name`` and ``role``; nothing an
+    administrator manages (status, invite, last login). Unlike ``GET /users``,
+    a user without a ``tenant_id`` attribute in Keycloak is not listed.
+    """
+    try:
+        result = await kc.list_users(
+            q=q,
+            role=role,
+            status="active",
+            limit=limit,
+            offset=offset,
+            tenant_id=user.tenant_id or None,
+            with_last_login=False,
+            strict_tenant=True,
+        )
+    except kc.UserAdminError as exc:
+        return _error_response(exc)
+
+    return ApiResponse(
+        data=[
+            UserDirectoryEntryDTO(
+                id=item.id, email=item.email, display_name=item.display_name, role=item.role
+            )
+            for item in result.items
+        ],
         meta=ApiMeta(
             page=(offset // limit) + 1,
             page_size=limit,

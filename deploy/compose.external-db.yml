@@ -1,0 +1,40 @@
+# =============================================================================
+# App server whose databases live on a DB server of their own
+# (deploy/compose.db.yml). deploy.sh adds this file after compose.prod.yml
+# when BACKEND_DB_HOST is set in deploy/.env.prod; the hosts and ports there
+# feed the connection URLs in compose.prod.yml.
+#
+# backend-db and keycloak-db move to a profile nobody enables, so they never
+# start here, and no service waits for them any more.
+# =============================================================================
+
+services:
+  backend-db:
+    profiles: ["local-db"]
+
+  keycloak-db:
+    profiles: ["local-db"]
+
+  keycloak:
+    depends_on: !reset []
+
+  backend:
+    depends_on: !override
+      keycloak:
+        condition: service_started
+      kafka:
+        condition: service_started
+      minio:
+        condition: service_started
+
+  backend-worker:
+    depends_on: !override
+      backend:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      minio:
+        condition: service_started
+
+  ai2-service:
+    depends_on: !reset []

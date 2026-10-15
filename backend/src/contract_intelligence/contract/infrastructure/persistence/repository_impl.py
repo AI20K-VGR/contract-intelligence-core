@@ -6,10 +6,10 @@ Layer: infrastructure (persistence) — concrete impl cho Dossier/Document/Job/M
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import UTC
+from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import and_, delete, exists, func, or_, select, text
+from sqlalchemy import and_, bindparam, delete, exists, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.sql.schema import Table
@@ -604,6 +604,34 @@ class DossierRepositoryImpl(DossierRepository):
             )
         ).one()
         return int(row[0] or 0), int(row[1] or 0)
+
+    async def lifecycle(
+        self, dossier_ids: Sequence[str]
+    ) -> dict[str, tuple[bool, datetime | None]]:
+        """``{dossier_id: (locked, approved_at)}`` in one query, for a page of dossiers.
+
+        ``approved_at`` comes from the approval snapshot. Raw SQL keeps the
+        review BC's ORM out of this module (import-linter).
+        """
+        if not dossier_ids:
+            return {}
+        stmt = text(
+            "SELECT d.id, d.is_locked, a.approved_at "
+            "FROM dossier d LEFT JOIN dossier_approval a "
+            "ON a.dossier_id = d.id AND a.tenant_id = d.tenant_id "
+            "WHERE d.tenant_id = :tenant_id AND d.id IN :ids"
+        ).bindparams(bindparam("ids", expanding=True))
+        rows = await self._session.execute(
+            stmt, {"tenant_id": self._tenant_id, "ids": list(dossier_ids)}
+        )
+        result: dict[str, tuple[bool, datetime | None]] = {}
+        for dossier_id, is_locked, approved_at in rows:
+            if isinstance(approved_at, str):  # SQLite returns text for raw SQL
+                approved_at = datetime.fromisoformat(approved_at)
+            if approved_at is not None and approved_at.tzinfo is None:
+                approved_at = approved_at.replace(tzinfo=UTC)
+            result[str(dossier_id)] = (bool(is_locked), approved_at)
+        return result
 
     async def is_tombstoned(self, dossier_id: str) -> bool:
         """True when dossier exists for tenant but has been tombstoned."""

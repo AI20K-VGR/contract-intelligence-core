@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   fromDateInput,
+  grantEffect,
   grantPermission,
   isGrantExpired,
   toDateInput,
@@ -30,5 +31,15 @@ describe('share grant helpers', () => {
     const iso = fromDateInput('2026-10-05')
     expect(toDateInput(iso)).toBe('2026-10-05')
     expect(new Date(iso as string).getHours()).toBe(23)
+  })
+})
+
+describe('grantEffect', () => {
+  it('keeps review with reviewers and edits with operators', () => {
+    expect(grantEffect('OPERATOR', 'edit')).toContain('Không thẩm định')
+    expect(grantEffect('REVIEWER', 'edit')).toContain('thẩm định')
+    expect(grantEffect('REVIEWER', 'edit')).toContain('không duyệt')
+    expect(grantEffect('REVIEWER', 'read')).toContain('Không thẩm định')
+    expect(grantEffect('ADMINISTRATOR', 'edit')).toContain('duyệt')
   })
 })

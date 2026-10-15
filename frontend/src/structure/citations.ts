@@ -131,7 +131,9 @@ type CitationTable = {
 }
 
 function compactCitationText(text: string) {
-  return squash(text).replace(/[|·,:;()[\]"']/g, '').replace(/\s+/g, '')
+  return squash(text)
+    .replace(/[|·,:;()[\]"']/g, '')
+    .replace(/\s+/g, '')
 }
 
 /** Lấy bbox của dòng bảng khi AI2 chỉ có line text mà OCR không có geometry. */
@@ -144,7 +146,11 @@ export function citationTableBbox(
   let best: [number, number, number, number] | null = null
   let bestScore = 0
   for (const table of tables) {
-    if (cite.pageNo !== null && cite.pageNo !== undefined && table.pageNo !== cite.pageNo)
+    if (
+      cite.pageNo !== null &&
+      cite.pageNo !== undefined &&
+      table.pageNo !== cite.pageNo
+    )
       continue
     const rows = new Map<number, Array<CitationTable['cells'][number]>>()
     for (const cell of table.cells) {
@@ -155,14 +161,20 @@ export function citationTableBbox(
     for (const cells of rows.values()) {
       const nonHeader = cells.filter((cell) => !cell.header && cell.text.trim())
       if (nonHeader.length === 0) continue
-      const rowText = compactCitationText(nonHeader.map((cell) => cell.text).join(' '))
+      const rowText = compactCitationText(
+        nonHeader.map((cell) => cell.text).join(' '),
+      )
       const matching = nonHeader.filter((cell) => {
         const value = compactCitationText(cell.text)
-        return value.length >= 4 && (needle.includes(value) || value.includes(needle))
+        return (
+          value.length >= 4 &&
+          (needle.includes(value) || value.includes(needle))
+        )
       })
       const rowMatches =
         matching.length >= 2 ||
-        (rowText.length >= 8 && (needle.includes(rowText) || rowText.includes(needle)))
+        (rowText.length >= 8 &&
+          (needle.includes(rowText) || rowText.includes(needle)))
       if (!rowMatches) continue
       const boxes = nonHeader
         .map((cell) => cell.bbox)
@@ -189,7 +201,10 @@ export function citationTableBbox(
   return best
 }
 
-function hasMatchedDescendant(node: ClauseNode, ids: ReadonlySet<string>): boolean {
+function hasMatchedDescendant(
+  node: ClauseNode,
+  ids: ReadonlySet<string>,
+): boolean {
   return node.children.some(
     (child) => ids.has(child.id) || hasMatchedDescendant(child, ids),
   )
@@ -247,8 +262,12 @@ export function searchCites(
   }
   const directNode = (hit: (typeof hits)[number]) => {
     const documentId =
-      hit.citation?.documentId ?? hit.citation?.sourceFileId ?? hit.sourceFileId ?? null
-    if (sourceDocumentId && documentId && documentId !== sourceDocumentId) return null
+      hit.citation?.documentId ??
+      hit.citation?.sourceFileId ??
+      hit.sourceFileId ??
+      null
+    if (sourceDocumentId && documentId && documentId !== sourceDocumentId)
+      return null
     // OCR line ids are more reliable than answer text: the latter may repeat
     // a phrase such as "phụ lục" in another article.  Use the same node id
     // convention as buildNumberedTree when the cited line opened a node.
@@ -261,20 +280,32 @@ export function searchCites(
   const cites: SearchCite[] = []
   hits.forEach((hit, index) => {
     const documentId =
-      hit.citation?.documentId ?? hit.citation?.sourceFileId ?? hit.sourceFileId ?? null
+      hit.citation?.documentId ??
+      hit.citation?.sourceFileId ??
+      hit.sourceFileId ??
+      null
     const clause = directNode(hit)
     const candidates = [
       hit.citation?.quote,
       hit.text,
       ...(clause ? [clause.text, `${clause.label} ${clause.title ?? ''}`] : []),
-    ].filter((value): value is string => Boolean(value && value.trim().length >= 4))
-    const quote = candidates.find((value) => answerText.includes(squash(value)))
-      ?? candidates[0]
+    ].filter((value): value is string =>
+      Boolean(value && value.trim().length >= 4),
+    )
+    const quote =
+      candidates.find((value) => answerText.includes(squash(value))) ??
+      candidates[0]
     if (!clause) {
       // The structure page currently loads the contract document only. Keep a
       // foreign-document citation visible, but never map its page/line id onto
       // a body node with the same page number (for example annex p2:l5 → Điều 2).
-      if (!sourceDocumentId || !documentId || documentId === sourceDocumentId || !quote) return
+      if (
+        !sourceDocumentId ||
+        !documentId ||
+        documentId === sourceDocumentId ||
+        !quote
+      )
+        return
       if (!answerText.includes(squash(quote))) return
       const id = `foreign:${documentId}:${hit.lineId ?? hit.citation?.lineId ?? hit.pageNo ?? index}`
       if (seen.has(id)) return
@@ -298,7 +329,11 @@ export function searchCites(
       id: clause.id,
       n,
       quote,
-      documentId: hit.citation?.documentId ?? hit.citation?.sourceFileId ?? hit.sourceFileId ?? null,
+      documentId:
+        hit.citation?.documentId ??
+        hit.citation?.sourceFileId ??
+        hit.sourceFileId ??
+        null,
       pageNo: hit.pageNo,
       lineId: hit.lineId ?? hit.citation?.lineId ?? null,
       bbox: hit.bbox ?? hit.citation?.bbox ?? null,
@@ -320,10 +355,56 @@ export function searchCites(
         cites.push({
           id: clause.id,
           n,
-          quote: body.length >= 12 ? body : squash(`${clause.label} ${clause.title ?? ''}`),
+          quote:
+            body.length >= 12
+              ? body
+              : squash(`${clause.label} ${clause.title ?? ''}`),
         })
       }
     }
   }
   return cites
+}
+
+/** Dòng mới bắt đầu một mục khác: khoản đánh số, Điều/Chương, gạch đầu dòng, bảng, đoạn trống. */
+
+const NEW_ITEM =
+  /^[ \t]*(\d+(\.\d+)*\.?\s|(điều|chương|mục|phụ lục)\s|[-•*|]|\n|$)/i
+
+/**
+
+ * Chỗ đặt số trích dẫn sau đoạn khớp: hết câu (. ; ! ? rồi khoảng trắng), để câu
+
+ * trích đọc trọn nghĩa. OCR ngắt dòng giữa câu nên không dừng ở cuối dòng, trừ
+
+ * khi dòng sau là mục mới. Dòng bảng (có |) không có dấu câu: dừng ở cuối dòng.
+
+ */
+
+export function sentenceEnd(answer: string, from: number): number {
+  const lineStart = answer.lastIndexOf('\n', from - 1) + 1
+
+  const lineEnd = answer.indexOf('\n', from)
+
+  const line = answer.slice(lineStart, lineEnd < 0 ? answer.length : lineEnd)
+
+  if (line.includes('|')) return lineEnd < 0 ? answer.length : lineEnd
+
+  for (let index = from; index < answer.length; index += 1) {
+    const char = answer[index] ?? ''
+
+    if (char === '\n' && NEW_ITEM.test(answer.slice(index + 1))) return index
+
+    if (!'.;!?'.includes(char)) continue
+
+    // 1.286.400 hay 4.2. là số, không phải hết câu.
+
+    if (/\d/.test(answer[index - 1] ?? '')) continue
+
+    const next = answer[index + 1]
+
+    if (next === undefined || /\s/.test(next)) return index + 1
+  }
+
+  return answer.length
 }

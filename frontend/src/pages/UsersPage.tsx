@@ -41,7 +41,6 @@ const roleOptions: {
   },
 ]
 
-
 const roleLabel: Record<ManagedUserRole, string> = {
   OPERATOR: 'Vận hành',
   REVIEWER: 'Thẩm định',
@@ -224,49 +223,21 @@ export function UsersPage() {
 
   return (
     <div className="flex flex-col w-full gap-space-lg">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
-        <div className="flex flex-col gap-space-xs">
-          {titleInHeader ? null : (
-            <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight">
-              Người dùng & Phân quyền
-            </h1>
-          )}
-          <p className="font-body-sm text-body-sm text-secondary max-w-2xl">
-            Tạo tài khoản và gán vai trò. Người dùng tự đặt mật khẩu qua email,
-            rồi đăng nhập SSO.
-          </p>
-        </div>
-        <button
-          className="flex items-center gap-space-xs px-space-lg py-2 rounded bg-primary-container text-on-primary hover:bg-inverse-surface transition-colors shadow-sm font-label-md text-label-md self-start md:self-auto"
-          type="button"
-          onClick={() => setCreateOpen(true)}
-        >
-          <MaterialIcon name="person_add" className="text-[18px]" />
-          <span>Tạo người dùng</span>
-        </button>
-      </div>
-
-      <div className="w-full bg-surface-container-low px-space-lg py-space-md rounded flex items-center gap-space-md">
-        <div className="w-7 h-7 rounded bg-surface-container flex items-center justify-center shrink-0">
-          <MaterialIcon
-            name="mark_email_unread"
-            className="text-secondary text-[16px]"
-          />
-        </div>
-        <p className="font-body-sm text-body-sm text-on-surface-variant">
-          <strong className="font-title-sm text-title-sm text-on-surface">
-            Vận hành và Thẩm định
-          </strong>{' '}
-          dùng chung giao diện người dùng. Quản trị vào giao diện này.
-        </p>
-      </div>
+      {titleInHeader ? null : (
+        <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight">
+          Người dùng & Phân quyền
+        </h1>
+      )}
 
       {notice ? (
         <div
           className="fixed top-20 right-6 z-[70] w-[min(24rem,calc(100vw-3rem))] px-space-lg py-space-md rounded bg-surface-container-lowest text-on-surface font-body-sm text-body-sm shadow-sm border border-surface-container flex items-start gap-space-md"
           role="status"
         >
-          <MaterialIcon name="check_circle" className="text-primary text-[20px] shrink-0" />
+          <MaterialIcon
+            name="check_circle"
+            className="text-primary text-[20px] shrink-0"
+          />
           <span className="flex-1">{notice}</span>
           <button
             className="text-secondary hover:text-on-surface shrink-0"
@@ -327,6 +298,14 @@ export function UsersPage() {
                 { value: 'disabled', label: 'Đã khóa' },
               ]}
             />
+            <button
+              className="flex items-center gap-space-xs px-space-md py-1.5 rounded bg-brand-100 text-brand-700 hover:bg-brand-200 transition-colors shadow-sm font-label-md text-label-md"
+              type="button"
+              onClick={() => setCreateOpen(true)}
+            >
+              <MaterialIcon name="person_add" className="text-[18px]" />
+              <span>Tạo người dùng</span>
+            </button>
           </div>
         </div>
 
@@ -499,7 +478,7 @@ function UserRow({
           <div
             className={`w-8 h-8 rounded-full flex items-center justify-center font-title-sm text-title-sm font-semibold shrink-0 ${
               member.role === 'ADMINISTRATOR'
-                ? 'bg-primary-container text-on-primary'
+                ? 'bg-brand-200 text-brand-800'
                 : 'bg-surface-container text-secondary'
             } ${muted ? 'opacity-60' : ''}`}
           >
@@ -688,7 +667,8 @@ function CreateUserDialog({
       return
     }
     const nameField = event.currentTarget.elements.namedItem('displayName')
-    const typedName = nameField instanceof HTMLInputElement ? nameField.value : name
+    const typedName =
+      nameField instanceof HTMLInputElement ? nameField.value : name
     const displayName = typedName.trim()
     if (!displayName) {
       setFieldError(null)
@@ -720,9 +700,9 @@ function CreateUserDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center px-space-md py-space-lg bg-primary/40">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center px-space-md py-space-lg bg-primary/15">
       <form
-        className="w-full max-w-lg bg-surface-container-lowest rounded shadow-sm p-space-lg flex flex-col gap-space-lg max-h-full overflow-y-auto"
+        className="w-full max-w-lg bg-surface-container-lowest rounded shadow-xl p-space-lg flex flex-col gap-space-lg max-h-full overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -786,7 +766,11 @@ function CreateUserDialog({
               }}
             />
             {nameError ? (
-              <p id="new-user-name-error" className="font-body-sm text-body-sm text-error" role="alert">
+              <p
+                id="new-user-name-error"
+                className="font-body-sm text-body-sm text-error"
+                role="alert"
+              >
                 {nameError}
               </p>
             ) : null}
@@ -841,7 +825,7 @@ function CreateUserDialog({
             Hủy
           </button>
           <button
-            className="px-space-lg py-2 rounded bg-primary-container text-on-primary hover:bg-inverse-surface font-label-md text-label-md disabled:opacity-70"
+            className="px-space-lg py-2 rounded bg-brand-100 text-brand-700 hover:bg-brand-200 font-label-md text-label-md disabled:opacity-70"
             type="submit"
             disabled={saving}
           >
@@ -904,9 +888,9 @@ function ConfirmDialog({
   }, [busy, onClose])
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center px-space-md bg-primary/40">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center px-space-md bg-primary/15">
       <div
-        className="w-full max-w-md bg-surface-container-lowest rounded shadow-sm p-space-lg flex flex-col gap-space-md"
+        className="w-full max-w-md bg-surface-container-lowest rounded shadow-xl p-space-lg flex flex-col gap-space-md"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -928,7 +912,7 @@ function ConfirmDialog({
             Hủy
           </button>
           <button
-            className="px-space-lg py-2 rounded bg-primary-container text-on-primary hover:bg-inverse-surface font-label-md text-label-md disabled:opacity-70"
+            className="px-space-lg py-2 rounded bg-brand-100 text-brand-700 hover:bg-brand-200 font-label-md text-label-md disabled:opacity-70"
             type="button"
             onClick={onConfirm}
             disabled={busy}

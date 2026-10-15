@@ -569,7 +569,7 @@ services:
       AI2_QUERY_LLM_TIMEOUT_SECONDS: "15"
       AI2_EMBEDDING_BASE_URL: ${AI2_EMBEDDING_BASE_URL:-https://api.openai.com/v1}
       AI2_EMBEDDING_API_KEY: ${AI2_EMBEDDING_API_KEY:-}
-      AI2_EMBEDDING_DISCOVERY_ENABLED: ${AI2_EMBEDDING_DISCOVERY_ENABLED:-true}
+      AI2_EMBEDDING_DISCOVERY_ENABLED: ${AI2_EMBEDDING_DISCOVERY_ENABLED:-false}
       AI2_EMBEDDING_MODEL: ${AI2_EMBEDDING_MODEL:-text-embedding-3-small}
       AI2_SEMANTIC_CONTEXT_CAPS: '{"max_hops":2,"max_nodes":256,"max_context_tokens":32768,"max_output_tokens":8192,"max_llm_calls":20,"max_seconds":300}'
     depends_on:

@@ -1653,7 +1653,8 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
     """Persist AI1 OCR result and update job/dossier status.
 
     Idempotent against the DB: stale runs are dropped, a failed job cannot
-    fail twice, and a result already recorded on the run is not re-persisted.
+    fail twice, a result already recorded on the run is not re-persisted, and
+    a failed event for a document whose result is recorded is ignored.
     """
     event_id = str(message.get("event_id") or "")
     raw_payload = message.get("payload")
@@ -1685,6 +1686,21 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
     if event_type == EVENT_OCR_FAILED or str(payload.get("status")) == "failed":
         raw_error = payload.get("error")
         error: dict[str, Any] = raw_error if isinstance(raw_error, dict) else {}
+        # AI1 publishes its result before committing the Kafka offset; when
+        # that commit fails it also publishes a failed event for a document
+        # whose result is already on the run. The OCR succeeded: keep it.
+        if claimed_document_id and claimed_document_id in (
+            await _recorded_extractions(session, run_id) or set()
+        ):
+            logger.warning(
+                "worker.ai1_result.failed_after_result",
+                dossier_id=dossier_id,
+                run_id=run_id,
+                document_id=claimed_document_id,
+                event_id=event_id,
+                error=error,
+            )
+            return
         await _fail_ai1_run(
             session,
             tenant_id=tenant_id,

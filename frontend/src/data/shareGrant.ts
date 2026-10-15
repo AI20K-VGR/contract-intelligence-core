@@ -11,6 +11,46 @@ export const permissionLabels: Record<SharePermission, string> = {
   edit: 'Được sửa',
 }
 
+export type ShareRole = 'OPERATOR' | 'REVIEWER' | 'ADMINISTRATOR'
+
+export const shareRoleLabels: Record<ShareRole, string> = {
+  OPERATOR: 'Vận hành',
+  REVIEWER: 'Thẩm định',
+  ADMINISTRATOR: 'Quản trị',
+}
+
+/*
+ * Backend cần cả vai trò lẫn quyền chia sẻ (shared/acl.py): quyền "Được sửa"
+ * không cho Vận hành thẩm định, cũng không cho Thẩm định sửa hồ sơ hay duyệt.
+ */
+const GRANT_EFFECT: Record<ShareRole, Record<SharePermission, string>> = {
+  OPERATOR: {
+    read: 'Xem hồ sơ, kết quả và trích dẫn. Không sửa được.',
+    edit: 'Xem, sửa hồ sơ và chạy lại phân tích. Không thẩm định được.',
+  },
+  REVIEWER: {
+    read: 'Xem hồ sơ và kết quả thẩm định. Không thẩm định được.',
+    edit: 'Xem và thẩm định trích dẫn, xung đột. Không sửa hồ sơ, không duyệt.',
+  },
+  ADMINISTRATOR: {
+    read: 'Xem hồ sơ. Không sửa, không thẩm định được.',
+    edit: 'Xem, sửa, thẩm định và duyệt hồ sơ.',
+  },
+}
+
+/** Người này làm được gì trên hồ sơ, theo vai trò và quyền chia sẻ. */
+export function grantEffect(
+  role: ShareRole | undefined,
+  permission: SharePermission,
+) {
+  if (!role) {
+    return permission === 'read'
+      ? 'Chỉ xem hồ sơ.'
+      : 'Thao tác theo vai trò của người nhận.'
+  }
+  return GRANT_EFFECT[role][permission]
+}
+
 /** Chưa có trường permission nghĩa là bản chia sẻ cũ, backend coi là được sửa. */
 export function grantPermission(grant: ShareGrantLike): SharePermission {
   return grant.permission === 'read' ? 'read' : 'edit'

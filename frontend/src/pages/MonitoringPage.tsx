@@ -32,6 +32,11 @@ function errorMessage(error: unknown) {
   return 'Không mở được bảng giám sát. Thử lại.'
 }
 
+/** Grafana mặc định nền tối; ép giao diện sáng cho hợp màu ứng dụng. */
+function withLightTheme(url: string) {
+  return `${url}${url.includes('?') ? '&' : '?'}theme=light`
+}
+
 /**
  * Grafana dashboard inside the app shell. The route is wrapped in
  * RequireRole(admin); the backend checks ADMINISTRATOR again on the session
@@ -49,7 +54,11 @@ export function MonitoringPage() {
       try {
         const session = await openMonitoringSession(controller.signal)
         if (first) {
-          setState({ kind: 'ready', url: session.dashboardUrl, notice: null })
+          setState({
+            kind: 'ready',
+            url: withLightTheme(session.dashboardUrl),
+            notice: null,
+          })
         } else {
           setState((current) =>
             current.kind === 'ready' ? { ...current, notice: null } : current,
@@ -116,7 +125,7 @@ function MonitoringView({
           xem). Trace chi tiết từng tài liệu nằm ở Langfuse.
         </p>
         <button
-          className="flex items-center gap-space-xs px-space-md py-1 rounded bg-surface-container text-on-surface hover:bg-surface-container-high font-label-sm text-label-sm transition-colors disabled:text-outline disabled:cursor-not-allowed"
+          className="flex items-center gap-space-xs px-space-md py-1 rounded bg-brand-100 text-brand-700 hover:bg-brand-200 font-label-sm text-label-sm transition-colors disabled:text-outline disabled:cursor-not-allowed"
           type="button"
           disabled={state.kind === 'loading'}
           onClick={() =>
@@ -157,7 +166,7 @@ function MonitoringView({
           key={frameKey}
           title="Grafana — giám sát hệ thống"
           src={state.url}
-          className="min-h-0 w-full flex-1 rounded-xl border-0 bg-surface-container-lowest shadow-sm"
+          className="min-h-0 w-full flex-1 rounded-xl border border-outline-variant/60 bg-surface-container-lowest shadow-sm"
           // No top-navigation: the dashboard can never redirect the app.
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
           referrerPolicy="no-referrer"

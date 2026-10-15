@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { MaterialIcon } from '../components/icons'
 import { editCitations } from '../data/citationEdit'
+import { useGoBack } from '../hooks/useGoBack'
 import { usePageTitle } from '../hooks/usePageTitle'
 
 type DiffTab = 'split' | 'current' | 'previous'
@@ -85,6 +86,7 @@ function CurrentVersion() {
 export function CitationEditPage() {
   usePageTitle('Chỉnh sửa trích dẫn')
   const navigate = useNavigate()
+  const goBack = useGoBack('/ho-so')
   const [zoom, setZoom] = useState(115)
   const [rotation, setRotation] = useState(0)
   const [fullscreen, setFullscreen] = useState(false)
@@ -286,12 +288,15 @@ export function CitationEditPage() {
     <div className="flex flex-col w-full gap-space-md">
       <div className="w-full bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-space-md">
         <div className="flex items-center gap-space-md flex-wrap">
-          <Link
+          <button
+            aria-label="Quay lại"
             className="w-9 h-9 rounded bg-surface-container hover:bg-surface-container-high text-on-surface flex items-center justify-center"
-            to="/nhan-xet-chinh-sua"
+            title="Quay lại"
+            type="button"
+            onClick={goBack}
           >
             <MaterialIcon name="arrow_back" className="text-[18px]" />
-          </Link>
+          </button>
           <div className="w-9 h-9 rounded bg-primary-container text-on-primary flex items-center justify-center font-title-sm text-title-sm">
             <MaterialIcon name="difference" className="text-[20px]" />
           </div>

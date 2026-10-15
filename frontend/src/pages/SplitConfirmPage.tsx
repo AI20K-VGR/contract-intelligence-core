@@ -15,6 +15,7 @@ import {
 import { getDossierStructure, type DossierStructure } from '../api/structure'
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
+import { useDossierPermissions } from '../auth/dossierPermissions'
 import { MaterialIcon } from '../components/icons'
 import { SplitPageStrip } from '../components/SplitPageStrip'
 import { progressPath } from '../data/dossiers'
@@ -42,9 +43,9 @@ export function SplitConfirmPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const backTo = user ? dossiersPath(user.role) : '/ho-so'
-  const backLabel = user ? dossiersLabel(user.role) : 'Hồ sơ'
-  const canEdit =
-    user?.backendRole === 'OPERATOR' || user?.backendRole === 'ADMINISTRATOR'
+  const backLabel = user ? dossiersLabel(user.role, user.backendRole) : 'Hồ sơ'
+  const permissions = useDossierPermissions(dossierId)
+  const canEdit = permissions.canEdit
 
   const [dossier, setDossier] = useState<DossierStructure | null>(null)
   const [parts, setParts] = useState<DraftPart[]>([])

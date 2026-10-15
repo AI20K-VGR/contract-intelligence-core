@@ -21,8 +21,8 @@ from contract_intelligence.shared.base import utcnow
 from contract_intelligence.shared.persistence.base import Base
 from contract_intelligence.shared.query_policy import QueryTraceORM
 
-# Endpoints that produce an answer; /search returns hits, not an answer.
-HISTORY_ENDPOINTS = ("query", "ask")
+# Endpoints that produce an answer; the FE search box posts to /search.
+HISTORY_ENDPOINTS = ("query", "ask", "search")
 
 
 class QueryAnswerORM(Base):
@@ -56,18 +56,24 @@ async def list_query_history(
     *,
     tenant_id: str,
     dossier_id: str,
-    actor_id: str | None,
+    actor_id: str,
     limit: int,
     offset: int,
 ) -> tuple[list[dict[str, Any]], int]:
-    """Newest first. ``actor_id`` None = every asker (owner / administrator view)."""
+    """Newest first; only the questions ``actor_id`` asked.
+
+    There is no view of everyone's questions: each person sees their own
+    history only (DOC-05b v2.0.0). An empty ``actor_id`` is refused rather than
+    read as "no filter".
+    """
+    if not actor_id:
+        raise ValueError("actor_id is required: query history is per user")
     conditions = [
         QueryTraceORM.tenant_id == tenant_id,
         QueryTraceORM.dossier_id == dossier_id,
         QueryTraceORM.endpoint.in_(HISTORY_ENDPOINTS),
+        QueryTraceORM.actor_id == actor_id,
     ]
-    if actor_id is not None:
-        conditions.append(QueryTraceORM.actor_id == actor_id)
     total = int(
         await session.scalar(select(func.count()).select_from(QueryTraceORM).where(*conditions))
         or 0

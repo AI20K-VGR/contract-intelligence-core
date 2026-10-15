@@ -54,7 +54,8 @@ function normalizeEntry(value: unknown): FindingReviewEntry {
   const row = asRecord(value) ?? {}
   const corrected = asRecord(row.corrected_value)
   return {
-    revisionNumber: typeof row.revision_number === 'number' ? row.revision_number : 0,
+    revisionNumber:
+      typeof row.revision_number === 'number' ? row.revision_number : 0,
     action: asText(row.action) ?? '',
     comment: asText(row.comment),
     assessment: asText(corrected?.assessment),
@@ -96,7 +97,10 @@ function reviewPath(findingId: string) {
   return `/api/v1/findings/${encodeURIComponent(findingId)}/review`
 }
 
-export async function getFindingReview(findingId: string, signal?: AbortSignal) {
+export async function getFindingReview(
+  findingId: string,
+  signal?: AbortSignal,
+) {
   const value = await getJson<unknown>(reviewPath(findingId), { signal })
   return normalizeReview(value)
 }

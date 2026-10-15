@@ -53,16 +53,27 @@ function classifyTitle(title: string): ActionType {
   ) {
     return 'flagged'
   }
-  if (['xem', 'truy cập', 'đã xem'].some((word) => startsWithWord(text, word))) {
+  if (
+    ['xem', 'truy cập', 'đã xem'].some((word) => startsWithWord(text, word))
+  ) {
     return 'viewed'
   }
-  if (['xác nhận', 'phê duyệt', 'xác minh'].some((word) => startsWithWord(text, word))) {
+  if (
+    ['xác nhận', 'phê duyệt', 'xác minh'].some((word) =>
+      startsWithWord(text, word),
+    )
+  ) {
     return 'verified'
   }
-  if (['tải lên', 'upload'].some((word) => startsWithWord(text, word))) return 'uploaded'
+  if (['tải lên', 'upload'].some((word) => startsWithWord(text, word)))
+    return 'uploaded'
   if (['thêm', 'mời'].some((word) => startsWithWord(text, word))) return 'added'
   if (startsWithWord(text, 'tạo')) return 'created'
-  if (['sửa', 'chỉnh', 'cập nhật', 'đổi'].some((word) => startsWithWord(text, word))) {
+  if (
+    ['sửa', 'chỉnh', 'cập nhật', 'đổi'].some((word) =>
+      startsWithWord(text, word),
+    )
+  ) {
     return 'edited'
   }
   return 'other'
@@ -74,12 +85,17 @@ function classify(event: { id: string; title: string }): ActionType {
   if (id.startsWith('dossier:')) return 'created'
   if (id.startsWith('user:')) return 'added'
   if (id.startsWith('deleted:')) return 'flagged'
-  if (id.startsWith('approval:') || id.startsWith('manifest:')) return 'verified'
-  if (id.startsWith('run:')) return /thất bại/i.test(event.title) ? 'flagged' : 'other'
+  if (id.startsWith('approval:') || id.startsWith('manifest:'))
+    return 'verified'
+  if (id.startsWith('run:'))
+    return /thất bại/i.test(event.title) ? 'flagged' : 'other'
   if (id.startsWith('review:')) {
     const text = event.title.trim().toLowerCase()
     if (startsWithWord(text, 'xác nhận')) return 'verified'
-    if (startsWithWord(text, 'từ chối') || startsWithWord(text, 'yêu cầu thêm')) {
+    if (
+      startsWithWord(text, 'từ chối') ||
+      startsWithWord(text, 'yêu cầu thêm')
+    ) {
       return 'flagged'
     }
     if (
@@ -93,49 +109,51 @@ function classify(event: { id: string; title: string }): ActionType {
   return classifyTitle(event.title)
 }
 
-const badgeStyle: Record<ActionType, { icon: string; label: string; className: string }> =
-  {
-    edited: {
-      icon: 'edit_note',
-      label: 'Đã chỉnh sửa',
-      className: 'bg-amber-50 text-amber-800',
-    },
-    verified: {
-      icon: 'check_circle',
-      label: 'Đã xác minh',
-      className: 'bg-emerald-50 text-emerald-800',
-    },
-    created: {
-      icon: 'note_add',
-      label: 'Tạo mới',
-      className: 'bg-surface-container-high text-primary-container',
-    },
-    uploaded: {
-      icon: 'upload_file',
-      label: 'Tải lên',
-      className: 'bg-surface-container text-on-tertiary-fixed-variant',
-    },
-    added: {
-      icon: 'person_add',
-      label: 'Thêm',
-      className: 'bg-secondary-container text-on-secondary-container',
-    },
-    flagged: {
-      icon: 'flag',
-      label: 'Cảnh báo / Từ chối',
-      className: 'bg-error-container text-error',
-    },
-    viewed: {
-      icon: 'visibility',
-      label: 'Đã xem',
-      className: 'bg-surface-container text-on-surface-variant',
-    },
-    other: {
-      icon: 'history',
-      label: 'Khác',
-      className: 'bg-surface-container text-on-surface-variant',
-    },
-  }
+const badgeStyle: Record<
+  ActionType,
+  { icon: string; label: string; className: string }
+> = {
+  edited: {
+    icon: 'edit_note',
+    label: 'Đã chỉnh sửa',
+    className: 'bg-amber-50 text-amber-800',
+  },
+  verified: {
+    icon: 'check_circle',
+    label: 'Đã xác minh',
+    className: 'bg-emerald-50 text-emerald-800',
+  },
+  created: {
+    icon: 'note_add',
+    label: 'Tạo mới',
+    className: 'bg-surface-container-high text-primary-container',
+  },
+  uploaded: {
+    icon: 'upload_file',
+    label: 'Tải lên',
+    className: 'bg-surface-container text-on-tertiary-fixed-variant',
+  },
+  added: {
+    icon: 'person_add',
+    label: 'Thêm',
+    className: 'bg-secondary-container text-on-secondary-container',
+  },
+  flagged: {
+    icon: 'flag',
+    label: 'Cảnh báo / Từ chối',
+    className: 'bg-error-container text-error',
+  },
+  viewed: {
+    icon: 'visibility',
+    label: 'Đã xem',
+    className: 'bg-surface-container text-on-surface-variant',
+  },
+  other: {
+    icon: 'history',
+    label: 'Khác',
+    className: 'bg-surface-container text-on-surface-variant',
+  },
+}
 
 function actionBadge(type: ActionType) {
   const badge = badgeStyle[type]
@@ -171,19 +189,24 @@ function splitWhen(value: string | null | undefined) {
   }
 }
 
-function shortId(id: string) {
-  const compact = id.replace(/-/g, '')
-  if (compact.length < 8) return `#${compact}`
-  return `#${compact.slice(0, 4)}..${compact.slice(-4)}`
+function localDayKey(value: string | null | undefined) {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
 }
 
 function avatarClass(type: ActionType) {
-  if (type === 'flagged') return 'bg-error text-on-error'
-  if (type === 'verified') return 'bg-emerald-700 text-white'
-  if (type === 'uploaded' || type === 'added') return 'bg-secondary text-on-secondary'
-  if (type === 'created') return 'bg-primary-container text-on-primary'
-  if (type === 'viewed' || type === 'other') return 'bg-surface-container text-secondary'
-  return 'bg-primary-container text-on-primary'
+  if (type === 'flagged') return 'bg-error-container text-on-error-container'
+  if (type === 'verified') return 'bg-emerald-100 text-emerald-800'
+  if (type === 'uploaded' || type === 'added')
+    return 'bg-tone-100 text-tone-700'
+  if (type === 'created') return 'bg-brand-100 text-brand-700'
+  if (type === 'viewed' || type === 'other')
+    return 'bg-surface-container text-secondary'
+  return 'bg-brand-100 text-brand-700'
 }
 
 export function ActivityLogPage() {
@@ -198,6 +221,8 @@ export function ActivityLogPage() {
   const [filter, setFilter] = useState<ActionType | 'all'>('all')
   const [userId, setUserId] = useState('all')
   const [showUsers, setShowUsers] = useState(false)
+  const [fromDay, setFromDay] = useState('')
+  const [toDay, setToDay] = useState('')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -275,8 +300,14 @@ export function ActivityLogPage() {
     if (filter !== 'all' && item.type !== filter) return false
     const actor = item.event.actor_display_name?.trim() || ''
     if (userId !== 'all' && actor !== userId) return false
+    if (fromDay || toDay) {
+      const day = localDayKey(item.event.occurred_at)
+      if (!day) return false
+      if (fromDay && day < fromDay) return false
+      if (toDay && day > toDay) return false
+    }
     if (!term) return true
-    return [actor, item.event.title, item.event.detail, item.event.id]
+    return [actor, item.event.title, item.event.detail]
       .filter(Boolean)
       .join(' ')
       .toLowerCase()
@@ -284,18 +315,9 @@ export function ActivityLogPage() {
   })
 
   const userLabel =
-    userId === 'all' ? `Tất cả người dùng (${Math.max(users.length - 1, 0)})` : userId
-
-  const rangeLabel = useMemo(() => {
-    if (events.length === 0) return 'Toàn bộ thời gian'
-    const times = events
-      .map((event) => new Date(event.occurred_at).getTime())
-      .filter((value) => !Number.isNaN(value))
-    if (times.length === 0) return 'Toàn bộ thời gian'
-    const format = (value: number) =>
-      new Date(value).toLocaleDateString('vi-VN')
-    return `${format(Math.min(...times))} - ${format(Math.max(...times))}`
-  }, [events])
+    userId === 'all'
+      ? `Tất cả người dùng (${Math.max(users.length - 1, 0)})`
+      : userId
 
   return (
     <div className="flex h-[calc(100vh-6rem)] min-h-0 w-full flex-col gap-space-md">
@@ -321,32 +343,63 @@ export function ActivityLogPage() {
               name="calendar_today"
               className="text-secondary text-[18px]"
             />
-            <span className="font-body-sm text-body-sm font-medium">
-              {rangeLabel}
-            </span>
-            <span className="font-label-sm text-label-sm text-secondary ml-auto">
-              (Toàn bộ thời gian)
-            </span>
+            <input
+              aria-label="Từ ngày"
+              className="min-w-0 flex-1 bg-transparent font-body-sm text-body-sm font-medium focus:outline-none"
+              max={toDay || undefined}
+              type="date"
+              value={fromDay}
+              onChange={(event) => setFromDay(event.target.value)}
+            />
+            <span className="text-secondary">–</span>
+            <input
+              aria-label="Đến ngày"
+              className="min-w-0 flex-1 bg-transparent font-body-sm text-body-sm font-medium focus:outline-none"
+              min={fromDay || undefined}
+              type="date"
+              value={toDay}
+              onChange={(event) => setToDay(event.target.value)}
+            />
+            {fromDay || toDay ? (
+              <button
+                aria-label="Bỏ lọc thời gian"
+                className="text-secondary hover:text-on-surface"
+                title="Xem toàn bộ thời gian"
+                type="button"
+                onClick={() => {
+                  setFromDay('')
+                  setToDay('')
+                }}
+              >
+                <MaterialIcon name="close" className="text-[16px]" />
+              </button>
+            ) : null}
           </div>
           <div className="lg:col-span-3 relative">
             {seesEveryone ? (
-            <button
-              className="w-full flex items-center gap-space-xs bg-surface-container-low h-10 px-space-md rounded text-on-surface hover:bg-surface-container transition-colors"
-              type="button"
-              onClick={() => setShowUsers((current) => !current)}
-            >
-              <MaterialIcon name="group" className="text-secondary text-[18px]" />
-              <span className="font-body-sm text-body-sm font-medium truncate">
-                {userLabel}
-              </span>
-              <MaterialIcon
-                name="arrow_drop_down"
-                className="text-secondary text-[16px] ml-auto"
-              />
-            </button>
+              <button
+                className="w-full flex items-center gap-space-xs bg-surface-container-low h-10 px-space-md rounded text-on-surface hover:bg-surface-container transition-colors"
+                type="button"
+                onClick={() => setShowUsers((current) => !current)}
+              >
+                <MaterialIcon
+                  name="group"
+                  className="text-secondary text-[18px]"
+                />
+                <span className="font-body-sm text-body-sm font-medium truncate">
+                  {userLabel}
+                </span>
+                <MaterialIcon
+                  name="arrow_drop_down"
+                  className="text-secondary text-[16px] ml-auto"
+                />
+              </button>
             ) : (
               <div className="w-full flex items-center gap-space-xs bg-surface-container-low h-10 px-space-md rounded text-on-surface">
-                <MaterialIcon name="person" className="text-secondary text-[18px]" />
+                <MaterialIcon
+                  name="person"
+                  className="text-secondary text-[18px]"
+                />
                 <span className="font-body-sm text-body-sm font-medium truncate">
                   {user?.email || user?.name || 'Bạn'}
                 </span>
@@ -381,36 +434,32 @@ export function ActivityLogPage() {
           {typeFilters
             .filter((item) => item.id === 'all' || counts[item.id] > 0)
             .map((item) => {
-            const active = filter === item.id
-            return (
-              <button
-                key={item.id}
-                className={`flex items-center gap-1.5 px-space-md py-1 rounded font-label-md text-label-md transition-colors ${
-                  active
-                    ? 'bg-primary-container text-on-primary'
-                    : 'bg-surface-container-low text-on-surface hover:bg-surface-container'
-                }`}
-                type="button"
-                onClick={() => {
-                  setFilter(item.id)
-                }}
-              >
-                {item.dot ? (
-                  <span className={`w-2 h-2 rounded-[9999px] ${item.dot}`} />
-                ) : null}
-                <span>{item.label}</span>
-                <span
-                  className={`font-code-sm text-code-sm ${active ? 'opacity-80' : 'text-secondary'}`}
+              const active = filter === item.id
+              return (
+                <button
+                  key={item.id}
+                  className={`flex items-center gap-1.5 px-space-md py-1 rounded font-label-md text-label-md transition-colors ${
+                    active
+                      ? 'bg-brand-100 text-brand-700 ring-1 ring-brand-200'
+                      : 'bg-surface-container-low text-on-surface hover:bg-surface-container'
+                  }`}
+                  type="button"
+                  onClick={() => {
+                    setFilter(item.id)
+                  }}
                 >
-                  ({counts[item.id]})
-                </span>
-              </button>
-            )
-          })}
-          <div className="ml-auto hidden xl:flex items-center gap-space-xs text-secondary font-label-sm text-label-sm">
-            <MaterialIcon name="lock" className="text-[14px]" />
-            <span>Nhật ký thao tác trong tổ chức</span>
-          </div>
+                  {item.dot ? (
+                    <span className={`w-2 h-2 rounded-[9999px] ${item.dot}`} />
+                  ) : null}
+                  <span>{item.label}</span>
+                  <span
+                    className={`font-code-sm text-code-sm ${active ? 'opacity-80' : 'text-secondary'}`}
+                  >
+                    ({counts[item.id]})
+                  </span>
+                </button>
+              )
+            })}
         </div>
       </div>
 
@@ -424,7 +473,10 @@ export function ActivityLogPage() {
           <table className="w-full text-left font-body-sm text-body-sm">
             <thead className="sticky top-0 z-10 bg-surface-container font-label-sm text-label-sm uppercase text-secondary">
               <tr>
-                <th className="py-space-md px-space-md whitespace-nowrap" scope="col">
+                <th
+                  className="py-space-md px-space-md whitespace-nowrap"
+                  scope="col"
+                >
                   <div className="flex items-center gap-1">
                     <span>Thời gian (UTC+7)</span>
                     <MaterialIcon
@@ -433,20 +485,23 @@ export function ActivityLogPage() {
                     />
                   </div>
                 </th>
-                <th className="py-space-md px-space-md whitespace-nowrap" scope="col">
-                  Người thực hiện
-                </th>
-                <th className="py-space-md px-space-md whitespace-nowrap" scope="col">
-                  Hành động
-                </th>
-                <th className="py-space-md px-space-md min-w-[280px]" scope="col">
-                  Chi tiết
-                </th>
                 <th
-                  className="py-space-md px-space-md text-right whitespace-nowrap"
+                  className="py-space-md px-space-md whitespace-nowrap"
                   scope="col"
                 >
-                  Mã sự kiện
+                  Người thực hiện
+                </th>
+                <th
+                  className="py-space-md px-space-md whitespace-nowrap"
+                  scope="col"
+                >
+                  Hành động
+                </th>
+                <th
+                  className="py-space-md px-space-md min-w-[280px]"
+                  scope="col"
+                >
+                  Chi tiết
                 </th>
               </tr>
             </thead>
@@ -455,7 +510,7 @@ export function ActivityLogPage() {
                 <tr>
                   <td
                     className="py-space-lg px-space-md text-secondary"
-                    colSpan={5}
+                    colSpan={4}
                   >
                     Đang tải nhật ký hoạt động…
                   </td>
@@ -463,7 +518,7 @@ export function ActivityLogPage() {
               ) : null}
               {!loading && filtered.length === 0 ? (
                 <tr>
-                  <td className="py-12 px-space-md" colSpan={5}>
+                  <td className="py-12 px-space-md" colSpan={4}>
                     <div className="flex flex-col items-center gap-space-sm text-center">
                       <MaterialIcon
                         name="history"
@@ -489,7 +544,9 @@ export function ActivityLogPage() {
                     }`}
                   >
                     <td className="py-space-md px-space-md align-top whitespace-nowrap font-code-sm text-code-sm">
-                      <div className="font-bold text-on-surface">{when.time}</div>
+                      <div className="font-bold text-on-surface">
+                        {when.time}
+                      </div>
                       <div className="text-secondary">{when.day}</div>
                     </td>
                     <td className="py-space-md px-space-md align-top whitespace-nowrap">
@@ -517,9 +574,6 @@ export function ActivityLogPage() {
                         </p>
                       ) : null}
                     </td>
-                    <td className="py-space-md px-space-md align-top text-right whitespace-nowrap font-code-sm text-code-sm text-secondary">
-                      {shortId(event.id)}
-                    </td>
                   </tr>
                 )
               })}
@@ -532,7 +586,8 @@ export function ActivityLogPage() {
             {total > events.length
               ? `Đang hiện ${events.length} sự kiện gần nhất trên ${total}. `
               : null}
-            <strong className="text-on-surface">{filtered.length}</strong> sự kiện
+            <strong className="text-on-surface">{filtered.length}</strong> sự
+            kiện
           </span>
         </div>
       </div>

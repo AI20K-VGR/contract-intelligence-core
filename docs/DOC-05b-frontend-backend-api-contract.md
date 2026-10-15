@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu | **DOC-05b** / Contract Intelligence (PROD-01) |
-| Phiên bản / SemVer | **`v1.5.0`** — `GET /documents/{id}/lines` (dòng OCR của mọi trang trong một request) và `409` của `POST /dossiers/{id}/ocr` khi hồ sơ đang OCR. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
+| Phiên bản / SemVer | **`v2.0.0`** — bỏ `scope=all` của `GET /dossiers/{id}/queries`: ai hỏi thì chỉ xem lịch sử của mình (Lead chốt 14/10/2026). Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
 | Trạng thái | Đã chốt — Sẵn sàng triển khai Frontend & Backend |
 | Owner | Tech Lead / Frontend Lead / Backend Lead |
 | Ngày hiệu lực | 17/09/2026 |
@@ -31,6 +31,8 @@
    - [Màn hình 8: Dossier Approval & External Grants](#màn-hình-8-dossier-approval--external-grants)
    - [Màn hình 9: Re-OCR Workbench](#màn-hình-9-re-ocr-workbench)
    - [Màn hình 10: Optimization Studio (Admin)](#màn-hình-10-optimization-studio-admin)
+   - [Chia sẻ hồ sơ & hàng chờ thẩm định (v1.7.0)](#chia-sẻ-hồ-sơ--hàng-chờ-thẩm-định-v170)
+   - [Thông báo cá nhân (đề xuất, BE chưa có)](#thông-báo-cá-nhân-đề-xuất-be-chưa-có)
 6. [Bộ TypeScript Interfaces & DTOs Chuẩn](#6-bộ-typescript-interfaces--dtos-chuẩn)
 7. [Chiến lược Polling & Thời gian thực (Realtime)](#7-chiến-lược-polling--thời-gian-thực-realtime)
 8. [Quy trình Quản lý Thay đổi (Versioning & Change Management)](#8-quy-trình-quản-lý-thay-đổi-versioning--change-management)
@@ -344,9 +346,9 @@ Giao diện xem văn bản trực quan chia đôi màn hình: Bên trái là câ
 | `GET` | `/documents/{id}/lines` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | **v1.5.0.** Dòng OCR của mọi trang trong một response: `[{ page_no, width_pt, height_pt, ocr_lines: [{ id, line_no, text, bbox, confidence }] }]`, theo thứ tự trang rồi dòng. Trang chưa có dòng trả `ocr_lines: []`. Không phân trang. Thay cho gọi `/pages/{id}` từng trang |
 | `GET` | `/documents/{id}/clauses` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Cây Điều khoản hoàn chỉnh dựng theo quan hệ cha-con (`parent_id`) |
 | `GET` | `/documents/{id}/tables` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Danh sách bảng phát hiện được, danh sách cell (`row`, `col`, `span`, text) |
-| `GET` | `/dossiers/{id}/queries` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | **v1.1.0.** Lịch sử hỏi đáp trên hồ sơ, mới nhất trước; còn sau khi server khởi động lại |
+| `GET` | `/dossiers/{id}/queries` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | **v1.1.0, đổi ở v2.0.0.** Lịch sử hỏi đáp **của chính người gọi** trên hồ sơ, mới nhất trước; còn sau khi server khởi động lại |
 
-- **Lịch sử hỏi đáp (v1.1.0):** `GET /dossiers/{id}/queries?scope=mine|all&limit=20&offset=0`. `scope=mine` (mặc định) chỉ trả câu hỏi của người gọi; `scope=all` chỉ dành cho chủ hồ sơ hoặc `ADMINISTRATOR`, người khác nhận `403`. Cần quyền xem hồ sơ. Phân trang bằng `limit` và `offset`, **không** theo `page`/`page_size` của §3.1. Response bọc trong `{ data, meta }`; `meta.page` = `offset / limit + 1`:
+- **Lịch sử hỏi đáp (v1.1.0, đổi ở v2.0.0):** `GET /dossiers/{id}/queries?limit=20&offset=0`. Chỉ trả câu hỏi **của người gọi**, kể cả khi người gọi là chủ hồ sơ hoặc `ADMINISTRATOR`: không ai xem được câu hỏi của người khác (Lead chốt 14/10/2026). `scope` chỉ còn nhận `mine` (mặc định); `scope=all` trả `422`. Cần quyền xem hồ sơ. Phân trang bằng `limit` và `offset`, **không** theo `page`/`page_size` của §3.1. Response bọc trong `{ data, meta }`; `meta.page` = `offset / limit + 1`:
   ```json
   {
     "data": [
@@ -365,7 +367,7 @@ Giao diện xem văn bản trực quan chia đôi màn hình: Bên trái là câ
     "meta": { "trace_id": null, "request_id": null, "page": 1, "page_size": 20, "total": 1 }
   }
   ```
-  `endpoint` là `ask` hoặc `query`. Lần hỏi mà AI2 lỗi vẫn có trong lịch sử, với `answer: null` và `error_code`.
+  `endpoint` là `ask`, `query` hoặc `search` (thanh hỏi đáp, từ v1.5.1). Lần hỏi mà AI2 lỗi vẫn có trong lịch sử, với `answer: null` và `error_code`. Với `search`, `error_code` là `AI2_UNAVAILABLE` khi AI2 lỗi hoặc quá thời gian chờ. Câu hỏi gửi qua `search` trước v1.5.1 chỉ có trace, nên hiện với `answer: null` và `error_code: null`.
 
 ---
 
@@ -466,6 +468,126 @@ Phân hệ dành riêng cho Quản trị viên (Administrator) và AI Engineer: 
 | `POST` | `/optimization/experiments` | `ADMINISTRATOR` | Tạo bài test thử nghiệm trên tập dữ liệu benchmark |
 | `POST` | `/optimization/experiments/{id}/run` | `ADMINISTRATOR` | Kích hoạt chạy thực nghiệm |
 | `GET` | `/optimization/experiments/{id}/results` | `ADMINISTRATOR` | Báo cáo so sánh điểm F1, độ chính xác, độ trễ và chi phí |
+
+---
+
+### Chia sẻ hồ sơ & hàng chờ thẩm định (v1.7.0)
+
+Backend đã có cả hai endpoint và các trường dưới đây. Response bọc trong `{ data, meta }`, phân trang bằng `limit` (1–100, mặc định 20) và `offset`; `meta.total` là tổng số dòng.
+
+| Phương thức | Endpoint | Phân quyền `x-rbac` | Chức năng |
+|:---:|---|:---:|---|
+| `GET` | `/users/directory?q=&role=&limit=20&offset=0` | `OPERATOR`, `ADMINISTRATOR` | Danh bạ thành viên cùng tenant để chọn người chia sẻ hồ sơ. `REVIEWER` nhận `403` |
+| `GET` | `/review-queue?limit=20&offset=0` | `REVIEWER`, `ADMINISTRATOR` | Hồ sơ còn mục review mở mà người gọi được thẩm định. `OPERATOR` nhận `403` |
+
+**`GET /users/directory`**
+
+```json
+{
+  "data": [
+    { "id": "8f1c…", "email": "reviewer@ci.local", "display_name": "Demo Reviewer", "role": "REVIEWER" }
+  ],
+  "meta": { "trace_id": null, "request_id": null, "page": 1, "page_size": 20, "total": 1 }
+}
+```
+
+- Mỗi người chỉ có đúng 4 trường trên. `id` là giá trị `id` của từng phần tử `shared_with` trong `PUT /dossiers/{id}/access`.
+- `role=REVIEWER` để dựng ô "Giao cho người thẩm định". `q` tìm theo email hoặc tên hiển thị.
+- Chỉ trả người đang `active` và có `tenant_id` trong Keycloak trùng tenant của người gọi. User không có `tenant_id`, người chưa đặt mật khẩu (`invited`) và người bị khoá (`disabled`) không có trong danh bạ. Điểm này khác `GET /users` của `ADMINISTRATOR`, nơi user không có `tenant_id` vẫn hiện.
+- Keycloak không trả lời thì trả `503` với mã `keycloak_unavailable`.
+
+**`GET /review-queue`**
+
+```json
+{
+  "data": [
+    {
+      "dossier_id": "dos_…",
+      "dossier_name": "Hợp đồng mua bán 2026",
+      "dossier_status": "pending_review",
+      "created_at": "2026-10-09T09:12:00+00:00",
+      "is_owner": false,
+      "grant_expires_at": "2026-10-20T00:00:00+00:00",
+      "open_review_items": 5,
+      "pending_conflicts": 2,
+      "p1": 1,
+      "p2": 3,
+      "p3": 1
+    }
+  ],
+  "meta": { "trace_id": null, "request_id": null, "page": 1, "page_size": 20, "total": 1 }
+}
+```
+
+- Hồ sơ có trong danh sách khi còn mục `open` hoặc `awaiting_evidence` và người gọi là chủ hồ sơ hoặc được chia sẻ quyền `edit` còn hạn. `ADMINISTRATOR` cũng cần là chủ hoặc có chia sẻ.
+- Sắp xếp: nhiều mục P1 hơn xếp trước, rồi tới hồ sơ tạo sớm hơn.
+- `open_review_items` bằng `p1 + p2 + p3`; `pending_conflicts` là phần nằm trên finding.
+- `grant_expires_at` là `null` với chủ hồ sơ hoặc lượt chia sẻ không có hạn.
+
+**Trường mới trên hồ sơ** (từng phần tử của `GET /dossiers` và `GET /dossiers/{id}`):
+
+```json
+{
+  "locked": false,
+  "approved_at": null,
+  "my_access": {
+    "owner": false,
+    "permission": "edit",
+    "expires_at": "2026-10-20T00:00:00+00:00",
+    "expired": false,
+    "can_edit": false,
+    "can_review": true,
+    "can_see_review": true,
+    "can_manage": false,
+    "can_approve": false
+  }
+}
+```
+
+- Frontend dùng các cờ `can_*` để ẩn/hiện nút, không tự suy ra từ `metadata.shared_with`. Mỗi cờ là kết quả ACL của backend cho đúng người gọi; ví dụ trên là một `REVIEWER` được chia sẻ quyền `edit`.
+- `permission` là `"edit"`, `"read"` hoặc `null`: lượt chia sẻ còn hạn lâu nhất dành cho người gọi (ưu tiên `edit`). Không còn lượt nào còn hạn thì là lượt hết hạn gần nhất, kèm `expired: true`. Chủ hồ sơ không cần chia sẻ nên `permission` là `null`.
+- `my_access` chỉ trả lời theo ACL. Hồ sơ `locked: true` vẫn từ chối thay đổi và review dù `can_*` là `true`, nên frontend phải xét thêm `locked`.
+- `approved_at` là `null` khi hồ sơ chưa được duyệt.
+
+---
+
+### Thông báo cá nhân (đề xuất, BE chưa có)
+
+**v1.6.0, đề xuất.** Backend chưa có các endpoint này. Frontend đã có chuông thông báo (`NotificationBell`) gọi đúng 4 endpoint dưới đây, nhưng chuông chỉ hiện khi build với `VITE_ENABLE_NOTIFICATIONS=true`. Mặc định cờ tắt, nên không phát sinh request 404. Khi backend làm xong thì bật cờ, không cần sửa frontend.
+
+Mỗi thông báo thuộc về đúng một người dùng (người nhận) trong tenant của họ. Người dùng chỉ đọc và đánh dấu thông báo của chính mình.
+
+| Phương thức | Endpoint | Phân quyền `x-rbac` | Chức năng |
+|:---:|---|:---:|---|
+| `GET` | `/notifications?limit=10&offset=0` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Thông báo của người gọi, mới nhất trước. Phân trang bằng `limit`/`offset`; `meta.total` là tổng số thông báo |
+| `GET` | `/notifications/unread-count` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | `{ "data": { "count": 3 } }`. Frontend gọi mỗi 30 giây |
+| `POST` | `/notifications/{id}/read` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Đánh dấu một thông báo đã đọc. Thông báo của người khác trả `404` |
+| `POST` | `/notifications/read-all` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Đánh dấu mọi thông báo của người gọi là đã đọc |
+
+Response của `GET /notifications` bọc trong `{ data, meta }`:
+
+```json
+{
+  "data": [
+    {
+      "id": "ntf_…",
+      "type": "analysis_succeeded",
+      "title": "Phân tích xong hồ sơ",
+      "detail": null,
+      "dossier_id": "dos_…",
+      "dossier_name": "Hợp đồng mua bán 2026",
+      "actor_display_name": null,
+      "created_at": "2026-10-09T09:12:00+00:00",
+      "read_at": null
+    }
+  ],
+  "meta": { "trace_id": null, "request_id": null, "page": 1, "page_size": 10, "total": 1 }
+}
+```
+
+- `type` đề xuất: `analysis_succeeded`, `analysis_failed`, `dossier_approved`, `dossier_rejected`, `dossier_needs_more_evidence`, `dossier_shared`, `review_requested`. Frontend vẫn hiện được loại lạ, chỉ không có link tới hồ sơ.
+- `read_at` là `null` khi chưa đọc. `dossier_id`, `dossier_name`, `detail`, `actor_display_name` có thể `null`.
+- Hồ sơ bị xoá, hoặc người nhận mất quyền xem hồ sơ (§20 trong `frontend/API-BE.md`), thì không trả thông báo đó nữa, hoặc trả với `dossier_id: null`.
 
 ---
 
@@ -748,6 +870,10 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
+| `v2.0.0` | 14/10/2026 | **Lead chốt bỏ** `scope=all` của `GET /dossiers/{id}/queries`: ai hỏi thì chỉ xem lịch sử của mình, kể cả chủ hồ sơ và `ADMINISTRATOR`. `scope` chỉ còn nhận `mine`; `scope=all` trả `422` (trước đây trả lịch sử của mọi người cho chủ hồ sơ/ADMINISTRATOR, `403` cho người khác). Frontend bỏ `'all'` khỏi `queries.ts` và cập nhật `API-BE.md`. Bỏ một giá trị đang dùng được, nên là MAJOR theo §8 |
+| `v1.7.0` | 13/10/2026 | Thêm `GET /users/directory` (danh bạ thành viên cùng tenant để chia sẻ hồ sơ) và `GET /review-queue` (hồ sơ đang chờ người gọi thẩm định); hồ sơ có thêm `my_access`, `locked`, `approved_at` (mục "Chia sẻ hồ sơ & hàng chờ thẩm định" ở §5). Backend đã có. Header `X-API-Contract` lên thẳng `v1.7.0` từ `v1.5.1`: backend **chưa** làm 4 endpoint `/notifications` của `v1.6.0`, chúng vẫn là đề xuất. Chỉ thêm endpoint và trường tuỳ chọn, nên là MINOR |
+| `v1.6.0` | 09/10/2026 | Đề xuất `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/{id}/read`, `POST /notifications/read-all` (mục "Thông báo cá nhân" ở §5). **BE chưa có**; frontend ẩn chuông bằng cờ `VITE_ENABLE_NOTIFICATIONS` cho tới khi có. Chỉ thêm endpoint, nên là MINOR |
+| `v1.5.1` | 07/10/2026 | `GET /dossiers/{id}/queries` trả thêm câu hỏi gửi qua `POST /dossiers/{id}/search` (`endpoint: "search"`) và mã lỗi `AI2_UNAVAILABLE`. Endpoint và các trường giữ nguyên, nên là PATCH |
 | `v1.5.0` | 04/10/2026 | Thêm `GET /documents/{id}/lines`. `POST /dossiers/{id}/ocr` trả `409` khi hồ sơ đang OCR (job `processing`) thay vì thay run đang chạy; chờ xong hoặc hủy run rồi chạy lại. Response JSON trên 1 KB được gzip khi client gửi `Accept-Encoding: gzip` (SSE, ảnh và PDF không nén). Chỉ thêm endpoint và mã lỗi, nên là MINOR |
 | `v1.4.0` | 04/10/2026 | Thêm `POST /dossiers/{id}/ai2/reindex`: AI2 dựng lại dữ liệu hỏi đáp từ kết quả OCR đã lưu, không OCR lại. Chỉ thêm endpoint, nên là MINOR |
 | `v1.3.0` | 02/10/2026 | Finding có thêm `review.latest` (`action`, `comment`, người thẩm định, `reviewed_at`, `action_count`), `null` khi chưa ai thẩm định. Trước đây Backend đã lấy giá trị này nhưng DTO làm rơi, nên FE không biết xung đột đã được đánh Đúng/Sai (liên quan #51). Chỉ thêm trường tuỳ chọn, nên là MINOR |
@@ -766,4 +892,4 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 
 ---
 
-**Hết DOC-05b · Frontend-Backend API Contract v1.5.0 (SemVer)**
+**Hết DOC-05b · Frontend-Backend API Contract v2.0.0 (SemVer)**

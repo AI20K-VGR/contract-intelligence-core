@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { ReviewSpot } from '../api/structure'
+import { conflictName, type ReviewSpot } from '../api/structure'
 import { reviewerLabel } from '../review/reviewerLabel'
 import {
   VERDICT_LABEL,
@@ -93,7 +93,10 @@ export function ConflictNotice({
       data-conflict-notice
       role="status"
     >
-      <MaterialIcon name="warning" className="mt-0.5 shrink-0 text-[18px] text-amber-600" />
+      <MaterialIcon
+        name="warning"
+        className="mt-0.5 shrink-0 text-[18px] text-amber-600"
+      />
       <div className="min-w-0 flex-1">
         <button
           className="block w-full text-left"
@@ -114,7 +117,7 @@ export function ConflictNotice({
                 onClick={() => onOpen(spot.id)}
               >
                 <span className="min-w-0 flex-1">
-                  <span className="font-medium">{spot.topic}</span>
+                  <span className="font-medium">{conflictName(spot)}</span>
                   {' — '}
                   {spotStatusText(spot)}
                 </span>

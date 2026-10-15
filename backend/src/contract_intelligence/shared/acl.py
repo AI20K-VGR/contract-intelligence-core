@@ -204,6 +204,83 @@ def dossier_denied_message(
     )["message"]
 
 
+def _expiry(grant: dict[str, Any]) -> datetime | None:
+    """``expires_at`` of a grant as an aware instant; None when absent or unreadable."""
+    raw = grant.get("expires_at")
+    if raw in (None, ""):
+        return None
+    try:
+        moment = datetime.fromisoformat(str(raw))
+    except ValueError:
+        return None
+    return moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
+
+
+def dossier_my_access(
+    *,
+    principal: AuthenticatedUser,
+    dossier_id: str,
+    dossier_tenant_id: str,
+    metadata: dict[str, Any] | None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """What ``principal`` may do on a dossier, for clients to show or hide actions.
+
+    Every ``can_*`` is :func:`dossier_access_decision` for one action, so this
+    cannot drift from what the API enforces. ``permission`` / ``expires_at``
+    describe the share naming the caller: the live one that lasts longest
+    (``edit`` before ``read``), else the one that expired last, with
+    ``expired`` true. A disabled share, or any share on a dossier kept private
+    (``access_scope: "mine"``), is reported as no share at all.
+
+    Only the ACL is answered here. A locked or approved dossier still refuses
+    changes; that state is the dossier's, not the caller's.
+    """
+    moment = now or datetime.now(tz=UTC)
+    meta = metadata if isinstance(metadata, dict) else {}
+    owner_id = meta.get("created_by")
+    shared_with = meta.get("shared_with")
+    grants = [
+        grant
+        for grant in (shared_with if isinstance(shared_with, list) else [])
+        if isinstance(grant, dict)
+        and grant.get("status") != "disabled"
+        and _grant_matches(grant, principal)
+    ]
+    if principal.tenant_id != dossier_tenant_id or meta.get("access_scope") == "mine":
+        grants = []
+    far_future = datetime.max.replace(tzinfo=UTC)
+    far_past = datetime.min.replace(tzinfo=UTC)
+    live = [grant for grant in grants if grant_is_live(grant, moment)]
+    chosen: dict[str, Any] | None = None
+    if live:
+        chosen = max(live, key=lambda g: (grant_permission(g) == "edit", _expiry(g) or far_future))
+    elif grants:
+        chosen = max(grants, key=lambda g: _expiry(g) or far_past)
+
+    def can(action: AclAction) -> bool:
+        return dossier_access_decision(
+            action=action,
+            principal=principal,
+            dossier_id=dossier_id,
+            dossier_tenant_id=dossier_tenant_id,
+            metadata=metadata,
+            now=moment,
+        )
+
+    return {
+        "owner": bool(owner_id) and owner_id == principal.user_id,
+        "permission": grant_permission(chosen) if chosen else None,
+        "expires_at": _expiry(chosen) if chosen else None,
+        "expired": chosen is not None and not live,
+        "can_edit": can(AclAction.DOSSIER_EDIT),
+        "can_review": can(AclAction.REVIEW_MUTATE),
+        "can_see_review": can(AclAction.REVIEW_READ),
+        "can_manage": can(AclAction.DOSSIER_MANAGE),
+        "can_approve": can(AclAction.APPROVE),
+    }
+
+
 def visible_dossier_metadata(
     metadata: dict[str, Any] | None, principal: AuthenticatedUser
 ) -> dict[str, Any] | None:
@@ -240,6 +317,7 @@ __all__ = [
     "dossier_access_decision",
     "dossier_denied_detail",
     "dossier_denied_message",
+    "dossier_my_access",
     "grant_is_live",
     "grant_permission",
     "visible_dossier_metadata",

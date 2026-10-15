@@ -1,8 +1,10 @@
 """Q&A history (Sprint 3 task 4): kept across restarts, never shown across users.
 
-- each asker sees only their own history; owner/administrator can see all
+- each asker sees only their own history, dossier owner and administrator
+  included; scope=all is refused (Lead, 14/10/2026, DOC-05b v2.0.0)
 - the history survives a restart (new engine on the same database file)
 - a failed AI2 call is in the history with its error and no answer
+- the FE search box (/search) lands in the same history
 - outsiders (other tenant, expired grant) are refused
 - purging the dossier removes the answer text, the audit trace stays
 """
@@ -41,12 +43,17 @@ from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.shared.persistence import Base
 from contract_intelligence.shared.persistence.orm_registry import import_all_models
 from contract_intelligence.shared.persistence.session import get_async_session
-from contract_intelligence.shared.query_history import QueryAnswerORM
+from contract_intelligence.shared.query_history import QueryAnswerORM, list_query_history
 from contract_intelligence.shared.query_policy import QueryTraceORM
 
 pytestmark = pytest.mark.integration
 
 QUERY_AI2 = "contract_intelligence.api.v1.dossiers.query_ai2"
+SEARCH_AI2 = "contract_intelligence.infrastructure.ai_adapters.query_ai2"
+SEARCH_FACTORY = (
+    "contract_intelligence.contract.interfaces.api.routers.contract_router."
+    "_optional_session_factory"
+)
 
 
 def _user(user_id: str, *, role: str = "OPERATOR", tenant: str = TENANT_ID) -> AuthenticatedUser:
@@ -116,6 +123,23 @@ async def _ask(client: AsyncClient, user: AuthenticatedUser, question: str, answ
     assert response.status_code == 200, response.text
 
 
+async def _search(
+    client: AsyncClient, db: Path, user: AuthenticatedUser, question: str, ai2: AsyncMock
+) -> Any:
+    """/search opens its own session from the global factory; point it at the test DB."""
+    _as(user)
+    engine, factory = _factory(db)
+    try:
+        with patch(SEARCH_AI2, new=ai2), patch(SEARCH_FACTORY, return_value=factory):
+            response = await client.post(
+                f"/api/v1/dossiers/{DOSSIER_ID}/search", json={"query": question}
+            )
+    finally:
+        await engine.dispose()
+    assert response.status_code == 200, response.text
+    return response.json()["data"]
+
+
 async def _history(client: AsyncClient, user: AuthenticatedUser, **params: Any) -> Any:
     _as(user)
     return await client.get(f"/api/v1/dossiers/{DOSSIER_ID}/queries", params=params)
@@ -147,15 +171,47 @@ async def test_history_is_per_user_and_survives_a_restart(db: Path) -> None:
 
         reviewer = (await _history(client, REVIEWER)).json()
         assert [item["answer"] for item in reviewer["data"]] == ["8% giá trị phần vi phạm"]
-
-        everyone = await _history(client, OPERATOR, scope="all")
-        assert everyone.status_code == 200
-        assert everyone.json()["meta"]["total"] == 3
-
-        # Shared with the reviewer, but not theirs to read everyone's questions.
-        assert (await _history(client, REVIEWER, scope="all")).status_code == 403
     await engine.dispose()
     app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "caller",
+    [
+        pytest.param(OPERATOR, id="dossier-owner"),
+        pytest.param(REVIEWER, id="shared-reviewer"),
+        pytest.param(_user("tenant-admin", role="ADMINISTRATOR"), id="administrator"),
+    ],
+)
+async def test_nobody_reads_someone_elses_questions(db: Path, caller: AuthenticatedUser) -> None:
+    # Lead's decision of 14/10/2026 (DOC-05b v2.0.0): each person sees their
+    # own history only, the dossier owner and administrators included.
+    engine, client = await _client(db)
+    async with client:
+        await _ask(client, OPERATOR, "Giá trị hợp đồng?", "1 tỷ")
+        await _ask(client, REVIEWER, "Phạt vi phạm?", "8%")
+
+        everyone = await _history(client, caller, scope="all")
+        assert everyone.status_code == 422, everyone.text
+        assert "Giá trị hợp đồng?" not in everyone.text
+        assert "Phạt vi phạm?" not in everyone.text
+
+        own = await _history(client, caller)
+        if own.status_code == 200:
+            askers = {item["actor_id"] for item in own.json()["data"]}
+            assert askers <= {caller.user_id}, askers
+    await engine.dispose()
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_history_lookup_refuses_an_empty_asker() -> None:
+    # The old "no actor = everyone" reading must not come back by accident.
+    with pytest.raises(ValueError, match="per user"):
+        await list_query_history(
+            AsyncMock(), tenant_id="t", dossier_id="d", actor_id="", limit=20, offset=0
+        )
 
 
 @pytest.mark.asyncio
@@ -177,6 +233,47 @@ async def test_failed_query_is_kept_without_an_answer(db: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_search_box_questions_are_in_the_history(db: Path) -> None:
+    engine, client = await _client(db)
+    async with client:
+        ok = await _search(
+            client, db, OPERATOR, "Giá trị hợp đồng?", AsyncMock(return_value=_answer("1 tỷ"))
+        )
+        assert ok["connected"] is True
+        down = await _search(
+            client,
+            db,
+            OPERATOR,
+            "Còn hiệu lực không?",
+            AsyncMock(side_effect=AiAdapterError("AI2 down")),
+        )
+        assert down["connected"] is False
+        await _search(client, db, REVIEWER, "Phạt vi phạm?", AsyncMock(return_value=_answer("8%")))
+    await engine.dispose()
+    app.dependency_overrides.clear()
+
+    # "Restart": new engine and client, nothing kept in memory.
+    engine, client = await _client(db)
+    async with client:
+        body = (await _history(client, OPERATOR)).json()
+        assert body["meta"]["total"] == 2
+        failed, answered = body["data"]
+        assert failed["question"] == "Còn hiệu lực không?"
+        assert failed["endpoint"] == "search"
+        assert failed["answer"] is None
+        assert failed["error_code"] == "AI2_UNAVAILABLE"
+        assert answered["question"] == "Giá trị hợp đồng?"
+        assert answered["answer"] == "1 tỷ"
+        assert answered["trace_id"] == ok["trace_id"]
+        assert "Phạt vi phạm?" not in str(body)
+
+        reviewer = (await _history(client, REVIEWER)).json()
+        assert [item["answer"] for item in reviewer["data"]] == ["8%"]
+    await engine.dispose()
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("outsider", "expected"),
     [
@@ -191,10 +288,9 @@ async def test_outsiders_cannot_read_history(
     engine, client = await _client(db)
     async with client:
         await _ask(client, OPERATOR, "Bên A là ai?", "Công ty A")
-        for scope in ("mine", "all"):
-            response = await _history(client, outsider, scope=scope)
-            assert response.status_code in expected, (scope, response.text)
-            assert "Công ty A" not in response.text
+        response = await _history(client, outsider)
+        assert response.status_code in expected, response.text
+        assert "Công ty A" not in response.text
     await engine.dispose()
     app.dependency_overrides.clear()
 

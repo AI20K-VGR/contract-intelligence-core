@@ -103,3 +103,5 @@ lerna-debug.log*
 # Production secrets (deploy/bootstrap.sh generates it)
 deploy/.env.prod
 .worktrees/
+
+deploy/.env.db

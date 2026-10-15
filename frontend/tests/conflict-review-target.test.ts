@@ -79,7 +79,9 @@ describe('reviewTargetNode', () => {
 
     const result = reviewTargetNode(numberedNodes, LINES, side())
 
-    expect(result?.ordinal).toBe(clauseOrdinal(numberedNodes, 'clause-numbered'))
+    expect(result?.ordinal).toBe(
+      clauseOrdinal(numberedNodes, 'clause-numbered'),
+    )
   })
 
   it('trả null khi trích dẫn không khớp nút nào trên cây numbered', () => {

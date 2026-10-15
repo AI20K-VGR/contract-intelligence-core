@@ -1,0 +1,60 @@
+# =============================================================================
+# DB server — the two Postgres databases of the stack, on a machine of their
+# own. Run from the repo root on that machine:
+#
+#   docker compose -f deploy/compose.db.yml --env-file deploy/.env.db up -d
+#
+# Same images, users, databases and initdb options as docker-compose.yml, so
+# a pg_dump of the single-server stack restores here unchanged.
+#
+# Ports are published on DB_BIND_ADDR only: the machine's PRIVATE address, so
+# nothing listens on its public interface. Docker-published ports bypass ufw;
+# what admits the app server and nobody else is the cloud firewall (AWS: the
+# DB security group allows 5432-5433 from the app security group only).
+# =============================================================================
+
+name: contract-intelligence-db
+
+services:
+  backend-db:
+    # Postgres 16 with pgvector: AI2 keeps vectors in schema ai2 (ADR-14).
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: contract_intelligence
+      POSTGRES_USER: ci
+      POSTGRES_PASSWORD: ${BACKEND_DB_PASSWORD:?set in deploy/.env.db}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - backend_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ci -d contract_intelligence -q"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    ports:
+      - "${DB_BIND_ADDR:?set in deploy/.env.db}:${BACKEND_DB_PORT:-5432}:5432"
+
+  keycloak-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?set in deploy/.env.db}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - keycloak_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak -q"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    ports:
+      - "${DB_BIND_ADDR:?set in deploy/.env.db}:${KEYCLOAK_DB_PORT:-5433}:5432"
+
+volumes:
+  backend_pgdata:
+  keycloak_pgdata:

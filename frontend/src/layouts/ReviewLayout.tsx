@@ -2,7 +2,9 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
+import { NotificationBell } from '../components/NotificationBell'
 import { SidebarLogout } from '../components/SidebarLogout'
+import { shareRoleLabels } from '../data/shareGrant'
 
 const navItems = [
   { to: '/ho-so-hop-dong', icon: 'folder_open', label: 'Hồ sơ Hợp đồng' },
@@ -137,13 +139,10 @@ export function ReviewLayout() {
             </div>
 
             <div className="flex items-center gap-space-sm">
-              <button
-                className="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors relative"
-                type="button"
-              >
-                <MaterialIcon name="notifications" className="text-[20px]" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-[9999px]" />
-              </button>
+              <NotificationBell
+                buttonClassName="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors relative"
+                dotClassName="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-[9999px]"
+              />
               <button
                 className="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
                 type="button"
@@ -159,9 +158,7 @@ export function ReviewLayout() {
                     {user.name}
                   </span>
                   <span className="font-label-sm text-label-sm text-secondary leading-tight">
-                    {user.role === 'admin'
-                      ? 'Quản trị viên'
-                      : 'Chuyên viên Pháp chế Cấp cao'}
+                    {shareRoleLabels[user.backendRole]}
                   </span>
                 </div>
                 <div className="w-8 h-8 rounded-[9999px] bg-primary flex items-center justify-center">

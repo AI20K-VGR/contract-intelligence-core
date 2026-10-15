@@ -71,11 +71,5 @@ export function DossierStructurePreview({
       </div>
     )
   }
-  return (
-    <StructureMindmap
-      title={title}
-      subtitle={data.document?.filename}
-      nodes={data.nodes}
-    />
-  )
+  return <StructureMindmap title={title} nodes={data.nodes} />
 }

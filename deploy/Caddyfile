@@ -14,11 +14,9 @@
 	}
 }
 
-# Frontend browser application. API and OIDC calls use the public hosts below.
-{$APP_HOST} {
-	import common
-	reverse_proxy frontend:80
-}
+# The frontend site ($APP_HOST) is deploy/frontend.caddy, imported at the end
+# when deploy/compose.frontend.yml is in use. Defining it here as well makes
+# Caddy refuse to start ("ambiguous site definition").
 
 # Backend API — for the frontend. AI1/AI2 never come through here: AI1 talks
 # over Kafka and AI2 over HTTP inside ci-network. /grafana/* also lands on the

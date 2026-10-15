@@ -67,7 +67,12 @@ export type SemanticPair = {
   method: 'CLOSED_SYMBOL' | 'TENANT_ALIAS'
   candidate_sources: string[]
   alignment_key?: string[] | null
-  conflict_kind?: 'SEMANTIC_CONFLICT' | 'ARITHMETIC_INCONSISTENCY' | 'AMENDMENT_REVIEW' | 'COMPARABLE_DIFFERENCE' | null
+  conflict_kind?:
+    | 'SEMANTIC_CONFLICT'
+    | 'ARITHMETIC_INCONSISTENCY'
+    | 'AMENDMENT_REVIEW'
+    | 'COMPARABLE_DIFFERENCE'
+    | null
   slots_in_difference?: string[]
 }
 export type SemanticTimeline = {
@@ -134,7 +139,10 @@ export type SemanticResults = {
   state: 'NEEDS_REVIEW' | 'NOT_MEASURED' | 'NOT_READY'
   reason: string | null
   extension: SemanticExtension | null
-  typedTableProjections?: { payment_schedules: Record<string, unknown>[]; boq_checks: Record<string, unknown>[] }
+  typedTableProjections?: {
+    payment_schedules: Record<string, unknown>[]
+    boq_checks: Record<string, unknown>[]
+  }
 }
 export type FindingSemantic = {
   frame: SemanticFrame
@@ -144,7 +152,12 @@ export type FindingSemantic = {
   alias_version: number
   alias_digest: string | null
   alignment_key?: string[] | null
-  conflict_kind?: 'SEMANTIC_CONFLICT' | 'ARITHMETIC_INCONSISTENCY' | 'AMENDMENT_REVIEW' | 'COMPARABLE_DIFFERENCE' | null
+  conflict_kind?:
+    | 'SEMANTIC_CONFLICT'
+    | 'ARITHMETIC_INCONSISTENCY'
+    | 'AMENDMENT_REVIEW'
+    | 'COMPARABLE_DIFFERENCE'
+    | null
   slots_in_difference?: string[]
 }
 
@@ -312,9 +325,23 @@ function pair(value: unknown): SemanticPair {
     review_state: choice(row.review_state, ['NEEDS_REVIEW']),
     method: choice(row.method, ['CLOSED_SYMBOL', 'TENANT_ALIAS']),
     candidate_sources: array(row.candidate_sources, (v) => text(v)),
-    alignment_key: row.alignment_key === null || row.alignment_key === undefined ? null : array(row.alignment_key, (v) => text(v)),
-    conflict_kind: row.conflict_kind === null || row.conflict_kind === undefined ? null : choice(row.conflict_kind, ['SEMANTIC_CONFLICT', 'ARITHMETIC_INCONSISTENCY', 'AMENDMENT_REVIEW', 'COMPARABLE_DIFFERENCE']),
-    slots_in_difference: row.slots_in_difference === undefined ? [] : array(row.slots_in_difference, (v) => text(v)),
+    alignment_key:
+      row.alignment_key === null || row.alignment_key === undefined
+        ? null
+        : array(row.alignment_key, (v) => text(v)),
+    conflict_kind:
+      row.conflict_kind === null || row.conflict_kind === undefined
+        ? null
+        : choice(row.conflict_kind, [
+            'SEMANTIC_CONFLICT',
+            'ARITHMETIC_INCONSISTENCY',
+            'AMENDMENT_REVIEW',
+            'COMPARABLE_DIFFERENCE',
+          ]),
+    slots_in_difference:
+      row.slots_in_difference === undefined
+        ? []
+        : array(row.slots_in_difference, (v) => text(v)),
   }
   if (
     !result.left_evidence.length ||
@@ -394,15 +421,19 @@ export function decodeSemanticResults(
     throw new Error('Kết quả thuộc hồ sơ/lần chạy khác.')
   const state = choice(row.state, ['NEEDS_REVIEW', 'NOT_MEASURED', 'NOT_READY'])
   let extension: SemanticExtension | null = null
-  const typedTableProjections = row.typed_table_projections === undefined || row.typed_table_projections === null
-    ? { payment_schedules: [], boq_checks: [] }
-    : (() => {
-        const typed = record(row.typed_table_projections)
-        return {
-          payment_schedules: array(typed.payment_schedules ?? [], (v) => record(v)),
-          boq_checks: array(typed.boq_checks ?? [], (v) => record(v)),
-        }
-      })()
+  const typedTableProjections =
+    row.typed_table_projections === undefined ||
+    row.typed_table_projections === null
+      ? { payment_schedules: [], boq_checks: [] }
+      : (() => {
+          const typed = record(row.typed_table_projections)
+          return {
+            payment_schedules: array(typed.payment_schedules ?? [], (v) =>
+              record(v),
+            ),
+            boq_checks: array(typed.boq_checks ?? [], (v) => record(v)),
+          }
+        })()
   if (row.semantic_extension !== null) {
     const raw = record(row.semantic_extension),
       coverage = record(raw.coverage)
@@ -416,13 +447,19 @@ export function decodeSemanticResults(
       frames: array(raw.frames, frame),
       rows: array(raw.rows, (v) => text(v)),
       pairs: array(raw.pairs, pair),
-      typed_table_projections: raw.typed_table_projections === undefined || raw.typed_table_projections === null ? undefined : (() => {
-        const typed = record(raw.typed_table_projections)
-        return {
-          payment_schedules: array(typed.payment_schedules ?? [], (v) => record(v)),
-          boq_checks: array(typed.boq_checks ?? [], (v) => record(v)),
-        }
-      })(),
+      typed_table_projections:
+        raw.typed_table_projections === undefined ||
+        raw.typed_table_projections === null
+          ? undefined
+          : (() => {
+              const typed = record(raw.typed_table_projections)
+              return {
+                payment_schedules: array(typed.payment_schedules ?? [], (v) =>
+                  record(v),
+                ),
+                boq_checks: array(typed.boq_checks ?? [], (v) => record(v)),
+              }
+            })(),
       timeline: array(raw.timeline, timeline),
       alias_drafts: array(raw.alias_drafts, (v) => {
         const draft = record(v)
@@ -513,9 +550,23 @@ export function decodeFindingSemantic(value: unknown): FindingSemantic | null {
     profile_digest: hash(row.profile_digest),
     alias_version: integer(row.alias_version),
     alias_digest: row.alias_digest === null ? null : hash(row.alias_digest),
-    alignment_key: row.alignment_key === null || row.alignment_key === undefined ? null : array(row.alignment_key, (v) => text(v)),
-    conflict_kind: row.conflict_kind === null || row.conflict_kind === undefined ? null : choice(row.conflict_kind, ['SEMANTIC_CONFLICT', 'ARITHMETIC_INCONSISTENCY', 'AMENDMENT_REVIEW', 'COMPARABLE_DIFFERENCE']),
-    slots_in_difference: row.slots_in_difference === undefined ? [] : array(row.slots_in_difference, (v) => text(v)),
+    alignment_key:
+      row.alignment_key === null || row.alignment_key === undefined
+        ? null
+        : array(row.alignment_key, (v) => text(v)),
+    conflict_kind:
+      row.conflict_kind === null || row.conflict_kind === undefined
+        ? null
+        : choice(row.conflict_kind, [
+            'SEMANTIC_CONFLICT',
+            'ARITHMETIC_INCONSISTENCY',
+            'AMENDMENT_REVIEW',
+            'COMPARABLE_DIFFERENCE',
+          ]),
+    slots_in_difference:
+      row.slots_in_difference === undefined
+        ? []
+        : array(row.slots_in_difference, (v) => text(v)),
   }
   if (Boolean(result.pair) === Boolean(result.timeline))
     throw new Error('Finding cần đúng một semantic variant.')

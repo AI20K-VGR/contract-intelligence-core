@@ -10,6 +10,30 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class ReviewQueueEntryDTO(BaseModel):
+    """One dossier waiting for the caller's review (GET /review-queue).
+
+    ``pending_conflicts`` is the part of ``open_review_items`` that sits on a
+    finding; ``p1 + p2 + p3`` add up to ``open_review_items``.
+    ``grant_expires_at`` is when the caller's review access ends: null for the
+    owner and for a share without an end date.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    dossier_id: str
+    dossier_name: str
+    dossier_status: str
+    created_at: datetime
+    is_owner: bool
+    grant_expires_at: datetime | None = None
+    open_review_items: int
+    pending_conflicts: int
+    p1: int
+    p2: int
+    p3: int
+
+
 class ReviewItemDTO(BaseModel):
     """Review queue item (openapi.yaml: ReviewItem)."""
 

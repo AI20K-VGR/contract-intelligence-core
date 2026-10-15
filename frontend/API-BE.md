@@ -2,6 +2,7 @@
 
 Spec: **Contract Intelligence API** `1.1.0+sprint4-ai-integration` (DOC-05b + DOC-05c).  
 Đã chốt theo OpenAPI backend (envelope `{ data, meta }`, header `X-Backend-Version`).
+Hợp đồng FE-BE: **DOC-05b `v1.7.0`**, header response `X-API-Contract: v1.7.0`. 4 endpoint `/notifications` của `v1.6.0` vẫn là đề xuất, backend chưa có ([24](#24-thông-báo-cá-nhân-đề-xuất-be-chưa-có)).
 
 Dùng file này khi bỏ mock: mở mục tương ứng màn hình / file `src/data/*`, copy endpoint + shape, nối `src/api/client.ts`.
 
@@ -19,45 +20,45 @@ Prefix mọi path JSON: `/api/v1`. Base URL: `VITE_API_BASE_URL` (mặc định 
 
 ## A. Route FE → mục
 
-| Route FE | Page / layout | Nối mục |
-|---|---|---|
-| `/` | `LoginPage` | [1. Auth](#1-auth) |
-| `/tong-quan` | `OverviewPage` | [18](#18-quản-lý-người-dùng) · [2](#2-list-dossier) · phần chưa có: [`BE-OVERVIEW.md`](./BE-OVERVIEW.md) |
-| `/nguoi-dung-phan-quyen` | `UsersPage` | [18. Quản lý người dùng](#18-quản-lý-người-dùng) |
-| `/ho-so` · `/ho-so-cua-toi` | `MyDossiersPage` | [2. List dossier](#2-list-dossier) |
-| `/tao-ho-so` | `CreateDossierPage` | [3. Upload dossier](#3-upload-dossier) |
-| `/xac-nhan-manifest/:dossierId` | `ManifestConfirmPage` | [19. Xác nhận manifest](#19-xác-nhận-manifest) |
-| `/tien-trinh-phan-tich` | `AnalysisProgressPage` | [4. Pipeline run](#4-pipeline-run) |
-| `/doi-soat-xung-dot` | `ClauseConflictPage` | [9. Conflict / finding](#9-conflict--finding) |
-| `/ho-so-hop-dong` | `DossierReviewPage` | [5](#5-chi-tiết-dossier--document) · [7](#7-clause-tree) · [8](#8-fact--citation) · [15](#15-fe-có--be-chưa-có-endpoint) (search + audit) |
-| `/doi-soat-trich-dan` | `CitationComparePage` | [6](#6-page-image--pdf) · [8](#8-fact--citation) · [10](#10-review-hitl) |
-| `/nhan-xet-chinh-sua` | `CitationSplitViewPage` | [7](#7-clause-tree) · [8](#8-fact--citation) · [10](#10-review-hitl) |
-| `/chinh-sua-trich-dan` | `CitationEditPage` | [8](#8-fact--citation) · [10](#10-review-hitl) |
-| `/nhat-ky-phap-ly` | `DossierReviewPage` tab activity | [10. Revisions](#10-review-hitl) · [15](#15-fe-có--be-chưa-có-endpoint) |
-| `/duoc-chia-se-voi-toi` · `/tim-kiem-xuyen-ho-so` · `/cai-dat` | Placeholder | [15](#15-fe-có--be-chưa-có-endpoint) |
-| `/trung-tam-phan-tich` · `/kho-dieu-khoan-mau` · `/tuan-thu-rui-ro` | Placeholder | [15](#15-fe-có--be-chưa-có-endpoint) · [13](#13-batch--ops--optimization) (ops admin) |
-| — | Khóa / duyệt hồ sơ | [11. Lock & approve](#11-lock--approve) |
-| — | Re-OCR | [12. Re-OCR](#12-re-ocr) |
-| — | Batch ZIP | [13. Batch](#13-batch--ops--optimization) |
-| — | Health | [14. Health & AI job](#14-health--ai-job) |
+| Route FE                                                            | Page / layout                    | Nối mục                                                                                                                                   |
+| ------------------------------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`                                                                 | `LoginPage`                      | [1. Auth](#1-auth)                                                                                                                        |
+| `/tong-quan`                                                        | `OverviewPage`                   | [18](#18-quản-lý-người-dùng) · [2](#2-list-dossier) · phần chưa có: [`BE-OVERVIEW.md`](./BE-OVERVIEW.md)                                  |
+| `/nguoi-dung-phan-quyen`                                            | `UsersPage`                      | [18. Quản lý người dùng](#18-quản-lý-người-dùng)                                                                                          |
+| `/ho-so` · `/ho-so-cua-toi`                                         | `MyDossiersPage`                 | [2. List dossier](#2-list-dossier)                                                                                                        |
+| `/tao-ho-so`                                                        | `CreateDossierPage`              | [3. Upload dossier](#3-upload-dossier)                                                                                                    |
+| `/xac-nhan-manifest/:dossierId`                                     | `ManifestConfirmPage`            | [19. Xác nhận manifest](#19-xác-nhận-manifest)                                                                                            |
+| `/tien-trinh-phan-tich`                                             | `AnalysisProgressPage`           | [4. Pipeline run](#4-pipeline-run)                                                                                                        |
+| `/doi-soat-xung-dot`                                                | `ClauseConflictPage`             | [9. Conflict / finding](#9-conflict--finding)                                                                                             |
+| `/ho-so-hop-dong`                                                   | `DossierReviewPage`              | [5](#5-chi-tiết-dossier--document) · [7](#7-clause-tree) · [8](#8-fact--citation) · [15](#15-fe-có--be-chưa-có-endpoint) (search + audit) |
+| `/doi-soat-trich-dan`                                               | `CitationComparePage`            | [6](#6-page-image--pdf) · [8](#8-fact--citation) · [10](#10-review-hitl)                                                                  |
+| `/nhan-xet-chinh-sua`                                               | `CitationSplitViewPage`          | [7](#7-clause-tree) · [8](#8-fact--citation) · [10](#10-review-hitl)                                                                      |
+| `/chinh-sua-trich-dan`                                              | `CitationEditPage`               | [8](#8-fact--citation) · [10](#10-review-hitl)                                                                                            |
+| `/nhat-ky-phap-ly`                                                  | `DossierReviewPage` tab activity | [10. Revisions](#10-review-hitl) · [15](#15-fe-có--be-chưa-có-endpoint)                                                                   |
+| `/duoc-chia-se-voi-toi` · `/tim-kiem-xuyen-ho-so` · `/cai-dat`      | Placeholder                      | [15](#15-fe-có--be-chưa-có-endpoint)                                                                                                      |
+| `/trung-tam-phan-tich` · `/kho-dieu-khoan-mau` · `/tuan-thu-rui-ro` | Placeholder                      | [15](#15-fe-có--be-chưa-có-endpoint) · [13](#13-batch--ops--optimization) (ops admin)                                                     |
+| —                                                                   | Khóa / duyệt hồ sơ               | [11. Lock & approve](#11-lock--approve)                                                                                                   |
+| —                                                                   | Re-OCR                           | [12. Re-OCR](#12-re-ocr)                                                                                                                  |
+| —                                                                   | Batch ZIP                        | [13. Batch](#13-batch--ops--optimization)                                                                                                 |
+| —                                                                   | Health                           | [14. Health & AI job](#14-health--ai-job)                                                                                                 |
 
 ---
 
 ## B. Mock file → mục
 
-| File mock hiện tại | Thay bằng |
-|---|---|
-| `src/auth/session.ts` (`DEMO_USERS`, `loginAs`, `loginWithEmail`) | [1. Auth](#1-auth) |
-| `src/data/dossiers.ts` | [2. List dossier](#2-list-dossier) |
-| `src/data/upload.ts` | [3. Upload dossier](#3-upload-dossier) — page gọi `src/api/dossiers.ts`; file này chỉ còn `dossierCategories` |
-| `src/data/analysisProgress.ts` | [4. Pipeline run](#4-pipeline-run) |
-| `src/data/clauseConflicts.ts` | [9. Conflict](#9-conflict--finding) |
-| `src/data/citationEdit.ts` | [8](#8-fact--citation) + [10](#10-review-hitl) |
-| `src/data/citationSplitView.ts` | [7](#7-clause-tree) + [8](#8-fact--citation) |
-| `src/data/dossierSearch.ts` | **Không có search API** — [15](#15-fe-có--be-chưa-có-endpoint) |
-| `src/data/auditLog.ts` | Gần nhất: review revisions — [10](#10-review-hitl) · còn lại [15](#15-fe-có--be-chưa-có-endpoint) |
-| `src/data/overview.ts` | Đã bỏ. Tổng quan gọi `GET /users` và `GET /dossiers`. Phần chưa có API: [`BE-OVERVIEW.md`](./BE-OVERVIEW.md) |
-| `src/api/client.ts` (stub) | [0. Client](#0-client--quy-ước) |
+| File mock hiện tại                                                | Thay bằng                                                                                                     |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `src/auth/session.ts` (`DEMO_USERS`, `loginAs`, `loginWithEmail`) | [1. Auth](#1-auth)                                                                                            |
+| `src/data/dossiers.ts`                                            | [2. List dossier](#2-list-dossier)                                                                            |
+| `src/data/upload.ts`                                              | [3. Upload dossier](#3-upload-dossier) — page gọi `src/api/dossiers.ts`; file này chỉ còn `dossierCategories` |
+| `src/data/analysisProgress.ts`                                    | [4. Pipeline run](#4-pipeline-run)                                                                            |
+| `src/data/clauseConflicts.ts`                                     | [9. Conflict](#9-conflict--finding)                                                                           |
+| `src/data/citationEdit.ts`                                        | [8](#8-fact--citation) + [10](#10-review-hitl)                                                                |
+| `src/data/citationSplitView.ts`                                   | [7](#7-clause-tree) + [8](#8-fact--citation)                                                                  |
+| `src/data/dossierSearch.ts`                                       | **Không có search API** — [15](#15-fe-có--be-chưa-có-endpoint)                                                |
+| `src/data/auditLog.ts`                                            | Gần nhất: review revisions — [10](#10-review-hitl) · còn lại [15](#15-fe-có--be-chưa-có-endpoint)             |
+| `src/data/overview.ts`                                            | Đã bỏ. Tổng quan gọi `GET /users` và `GET /dossiers`. Phần chưa có API: [`BE-OVERVIEW.md`](./BE-OVERVIEW.md)  |
+| `src/api/client.ts` (stub)                                        | [0. Client](#0-client--quy-ước)                                                                               |
 
 `CitationComparePage` còn mock **inline** (`relatedCitations`), không nằm trong `src/data/`.
 
@@ -82,38 +83,38 @@ type ApiResponse<T> = {
 }
 ```
 
-Header response: `X-Backend-Version`.
+Header response: `X-Backend-Version`, `X-API-Contract` (hiện `v1.7.0`).
 
 ### Request headers (mọi endpoint trừ health)
 
-| Header | Bắt buộc? | Ghi chú |
-|---|---|---|
-| `Authorization: Bearer <jwt>` | Có (security `HTTPBearer`) | JWT Keycloak RS256 |
-| `X-Tenant-Id` | Nên gửi | Lấy từ `GET /auth/me` → `tenant_id` |
-| `Idempotency-Key` | Chỉ review action | Replay window (BE dành cho hardening sau) |
-| `Content-Type` | JSON: `application/json` · upload: **không set tay** (FormData) | |
+| Header                        | Bắt buộc?                                                       | Ghi chú                                   |
+| ----------------------------- | --------------------------------------------------------------- | ----------------------------------------- |
+| `Authorization: Bearer <jwt>` | Có (security `HTTPBearer`)                                      | JWT Keycloak RS256                        |
+| `X-Tenant-Id`                 | Nên gửi                                                         | Lấy từ `GET /auth/me` → `tenant_id`       |
+| `Idempotency-Key`             | Chỉ review action                                               | Replay window (BE dành cho hardening sau) |
+| `Content-Type`                | JSON: `application/json` · upload: **không set tay** (FormData) |                                           |
 
 `src/api/client.ts` hiện **không** gắn token / tenant / unwrap `data`. Khi nối: thêm wrapper `getJson` / `postJson` / `postMultipart` trả về `res.data`, ném lỗi theo status.
 
 ### Auth lỗi thường gặp
 
-| HTTP | Khi nào |
-|---|---|
-| 401 | Token invalid / hết hạn / không phải Keycloak |
-| 403 | Sai role (xem từng endpoint) |
-| 404 | Không tìm thấy (đúng tenant) |
-| 409 | Conflict nghiệp vụ (run đang chạy, version review, đã lock, …) |
-| 422 | Validation (Pydantic / FastAPI) |
+| HTTP | Khi nào                                                        |
+| ---- | -------------------------------------------------------------- |
+| 401  | Token invalid / hết hạn / không phải Keycloak                  |
+| 403  | Sai role (xem từng endpoint)                                   |
+| 404  | Không tìm thấy (đúng tenant)                                   |
+| 409  | Conflict nghiệp vụ (run đang chạy, version review, đã lock, …) |
+| 422  | Validation (Pydantic / FastAPI)                                |
 
 Role BE (JWT claim `role`): `OPERATOR` | `REVIEWER` | `ADMINISTRATOR`.
 
 Role FE mock hiện tại: `admin` | `user` — **không trùng tên**. Map đề xuất:
 
-| FE mock | BE |
-|---|---|
-| `admin` | `ADMINISTRATOR` |
-| `user` (upload / tạo HS) | `OPERATOR` |
-| `user` (rà soát citation / conflict) | `REVIEWER` |
+| FE mock                              | BE              |
+| ------------------------------------ | --------------- |
+| `admin`                              | `ADMINISTRATOR` |
+| `user` (upload / tạo HS)             | `OPERATOR`      |
+| `user` (rà soát citation / conflict) | `REVIEWER`      |
 
 `ADMINISTRATOR` kế thừa `OPERATOR` trên nhiều endpoint ghi.
 
@@ -131,11 +132,11 @@ OpenAPI list runs: filter `completed` được map `completed` ↔ `succeeded` p
 
 UI list hồ sơ (`processing | ready | review`) map đề xuất:
 
-| UI `DossierStatus` | Gợi ý từ BE |
-|---|---|
-| `processing` | `latest_job_status` ∈ `uploaded`, `processing` **hoặc** run `queued`/`running` |
-| `review` | `pending_review` **hoặc** `has_conflicts` / `open_review_items` / `pending_conflicts` > 0 |
-| `ready` | `extracted` · `reviewed` · `approved` và không còn conflict mở |
+| UI `DossierStatus` | Gợi ý từ BE                                                                               |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| `processing`       | `latest_job_status` ∈ `uploaded`, `processing` **hoặc** run `queued`/`running`            |
+| `review`           | `pending_review` **hoặc** `has_conflicts` / `open_review_items` / `pending_conflicts` > 0 |
+| `ready`            | `extracted` · `reviewed` · `approved` và không còn conflict mở                            |
 
 ---
 
@@ -155,7 +156,7 @@ type MeResponse = {
   id: string
   email: string
   display_name: string
-  role: string          // OPERATOR | REVIEWER | ADMINISTRATOR
+  role: string // OPERATOR | REVIEWER | ADMINISTRATOR
   tenant_id: string
 }
 // envelope: ApiResponse<MeResponse>
@@ -177,14 +178,14 @@ Webhook Keycloak → sync `app_user`. **Không gọi từ browser.** Header `X-K
 
 Query:
 
-| Param | Type | Mặc định | Ý nghĩa |
-|---|---|---|---|
-| `status` | string? | — | Filter (string BE; không enum cứng trên OpenAPI) |
-| `has_conflicts` | boolean? | — | |
-| `batch_id` | string? | — | |
-| `q` | string? max 200 | — | Tìm theo **tên** dossier |
-| `limit` | 1..100 | 20 | |
-| `offset` | ≥0 | 0 | |
+| Param           | Type            | Mặc định | Ý nghĩa                                          |
+| --------------- | --------------- | -------- | ------------------------------------------------ |
+| `status`        | string?         | —        | Filter (string BE; không enum cứng trên OpenAPI) |
+| `has_conflicts` | boolean?        | —        |                                                  |
+| `batch_id`      | string?         | —        |                                                  |
+| `q`             | string? max 200 | —        | Tìm theo **tên** dossier                         |
+| `limit`         | 1..100          | 20       |                                                  |
+| `offset`        | ≥0              | 0        |                                                  |
 
 Pagination nằm ở `meta.total` / `meta.page` / `meta.page_size`.
 
@@ -193,36 +194,76 @@ type DossierSummaryDTO = {
   id: string
   name: string
   batch_id?: string | null
-  has_conflicts?: boolean          // default false
+  has_conflicts?: boolean // default false
   latest_job_status?: JobStatus | null
-  open_review_items?: number       // default 0
-  pending_conflicts?: number       // default 0
+  open_review_items?: number // default 0
+  pending_conflicts?: number // default 0
   metadata?: Record<string, unknown> | null
-  created_at: string               // date-time
+  locked?: boolean // v1.7.0 — hồ sơ đã khoá để phê duyệt
+  approved_at?: string | null // v1.7.0 — null khi chưa duyệt
+  my_access?: DossierMyAccessDTO // v1.7.0
+  created_at: string // date-time
+}
+
+// v1.7.0 — việc người gọi làm được trên hồ sơ, theo ACL của backend
+type DossierMyAccessDTO = {
+  owner: boolean // người gọi là chủ hồ sơ
+  permission: 'edit' | 'read' | null // null: không có lượt chia sẻ (chủ hồ sơ)
+  expires_at: string | null
+  expired: boolean
+  can_edit: boolean // sửa hồ sơ (DOSSIER_EDIT)
+  can_review: boolean // ghi thẩm định (REVIEW_MUTATE)
+  can_see_review: boolean // xem thẩm định (REVIEW_READ)
+  can_manage: boolean // chia sẻ / quản lý (DOSSIER_MANAGE)
+  can_approve: boolean // phê duyệt (APPROVE)
 }
 ```
 
+Ví dụ một `REVIEWER` được chia sẻ quyền `edit`:
+
+```json
+{
+  "locked": false,
+  "approved_at": null,
+  "my_access": {
+    "owner": false,
+    "permission": "edit",
+    "expires_at": "2026-10-20T00:00:00+00:00",
+    "expired": false,
+    "can_edit": false,
+    "can_review": true,
+    "can_see_review": true,
+    "can_manage": false,
+    "can_approve": false
+  }
+}
+```
+
+- FE ẩn/hiện nút theo các cờ `can_*`, **không** tự suy ra từ `metadata.shared_with`.
+- `my_access` chỉ trả lời theo ACL. Hồ sơ `locked: true` vẫn từ chối mọi thay đổi và review dù `can_*` là `true`, nên FE **vẫn phải xét `locked`**.
+- `permission`: lượt chia sẻ còn hạn lâu nhất dành cho người gọi (ưu tiên `edit`). Không còn lượt nào còn hạn thì là lượt hết hạn gần nhất, kèm `expired: true`.
+
 Map UI `Dossier`:
 
-| UI | BE |
-|---|---|
-| `id` | `id` |
-| `title` | `name` |
-| `code` | `metadata.code` nếu FE ghi lúc upload/patch — **không có field `code` riêng** |
-| `status` | derive từ `latest_job_status` + `has_conflicts` / `open_review_items` |
-| `reviewNote` | ví dụ ``${pending_conflicts} điều khoản bất thường`` |
-| `documents` | **không có trên list** — cần `GET /dossiers/{id}` hoặc `GET .../documents` |
-| `updated` | list chỉ có `created_at` — `updated_at` ở **detail** |
-| `access` / chia sẻ | **không có API share** |
-| `progress` / `progressLabel` | **không có trên list** — poll `GET /runs?dossier_id=` hoặc SSE |
+| UI                           | BE                                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------------ |
+| `id`                         | `id`                                                                                 |
+| `title`                      | `name`                                                                               |
+| `code`                       | `metadata.code` nếu FE ghi lúc upload/patch — **không có field `code` riêng**        |
+| `status`                     | derive từ `latest_job_status` + `has_conflicts` / `open_review_items`                |
+| `reviewNote`                 | ví dụ `${pending_conflicts} điều khoản bất thường`                                   |
+| `documents`                  | **không có trên list** — cần `GET /dossiers/{id}` hoặc `GET .../documents`           |
+| `updated`                    | list chỉ có `created_at` — `updated_at` ở **detail**                                 |
+| `access` / chia sẻ           | `my_access` (v1.7.0); đổi quyền qua [20](#20-chia-sẻ-hồ-sơ-chỉ-đọc--được-sửa-có-hạn) |
+| `progress` / `progressLabel` | **không có trên list** — poll `GET /runs?dossier_id=` hoặc SSE                       |
 
 Điều hướng hiện tại `dossierOpenTo()`:
 
-| UI status | Route | Khi nối |
-|---|---|---|
+| UI status  | Route                   | Khi nối                                  |
+| ---------- | ----------------------- | ---------------------------------------- |
 | processing | `/tien-trinh-phan-tich` | mang `dossierId` + `runId` (query/state) |
-| review | `/doi-soat-xung-dot` | mang `dossierId` |
-| ready | `/ho-so-hop-dong` | mang `dossierId` |
+| review     | `/doi-soat-xung-dot`    | mang `dossierId`                         |
+| ready      | `/ho-so-hop-dong`       | mang `dossierId`                         |
 
 RBAC list: **mọi user đã auth**.
 
@@ -243,11 +284,11 @@ OpenAPI `Body_create_dossier` / `DossierCreatedDTO`. Header: `Authorization`, `X
 
 Multipart:
 
-| Field | Type | Bắt buộc |
-|---|---|---|
-| `contract` | file PDF | có |
-| `metadata` | **string JSON** `{ name, tags?, notes? }` | có |
-| `annexes` | file[] | không |
+| Field      | Type                                      | Bắt buộc |
+| ---------- | ----------------------------------------- | -------- |
+| `contract` | file PDF                                  | có       |
+| `metadata` | **string JSON** `{ name, tags?, notes? }` | có       |
+| `annexes`  | file[]                                    | không    |
 
 ```ts
 type DossierCreatedDTO = {
@@ -256,13 +297,13 @@ type DossierCreatedDTO = {
 }
 ```
 
-| HTTP | OpenAPI | UI |
-|---|---|---|
-| 202 | `{ data: DossierCreatedDTO }` | hiện UPLOADED + id |
-| 400 | Missing contract file | Thiếu tệp PDF hợp đồng |
-| 403 | Insufficient role | Chỉ vận hành và quản trị |
-| 422 | Invalid metadata JSON | Metadata không đúng JSON |
-| 422 | `DOSSIER_TOO_MANY_DOCUMENTS` | Quá 6 tệp (1 hợp đồng + tối đa 5 phụ lục). Giới hạn đếm tệp, không đếm trang. Hiện `error.message`, ví dụ: "Hồ sơ tối đa 6 file PDF (1 hợp đồng và tối đa 5 phụ lục). Bạn đã chọn 7 file." Không tạo hồ sơ nào |
+| HTTP | OpenAPI                       | UI                                                                                                                                                                                                             |
+| ---- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 202  | `{ data: DossierCreatedDTO }` | hiện UPLOADED + id                                                                                                                                                                                             |
+| 400  | Missing contract file         | Thiếu tệp PDF hợp đồng                                                                                                                                                                                         |
+| 403  | Insufficient role             | Chỉ vận hành và quản trị                                                                                                                                                                                       |
+| 422  | Invalid metadata JSON         | Metadata không đúng JSON                                                                                                                                                                                       |
+| 422  | `DOSSIER_TOO_MANY_DOCUMENTS`  | Quá 6 tệp (1 hợp đồng + tối đa 5 phụ lục). Giới hạn đếm tệp, không đếm trang. Hiện `error.message`, ví dụ: "Hồ sơ tối đa 6 file PDF (1 hợp đồng và tối đa 5 phụ lục). Bạn đã chọn 7 file." Không tạo hồ sơ nào |
 
 Muốn chạy pipeline: `POST /dossiers/{id}/runs` ([4](#4-pipeline-run)).
 
@@ -296,14 +337,14 @@ type CreateRunRequestDTO = {
   config_override?: {
     ocr_profile?: 'standard' | 'high_res_binarize' | 'table_optimized' | null
     prompt_candidate_id?: string | null
-    confidence_threshold?: number | null  // 0..1
+    confidence_threshold?: number | null // 0..1
   } | null
 }
 
 type PipelineRunSummaryDTO = {
   run_id: string
   dossier_id: string
-  status: string            // queued | running | completed | failed | cancelled
+  status: string // queued | running | completed | failed | cancelled
   triggered_by?: string | null
   duration_seconds?: number | null
   created_at?: string | null
@@ -336,12 +377,12 @@ Query: `dossier_id?`, `status?` (`queued|running|completed|failed|cancelled`), `
 
 Map phase UI (tùy product, chỉ gợi ý):
 
-| UI phase | Step BE (gợi ý) |
-|---|---|
-| 1. Tải tệp | S0 ingest |
-| 2. Nhận diện chữ | OCR steps đầu |
-| 3. Phân tích điều khoản | clause / fact |
-| 4. Hoàn tất | S10 + run `completed` |
+| UI phase                | Step BE (gợi ý)       |
+| ----------------------- | --------------------- |
+| 1. Tải tệp              | S0 ingest             |
+| 2. Nhận diện chữ        | OCR steps đầu         |
+| 3. Phân tích điều khoản | clause / fact         |
+| 4. Hoàn tất             | S10 + run `completed` |
 
 Danh sách file đang xử lý: `GET /dossiers/{id}/documents` — không có % per-file trên OpenAPI; % đang mock.
 
@@ -353,14 +394,14 @@ Danh sách file đang xử lý: `GET /dossiers/{id}/documents` — không có % 
 
 `text/event-stream`. Events:
 
-| Event | Khi nào |
-|---|---|
-| `run.started` | mở stream |
-| `step.changed` | 1 step S0..S10 đổi trạng thái |
-| `run.status_changed` | đổi status run |
-| `run.completed` | terminal → đóng stream |
-| `error` | lỗi / run not found |
-| `:heartbeat` | 15s |
+| Event                | Khi nào                       |
+| -------------------- | ----------------------------- |
+| `run.started`        | mở stream                     |
+| `step.changed`       | 1 step S0..S10 đổi trạng thái |
+| `run.status_changed` | đổi status run                |
+| `run.completed`      | terminal → đóng stream        |
+| `error`              | lỗi / run not found           |
+| `:heartbeat`         | 15s                           |
 
 **Trình duyệt `EventSource` không gửi `Authorization`.** Không dùng:
 
@@ -408,10 +449,15 @@ type DossierDetailDTO = {
   open_review_items?: number
   pending_conflicts?: number
   metadata?: Record<string, unknown> | null
+  locked?: boolean // v1.7.0
+  approved_at?: string | null // v1.7.0
+  my_access?: DossierMyAccessDTO // v1.7.0 — kiểu ở mục 2
   created_at: string
   updated_at: string
 }
 ```
+
+`locked`, `approved_at`, `my_access` giống hệt trên list ([2](#2-list-dossier)): FE ẩn/hiện nút theo `my_access.can_*`, và vẫn phải xét `locked` (hồ sơ khoá thì backend từ chối thay đổi/review dù `can_*` là `true`).
 
 ### `GET /api/v1/dossiers/{dossier_id}/documents`
 
@@ -458,11 +504,11 @@ type PageDTO = {
   id: string
   document_id: string
   page_no: number
-  kind?: string            // default "native"
+  kind?: string // default "native"
   width_pt: number
   height_pt: number
   rotation?: number
-  render_dpi?: number      // default 300
+  render_dpi?: number // default 300
   preview_uri?: string | null
   render_uri?: string | null
   quality?: Record<string, unknown> | null
@@ -471,10 +517,10 @@ type PageDTO = {
 
 ### Ảnh trang (binary): `GET /api/v1/documents/{document_id}/pages/{page_no}/image`
 
-- Path `page_no` ≥ 1  
-- Query `variant=preview|render` (default `preview`)  
-- `image/png` hoặc `image/webp`  
-- 404 page/image missing  
+- Path `page_no` ≥ 1
+- Query `variant=preview|render` (default `preview`)
+- `image/png` hoặc `image/webp`
+- 404 page/image missing
 
 Cần `Authorization` — `<img src>` trần sẽ 401. Nối: fetch blob + `URL.createObjectURL`, hoặc proxy cùng cookie.
 
@@ -502,7 +548,7 @@ type ClauseRegionDTO = {
 type ClauseNodeDTO = {
   id: string
   document_id: string
-  node_type: string          // article > clause > point
+  node_type: string // article > clause > point
   label: string
   number?: string | null
   title?: string | null
@@ -556,10 +602,10 @@ type DocTableDTO = {
 
 ### Facts theo dossier (HITL — có version): `GET /api/v1/dossiers/{dossier_id}/facts`
 
-| Query | Default | |
-|---|---|---|
-| `effective` | `true` | kèm `current_version` để optimistic lock |
-| `key` | — | filter 1 fact key |
+| Query       | Default |                                          |
+| ----------- | ------- | ---------------------------------------- |
+| `effective` | `true`  | kèm `current_version` để optimistic lock |
+| `key`       | —       | filter 1 fact key                        |
 
 Response có ETag (dossier-level concurrency).
 
@@ -570,7 +616,7 @@ type CitationDTO = {
   run_id?: string | null
   quote?: string
   quote_sha256?: string
-  segments?: unknown[]      // bbox segments
+  segments?: unknown[] // bbox segments
   doc_char_span?: number[]
   coord_system?: string | null
 }
@@ -596,24 +642,24 @@ type FactEffectiveDTO = {
   fact: FactDTO
   machine_value?: unknown
   effective_value?: unknown
-  review_state?: string     // default "unreviewed"
+  review_state?: string // default "unreviewed"
   reviewer_id?: string | null
   reviewed_at?: string | null
   review_item_id?: string | null
-  current_version?: number  // default 0 — BẮT BUỘC echo thành base_version
+  current_version?: number // default 0 — BẮT BUỘC echo thành base_version
 }
 ```
 
 Map UI citation:
 
-| UI | BE |
-|---|---|
-| title / khoản | `fact.key` + clause `context_clause_id` → [7](#7-clause-tree) |
-| excerpt / quote | `citation.quote` hoặc `fact.raw_text` |
-| confidence | `fact.confidence` |
-| page | `citation.segments` / clause `page_start` |
-| hash | `citation.quote_sha256` |
-| status locked/waiting | `review_state` + review item `status` |
+| UI                    | BE                                                            |
+| --------------------- | ------------------------------------------------------------- |
+| title / khoản         | `fact.key` + clause `context_clause_id` → [7](#7-clause-tree) |
+| excerpt / quote       | `citation.quote` hoặc `fact.raw_text`                         |
+| confidence            | `fact.confidence`                                             |
+| page                  | `citation.segments` / clause `page_start`                     |
+| hash                  | `citation.quote_sha256`                                       |
+| status locked/waiting | `review_state` + review item `status`                         |
 
 ### Facts theo document: `GET /api/v1/documents/{document_id}/facts`
 
@@ -633,9 +679,9 @@ Highlight PDF: lấy `segments` bbox, overlay lên ảnh [6](#6-page-image--pdf)
 
 Hai list:
 
-| Endpoint | Ý nghĩa |
-|---|---|
-| `GET /dossiers/{id}/findings` | Mọi phát hiện |
+| Endpoint                       | Ý nghĩa                                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------- |
+| `GET /dossiers/{id}/findings`  | Mọi phát hiện                                                                   |
 | `GET /dossiers/{id}/conflicts` | Subset cần reviewer: disposition thuộc conflict set **hoặc** `confidence < 0.6` |
 
 ### `GET /api/v1/dossiers/{dossier_id}/findings`
@@ -660,20 +706,20 @@ type FindingSideDTO = {
 }
 
 type FindingReviewLatestDTO = {
-  action: string                 // confirm | reject (dữ liệu cũ có thể là correct)
+  action: string // confirm | reject (dữ liệu cũ có thể là correct)
   comment?: string | null
   reviewer_id?: string | null
   reviewer_name?: string | null
   reviewer_email?: string | null
-  reviewed_at?: string | null    // ISO 8601
-  action_count?: number          // tổng số lượt thẩm định của item
+  reviewed_at?: string | null // ISO 8601
+  action_count?: number // tổng số lượt thẩm định của item
 }
 
 type FindingReviewDTO = {
   item_id: string
   status: string
   current_version?: number
-  latest?: FindingReviewLatestDTO | null  // v1.3.0; null khi chưa ai thẩm định
+  latest?: FindingReviewLatestDTO | null // v1.3.0; null khi chưa ai thẩm định
 }
 
 type FindingDTO = {
@@ -688,25 +734,25 @@ type FindingDTO = {
   confidence?: number
   rationale?: string | null
   method?: string
-  sides?: FindingSideDTO[]     // 2 phía đối sánh
-  disclaimer?: string          // default: không phải kết luận pháp lý
+  sides?: FindingSideDTO[] // 2 phía đối sánh
+  disclaimer?: string // default: không phải kết luận pháp lý
   review?: FindingReviewDTO | null
 }
 ```
 
 Map UI `ClauseConflict`:
 
-| UI | BE |
-|---|---|
-| `id` / `code` | `id` |
-| `title` / `field` | `key_or_topic` |
-| `comparison` | ghép `sides[].value_snapshot` |
-| `risk` high/resolved | `severity` + `review.status` / `disposition` |
-| `diagnosis` | `rationale` |
-| `source1` / `source2` | `sides[0]` / `sides[1]` |
-| `value` | `value_snapshot` |
-| quote highlight | `sides[].citation` |
-| `choice` | **không lưu trên finding** — submit [10](#10-review-hitl) qua `review.item_id` |
+| UI                    | BE                                                                             |
+| --------------------- | ------------------------------------------------------------------------------ |
+| `id` / `code`         | `id`                                                                           |
+| `title` / `field`     | `key_or_topic`                                                                 |
+| `comparison`          | ghép `sides[].value_snapshot`                                                  |
+| `risk` high/resolved  | `severity` + `review.status` / `disposition`                                   |
+| `diagnosis`           | `rationale`                                                                    |
+| `source1` / `source2` | `sides[0]` / `sides[1]`                                                        |
+| `value`               | `value_snapshot`                                                               |
+| quote highlight       | `sides[].citation`                                                             |
+| `choice`              | **không lưu trên finding** — submit [10](#10-review-hitl) qua `review.item_id` |
 
 Chọn nguồn / overlay / reject trên UI = `POST /review-items/{item_id}/actions` với `base_version` = `review.current_version`. Thiếu `review.item_id` thì list `GET .../review-items` filter `target_id = finding.id`.
 
@@ -730,9 +776,9 @@ type ReviewItemDTO = {
   target_type: string
   target_id: string
   reason?: string
-  priority?: string         // default P3
-  status?: string           // default open
-  version?: number          // default 1 — dùng cho base_version
+  priority?: string // default P3
+  status?: string // default open
+  version?: number // default 1 — dùng cho base_version
   source_trace_id?: string | null
   source_observation_id?: string | null
   target_snapshot?: Record<string, unknown> | null
@@ -766,11 +812,11 @@ Header optional: `Idempotency-Key`.
 
 ```ts
 type ReviewActionRequestDTO = {
-  action: string            // confirm | correct | reject | needs_more_evidence
-  base_version: number      // version client đang thấy; 0 = machine baseline
-  corrected_value?: Record<string, unknown> | null  // bắt buộc nếu action=correct
+  action: string // confirm | correct | reject | needs_more_evidence
+  base_version: number // version client đang thấy; 0 = machine baseline
+  corrected_value?: Record<string, unknown> | null // bắt buộc nếu action=correct
   corrected_bbox?: unknown[] | null
-  comment?: string | null   // max 2000
+  comment?: string | null // max 2000
 }
 
 type ReviewActionResponseDTO = {
@@ -785,22 +831,22 @@ type ReviewActionResponseDTO = {
 }
 ```
 
-| HTTP | |
-|---|---|
-| 200 | OK |
-| 403 | Sai role |
-| 404 | Không có item |
-| 409 | `base_version` lệch — body có `current_state`; reload item, gửi lại `version` mới |
-| 422 | Action invalid / thiếu `corrected_value` |
+| HTTP |                                                                                   |
+| ---- | --------------------------------------------------------------------------------- |
+| 200  | OK                                                                                |
+| 403  | Sai role                                                                          |
+| 404  | Không có item                                                                     |
+| 409  | `base_version` lệch — body có `current_state`; reload item, gửi lại `version` mới |
+| 422  | Action invalid / thiếu `corrected_value`                                          |
 
 Map UI conflict:
 
-| UI Decision | `action` |
-|---|---|
-| confirm nguồn đã chọn | `confirm` (kèm `corrected_value` nếu BE yêu cầu side đã pick) |
-| overlay | `correct` + `corrected_value` / `corrected_bbox` |
-| reject | `reject` |
-| (citation) needs more evidence | `needs_more_evidence` → status `awaiting_evidence` |
+| UI Decision                    | `action`                                                      |
+| ------------------------------ | ------------------------------------------------------------- |
+| confirm nguồn đã chọn          | `confirm` (kèm `corrected_value` nếu BE yêu cầu side đã pick) |
+| overlay                        | `correct` + `corrected_value` / `corrected_bbox`              |
+| reject                         | `reject`                                                      |
+| (citation) needs more evidence | `needs_more_evidence` → status `awaiting_evidence`            |
 
 **Luôn** gửi `base_version` = `item.version` hoặc `finding.review.current_version` hoặc `fact.current_version`.
 
@@ -820,7 +866,7 @@ Tạo snapshot checksum.
 
 ```ts
 type ApproveRequestDTO = {
-  comment?: string | null   // max 2000
+  comment?: string | null // max 2000
 }
 ```
 
@@ -834,7 +880,7 @@ RBAC **ADMINISTRATOR**. 409 nếu chưa approve hoặc đang có grant pending.
 ```ts
 type ExternalApprovalRequestDTO = {
   provider: 'docusign' | 'sap_ariba' | 'corporate_sso'
-  approver_email: string    // 3..255
+  approver_email: string // 3..255
   approver_name?: string | null
   expires_in_hours?: number // 1..720, default 72
   notes?: string | null
@@ -910,11 +956,11 @@ Admin/ops. FE overview hiện **không** gọi các endpoint này.
 
 `POST /api/v1/batches` multipart → **202** — RBAC OPERATOR (+ admin):
 
-| Field | |
-|---|---|
+| Field      |                     |
+| ---------- | ------------------- |
 | `manifest` | file `manifest.csv` |
-| `archive` | ZIP |
-| `name` | optional |
+| `archive`  | ZIP                 |
+| `name`     | optional            |
 
 ```ts
 type BatchCreatedDTO = {
@@ -947,7 +993,7 @@ type BatchDetailDTO = BatchListItemDTO & {
 `GET /api/v1/batches/{batch_id}`  
 `GET /api/v1/batches/{batch_id}/summary` — `dict` (succeeded, failed, pending_review, total_cost_usd)  
 `POST /api/v1/batches/{batch_id}/cancel` — 409 already terminal  
-`POST /api/v1/batches/{batch_id}/resume` — 409 not resumable  
+`POST /api/v1/batches/{batch_id}/resume` — 409 not resumable
 
 List dossier theo batch: `GET /dossiers?batch_id=`.
 
@@ -957,20 +1003,20 @@ List dossier theo batch: `GET /dossiers?batch_id=`.
 
 ### Optimization (prompt/model experiments)
 
-| Method | Path | Status |
-|---|---|---|
-| GET/POST | `/optimization/campaigns` | 200 / 201 |
-| GET | `/optimization/campaigns/{campaign_id}` | 200/404 |
-| GET/POST | `/optimization/candidates` | 200 / 201 |
-| GET | `/optimization/candidates/{id}` | 200/404 |
-| POST | `/optimization/candidates/{id}/promote` | 200, 409 already production |
-| GET/POST | `/optimization/experiments` | 200 / 201 |
-| POST | `/optimization/experiments/{id}/run` | 202, 409 running/finished |
-| GET | `/optimization/experiments/{id}/results` | 200 |
+| Method   | Path                                     | Status                      |
+| -------- | ---------------------------------------- | --------------------------- |
+| GET/POST | `/optimization/campaigns`                | 200 / 201                   |
+| GET      | `/optimization/campaigns/{campaign_id}`  | 200/404                     |
+| GET/POST | `/optimization/candidates`               | 200 / 201                   |
+| GET      | `/optimization/candidates/{id}`          | 200/404                     |
+| POST     | `/optimization/candidates/{id}/promote`  | 200, 409 already production |
+| GET/POST | `/optimization/experiments`              | 200 / 201                   |
+| POST     | `/optimization/experiments/{id}/run`     | 202, 409 running/finished   |
+| GET      | `/optimization/experiments/{id}/results` | 200                         |
 
 ```ts
 type CreateCampaignRequestDTO = {
-  name: string              // 1..255
+  name: string // 1..255
   description?: string | null
   target_metric: 'f1_score' | 'precision' | 'latency' | 'cost'
   baseline_score: number
@@ -981,14 +1027,14 @@ type CreateCandidateRequestDTO = {
   name: string
   prompt_template: string
   model_name: string
-  temperature?: number      // default 0
+  temperature?: number // default 0
 }
 
 type CreateExperimentRequestDTO = {
   campaign_id: string
   candidate_id: string
   golden_dataset_version: string
-  sample_size?: number      // default 100, min 1
+  sample_size?: number // default 100, min 1
 }
 ```
 
@@ -1000,13 +1046,13 @@ DTO đọc: `OptimizationCampaignDTO`, `OptimizationCandidateDTO`, `Optimization
 
 Thường không gắn UI user. Dùng khi hiện “AI down” trên màn progress.
 
-| Method | Path | Auth | Ý nghĩa |
-|---|---|---|---|
-| GET | `/health` | spec vẫn liệt kê bearer | health đơn giản |
-| GET | `/api/v1/healthz` | bearer trên spec | liveness — luôn 200 nếu process sống |
-| GET | `/api/v1/readyz` | bearer | readiness DB + AI; **503** nếu AI down (HTTP mode) |
-| GET | `/api/v1/ai/jobs/{job_id}` | bearer | proxy AI `GET /jobs/{id}` — poll không cần biết dossier. 502 AI down |
-| DELETE | `/api/v1/ai/jobs/{job_id}` | OPERATOR+ | proxy cancel AI job |
+| Method | Path                       | Auth                    | Ý nghĩa                                                              |
+| ------ | -------------------------- | ----------------------- | -------------------------------------------------------------------- |
+| GET    | `/health`                  | spec vẫn liệt kê bearer | health đơn giản                                                      |
+| GET    | `/api/v1/healthz`          | bearer trên spec        | liveness — luôn 200 nếu process sống                                 |
+| GET    | `/api/v1/readyz`           | bearer                  | readiness DB + AI; **503** nếu AI down (HTTP mode)                   |
+| GET    | `/api/v1/ai/jobs/{job_id}` | bearer                  | proxy AI `GET /jobs/{id}` — poll không cần biết dossier. 502 AI down |
+| DELETE | `/api/v1/ai/jobs/{job_id}` | OPERATOR+               | proxy cancel AI job                                                  |
 
 `job_id` dossier: `DossierCreatedDTO.job_id` / `latest_job_id` / `ReprocessAcceptedDTO.job_id` — khác `run_id`.
 
@@ -1016,34 +1062,34 @@ Thường không gắn UI user. Dùng khi hiện “AI down” trên màn progre
 
 Giữ mock hoặc ẩn màn cho đến khi BE bổ sung. Đừng bịa API.
 
-| UI | File | Lý do |
-|---|---|---|
-| Login Google / SSO / quick admin-user | `LoginPage` | Auth = Keycloak ngoài OpenAPI; API chỉ `/auth/me` |
-| Tổng quan: dung lượng, hoạt động tenant, số hồ sơ chia sẻ, xuất báo cáo | `BE-OVERVIEW.md` | User list và dossier list đã nối. Các phần còn lại chưa có endpoint |
-| Người dùng & phân quyền | `UsersPage` | FE đã gọi. BE làm theo `BE-USER-ADMIN.md` — [18](#18-quản-lý-người-dùng) |
-| Được chia sẻ với tôi | Placeholder | Không có share grant |
-| Tìm kiếm xuyên hồ sơ | Placeholder | `GET /dossiers?q=` chỉ search **tên** dossier |
-| Tìm trong 1 hồ sơ (Ctrl+K) | `dossierSearch.ts` | Không có full-text / semantic search |
-| Nhật ký pháp lý toàn dossier | `auditLog.ts` | Chỉ `review-items/.../revisions` theo 1 item |
-| Quyền riêng tư / chia sẻ lúc tạo HS | `CreateDossierPage` | Không có field privacy; nhét `metadata` nếu BE chấp nhận opaque object |
-| Mã vụ việc `code` | list + create | Không có field; dùng `metadata.code` |
-| Kho điều khoản mẫu | Placeholder | Không có |
-| Tuân thủ & rủi ro (trang riêng) | Placeholder | Gần nhất: findings/conflicts |
-| Trung tâm phân tích | Placeholder | Gần nhất: ops metrics + optimization (admin) |
-| Cài đặt | Placeholder | Không có |
+| UI                                                                      | File                | Lý do                                                                    |
+| ----------------------------------------------------------------------- | ------------------- | ------------------------------------------------------------------------ |
+| Login Google / SSO / quick admin-user                                   | `LoginPage`         | Auth = Keycloak ngoài OpenAPI; API chỉ `/auth/me`                        |
+| Tổng quan: dung lượng, hoạt động tenant, số hồ sơ chia sẻ, xuất báo cáo | `BE-OVERVIEW.md`    | User list và dossier list đã nối. Các phần còn lại chưa có endpoint      |
+| Người dùng & phân quyền                                                 | `UsersPage`         | FE đã gọi. BE làm theo `BE-USER-ADMIN.md` — [18](#18-quản-lý-người-dùng) |
+| Được chia sẻ với tôi                                                    | Placeholder         | Không có share grant                                                     |
+| Tìm kiếm xuyên hồ sơ                                                    | Placeholder         | `GET /dossiers?q=` chỉ search **tên** dossier                            |
+| Tìm trong 1 hồ sơ (Ctrl+K)                                              | `dossierSearch.ts`  | Không có full-text / semantic search                                     |
+| Nhật ký pháp lý toàn dossier                                            | `auditLog.ts`       | Chỉ `review-items/.../revisions` theo 1 item                             |
+| Quyền riêng tư / chia sẻ lúc tạo HS                                     | `CreateDossierPage` | Không có field privacy; nhét `metadata` nếu BE chấp nhận opaque object   |
+| Mã vụ việc `code`                                                       | list + create       | Không có field; dùng `metadata.code`                                     |
+| Kho điều khoản mẫu                                                      | Placeholder         | Không có                                                                 |
+| Tuân thủ & rủi ro (trang riêng)                                         | Placeholder         | Gần nhất: findings/conflicts                                             |
+| Trung tâm phân tích                                                     | Placeholder         | Gần nhất: ops metrics + optimization (admin)                             |
+| Cài đặt                                                                 | Placeholder         | Không có                                                                 |
 
 ---
 
 ## 16. Thứ tự nối đề xuất
 
-1. **Client** — Bearer + `X-Tenant-Id` + unwrap `{ data, meta }` + lỗi 401/403/409  
-2. **Auth** — Keycloak token → `GET /auth/me` → bỏ `DEMO_USERS`  
-3. **Upload** — màn `/tao-ho-so` dùng `POST /dossiers` (3b) → `dossier_id` + `job_id`, status UPLOADED, rồi xác nhận manifest ([19](#19-xác-nhận-manifest)). Pipeline tự chạy qua Kafka (endpoint 3a đã gỡ)  
-4. **Progress** — `GET /runs/{id}` + `/steps` (poll); SSE nếu giải được auth  
-5. **List** — `GET /dossiers` thay `myDossiers`  
-6. **Conflict** — `GET .../conflicts` + actions review  
-7. **Citation / clause / page image** — facts + clauses + pages  
-8. **Lock / approve** khi queue = 0  
+1. **Client** — Bearer + `X-Tenant-Id` + unwrap `{ data, meta }` + lỗi 401/403/409
+2. **Auth** — Keycloak token → `GET /auth/me` → bỏ `DEMO_USERS`
+3. **Upload** — màn `/tao-ho-so` dùng `POST /dossiers` (3b) → `dossier_id` + `job_id`, status UPLOADED, rồi xác nhận manifest ([19](#19-xác-nhận-manifest)). Pipeline tự chạy qua Kafka (endpoint 3a đã gỡ)
+4. **Progress** — `GET /runs/{id}` + `/steps` (poll); SSE nếu giải được auth
+5. **List** — `GET /dossiers` thay `myDossiers`
+6. **Conflict** — `GET .../conflicts` + actions review
+7. **Citation / clause / page image** — facts + clauses + pages
+8. **Lock / approve** khi queue = 0
 9. Phần [15](#15-fe-có--be-chưa-có-endpoint) để sau
 
 Route cần **param id** (hiện UI không có): `/ho-so/:dossierId`, `/tien-trinh-phan-tich/:runId`, `/doi-soat-xung-dot/:dossierId`, `/doi-soat-trich-dan/:factId` (hoặc `reviewItemId`).
@@ -1074,14 +1120,14 @@ Verify: [ ] happy path  [ ] 409  [ ] empty list
 
 Browser không gọi Keycloak Admin API. Mọi thao tác đi qua backend, kèm Bearer của admin.
 
-| Method | Path | Việc |
-|---|---|---|
-| GET | `/api/v1/users` | Danh sách. Query `q`, `role`, `status`, `limit`, `offset` |
-| POST | `/api/v1/users` | Tạo user + email đặt mật khẩu |
-| PATCH | `/api/v1/users/{id}` | Đổi `role` |
-| POST | `/api/v1/users/{id}/disable` | Khóa |
-| POST | `/api/v1/users/{id}/enable` | Mở khóa |
-| POST | `/api/v1/users/{id}/invite` | Gửi lại email |
+| Method | Path                         | Việc                                                      |
+| ------ | ---------------------------- | --------------------------------------------------------- |
+| GET    | `/api/v1/users`              | Danh sách. Query `q`, `role`, `status`, `limit`, `offset` |
+| POST   | `/api/v1/users`              | Tạo user + email đặt mật khẩu                             |
+| PATCH  | `/api/v1/users/{id}`         | Đổi `role`                                                |
+| POST   | `/api/v1/users/{id}/disable` | Khóa                                                      |
+| POST   | `/api/v1/users/{id}/enable`  | Mở khóa                                                   |
+| POST   | `/api/v1/users/{id}/invite`  | Gửi lại email                                             |
 
 RBAC: **ADMINISTRATOR** only. `OPERATOR` và `REVIEWER` vẫn vào cùng giao diện user; chỉ `ADMINISTRATOR` vào trang này.
 
@@ -1094,10 +1140,10 @@ RBAC: **ADMINISTRATOR** only. `OPERATOR` và `REVIEWER` vẫn vào cùng giao di
 
 Sau upload, operator hoặc administrator xác nhận tài liệu thuộc hồ sơ, vai trò từng tệp và quan hệ. Quan hệ `confirmation: "unconfirmed"` phải được đánh dấu trên UI cho đến khi xác nhận hoặc bác bỏ. Nút gửi không hoàn tất khi còn quan hệ chưa xác nhận.
 
-| Method | Path | Việc |
-|---|---|---|
-| GET | `/api/v1/dossiers/{dossier_id}/manifest` | Bản đề xuất: members, role, relations |
-| POST | `/api/v1/dossiers/{dossier_id}/manifest/confirm` | Ghi nhận xác nhận |
+| Method | Path                                             | Việc                                  |
+| ------ | ------------------------------------------------ | ------------------------------------- |
+| GET    | `/api/v1/dossiers/{dossier_id}/manifest`         | Bản đề xuất: members, role, relations |
+| POST   | `/api/v1/dossiers/{dossier_id}/manifest/confirm` | Ghi nhận xác nhận                     |
 
 RBAC: **OPERATOR** hoặc **ADMINISTRATOR**. `REVIEWER` nhận 403. Confirm không tạo pipeline run.
 
@@ -1122,11 +1168,11 @@ Chỉ **chủ hồ sơ** hoặc **ADMINISTRATOR** gọi được. Người khác
 }
 ```
 
-| Trường | Giá trị | Ghi chú |
-|---|---|---|
-| `permission` | `read` \| `edit` | `read`: xem hồ sơ, điều khoản, fact, finding, hỏi đáp. `edit`: thêm thẩm định, chạy lại OCR/AI2, sửa hồ sơ, xác nhận manifest. **Bỏ trống thì là `edit`**, để client cũ chạy như trước. FE nên luôn gửi trường này. |
-| `expires_at` | ISO-8601 hoặc `null` | Phải ở tương lai, nếu không trả **422**. Server lưu theo UTC (`…+00:00`). `null` là không hết hạn. |
-| `status` | `invited` \| `active` \| `disabled` | `disabled` thu hồi quyền ngay. |
+| Trường       | Giá trị                             | Ghi chú                                                                                                                                                                                                             |
+| ------------ | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `permission` | `read` \| `edit`                    | `read`: xem hồ sơ, điều khoản, fact, finding, hỏi đáp. `edit`: thêm thẩm định, chạy lại OCR/AI2, sửa hồ sơ, xác nhận manifest. **Bỏ trống thì là `edit`**, để client cũ chạy như trước. FE nên luôn gửi trường này. |
+| `expires_at` | ISO-8601 hoặc `null`                | Phải ở tương lai, nếu không trả **422**. Server lưu theo UTC (`…+00:00`). `null` là không hết hạn.                                                                                                                  |
+| `status`     | `invited` \| `active` \| `disabled` | `disabled` thu hồi quyền ngay.                                                                                                                                                                                      |
 
 Khi quyền hết hạn hoặc bị `disabled`:
 
@@ -1141,12 +1187,14 @@ Người có quyền `read` gọi API sửa thì nhận **403**, `detail`: "Bạ
 
 ### `GET /api/v1/dossiers/{dossier_id}/queries?scope=mine|all&limit=20&offset=0`
 
-Trả các lần hỏi đáp (`/ask`, `/query`) trên hồ sơ, mới nhất trước. Dữ liệu lưu trong DB nên vẫn còn sau khi server khởi động lại.
+Trả các lần hỏi đáp (`/ask`, `/query`, `/search`) trên hồ sơ, mới nhất trước. Dữ liệu lưu trong DB nên vẫn còn sau khi server khởi động lại.
 
-| Tham số | Ý nghĩa |
-|---|---|
-| `scope=mine` (mặc định) | Chỉ câu hỏi của chính người gọi |
-| `scope=all` | Câu hỏi của mọi người trên hồ sơ. **Chỉ chủ hồ sơ hoặc ADMINISTRATOR**, người khác nhận 403 |
+| Tham số                 | Ý nghĩa                                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------------------- |
+| `scope=mine` (mặc định) | Chỉ câu hỏi của chính người gọi                                                             |
+| `scope=all`             | Câu hỏi của mọi người trên hồ sơ. **Chỉ chủ hồ sơ hoặc ADMINISTRATOR**, người khác nhận 403 |
+
+Lead chốt 14/10: ai tự xem của người đấy, không xem được dữ liệu của người khác. Frontend chỉ gọi `scope=mine`; backend sẽ bỏ `scope=all` ở PR riêng.
 
 Cần quyền xem hồ sơ (như `GET /dossiers/{id}`). Người khác tenant, hoặc có quyền chia sẻ đã hết hạn / bị tắt, nhận 403/404.
 
@@ -1169,7 +1217,7 @@ Cần quyền xem hồ sơ (như `GET /dossiers/{id}`). Người khác tenant, h
 }
 ```
 
-Lần hỏi mà AI2 lỗi vẫn có trong lịch sử, với `answer: null` và `error_code` (ví dụ `AI2_QUERY_FAILED`). Xoá hồ sơ thì câu trả lời bị xoá theo.
+`endpoint` là `ask`, `query` hoặc `search` (thanh hỏi đáp). Lần hỏi mà AI2 lỗi vẫn có trong lịch sử, với `answer: null` và `error_code` (ví dụ `AI2_QUERY_FAILED`). Với `search`, `error_code` là `AI2_UNAVAILABLE` khi AI2 lỗi hoặc quá thời gian chờ. Câu hỏi gửi qua `search` trước DOC-05b v1.5.1 chỉ có trace, nên hiện với `answer: null` và `error_code: null`. Xoá hồ sơ thì câu trả lời bị xoá theo.
 
 ## 22. Chạy lại phần OCR lỗi (giữ phần đã xong)
 
@@ -1181,11 +1229,11 @@ Dùng khi hồ sơ lỗi ở bước OCR (`latest_job_status = failed` với mã
 - Nếu mọi tài liệu đã có kết quả, run chuyển thẳng sang AI2, không OCR lại trang nào.
 - Theo dõi tiến độ bằng SSE `/runs/{run_id}/events` của run mới, như khi upload.
 
-| Trả về | Khi nào |
-|---|---|
-| 202 `{"status": "queued"}` | Đã nhận |
-| 409 | Job không lỗi ở bước OCR. Lỗi AI2 thì dùng `POST /dossiers/{id}/ai2/retry` |
-| 403 | Không có quyền sửa hồ sơ (§20) |
+| Trả về                     | Khi nào                                                                    |
+| -------------------------- | -------------------------------------------------------------------------- |
+| 202 `{"status": "queued"}` | Đã nhận                                                                    |
+| 409                        | Job không lỗi ở bước OCR. Lỗi AI2 thì dùng `POST /dossiers/{id}/ai2/retry` |
+| 403                        | Không có quyền sửa hồ sơ (§20)                                             |
 
 `POST /dossiers/{id}/ocr` (chạy lại OCR toàn bộ) vẫn giữ nguyên hành vi cũ.
 
@@ -1218,12 +1266,115 @@ Backend lưu file nhưng **chưa gửi OCR**, để không trang nào bị OCR h
 
 Trả về: `{ dossier_id, status: "queued", documents: [{ id, role, filename, page_start, page_end, page_count }] }`.
 
-| Lỗi | Khi nào |
-|---|---|
-| 422 | Các phần không phủ đủ trang 1..N theo thứ tự (thiếu, chồng lấn), hoặc `page_end < page_start` |
-| 422 `contract_required` / `contract_not_unique` | Hồ sơ không có, hoặc có nhiều hơn **một**, hợp đồng |
-| 422 `DOSSIER_TOO_MANY_DOCUMENTS` | Sau khi tách hồ sơ quá 6 tài liệu (mỗi phần là một tài liệu, cộng các tài liệu khác của hồ sơ). Hiện `error.message`, ví dụ: "Sau khi tách, hồ sơ tối đa 6 tài liệu. Cách tách này làm hồ sơ có 7 tài liệu." |
-| 409 | Hồ sơ không tải lên với `split_pending`, hoặc đã bắt đầu xử lý (tách lúc này sẽ OCR lại) |
-| 403 | Không có quyền sửa hồ sơ |
+| Lỗi                                             | Khi nào                                                                                                                                                                                                      |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 422                                             | Các phần không phủ đủ trang 1..N theo thứ tự (thiếu, chồng lấn), hoặc `page_end < page_start`                                                                                                                |
+| 422 `contract_required` / `contract_not_unique` | Hồ sơ không có, hoặc có nhiều hơn **một**, hợp đồng                                                                                                                                                          |
+| 422 `DOSSIER_TOO_MANY_DOCUMENTS`                | Sau khi tách hồ sơ quá 6 tài liệu (mỗi phần là một tài liệu, cộng các tài liệu khác của hồ sơ). Hiện `error.message`, ví dụ: "Sau khi tách, hồ sơ tối đa 6 tài liệu. Cách tách này làm hồ sơ có 7 tài liệu." |
+| 409                                             | Hồ sơ không tải lên với `split_pending`, hoặc đã bắt đầu xử lý (tách lúc này sẽ OCR lại)                                                                                                                     |
+| 403                                             | Không có quyền sửa hồ sơ                                                                                                                                                                                     |
 
 Chưa có: AI1 tự đề xuất chỗ cắt. Hiện người dùng nhập khoảng trang trên màn xác nhận.
+
+## 24. Thông báo cá nhân (đề xuất, BE chưa có)
+
+Đề xuất trong DOC-05b v1.6.0, mục "Thông báo cá nhân": `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/{id}/read`, `POST /notifications/read-all`. Backend **chưa có**.
+
+`NotificationBell` (`src/api/notifications.ts`) đã gọi đúng 4 endpoint này, nhưng chỉ hiện khi build với `VITE_ENABLE_NOTIFICATIONS=true`. Cờ mặc định tắt. Khi backend xong thì bật cờ.
+
+Header `X-API-Contract` lên thẳng `v1.7.0` từ `v1.5.1`, bỏ qua `v1.6.0` vì 4 endpoint này chưa có.
+
+## 25. Danh bạ thành viên & hàng chờ thẩm định (v1.7.0)
+
+DOC-05b `v1.7.0`, mục "Chia sẻ hồ sơ & hàng chờ thẩm định". Backend **đã có**. Response bọc `{ data, meta }`, phân trang bằng `limit` (1..100, mặc định 20) và `offset`; `meta.total` là tổng số dòng.
+
+### `GET /api/v1/users/directory?q=&role=&limit=20&offset=0`
+
+Danh bạ thành viên cùng tenant để chọn người khi chia sẻ hồ sơ ([20](#20-chia-sẻ-hồ-sơ-chỉ-đọc--được-sửa-có-hạn)).
+
+| Param    | Type                                         | Mặc định | Ý nghĩa                                                       |
+| -------- | -------------------------------------------- | -------- | ------------------------------------------------------------- |
+| `q`      | string?                                      | —        | Tìm theo email hoặc tên hiển thị (không phân biệt hoa thường) |
+| `role`   | `OPERATOR` \| `REVIEWER` \| `ADMINISTRATOR`? | —        | Dùng `role=REVIEWER` cho ô "Giao cho người thẩm định"         |
+| `limit`  | 1..100                                       | 20       |                                                               |
+| `offset` | ≥0                                           | 0        |                                                               |
+
+```json
+{
+  "data": [
+    {
+      "id": "8f1c…",
+      "email": "reviewer@ci.local",
+      "display_name": "Demo Reviewer",
+      "role": "REVIEWER"
+    }
+  ],
+  "meta": {
+    "trace_id": null,
+    "request_id": null,
+    "page": 1,
+    "page_size": 20,
+    "total": 1
+  }
+}
+```
+
+- Mỗi người chỉ có đúng 4 trường `id`, `email`, `display_name`, `role`. `id` (Keycloak `sub`) là `id` của phần tử `shared_with` khi gọi `PUT /dossiers/{id}/access`.
+- Chỉ trả người đang `active` và có `tenant_id` trùng tenant của người gọi. User không có `tenant_id`, người `invited` (chưa đặt mật khẩu) và `disabled` **không** hiện. Khác `GET /users` của ADMINISTRATOR ([18](#18-quản-lý-người-dùng)), nơi user không có `tenant_id` vẫn hiện.
+- Sắp xếp theo email.
+
+RBAC: **OPERATOR**, **ADMINISTRATOR**. `REVIEWER` nhận 403.
+
+| Lỗi                        | Khi nào                 |
+| -------------------------- | ----------------------- |
+| 401                        | Token không hợp lệ      |
+| 403                        | Người gọi là `REVIEWER` |
+| 503 `keycloak_unavailable` | Keycloak không trả lời  |
+
+### `GET /api/v1/review-queue?limit=20&offset=0`
+
+Hồ sơ còn mục review mở (`open` hoặc `awaiting_evidence`) mà người gọi được thẩm định: là chủ hồ sơ, hoặc được chia sẻ quyền `edit` còn hạn. `ADMINISTRATOR` cũng cần là chủ hoặc có chia sẻ.
+
+| Param    | Type   | Mặc định |
+| -------- | ------ | -------- |
+| `limit`  | 1..100 | 20       |
+| `offset` | ≥0     | 0        |
+
+```json
+{
+  "data": [
+    {
+      "dossier_id": "dos_…",
+      "dossier_name": "Hợp đồng mua bán 2026",
+      "dossier_status": "pending_review",
+      "created_at": "2026-10-09T09:12:00+00:00",
+      "is_owner": false,
+      "grant_expires_at": "2026-10-20T00:00:00+00:00",
+      "open_review_items": 5,
+      "pending_conflicts": 2,
+      "p1": 1,
+      "p2": 3,
+      "p3": 1
+    }
+  ],
+  "meta": {
+    "trace_id": null,
+    "request_id": null,
+    "page": 1,
+    "page_size": 20,
+    "total": 1
+  }
+}
+```
+
+- Sắp xếp: hồ sơ nhiều mục P1 hơn xếp trước, rồi tới hồ sơ tạo sớm hơn.
+- `open_review_items` bằng `p1 + p2 + p3`; `pending_conflicts` là phần nằm trên finding (xung đột chưa xử lý).
+- `grant_expires_at`: lúc quyền thẩm định của người gọi hết hạn; `null` với chủ hồ sơ hoặc lượt chia sẻ không có hạn.
+- Không có hồ sơ nào thì `data: []`, `meta.total: 0`.
+
+RBAC: **REVIEWER**, **ADMINISTRATOR**. `OPERATOR` nhận 403.
+
+| Lỗi | Khi nào                 |
+| --- | ----------------------- |
+| 401 | Token không hợp lệ      |
+| 403 | Người gọi là `OPERATOR` |

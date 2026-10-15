@@ -16,21 +16,26 @@ import {
 import { ApiError } from '../api/client'
 import { isRunFinished } from '../api/structure'
 import { MaterialIcon } from '../components/icons'
-import { ShareGrantBadge } from '../components/ShareGrantBadge'
 import {
   dossierOpenTo,
   progressPath,
   type Dossier,
   type DossierStatus,
 } from '../data/dossiers'
-import { grantPermission, isGrantExpired } from '../data/shareGrant'
+import {
+  formatExpiry,
+  grantPermission,
+  isGrantExpired,
+} from '../data/shareGrant'
 import { dossiersLabel } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 
 type StatusFilter = 'all' | OcrState
 
-function stateNotice(state: unknown): { text: string; tone: 'ok' | 'error' } | null {
+function stateNotice(
+  state: unknown,
+): { text: string; tone: 'ok' | 'error' } | null {
   if (!state || typeof state !== 'object') return null
   const notice = (state as { notice?: unknown }).notice
   if (typeof notice !== 'string' || !notice.trim()) return null
@@ -46,6 +51,25 @@ const filters: { id: StatusFilter; label: string }[] = [
   { id: 'pending', label: 'Chưa OCR' },
   { id: 'error', label: 'OCR lỗi' },
 ]
+
+/*
+ * Thẩm định không tải file nên không lọc theo OCR mà theo việc cần làm:
+ * chờ thẩm định (còn mục mở), đã xong, hoặc hồ sơ còn đang phân tích.
+ */
+type ReviewFilter = 'all' | 'todo' | 'done' | 'waiting'
+
+const reviewFilters: { id: ReviewFilter; label: string; dot?: string }[] = [
+  { id: 'all', label: 'Tất cả' },
+  { id: 'todo', label: 'Chờ thẩm định', dot: 'bg-amber-500' },
+  { id: 'done', label: 'Đã thẩm định', dot: 'bg-emerald-600' },
+  { id: 'waiting', label: 'Đang phân tích', dot: 'bg-outline' },
+]
+
+function reviewStateOf(dossier: Dossier): Exclude<ReviewFilter, 'all'> {
+  if (dossier.status === 'review') return 'todo'
+  if (dossier.status === 'ready') return 'done'
+  return 'waiting'
+}
 
 const jobLabels: Record<string, string> = {
   uploaded: 'Đã tải lên',
@@ -198,7 +222,14 @@ export function dossierFromSummary(
     updated: formatWhen(summary.created_at),
     access,
     shares,
-    myGrant: access === 'shared_in' && mine ? { permission: grantPermission(mine), expires_at: mine.expires_at ?? null, expired: isGrantExpired(mine) } : undefined,
+    myGrant:
+      access === 'shared_in' && mine
+        ? {
+            permission: grantPermission(mine),
+            expires_at: mine.expires_at ?? null,
+            expired: isGrantExpired(mine),
+          }
+        : undefined,
     jobStatus: job,
     splitPending: summary.metadata?.split_pending === true,
     uploadedAt: summary.created_at,
@@ -227,7 +258,8 @@ function StatusCell({
   dossier: Dossier
   ocr: OcrState | 'checking'
   detail: string | null
-  onRetry: () => void
+  /** Bỏ trống khi người dùng không được chạy lại hồ sơ này. */
+  onRetry?: () => void
 }) {
   const note = dossier.reviewNote ? (
     <span className="font-code-sm text-label-sm text-on-surface-variant">
@@ -274,20 +306,22 @@ function StatusCell({
           >
             {label}
           </Link>
-          <button
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-label-sm text-label-sm font-semibold bg-surface-container text-on-surface hover:bg-surface-container-high"
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation()
-              onRetry()
-            }}
-          >
-            <MaterialIcon
-              name={ocr === 'pending' ? 'play_arrow' : 'refresh'}
-              className="text-[14px]"
-            />
-            {action}
-          </button>
+          {onRetry ? (
+            <button
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-label-sm text-label-sm font-semibold bg-surface-container text-on-surface hover:bg-surface-container-high"
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                onRetry()
+              }}
+            >
+              <MaterialIcon
+                name={ocr === 'pending' ? 'play_arrow' : 'refresh'}
+                className="text-[14px]"
+              />
+              {action}
+            </button>
+          ) : null}
         </div>
         {detail ? (
           <span className="font-code-sm text-label-sm text-error">
@@ -313,29 +347,112 @@ function StatusCell({
   )
 }
 
+const REVIEW_BADGE: Record<
+  Exclude<ReviewFilter, 'all'>,
+  { label: string; icon: string; className: string }
+> = {
+  todo: {
+    label: 'Chờ thẩm định',
+    icon: 'rate_review',
+    className: 'bg-amber-100 text-amber-900',
+  },
+  done: {
+    label: 'Đã thẩm định',
+    icon: 'check_circle',
+    className: 'bg-emerald-100 text-emerald-900',
+  },
+  waiting: {
+    label: 'Đang phân tích',
+    icon: 'hourglass_top',
+    className: 'bg-surface-container text-on-surface-variant',
+  },
+}
+
+/** Trạng thái thẩm định và quyền của người thẩm định trên hồ sơ. */
+function ReviewStatusCell({ dossier }: { dossier: Dossier }) {
+  const badge = REVIEW_BADGE[reviewStateOf(dossier)]
+  const grant = dossier.myGrant
+  return (
+    <div className="flex flex-col gap-1">
+      <span
+        className={`inline-flex w-fit items-center gap-1 rounded px-2 py-0.5 font-label-sm text-label-sm font-semibold ${badge.className}`}
+      >
+        <MaterialIcon name={badge.icon} className="text-[14px]" />
+        {badge.label}
+      </span>
+      {dossier.reviewNote ? (
+        <span className="font-code-sm text-label-sm text-on-surface-variant">
+          {dossier.reviewNote}
+        </span>
+      ) : null}
+      {grant ? (
+        <span
+          className={`font-label-sm text-[11px] ${
+            grant.expired || grant.permission === 'read'
+              ? 'text-error'
+              : 'text-on-surface-variant'
+          }`}
+        >
+          {grant.expired
+            ? 'Quyền đã hết hạn'
+            : grant.permission === 'read'
+              ? 'Chỉ xem: không thẩm định được'
+              : `Được thẩm định${
+                  grant.expires_at
+                    ? ` · đến ${formatExpiry(grant.expires_at)}`
+                    : ''
+                }`}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
 export const accessLabels: Record<Dossier['access'], string> = {
   mine: 'Hồ sơ của tôi',
   shared_out: 'Hồ sơ đã chia sẻ',
   shared_in: 'Hồ sơ được chia sẻ',
 }
 
-function AccessBadge({ dossier }: { dossier: Dossier }) {
-  const shared = dossier.access !== 'mine'
+function ReviewToolbar({
+  dossiers,
+  status,
+  onStatusChange,
+}: {
+  dossiers: Dossier[]
+  status: ReviewFilter
+  onStatusChange: (value: ReviewFilter) => void
+}) {
   return (
-    <div className="flex flex-col items-start gap-1">
-    <Link
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-body-sm text-label-sm font-medium ${
-        shared
-          ? 'bg-surface-container-high text-on-tertiary-container'
-          : 'bg-surface-container text-on-secondary-container'
-      }`}
-      to={`/quyen-truy-cap?dossier=${encodeURIComponent(dossier.id)}`}
-      onClick={(event) => event.stopPropagation()}
-    >
-      <MaterialIcon name={shared ? 'share' : 'lock'} className="text-[14px]" />
-      <span>{accessLabels[dossier.access]}</span>
-    </Link>
-    <ShareGrantBadge grant={dossier.myGrant} />
+    <div className="flex items-center shrink-0">
+      <div className="inline-flex items-center bg-surface-container p-1 rounded-lg gap-0.5 whitespace-nowrap">
+        {reviewFilters.map((item) => {
+          const active = status === item.id
+          const count =
+            item.id === 'all'
+              ? dossiers.length
+              : dossiers.filter((dossier) => reviewStateOf(dossier) === item.id)
+                  .length
+          return (
+            <button
+              key={item.id}
+              className={`px-3 h-8 rounded font-label-sm text-label-sm uppercase tracking-wide whitespace-nowrap flex items-center gap-1.5 transition-colors ${
+                active
+                  ? 'bg-surface-container-lowest text-on-surface shadow-sm font-semibold'
+                  : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+              type="button"
+              onClick={() => onStatusChange(item.id)}
+            >
+              {item.dot ? (
+                <span className={`w-1.5 h-1.5 rounded-full ${item.dot}`} />
+              ) : null}
+              <span>{item.label}</span>
+              <span className="font-code-sm text-[11px]">{count}</span>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -352,8 +469,8 @@ function DossierToolbar({
   onStatusChange: (value: StatusFilter) => void
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-space-md flex-1">
-      <div className="inline-flex items-center bg-surface-container-low p-1 rounded-lg gap-1">
+    <div className="flex items-center shrink-0">
+      <div className="inline-flex items-center bg-surface-container p-1 rounded-lg gap-0.5 whitespace-nowrap">
         {filters.map((item) => {
           const active = status === item.id
           const count =
@@ -363,7 +480,7 @@ function DossierToolbar({
           return (
             <button
               key={item.id}
-              className={`px-3 py-1 rounded font-label-sm text-label-sm uppercase tracking-wide flex items-center gap-1.5 transition-colors ${
+              className={`px-3 h-8 rounded font-label-sm text-label-sm uppercase tracking-wide whitespace-nowrap flex items-center gap-1.5 transition-colors ${
                 active
                   ? 'bg-surface-container-lowest text-on-surface shadow-sm font-semibold'
                   : 'text-on-surface-variant hover:text-on-surface'
@@ -401,13 +518,15 @@ function DossierToolbar({
 
 export function MyDossiersPage() {
   const { user } = useAuth()
-  const heading = user ? dossiersLabel(user.role) : 'Hồ sơ'
+  const heading = user ? dossiersLabel(user.role, user.backendRole) : 'Hồ sơ'
   const navigate = useNavigate()
   const location = useLocation()
   usePageTitle(heading)
   const titleInHeader = useHeaderShowsPageTitle()
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<StatusFilter>('all')
+  const reviewer = user?.backendRole === 'REVIEWER'
+  const [reviewStatus, setReviewStatus] = useState<ReviewFilter>('all')
   const [reloadKey, setReloadKey] = useState(0)
   const [dossiers, setDossiers] = useState<Dossier[]>([])
   const [total, setTotal] = useState(0)
@@ -623,7 +742,9 @@ export function MyDossiersPage() {
     const needle = query.trim().toLowerCase()
     return dossiers
       .filter((item) => {
-        const matchesStatus = status === 'all' || ocrOf(item) === status
+        const matchesStatus = reviewer
+          ? reviewStatus === 'all' || reviewStateOf(item) === reviewStatus
+          : status === 'all' || ocrOf(item) === status
         const title = textOf(item.title)
         const code = textOf(item.code)
         const id = textOf(item.id)
@@ -639,7 +760,14 @@ export function MyDossiersPage() {
           Date.parse(right.uploadedAt ?? '') - Date.parse(left.uploadedAt ?? '')
         return Number.isFinite(delta) ? delta : 0
       })
-  }, [dossiers, ocrById, query, restartAt, status])
+  }, [dossiers, ocrById, query, restartAt, status, reviewer, reviewStatus])
+
+  /** DOSSIER_EDIT: vai trò Vận hành/Quản trị và (chủ hồ sơ hoặc grant "edit" còn hạn). */
+  function canRerun(dossier: Dossier) {
+    if (user?.backendRole === 'REVIEWER') return false
+    if (dossier.access !== 'shared_in') return true
+    return dossier.myGrant?.permission === 'edit' && !dossier.myGrant.expired
+  }
 
   function retryOcr(dossierId: string) {
     navigate(progressPath(dossierId), { state: { restart: true } })
@@ -647,31 +775,35 @@ export function MyDossiersPage() {
 
   return (
     <div className="flex flex-col w-full pb-margin-lg">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-space-md pt-space-lg pb-space-lg">
-        <div className="flex flex-col gap-space-xs">
-          <div className="flex items-center gap-space-sm">
-            {titleInHeader ? null : (
-              <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight">
-                {heading}
-              </h1>
-            )}
-            <span className="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant font-code-sm text-code-sm">
-              {loading ? 'Đang tải…' : `${total} hồ sơ`}
-            </span>
-          </div>
-          <p className="font-body-sm text-body-sm text-on-surface-variant">
-            Quản lý, phân tích ngữ nghĩa và tra cứu tài liệu hợp đồng pháp lý cá
-            nhân
-          </p>
-        </div>
-        <div className="flex items-center gap-space-sm">
-          <div className="relative w-[36rem] max-w-full">
+      {titleInHeader ? null : (
+        <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight pt-space-lg">
+          {heading}
+        </h1>
+      )}
+
+      <div className="flex flex-col xl:flex-row xl:items-center gap-space-md pt-space-lg pb-space-md">
+        {reviewer ? (
+          <ReviewToolbar
+            dossiers={dossiers}
+            status={reviewStatus}
+            onStatusChange={setReviewStatus}
+          />
+        ) : (
+          <DossierToolbar
+            dossiers={dossiers}
+            ocrOf={ocrOf}
+            status={status}
+            onStatusChange={setStatus}
+          />
+        )}
+        <div className="flex flex-1 min-w-0 items-center justify-end gap-space-sm">
+          <div className="relative flex-1 max-w-xl min-w-0">
             <MaterialIcon
               name="search"
               className="absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]"
             />
             <input
-              className="w-full h-9 pl-9 pr-space-md bg-surface-container-lowest text-on-surface placeholder:text-outline font-body-sm text-body-sm rounded shadow-[0_1px_2px_rgba(15,23,42,0.06)] focus:outline-none focus:ring-1 focus:ring-secondary"
+              className="w-full h-10 pl-9 pr-space-md bg-surface-container-lowest text-on-surface placeholder:text-outline font-body-sm text-body-sm rounded border border-outline-variant focus:outline-none focus:ring-1 focus:ring-secondary"
               placeholder="Tìm kiếm theo tên, mã hồ sơ..."
               type="search"
               value={query}
@@ -680,7 +812,7 @@ export function MyDossiersPage() {
           </div>
           {user?.backendRole === 'REVIEWER' ? null : (
             <button
-              className="flex items-center gap-space-xs h-9 px-space-md bg-primary text-on-primary font-title-sm text-body-sm rounded shadow-sm hover:bg-primary-container transition-colors shrink-0"
+              className="flex items-center gap-space-xs h-10 px-space-md bg-brand-100 text-brand-700 font-title-sm text-body-sm rounded shadow-sm hover:bg-brand-200 transition-colors shrink-0 whitespace-nowrap"
               type="button"
               onClick={() => navigate('/tao-ho-so')}
             >
@@ -692,15 +824,6 @@ export function MyDossiersPage() {
       </div>
 
       <div className="bg-surface-container-lowest rounded-lg shadow-[0_1px_3px_rgba(15,23,42,0.06)] flex flex-col overflow-hidden">
-        <div className="p-space-md flex flex-col xl:flex-row xl:items-center justify-between gap-space-md bg-surface-container-lowest">
-          <DossierToolbar
-            dossiers={dossiers}
-            ocrOf={ocrOf}
-            status={status}
-            onStatusChange={setStatus}
-          />
-        </div>
-
         <div className="w-full overflow-x-auto">
           <table className="w-full text-left font-body-sm text-body-sm border-collapse">
             <thead>
@@ -709,16 +832,15 @@ export function MyDossiersPage() {
                   Tên hồ sơ
                 </th>
                 <th className="py-3 px-space-md font-semibold w-[22%] min-w-[220px]">
-                  Trạng thái & Tiến trình
+                  {reviewer
+                    ? 'Trạng thái thẩm định'
+                    : 'Trạng thái & Tiến trình'}
                 </th>
                 <th className="py-3 px-space-md font-semibold w-[14%] min-w-[150px]">
                   Tài liệu
                 </th>
                 <th className="py-3 px-space-md font-semibold w-[12%]">
-                  Tải lên
-                </th>
-                <th className="py-3 px-space-md font-semibold w-[12%]">
-                  Quyền truy cập
+                  {reviewer ? 'Ngày tạo' : 'Tải lên'}
                 </th>
                 <th className="py-3 px-space-sm text-right pr-space-md font-semibold w-[4%]">
                   Thao tác
@@ -728,7 +850,7 @@ export function MyDossiersPage() {
             <tbody className="divide-y divide-surface-container-low text-on-surface">
               {error ? (
                 <tr>
-                  <td className="py-10 px-space-md" colSpan={6}>
+                  <td className="py-10 px-space-md" colSpan={5}>
                     <div className="flex flex-col items-start gap-space-sm">
                       <p
                         className="font-body-sm text-body-sm text-error"
@@ -751,7 +873,7 @@ export function MyDossiersPage() {
                 <tr>
                   <td
                     className="py-10 px-space-md text-on-surface-variant"
-                    colSpan={6}
+                    colSpan={5}
                   >
                     Đang tải lịch sử hồ sơ…
                   </td>
@@ -759,17 +881,21 @@ export function MyDossiersPage() {
               ) : null}
               {!loading && !error && dossiers.length === 0 ? (
                 <tr>
-                  <td className="py-12 px-space-md" colSpan={6}>
+                  <td className="py-12 px-space-md" colSpan={5}>
                     <div className="flex flex-col items-center gap-space-sm text-center">
                       <MaterialIcon
                         name="folder_open"
                         className="text-secondary text-[28px]"
                       />
                       <p className="font-title-sm text-title-sm text-on-surface">
-                        Chưa có hồ sơ tải lên
+                        {reviewer
+                          ? 'Chưa có hồ sơ nào được giao cho bạn'
+                          : 'Chưa có hồ sơ tải lên'}
                       </p>
                       <p className="font-body-sm text-body-sm text-secondary">
-                        Hồ sơ mới sẽ hiện ở đây sau khi tải lên.
+                        {reviewer
+                          ? 'Khi Vận hành hoặc Quản trị chia sẻ hồ sơ cho bạn, hồ sơ sẽ hiện ở đây để thẩm định.'
+                          : 'Hồ sơ mới sẽ hiện ở đây sau khi tải lên.'}
                       </p>
                     </div>
                   </td>
@@ -782,7 +908,7 @@ export function MyDossiersPage() {
                 <tr>
                   <td
                     className="py-10 px-space-md text-on-surface-variant"
-                    colSpan={6}
+                    colSpan={5}
                   >
                     Không có hồ sơ khớp bộ lọc.
                   </td>
@@ -817,20 +943,21 @@ export function MyDossiersPage() {
                             {dossier.title}
                           </span>
                         ) : (
-                        <Link
-                          className="font-title-sm text-title-sm text-on-surface hover:text-on-tertiary-container cursor-pointer leading-tight font-semibold"
-                          state={{
-                            dossierId: dossier.id,
-                            name: dossier.title,
-                          }}
-                          to={
-                            ocrOf(dossier) === 'running' && !dossier.splitPending
-                              ? progressPath(dossier.id)
-                              : dossierOpenTo(dossier)
-                          }
-                        >
-                          {dossier.title}
-                        </Link>
+                          <Link
+                            className="font-title-sm text-title-sm text-on-surface hover:text-on-tertiary-container cursor-pointer leading-tight font-semibold"
+                            state={{
+                              dossierId: dossier.id,
+                              name: dossier.title,
+                            }}
+                            to={
+                              ocrOf(dossier) === 'running' &&
+                              !dossier.splitPending
+                                ? progressPath(dossier.id)
+                                : dossierOpenTo(dossier)
+                            }
+                          >
+                            {dossier.title}
+                          </Link>
                         )}
                         <span className="font-code-sm text-label-sm text-on-surface-variant mt-1 whitespace-nowrap">
                           {dossier.size
@@ -848,35 +975,42 @@ export function MyDossiersPage() {
                     </span>
                   </td>
                   <td className="py-3.5 px-space-md">
-                    <StatusCell
-                      detail={ocrById[dossier.id]?.detail ?? null}
-                      dossier={dossier}
-                      ocr={ocrOf(dossier)}
-                      onRetry={() => {
-                        retryOcr(dossier.id)
-                      }}
-                    />
+                    {reviewer ? (
+                      <ReviewStatusCell dossier={dossier} />
+                    ) : (
+                      <StatusCell
+                        detail={ocrById[dossier.id]?.detail ?? null}
+                        dossier={dossier}
+                        ocr={ocrOf(dossier)}
+                        onRetry={
+                          canRerun(dossier)
+                            ? () => retryOcr(dossier.id)
+                            : undefined
+                        }
+                      />
+                    )}
                   </td>
                   <td className="py-3.5 px-space-md whitespace-nowrap">
                     <span className="text-on-surface-variant text-body-sm">
                       {dossier.updated}
                     </span>
                   </td>
-                  <td className="py-3.5 px-space-md whitespace-nowrap">
-                    <AccessBadge dossier={dossier} />
-                  </td>
                   <td className="py-3.5 px-space-sm text-right pr-space-md whitespace-nowrap">
-                    <button
-                      aria-label={`Xóa hồ sơ ${dossier.title}`}
-                      className="p-1 hover:bg-error-container rounded text-on-surface-variant hover:text-error transition-colors"
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        setPendingDelete(dossier)
-                      }}
-                    >
-                      <MaterialIcon name="delete" className="text-[18px]" />
-                    </button>
+                    {/* Backend chỉ cho chủ hồ sơ hoặc Quản trị xóa (DOSSIER_MANAGE). */}
+                    {dossier.access === 'shared_in' &&
+                    user?.backendRole !== 'ADMINISTRATOR' ? null : (
+                      <button
+                        aria-label={`Xóa hồ sơ ${dossier.title}`}
+                        className="p-1 hover:bg-error-container rounded text-on-surface-variant hover:text-error transition-colors"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setPendingDelete(dossier)
+                        }}
+                      >
+                        <MaterialIcon name="delete" className="text-[18px]" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -924,9 +1058,9 @@ export function MyDossiersPage() {
         </div>
       ) : null}
       {pendingDelete ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-space-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-primary/15 p-space-md">
           <div
-            className="w-full max-w-md bg-surface-container-lowest rounded shadow-lg p-space-lg flex flex-col gap-space-md"
+            className="w-full max-w-md bg-surface-container-lowest rounded shadow-xl p-space-lg flex flex-col gap-space-md"
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-dossier-title"

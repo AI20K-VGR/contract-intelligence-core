@@ -112,6 +112,13 @@ export type ReviewSpot = {
   review: ReviewSpotLink | null
   semantic?: FindingSemantic | null
   runId?: string | null
+  /** Số thứ tự trong danh sách xung đột của hồ sơ (từ 1), như trên trang đối soát. */
+  no?: number
+}
+
+/** Tên hiển thị của xung đột. key_or_topic thường là mã băm, không đọc được. */
+export function conflictName(spot: Pick<ReviewSpot, 'no'>) {
+  return spot.no ? `Xung đột ${spot.no}` : 'Xung đột'
 }
 
 // Job đã tới bước rà soát: AI2 xong. 'extracted' đứng trước đó.
@@ -638,6 +645,7 @@ export async function listReviewSpots(dossierId: string, signal?: AbortSignal) {
   return data
     .map(asReviewSpot)
     .filter((spot): spot is ReviewSpot => spot !== null)
+    .map((spot, index) => ({ ...spot, no: index + 1 }))
 }
 
 export type DocumentTableCell = {
