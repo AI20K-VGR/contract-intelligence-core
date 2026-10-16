@@ -971,6 +971,35 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /runs/{run_id}/steps:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+    get:
+      tags: [runs]
+      summary: Tiến độ 11 bước S0..S10 của run, kèm tiến độ trong bước
+      description: |
+        Mỗi phần tử giống payload sự kiện SSE `step.changed` của `/runs/{run_id}/events`
+        (DOC-05b). `progress` là tiến độ trong bước, `null` khi bước không đo được
+        (frontend hiện vòng quay). Trong lúc bước `running`, backend phát lại
+        `step.changed` khi `done` tăng: ít nhất 5% (tối đa khoảng 20 lần mỗi bước), hoặc
+        tăng bất kỳ sau 15 giây; không quá 1 lần mỗi giây. Bước đứng yên không có sự kiện
+        mới. Bước `succeeded` luôn có `done = total`.
+      operationId: getRunSteps
+      x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
+      responses:
+        '200':
+          description: Steps of the run, in S0..S10 order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeRunStepList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /runs/{run_id}/cancel:
     parameters:
       - $ref: '#/components/parameters/RunId'
@@ -2846,6 +2875,33 @@ components:
         pages: { type: integer, nullable: true }
         error_code: { type: string, nullable: true }
 
+    StepProgress:
+      type: object
+      description: |
+        Tiến độ trong một bước. Frontend ghi "37/202 trang" theo `unit`:
+        page = trang, document = tài liệu, chunk = đoạn, clause = điều khoản, pair = cặp.
+      required: [done, total, unit]
+      properties:
+        done: { type: integer, minimum: 0, description: 'Luôn <= total' }
+        total: { type: integer, minimum: 1 }
+        unit: { type: string, enum: [page, document, chunk, clause, pair] }
+      example: { done: 37, total: 202, unit: page }
+
+    RunStep:
+      type: object
+      required: [step, status, attempt, progress]
+      properties:
+        step: { type: string, description: 'S0..S10' }
+        status: { type: string, enum: [queued, running, succeeded, failed] }
+        attempt: { type: integer }
+        pages: { type: integer, nullable: true }
+        duration_ms: { type: integer, nullable: true }
+        progress:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/StepProgress'
+        created_at: { type: string, format: date-time }
+
     Job:
       type: object
       properties:
@@ -3521,6 +3577,15 @@ components:
         - type: object
           properties:
             data: { $ref: '#/components/schemas/PipelineRunSummary' }
+
+    ApiEnvelopeRunStepList:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/RunStep' }
 
     ApiEnvelopePipelineRunList:
       allOf:

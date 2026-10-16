@@ -25,6 +25,7 @@ from contract_intelligence.extraction.infrastructure.persistence.orm import (
     PipelineStepORM,
     stored_line_confidence,
 )
+from contract_intelligence.shared import step_progress
 from contract_intelligence.shared.base import Page
 
 # ============================================================================
@@ -389,6 +390,7 @@ class PipelineRunRepositoryImpl:
                 "attempt": s.attempt,
                 "pages": s.pages,
                 "duration_ms": s.duration_ms,
+                "progress": step_progress.parse(s.progress),
                 "created_at": s.created_at.isoformat(),
             }
             for s in result.scalars().all()

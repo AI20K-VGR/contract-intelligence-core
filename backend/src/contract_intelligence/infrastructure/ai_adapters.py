@@ -12,6 +12,7 @@ import hmac
 import json
 import re
 import time
+from collections.abc import Awaitable, Callable
 from typing import Any
 from urllib.parse import quote, urlencode
 from uuid import uuid4
@@ -272,8 +273,13 @@ async def poll_ai2_processing(
     dossier_id: str,
     timeout_seconds: float,
     actor_id: str = "backend",
+    on_progress: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
 ) -> dict[str, Any]:
     """Poll canonical AI2 until the job is terminal or ``timeout_seconds`` pass.
+
+    ``on_progress`` receives the ``progress`` object of each non-terminal
+    report (BE-AI2-PROCESSING-CONTRACT §3). It is advisory: an error in it is logged and the
+    poll goes on.
 
     Transient errors (timeout, transport, 429, 5xx) are retried up to
     ``ai2_max_consecutive_errors`` in a row, so one slow or failed poll no
@@ -320,6 +326,12 @@ async def poll_ai2_processing(
             status = str(report.get("status", "")).upper()
             if status in {"SUCCEEDED", "FAILED"}:
                 return report
+            progress = report.get("progress")
+            if on_progress is not None and isinstance(progress, dict):
+                try:
+                    await on_progress(progress)
+                except Exception:
+                    logger.warning("ai2.poll.progress_failed", job_id=job_id, exc_info=True)
             if status == "QUEUED":
                 now = time.monotonic()
                 if now >= queue_deadline:

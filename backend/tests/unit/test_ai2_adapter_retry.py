@@ -152,3 +152,29 @@ async def test_submit_does_not_retry_a_rejected_payload(monkeypatch: pytest.Monk
             dict(_SUBMIT_PAYLOAD), tenant_id="t", dossier_id="d"
         )
     assert post_json.await_count == 1
+
+
+async def test_poll_hands_progress_to_the_callback_and_survives_its_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    progress = {"step": "S6", "done": 3, "total": 10, "unit": "clause"}
+    monkeypatch.setattr(
+        ai_adapters,
+        "_get_json",
+        AsyncMock(
+            side_effect=[
+                {"status": "RUNNING", "progress": progress},
+                {"status": "RUNNING"},  # no progress: no call
+                {"status": "RUNNING", "progress": progress},
+                {"status": "SUCCEEDED", "job_id": "job_1", "progress": progress},
+            ]
+        ),
+    )
+    on_progress = AsyncMock(side_effect=[RuntimeError("db busy"), None])
+
+    report = await ai_adapters.poll_ai2_processing(
+        "job_1", tenant_id="t", dossier_id="d", timeout_seconds=60, on_progress=on_progress
+    )
+
+    assert report["status"] == "SUCCEEDED"
+    assert [call.args[0] for call in on_progress.await_args_list] == [progress, progress]
