@@ -371,3 +371,79 @@ def test_candidates_version_constant_present():
     assert pc.CANDIDATES_VERSION.startswith("pairs-cand-")
     assert isinstance(pc.PAIRS_TOP_K, int) and pc.PAIRS_TOP_K > 0
     assert (pc.CONTEXT_CHARS_MAX, pc.MIN_CLAUSE_CHARS, pc.CUE_LOOKBACK) == (300, 25, 3)
+
+
+def _paged(node_id, label, text, *, file, page, parent=None, order=0):
+    return StructuralNode(node_id=node_id, type="CLAUSE", raw_label=label, parent_id=parent, text=text,
+                          source_file_id=file, page_range=[page], order=order)
+
+
+FOOTER = "TÀI LIỆU MẪU KIỂM THỬ AI2 - KHÔNG CÓ GIÁ TRỊ GIAO DỊCH"
+CLAUSE = "Bên B thay thế linh kiện bị lỗi trong vòng 48 giờ kể từ khi nhận được yêu cầu của Bên A."
+
+
+def test_all_caps_footer_repeated_across_files_is_furniture():
+    nodes = [
+        _paged("b1", "4.1.", "4.1. " + CLAUSE, file="f-body", page=1, order=0),
+        _paged("bf", FOOTER, FOOTER, file="f-body", page=1, order=1),
+        _paged("a1", "1.", "1. Bên A thanh toán trong vòng 05 ngày kể từ ngày nhận được hóa đơn hợp lệ.",
+               file="f-annex", page=1, order=0),
+        _paged("af", FOOTER, FOOTER, file="f-annex", page=1, order=1),
+    ]
+    index = StructureIndex.build(nodes, {"f-body": "body", "f-annex": "annex"})
+    result = generate_pair_candidates(index, nodes, top_k=10_000)
+    assert not [c for c in result.candidates if {"bf", "af"} & {c.node_a, c.node_b}]
+    assert result.stats["excluded_page_furniture"] == 2
+
+
+def test_verbatim_clauses_in_different_articles_are_candidates():
+    nodes = [
+        _paged("d4", "Điều 4", "Điều 4. Bảo hành", file="f-body", page=1, order=0),
+        _paged("k42", "4.2.", "4.2. " + CLAUSE, file="f-body", page=1, parent="d4", order=1),
+        _paged("d5", "Điều 5", "Điều 5. Điều khoản chung", file="f-body", page=2, order=2),
+        _paged("k51", "5.1.", "5.1. " + CLAUSE, file="f-body", page=2, parent="d5", order=3),
+    ]
+    index = StructureIndex.build(nodes, {"f-body": "body"})
+    found = _pairs(generate_pair_candidates(index, nodes, top_k=10_000), PairSource.VERBATIM)
+    assert ("k42", "k51") in found
+
+
+def test_restated_prose_across_body_and_annex_is_not_furniture():
+    prose = "Bên B bảo hành hàng hóa trong thời hạn 18 tháng kể từ ngày ký biên bản nghiệm thu."
+    nodes = [
+        _paged("b", prose, prose, file="f-body", page=1),
+        _paged("a", prose, prose, file="f-annex", page=1),
+    ]
+    index = StructureIndex.build(nodes, {"f-body": "body", "f-annex": "annex"})
+    result = generate_pair_candidates(index, nodes, top_k=10_000)
+    assert result.stats["excluded_page_furniture"] == 0
+
+
+def test_large_flat_article_stays_bounded_and_keeps_far_signals():
+    # Production: a 202-page dossier (11.6k unnumbered blocks under few articles) never
+    # finished candidate generation; SAME_ARTICLE/SAME_KEY paired every member (O(k^2)).
+    import time
+
+    body = [_paged("d1", "Điều 1", "Điều 1. Điều khoản chung", file="f-body", page=1, order=0)]
+    for i in range(3000):
+        body.append(_paged(f"n{i}", f"n{i}", f"Nội dung thanh toán số {i} của hợp đồng mẫu dùng để kiểm thử hiệu năng.",
+                           file="f-body", page=1 + i // 60, parent="d1", order=i + 1))
+    body.append(_paged("far", "9.4.", "9.4. " + CLAUSE, file="f-body", page=60, parent="d1", order=5000))
+    body.insert(2, _paged("near", "1.2.", "1.2. " + CLAUSE, file="f-body", page=1, parent="d1", order=1))
+    index = StructureIndex.build(body, {"f-body": "body"})
+    started = time.perf_counter()
+    result = generate_pair_candidates(index, body, top_k=40)
+    assert time.perf_counter() - started < 20
+    assert result.stats["candidates_total"] < 200_000
+    full = generate_pair_candidates(index, body, top_k=10**6)
+    assert ("near", "far") in _pairs(full, PairSource.VERBATIM)  # far duplicate still proposed
+    assert ("n0", "n1") in _pairs(full, PairSource.SAME_ARTICLE)  # neighbours still paired
+
+
+def test_small_article_still_pairs_every_member():
+    nodes = [_paged("d1", "Điều 1", "Điều 1. Thanh toán", file="f-body", page=1, order=0)]
+    nodes += [_paged(f"k{i}", f"{i}.", f"{i}. Bên A thanh toán đợt {i} cho Bên B trong vòng 05 ngày làm việc.",
+                     file="f-body", page=1, parent="d1", order=i) for i in range(1, 7)]
+    index = StructureIndex.build(nodes, {"f-body": "body"})
+    found = _pairs(generate_pair_candidates(index, nodes, top_k=10**6), PairSource.SAME_ARTICLE)
+    assert ("k1", "k6") in found and len(found) == 15

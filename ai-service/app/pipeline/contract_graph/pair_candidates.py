@@ -42,10 +42,13 @@ class PairSource(str, Enum):
     REFERENCE_CUE = "REFERENCE_CUE"
     VALUE_MISMATCH = "VALUE_MISMATCH"
     STRUCTURED_KEY = "STRUCTURED_KEY"
+    VERBATIM = "VERBATIM"  # same text once numbering is stripped, anywhere in the dossier
 
 
 ALL_SOURCES = frozenset(PairSource)
-_CORE_SOURCES = frozenset({PairSource.SAME_ARTICLE, PairSource.EXPLICIT_REF, PairSource.STRUCTURED_KEY})
+# VERBATIM is core: a repeated clause is rare and is exactly what the cap must not drop.
+_CORE_SOURCES = frozenset({PairSource.SAME_ARTICLE, PairSource.EXPLICIT_REF, PairSource.STRUCTURED_KEY,
+                           PairSource.VERBATIM})
 _BASE_CORE_SOURCES = frozenset({PairSource.SAME_ARTICLE, PairSource.EXPLICIT_REF})
 _CORE_TOP_K_SHARE = 1.0
 WEIGHTS = {
@@ -55,6 +58,7 @@ WEIGHTS = {
     PairSource.SAME_ARTICLE: 1,
     PairSource.VALUE_MISMATCH: 3,
     PairSource.STRUCTURED_KEY: 8,
+    PairSource.VERBATIM: 4,
 }
 
 _VALUE_WITH_UNIT = re.compile(r"(?<!\w)(\d+(?:[.,]\d+)*)(?!\w)\s*(%|[a-z]+)?")
@@ -67,6 +71,10 @@ _NEAR_DUPLICATE_JACCARD = 0.85
 _NEAR_DUPLICATE_BONUS = 2
 # A line repeated on several pages of one file is page furniture (header/footer).
 _FURNITURE_MIN_PAGES = 2
+_FURNITURE_EDGE_LINES = 5
+# SAME_ARTICLE/SAME_KEY pair each member only with its next N group members. Small groups
+# are unchanged; a flat 10k-block article no longer yields O(k^2) pairs before top-K.
+_GROUP_PAIR_WINDOW = 12
 _CONTENT_WORD = re.compile(r"\b[a-z]{3,}\b")
 _VALUE_MISMATCH_MIN_SHARED = 4
 _VALUE_MISMATCH_MIN_JACCARD = 0.12
@@ -90,6 +98,14 @@ class PairCandidate:
 class PairCandidateSet:
     candidates: tuple[PairCandidate, ...]
     stats: dict = field(default_factory=dict)
+
+
+def _window(members: list[str], i: int, stats: Counter[str]) -> list[str]:
+    """The next ``_GROUP_PAIR_WINDOW`` members after ``members[i]``; counts what is skipped."""
+    rest = len(members) - i - 1
+    if rest > _GROUP_PAIR_WINDOW:
+        stats["group_pairs_windowed"] += rest - _GROUP_PAIR_WINDOW
+    return members[i + 1:i + 1 + _GROUP_PAIR_WINDOW]
 
 
 def _value_text(text: str) -> str:
@@ -121,16 +137,37 @@ def _page_furniture(nodes: Iterable[StructuralNode]) -> set[str]:
     Scoped per file so body/annex restating one clause stays comparable; numbered lines are
     never furniture, so a clause duplicated across pages is still a candidate.
     """
-    pages: dict[tuple[str | None, str], set[int]] = {}
+    nodes = list(nodes)
+    # Furniture sits at a page edge; templated body lines that differ only in numbers
+    # ("Đơn giá ... 1.000.000") recur across pages too and must stay clauses.
+    by_page: dict[tuple[str | None, int], list[int]] = {}
+    for node in nodes:
+        if node.page_range:
+            by_page.setdefault((node.source_file_id, node.page_range[0]), []).append(node.order)
+    edges = {key: (sorted(orders)[:_FURNITURE_EDGE_LINES], sorted(orders)[-_FURNITURE_EDGE_LINES:])
+             for key, orders in by_page.items()}
+    pages: dict[tuple[str | None, str], set[tuple[str | None, int]]] = {}
     members: dict[tuple[str | None, str], list[str]] = {}
     for node in nodes:
         text = (node.text or "").strip()
         if not text or _CLAUSE_NUMBERING.match(_fold(text)) or not node.page_range:
             continue
-        key = (node.source_file_id, re.sub(r"\d+", "#", _fold(text)))
-        pages.setdefault(key, set()).add(node.page_range[0])
-        members.setdefault(key, []).append(node.node_id)
+        head, tail = edges[(node.source_file_id, node.page_range[0])]
+        if node.order not in head and node.order not in tail:
+            continue
+        folded = _fold(text)  # verbatim: templated body lines differ in their numbers
+        # An all-caps running header/footer recurs across the dossier's files too (one
+        # page per file is common); restated prose is never all caps, so it stays apart.
+        scope = None if _all_caps(text) else node.source_file_id
+        page = (node.source_file_id, node.page_range[0])
+        pages.setdefault((scope, folded), set()).add(page)
+        members.setdefault((scope, folded), []).append(node.node_id)
     return {nid for key, seen in pages.items() if len(seen) >= _FURNITURE_MIN_PAGES for nid in members[key]}
+
+
+def _all_caps(text: str) -> bool:
+    letters = [ch for ch in text if ch.isalpha()]
+    return len(letters) >= 4 and all(ch.isupper() for ch in letters)
 
 
 def _fold(text: str) -> str:
@@ -268,7 +305,7 @@ def generate_pair_candidates(
                 groups.setdefault(articles[nid], []).append(nid)
         for members in groups.values():
             for i, x in enumerate(members):
-                for y in members[i + 1:]:
+                for y in _window(members, i, stats):
                     add(x, y, PairSource.SAME_ARTICLE)
             adjacent.update(_ordered(x, y, pos) for x, y in zip(members, members[1:]))
     if PairSource.EXPLICIT_REF in sources:
@@ -283,7 +320,7 @@ def generate_pair_candidates(
                 by_topic.setdefault(topics[nid], []).append(nid)
         for members in by_topic.values():
             for i, x in enumerate(members):
-                for y in members[i + 1:]:
+                for y in _window(members, i, stats):
                     if articles[x] is None or articles[x] != articles[y]:
                         add(x, y, PairSource.SAME_KEY)
     if PairSource.REFERENCE_CUE in sources:
@@ -317,6 +354,18 @@ def generate_pair_candidates(
             union = len(content_words[x] | content_words[y])
             if union and shared / union >= _VALUE_MISMATCH_MIN_JACCARD and (x, y) not in found:
                 add(x, y, PairSource.VALUE_MISMATCH)
+
+    if PairSource.VERBATIM in sources:
+        # Hash the numbering-free text: linear, and only exact restatements pair up.
+        by_text: dict[str, list[str]] = {}
+        for nid in eligible:
+            key = _CLAUSE_NUMBERING.sub("", _fold(by_id[nid].text or "")).strip()
+            if len(key) >= MIN_CLAUSE_CHARS:
+                by_text.setdefault(key, []).append(nid)
+        for members in by_text.values():
+            for i, x in enumerate(members):
+                for y in _window(members, i, stats):
+                    add(x, y, PairSource.VERBATIM)
 
     if PairSource.STRUCTURED_KEY in sources:
         by_structured_key: dict[str, list[str]] = {}
@@ -406,6 +455,7 @@ def generate_pair_candidates(
         "excluded_short": stats["excluded_short"],
         "excluded_external_ref": stats["excluded_external_ref"],
         "excluded_page_furniture": stats["excluded_page_furniture"],
+        "group_pairs_windowed": stats["group_pairs_windowed"],
         "near_duplicate_kept": sum((c.node_a, c.node_b) in near_duplicate for c in kept),
         "candidates_capped": len(candidates) - len(kept),
         "candidates_kept": len(kept),
