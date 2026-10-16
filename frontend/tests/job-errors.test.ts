@@ -23,6 +23,20 @@ describe('jobErrorInfo', () => {
     expect(info.message).toContain('hủy')
   })
 
+  it('explains AI1_NO_READABLE_PAGE and offers the OCR retry', () => {
+    const info = jobErrorInfo('AI1_NO_READABLE_PAGE')
+    expect(info.retry).toBe('ocr')
+    expect(info.message).toContain('không đọc được trang nào')
+    // S2, S3, S8 failed and nothing reached AI2: an OCR failure, not AI2.
+    expect(
+      isAi2Failure('AI1_NO_READABLE_PAGE', {
+        S2: { status: 'failed' },
+        S3: { status: 'failed' },
+        S8: { status: 'failed' },
+      }),
+    ).toBe(false)
+  })
+
   it('falls back to the OCR retry for a missing or unknown code', () => {
     expect(jobErrorInfo(null).retry).toBe('ocr')
     expect(jobErrorInfo('SOMETHING_NEW').retry).toBe('ocr')

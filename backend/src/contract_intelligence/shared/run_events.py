@@ -34,6 +34,7 @@ from sqlalchemy import BigInteger, DateTime, Index, Integer, Text, event, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Mapped, Session, attributes, mapped_column
 
+from contract_intelligence.shared import step_progress
 from contract_intelligence.shared.base import utcnow
 from contract_intelligence.shared.persistence.base import Base
 
@@ -49,7 +50,7 @@ _LOCAL_DELIVERY_KEY = "run_event_local_delivery"
 _WATCHED: dict[str, tuple[str, ...]] = {
     "job": ("status", "error_code"),
     "pipeline_run": ("status", "error_code"),
-    "pipeline_step": ("status", "attempt"),
+    "pipeline_step": ("status", "attempt", "progress"),
 }
 
 
@@ -140,6 +141,7 @@ def _event_for(obj: Any, table: str) -> dict[str, Any] | None:
             "attempt": obj.attempt or 1,
             "pages": obj.pages,
             "duration_ms": obj.duration_ms,
+            "progress": step_progress.parse(obj.progress),
         },
     }
 
