@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import os
 import re
 import threading
@@ -212,15 +213,23 @@ class NineRouterClient:
         trace["latency_ms"] = round((time.perf_counter() - started) * 1000, 1)
         trace["http_calls"] = self.last_http_calls
         trace["response_chars"] = len(text)
+        trace["finish_reason"] = getattr(resp.choices[0], "finish_reason", None)
+        trace["truncated"] = trace["finish_reason"] == "length"
         usage = getattr(resp, "usage", None)
         if usage is not None:
             for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
                 value = getattr(usage, key, None)
                 if value is not None:
                     trace[key] = value
+            details = getattr(usage, "completion_tokens_details", None)
+            reasoning_tokens = getattr(details, "reasoning_tokens", None)
+            if reasoning_tokens is not None:
+                trace["reasoning_tokens"] = reasoning_tokens
         if not isinstance(text, str) or not text.strip():
             trace["error_type"] = "EmptyResponseError"
             trace["response_empty"] = True
+            if trace["truncated"]:
+                trace["truncated_by_reasoning"] = bool(trace.get("reasoning_tokens", 0))
             self.traces.append(trace)
             NineRouterClient.all_traces.append(dict(trace))
             raise LLMEmptyResponseError("provider returned an empty assistant response")
@@ -304,11 +313,16 @@ def llm_status(
     except Exception as exc:
         # Model, HTTP status and exception type only: the message can echo the
         # request, and the key never belongs in a log.
+        body = getattr(exc, "body", None)
+        detail = body.get("error", body) if isinstance(body, dict) else {}
+        detail = detail if isinstance(detail, dict) else {}
         logger.warning(
-            "ai2.llm_probe_failed model=%s http_status=%s error=%s",
+            "ai2.llm_probe_failed model=%s http_status=%s error=%s code=%s param=%s",
             client.model,
             getattr(exc, "status_code", None),
             type(exc).__name__,
+            _safe_error_identifier(detail.get("code")),
+            _safe_error_identifier(detail.get("param")),
         )
         return "unreachable"
     return "ready"
@@ -317,12 +331,35 @@ def llm_status(
 def _ping_configured_model(client: NineRouterClient) -> None:
     # Same parameter rules as complete_json(): a GPT-5 model refuses max_tokens
     # and temperature, which made /readyz report a working model unreachable.
-    client._client.with_options(timeout=3.0, max_retries=0).chat.completions.create(
+    tokens = 64 if _is_gpt5(client.model) else 1
+    timeout = 15.0 if _is_gpt5(client.model) else 3.0
+    try:
+        configured_tokens = int(os.getenv("AI2_LLM_PROBE_MAX_TOKENS", ""))
+        if configured_tokens > 0:
+            tokens = configured_tokens
+    except ValueError:
+        pass
+    try:
+        configured_timeout = float(os.getenv("AI2_LLM_PROBE_TIMEOUT_SECONDS", ""))
+        if math.isfinite(configured_timeout) and configured_timeout > 0:
+            timeout = configured_timeout
+    except ValueError:
+        pass
+    # A one-token GPT-5 request can fail before producing an HTTP success.
+    # Any successful response proves availability, even if finish_reason=length.
+    client._client.with_options(timeout=timeout, max_retries=0).chat.completions.create(
         model=client.model,
         messages=[{"role": "user", "content": "ping"}],
-        **_output_limit(client.model, 1),
+        **_output_limit(client.model, tokens),
         **_sampling_options(client.model),
     )
+
+
+def _safe_error_identifier(value: Any) -> str | None:
+    # Provider metadata is untrusted; never echo arbitrary text or credential-like values.
+    if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_.\[\]]{1,80}", value):
+        return value
+    return None
 
 
 def _parse_json(text: str) -> dict[str, Any]:

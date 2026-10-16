@@ -914,7 +914,7 @@ def _cached_llm_status(llm: NineRouterClient) -> str:
     return state
 
 
-def _capability_snapshot() -> dict:
+def _capability_snapshot(*, probe_embedding: bool = False) -> dict:
     """Return provider capability without exposing credentials.
 
     Liveness stays cheap at /healthz. The explicit readiness route is used by
@@ -923,7 +923,7 @@ def _capability_snapshot() -> dict:
     """
 
     llm = _probe_client()
-    if os.getenv("AI2_EMBEDDING_DISCOVERY_ENABLED", "false").casefold() in {
+    if probe_embedding or os.getenv("AI2_EMBEDDING_DISCOVERY_ENABLED", "false").casefold() in {
         "1",
         "true",
         "yes",
@@ -950,7 +950,6 @@ def health() -> dict:
 
 @app.get("/readyz")
 def readyz() -> dict:
-    capabilities = _capability_snapshot()
     full_path = all(
         _env_flag(name, False)
         for name in (
@@ -962,6 +961,7 @@ def readyz() -> dict:
             "AI2_VECTOR_RECALL_ENABLED",
         )
     )
+    capabilities = _capability_snapshot(probe_embedding=full_path)
     llm_ready = str(capabilities["llm_status"]).casefold() == "ready"
     embedding_ready = capabilities["embedding"].get("status") == "READY"
     if full_path and (not llm_ready or not embedding_ready):

@@ -1349,6 +1349,7 @@ async def _run_ai2_if_ready(
             snapshot_created_at=_snapshot_created_at(durable_run) if durable_run else {},
             attempt=attempt,
             max_processing_seconds=budget,
+            content_sharing_consent=content_sharing_consent,
             semantic_profile=semantic_profile,
         )
         if request is None:

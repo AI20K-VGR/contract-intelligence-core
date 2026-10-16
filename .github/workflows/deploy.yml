@@ -1,16 +1,25 @@
 # =============================================================================
 # Deploy the exact develop commit after it is pushed (including a PR merge).
-# Manual dispatch is supported only from develop. See deploy/README.md.
+# See deploy/README.md ("Cập nhật", "Staging").
 #
 # Pull requests into develop run only the `preflight` job (policy + deploy
-# tests); `deploy` never runs on a PR. Merging to develop IS a production deploy:
-# there is no staging stage.
+# tests); nothing deploys on a PR. A push to develop deploys to staging first
+# when the repository variable STAGING_ENABLED is "true", and to production only
+# once staging succeeded (or was skipped because STAGING_ENABLED is not "true").
+#
+# Manual dispatch (Actions -> deploy -> Run workflow, or
+# `gh workflow run deploy.yml --ref <branch> -f target=staging`):
+#   target=production  only from develop
+#   target=staging     from any branch: try a PR's branch on staging before merge
+#
+# The steps of one deployment live in deploy-target.yml, which also lists the
+# secrets and variables of each target.
 #
 # Server: prepared once by hand (deploy/README.md steps 1-3): clone in
 # /opt/contract-intelligence, deploy/bootstrap.sh, deploy/.env.prod and
 # ai-service/.env filled in. This workflow only updates and restarts it.
 #
-# Repository secrets (required unless noted):
+# Production settings (repository secrets, required unless noted):
 #   DEPLOY_HOST                  server address (IP or name)
 #   DEPLOY_USER                  SSH user (root, or one with passwordless sudo)
 #   DEPLOY_SSH_KEY               private key whose public half is in authorized_keys
@@ -28,6 +37,7 @@
 #   DEPLOY_BEHIND_CLOUDFLARE     "true" when the hostnames sit behind Cloudflare: the
 #                                external check then probes DEPLOY_HOST directly and
 #                                asserts 80/443 refuse non-Cloudflare callers
+#   STAGING_ENABLED              "true": a push to develop goes through staging first
 #
 # Who may deploy is decided by the "production" environment, not by this file
 # (deploy/README.md, "Duyệt trước khi deploy"; DOC-15).
@@ -40,12 +50,28 @@ on:
   pull_request:
     branches: [develop]
   workflow_dispatch:
+    inputs:
+      target:
+        description: "production (develop only) or staging (any branch)"
+        type: choice
+        options: [production, staging]
+        default: production
 
 permissions:
   contents: read
 
+# GitHub keeps one pending run per group: a new run replaces the pending one.
+# So each kind of run gets its own group, and nothing but a newer develop
+# deployment can replace a production deployment that is waiting:
+#   push / dispatch production  deploy-production (staging-then-production chain)
+#   dispatch target=staging     deploy-staging-manual
+#   pull_request                one group per run (preflight only, never waits)
+# A pushed staging job and a manual staging run may then reach the staging
+# server together; deploy-target.yml serialises them with a lock on the server.
 concurrency:
-  group: deploy-server
+  group: >-
+    ${{ github.event_name == 'pull_request' && format('deploy-pr-{0}', github.run_id)
+    || (inputs.target == 'staging' && 'deploy-staging-manual' || 'deploy-production') }}
   cancel-in-progress: false
 
 jobs:
@@ -58,13 +84,22 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           REF: ${{ github.ref }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
+          TARGET: ${{ inputs.target }}
         run: |
+          TARGET=${TARGET:-production}
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             if [[ "$BASE_REF" != "develop" ]]; then
               echo "::error::Validation is allowed only for PRs targeting develop (got $BASE_REF)."
               exit 1
             fi
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$TARGET" == "staging" ]]; then
+            # Staging exists to try a branch before it is merged.
+            echo "Staging deployment of $REF."
           else
+            if [[ "$TARGET" != "production" ]]; then
+              echo "::error::Unknown deployment target: $TARGET."
+              exit 1
+            fi
             if [[ "$REF" != "refs/heads/develop" ]]; then
               echo "::error::Deployment is allowed only from refs/heads/develop (got $REF)."
               exit 1
@@ -84,111 +119,27 @@ jobs:
       - name: Validate deploy readiness and workflow policy
         run: |
           python -m pip install --disable-pip-version-check 'pytest==9.1.1' 'PyYAML==6.0.3'
-          python -m pytest deploy/tests/test_keycloak_configure.py -q
+          python -m pytest deploy/tests/test_keycloak_configure.py deploy/tests/test_ai2_readiness_deadline.py -q
+
+  # Staging first: a build that does not come up there never reaches production.
+  staging:
+    needs: preflight
+    if: >-
+      needs.preflight.result == 'success' && github.event_name != 'pull_request' &&
+      (inputs.target == 'staging' || (github.event_name == 'push' && vars.STAGING_ENABLED == 'true'))
+    uses: ./.github/workflows/deploy-target.yml
+    with:
+      target: staging
+    secrets: inherit
 
   deploy:
-    needs: preflight
-    if: needs.preflight.result == 'success' && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    environment: production
-    env:
-      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-      APP_DIR: /opt/contract-intelligence
-    steps:
-      - name: Require complete SSH configuration
-        env:
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-        run: |
-          missing=()
-          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS; do
-            value=${!name-}
-            if [[ -z "$value" ]]; then
-              echo "::error::Required deployment setting $name is missing."
-              missing+=("$name")
-            fi
-          done
-          if (( ${#missing[@]} > 0 )); then
-            exit 1
-          fi
-          if [[ ! "$DEPLOY_HOST" =~ ^[A-Za-z0-9.-]+$ || ! "$DEPLOY_USER" =~ ^[A-Za-z0-9._-]+$ ]]; then
-            echo "::error::DEPLOY_HOST or DEPLOY_USER contains unsupported characters."
-            exit 1
-          fi
-
-      - uses: actions/checkout@v4
-
-      - name: Open SSH to this runner only (AWS security group)
-        id: ssh_window
-        if: vars.DEPLOY_SECURITY_GROUP_ID != ''
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_DEPLOY_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_DEPLOY_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ vars.DEPLOY_AWS_REGION }}
-          SG: ${{ vars.DEPLOY_SECURITY_GROUP_ID }}
-        run: bash deploy/ssh_window.sh open "$SG"
-
-      - name: Install SSH identity and pinned host key
-        env:
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-        run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          cat > ~/.ssh/config <<CONFIG
-          Host server
-            HostName $DEPLOY_HOST
-            User $DEPLOY_USER
-            IdentityFile ~/.ssh/deploy_key
-            IdentitiesOnly yes
-            StrictHostKeyChecking yes
-            ServerAliveInterval 30
-          CONFIG
-
-      - name: Deploy the exact triggering SHA
-        env:
-          SHA: ${{ github.sha }}
-        run: |
-          ssh server "APP_DIR='$APP_DIR' SHA='$SHA' bash -s" <<'REMOTE'
-          set -euo pipefail
-          sudo=""; [ "$(id -u)" -eq 0 ] || sudo="sudo"
-          cd "$APP_DIR"
-          if ! $sudo git diff --quiet || ! $sudo git diff --cached --quiet || [ -n "$($sudo git ls-files --others --exclude-standard)" ]; then
-            echo "deployment checkout has local changes; refusing to deploy over them" >&2
-            exit 1
-          fi
-          $sudo git fetch --quiet origin "$SHA"
-          $sudo git checkout --detach "$SHA"
-          deployed_sha=$($sudo git rev-parse HEAD)
-          [ "$deployed_sha" = "$SHA" ] || { echo "deploy SHA mismatch" >&2; exit 1; }
-          $sudo deploy/deploy.sh
-          deployed_sha=$($sudo git rev-parse HEAD)
-          [ "$deployed_sha" = "$SHA" ] || { echo "deploy source changed during release" >&2; exit 1; }
-          REMOTE
-
-      - name: Check HTTPS, authentication, and external exposure
-        env:
-          DB_PUBLIC_IP: ${{ secrets.DEPLOY_DB_PUBLIC_IP }}
-          ORIGIN_IP: ${{ vars.DEPLOY_BEHIND_CLOUDFLARE == 'true' && secrets.DEPLOY_HOST || '' }}
-        run: |
-          hosts=$(ssh server "sudo=''; [ \"\$(id -u)\" -eq 0 ] || sudo=sudo; \$sudo grep -E '^(API_HOST|AUTH_HOST|APP_HOST)=' '$APP_DIR/deploy/.env.prod'")
-          value() { printf '%s\n' "$hosts" | grep -E "^$1=" | tail -1 | cut -d= -f2-; }
-          api_host=$(value API_HOST)
-          auth_host=$(value AUTH_HOST)
-          app_host=$(value APP_HOST)
-          [[ -n "$api_host" && -n "$auth_host" ]] || { echo "::error::API_HOST or AUTH_HOST is missing in deploy/.env.prod"; exit 1; }
-          bash deploy/check_external.sh "$api_host" "$auth_host" "$app_host" "$DB_PUBLIC_IP"
-
-      # Last step, and after a failure too: the rule opened above must not stay.
-      - name: Close SSH again (AWS security group)
-        if: always() && steps.ssh_window.outcome != 'skipped' && steps.ssh_window.outcome != ''
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_DEPLOY_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_DEPLOY_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ vars.DEPLOY_AWS_REGION }}
-          SG: ${{ vars.DEPLOY_SECURITY_GROUP_ID }}
-        run: bash deploy/ssh_window.sh close "$SG"
+    needs: [preflight, staging]
+    # !cancelled(): run when staging was skipped (not enabled), not only when it passed.
+    if: >-
+      !cancelled() && needs.preflight.result == 'success' && github.event_name != 'pull_request' &&
+      inputs.target != 'staging' &&
+      (needs.staging.result == 'success' || needs.staging.result == 'skipped')
+    uses: ./.github/workflows/deploy-target.yml
+    with:
+      target: production
+    secrets: inherit

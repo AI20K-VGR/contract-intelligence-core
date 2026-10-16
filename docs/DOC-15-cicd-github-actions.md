@@ -1,11 +1,11 @@
 # DOC-15 — CI/CD với GitHub Actions
 
-Trạng thái ngày 14/10/2026. Tài liệu này mô tả các workflow trong `.github/workflows/` và cách chuyển phần deploy tự động sang AWS. Cách dựng server nằm ở [`deploy/README.md`](../deploy/README.md).
+Trạng thái ngày 14/10/2026; luồng staging cập nhật ngày 16/10/2026 (PR #112). Tài liệu này mô tả các workflow trong `.github/workflows/` và cách chuyển phần deploy tự động sang AWS. Cách dựng server nằm ở [`deploy/README.md`](../deploy/README.md).
 
 ## Tóm tắt
 
 - **CI:** mỗi PR chạy kiểm tra theo phần code bị sửa (backend, ai-service, frontend) cộng `pr-guard`.
-- **CD:** mỗi lần push vào `develop` (tức là merge PR), workflow `deploy` SSH vào server, cập nhật code, chạy `deploy/deploy.sh`, rồi kiểm tra server từ bên ngoài.
+- **CD:** mỗi lần push vào `develop` (tức là merge PR), workflow `deploy` SSH vào server, chuyển checkout tới đúng commit vừa merge, chạy `deploy/deploy.sh`, rồi kiểm tra server từ bên ngoài. Khi biến repo `STAGING_ENABLED=true`, bản mới lên staging trước; staging lỗi thì production giữ bản cũ.
 - **Server đích là app server AWS** `52.63.103.239` (Sydney) từ 14/10/2026: dữ liệu đã chuyển từ server cũ `150.95.104.132`, DNS `contract-intelligence.tech` trỏ AWS, và lần merge #77 đã tự deploy lên đó. Cả ba tên miền đứng sau Cloudflare (`deploy/README.md`, "Đứng sau Cloudflare").
 
 ## Chi phí AWS và cảnh báo
@@ -27,8 +27,14 @@ Xem hoặc đổi mức cảnh báo: AWS Console → Billing → Budgets → `ci
 flowchart LR
   A[PR vào develop] --> B{CI theo path<br/>+ pr-guard}
   B -->|merge| C[push develop]
-  C --> D[deploy.yml<br/>environment production]
-  D -->|SSH| E[server: git merge --ff-only<br/>deploy/deploy.sh]
+  C --> P[preflight]
+  P --> S{STAGING_ENABLED<br/>= true?}
+  S -->|có| T[job staging<br/>deploy-target.yml<br/>environment staging]
+  T -->|thành công| D[job deploy<br/>deploy-target.yml<br/>environment production]
+  T -->|lỗi| X[production giữ bản cũ]
+  S -->|không| D
+  M[bấm tay -f target=staging<br/>từ nhánh bất kỳ] --> P2[preflight] --> T2[job staging<br/>chỉ staging]
+  D -->|SSH| E[server: git checkout --detach SHA<br/>deploy/deploy.sh]
   E --> F[check_external.sh<br/>chạy trên runner]
 ```
 
@@ -41,7 +47,8 @@ flowchart LR
 | `frontend.yml` | PR sửa `frontend/**`; push vào `develop`/`main` sửa `frontend/**` | Kiểm tra frontend |
 | `pr-guard.yml` | Mọi PR | Tên nhánh, tiêu đề PR (`<type>(<scope>): …`), nguồn PR vào `main`, cấm commit PDF/ảnh/file nén ngoài `docs/assets/` |
 | `labeler.yml` | Mọi PR (`pull_request_target`) | Gắn nhãn theo thư mục |
-| `deploy.yml` | Push vào `develop`; bấm tay (Run workflow) | Deploy lên server, rồi kiểm tra từ bên ngoài |
+| `deploy.yml` | PR vào `develop` (chỉ `preflight`); push vào `develop`; bấm tay (Run workflow, chọn `target`) | `preflight` kiểm luật nhánh và chạy test deploy. Push: job `staging` (khi `STAGING_ENABLED=true`) rồi job `deploy` lên production. Bấm tay: `target=production` chỉ từ `develop`; `target=staging` từ nhánh bất kỳ, chỉ lên staging |
+| `deploy-target.yml` | Chỉ được `deploy.yml` gọi (`workflow_call`, input `target`) | Các bước của một lần deploy lên một server: mở SSH, deploy đúng SHA, kiểm tra từ bên ngoài, đóng SSH. Staging đọc secret/biến `STAGING_*`, không bao giờ lấy giá trị production thay thế |
 | `deploy-external-check.yml` | Chỉ bấm tay | Kiểm tra từ bên ngoài một server bất kỳ: HTTPS, issuer OIDC, `/admin` bị chặn, `/grafana` 401, các cổng nội bộ đóng |
 
 ### Luật merge (ruleset, không phải branch protection kiểu cũ)
@@ -60,18 +67,26 @@ Ruleset `main` giống vậy, thêm: chỉ squash merge và lịch sử thẳng.
 
 ### Các bước
 
-1. **Có server chưa?** Không có secret `DEPLOY_HOST` thì job báo "not configured" và kết thúc thành công.
+1. **Đủ cấu hình chưa?** Thiếu một trong `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS` (với staging là bản `STAGING_*`) thì job báo lỗi và dừng.
 2. **Khoá SSH:** ghi `DEPLOY_SSH_KEY` và `DEPLOY_KNOWN_HOSTS` ra `~/.ssh` của runner, `StrictHostKeyChecking yes`: runner chỉ nói chuyện với đúng server đã ghim khoá.
 3. **Cập nhật và deploy:** trên server, trong `/opt/contract-intelligence`:
    ```bash
-   git fetch origin "$BRANCH"; git checkout "$BRANCH"
-   git merge --ff-only "$SHA"     # checkout trên server có commit riêng thì dừng, không ghi đè
+   # checkout có file sửa hay file lạ thì dừng, không ghi đè
+   git fetch origin "$SHA"; git checkout --detach "$SHA"
    deploy/deploy.sh
    ```
    `deploy.sh` build image, kiểm tra DB server (nếu DB ở máy riêng) và nhà cung cấp LLM/embedding của AI2 **trước** khi `up -d`. Kiểm tra lỗi thì stack đang chạy giữ nguyên. Sau đó nó chờ backend và AI2 sẵn sàng, cấu hình Keycloak và chạy smoke test.
 4. **Kiểm tra từ bên ngoài:** đọc `API_HOST`, `AUTH_HOST`, `APP_HOST` từ `deploy/.env.prod` trên server, rồi chạy `deploy/check_external.sh` **trên runner**, tức là từ Internet. Có secret `DEPLOY_DB_PUBLIC_IP` thì kiểm thêm cổng 5432/5433 của DB server.
 
-Một lần chạy tối đa 60 phút. `concurrency: deploy-server` bảo đảm hai lần deploy không chạy chồng: lần sau chờ lần trước xong.
+Một lần chạy tối đa 60 phút. GitHub chỉ giữ **một** lần chạy đang chờ trong mỗi nhóm `concurrency`: lần mới thay lần đang chờ. Vì vậy mỗi loại lần chạy có nhóm riêng:
+
+| Lần chạy | Nhóm | Hệ quả |
+|---|---|---|
+| Push vào `develop`, bấm tay `target=production` | `deploy-production` | Các lần deploy production chạy lần lượt, staging rồi production trong cùng một lần chạy. Chỉ một lần merge mới hơn mới thay được lần deploy production đang chờ |
+| Bấm tay `target=staging` | `deploy-staging-manual` | Không bao giờ huỷ hay thay lần deploy production đang chờ |
+| PR vào `develop` | Riêng cho từng lần chạy | Chỉ chạy `preflight`, không chờ ai và không thay ai |
+
+Job staging của một lần push và một lần bấm tay staging có thể tới máy staging cùng lúc. Script deploy giữ khoá `~/.ci-deploy.lock` trên server (`flock`), nên hai lần deploy lên cùng một máy vẫn chạy lần lượt. Khoá được lấy trước khi đụng tới checkout. Chờ tối đa 15 phút; quá thì job báo lỗi và không đổi gì trên server. 45 phút còn lại của `timeout-minutes: 60` đủ cho một lần deploy trọn vẹn (build, preflight provider, chờ AI2 sẵn sàng tối đa 600 giây, Keycloak, kiểm tra ngoài); test `test_lock_wait_leaves_a_whole_deploy_within_the_job_timeout` giữ quan hệ này. Test `test_manual_staging_cannot_replace_a_waiting_production_deployment` trong `deploy/tests/test_keycloak_configure.py` giữ các luật này.
 
 ### Secrets
 
@@ -88,11 +103,18 @@ Một lần chạy tối đa 60 phút. `concurrency: deploy-server` bảo đảm
 
 ### Duyệt trước khi deploy
 
-Job chạy trong environment `production`. **Hiện environment này chưa có luật nào** (`protection_rules` rỗng ngày 14/10), nên mọi push vào `develop` deploy ngay. Admin repo bật người duyệt theo mục "Duyệt trước khi deploy" trong `deploy/README.md`. Khi đã bật, mỗi lần merge tạo một lần chạy "Waiting"; server chỉ đổi sau khi người duyệt bấm **Review deployments → Approve**.
+Job `staging` chạy trong environment `staging` (không cần người duyệt), job `deploy` trong environment `production`. Khi `STAGING_ENABLED=true`, job `deploy` chỉ bắt đầu, và chỉ xin duyệt, sau khi staging thành công. **Hiện environment `production` chưa có luật nào** (`protection_rules` rỗng ngày 14/10), nên mọi push vào `develop` deploy ngay. Admin repo bật người duyệt theo mục "Duyệt trước khi deploy" trong `deploy/README.md`. Khi đã bật, mỗi lần merge tạo một lần chạy "Waiting"; server chỉ đổi sau khi người duyệt bấm **Review deployments → Approve**.
 
 ### Chạy tay
 
-GitHub → Actions → `deploy` → Run workflow, chọn nhánh. Workflow deploy **đúng nhánh được chọn**, nên chỉ nên chọn `develop`. Một nhánh khác sẽ đổi checkout trên server sang nhánh đó, và lần deploy `develop` tiếp theo có thể bị chặn vì không fast-forward được.
+GitHub → Actions → `deploy` → Run workflow, chọn nhánh và `target`:
+
+- `target=production` (mặc định): chỉ từ `develop`; nhánh khác bị `preflight` từ chối.
+- `target=staging`: từ nhánh bất kỳ, để thử một PR trước khi merge. Chỉ deploy lên staging, không đụng production.
+
+```bash
+gh workflow run deploy.yml --ref <nhánh> -f target=staging
+```
 
 ## Chuyển CD sang AWS
 
