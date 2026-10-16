@@ -513,7 +513,11 @@ export function ClauseConflictPage() {
     () => (detail ? (contractDocument(detail)?.id ?? null) : null),
     [detail],
   )
-  const nodes = nodesByDocument[contractId ?? ''] ?? []
+  // `?? []` tạo mảng mới mỗi lần render; bọc useMemo để cards không tính lại vô cớ.
+  const nodes = useMemo(
+    () => nodesByDocument[contractId ?? ''] ?? [],
+    [contractId, nodesByDocument],
+  )
   const pageCount = document?.pageCount || pdfPages
   const cards = useMemo(() => {
     if (!dossierId) return demoCards()
@@ -563,7 +567,10 @@ export function ClauseConflictPage() {
     }
     return map
   }, [detail?.documents, linesByDocument, numberedTrees, spots, trees])
-  const located = linksById.get(active?.id ?? '') ?? []
+  const located = useMemo(
+    () => linksById.get(active?.id ?? '') ?? [],
+    [active?.id, linksById],
+  )
   const comparing = located.length > 1
 
   useEffect(() => {

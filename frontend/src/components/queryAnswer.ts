@@ -48,8 +48,9 @@ export function answerBlocks(answer: string) {
  * gắn vào mục cuối, để người đọc không hiểu nhầm nó chứng minh cho mục đó.
  *
  * AI2 thường trả một trích dẫn cho mỗi dòng chữ, nên một khoản dài hai dòng có
- * hai trích dẫn cùng mở một chỗ. Trong cùng một mục, các trích dẫn cùng tài
- * liệu chỉ giữ một số; hợp đồng và phụ lục vẫn tách riêng. Trích dẫn không đặt
+ * hai trích dẫn cùng mở một chỗ. Chỉ gộp các trích dẫn mở cùng một chỗ: cùng
+ * mục, cùng tài liệu, cùng trang. Hai điều ở hai trang khác nhau trong cùng một
+ * mục vẫn giữ hai số; hợp đồng và phụ lục vẫn tách riêng. Trích dẫn không đặt
  * được vào mục chỉ gộp khi trùng hẳn (cùng tài liệu, trang, câu trích).
  * `n` đánh liên tục từ 1 theo thứ tự xuất hiện, sau khi đã gộp.
  */
@@ -70,10 +71,13 @@ export function citesByBlock(
         )
       : -1
     const source = citation.documentId ?? ''
+    const page = citation.pageNo ?? ''
     const identity =
       at < 0
-        ? `none|${source}|${citation.pageNo ?? ''}|${quote}`
-        : `${at}|${source || `q:${quote}`}`
+        ? `none|${source}|${page}|${quote}`
+        : source
+          ? `${at}|${source}|${page}`
+          : `${at}|q:${quote}`
     if (seen.has(identity)) continue
     seen.add(identity)
     n += 1

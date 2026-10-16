@@ -283,7 +283,7 @@ Keycloak có thay đổi user → gửi webhook (có chữ ký HMAC) → POST /a
 | `/ho-so` · `/ho-so-cua-toi` | Danh sách hồ sơ | Admin · User | `GET /dossiers`, `DELETE`, `PATCH`, `PUT /dossiers/{id}/access` | Xong |
 | `/tao-ho-so` | Tải lên tài liệu | Operator, Admin | `POST /dossiers` (multipart) | Xong |
 | `/ocr/:dossierId` | Tiến trình OCR | Tất cả | `GET /dossiers/{id}/documents`, `/documents/{id}/pages`, `POST /dossiers/{id}/ocr` (chạy lại) | Xong |
-| `/xac-nhan-manifest/:dossierId` | Xác nhận vai trò & quan hệ (file nào là hợp đồng, file nào là phụ lục) | Operator, Admin | `GET /dossiers/{id}/manifest`, `POST .../manifest/confirm` | Xong |
+| ~~`/xac-nhan-manifest/:dossierId`~~ | Đã bỏ (PR #122). Vai trò hợp đồng/phụ lục chọn lúc tải lên hoặc lúc tách tệp được backend tự xác nhận (`confirm_uploaded_manifest`) | — | Frontend không gọi `GET /dossiers/{id}/manifest`, `POST .../manifest/confirm` | Đã bỏ |
 | `/tien-trinh-phan-tich/:dossierId` | Tiến trình phân tích (S0…S10) | Tất cả | `GET /dossiers/{id}/facts`, `/findings`, `/runs/{id}/steps` | Xong |
 | `/cau-truc/:dossierId` | Cấu trúc hợp đồng: cây Điều/Khoản/Điểm, bảng, sơ đồ tư duy, ảnh trang, tìm kiếm | Tất cả | `GET /documents/{id}/clauses`, `/tables`, `/pages/{n}/image`, `/content`, `POST /dossiers/{id}/search`, `GET /dossiers/{id}/conflicts` | Xong |
 | `/doi-soat-xung-dot` | Đối soát xung đột giữa hợp đồng và phụ lục, đánh dấu trên cây điều khoản | Tất cả | `GET /dossiers/{id}/conflicts`, `GET/POST /findings/{id}/review`, `/clause-nodes/{id}/review` | Xong |

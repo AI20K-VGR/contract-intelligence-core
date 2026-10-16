@@ -70,6 +70,43 @@ describe('citesByBlock', () => {
     expect(placed.get(2)).toEqual([{ citation: next, n: 2 }])
   })
 
+  it('keeps two places of the same document on different pages apart', () => {
+    // Một mục trích hai điều khác trang: bấm mỗi số mở một chỗ khác nhau.
+    const answer = [
+      'Điều 3. Thanh toán và phạt chậm trả',
+      '3.1. Bên A thanh toán trong 30 ngày và chịu phạt chậm trả 0,05% mỗi ngày.',
+    ].join('\n')
+    const payment = {
+      quote: 'Bên A thanh toán trong 30 ngày',
+      pageNo: 2,
+      documentId: 'doc_contract',
+    }
+    const penalty = {
+      quote: 'chịu phạt chậm trả 0,05% mỗi ngày',
+      pageNo: 7,
+      documentId: 'doc_contract',
+    }
+    const blocks = answerBlocks(answer)
+    const { placed } = citesByBlock(blocks, [payment, penalty])
+    expect(placed.get(1)).toEqual([
+      { citation: payment, n: 1 },
+      { citation: penalty, n: 2 },
+    ])
+  })
+
+  it('keeps old citations without a document apart unless the quote repeats', () => {
+    const blocks = answerBlocks(ANSWER)
+    const other = {
+      quote: 'thanh toán trong 30 ngày kể từ ngày nhận',
+      pageNo: 3,
+    }
+    const { placed } = citesByBlock(blocks, [MATCHED, other, MATCHED])
+    expect(placed.get(1)).toEqual([
+      { citation: MATCHED, n: 1 },
+      { citation: other, n: 2 },
+    ])
+  })
+
   it('keeps the contract and the annex apart even on the same clause', () => {
     const blocks = answerBlocks(ANSWER)
     const contract = { ...MATCHED, documentId: 'doc_contract' }

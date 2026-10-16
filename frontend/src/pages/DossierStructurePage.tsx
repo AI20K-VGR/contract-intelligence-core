@@ -218,6 +218,12 @@ export function DossierStructurePage() {
   const { dossierId = '' } = useParams()
   const permissions = useDossierPermissions(dossierId)
   const location = useLocation()
+  // State điều hướng (trích dẫn đang mở, chế độ cây) chỉ đọc lúc tải hồ sơ:
+  // state đổi sau đó không được làm trang tải lại cả hồ sơ.
+  const locationState = useRef(location.state)
+  useEffect(() => {
+    locationState.current = location.state
+  })
   const navigate = useNavigate()
   const { user } = useAuth()
   const backTo = user ? dossiersPath(user.role) : '/'
@@ -535,7 +541,7 @@ export function DossierStructurePage() {
           }, 2000)
           return
         }
-        const focusedCitation = readFocusedCitation(location.state)
+        const focusedCitation = readFocusedCitation(locationState.current)
         const document =
           (focusedCitation?.hit.sourceFileId
             ? next.documents.find(
@@ -567,7 +573,7 @@ export function DossierStructurePage() {
           // from the actual OCR/table payload instead of forcing numbered.
           if (
             !next.structureMode &&
-            stateStructureMode(location.state) === null
+            stateStructureMode(locationState.current) === null
           ) {
             let hasTables = false
             if (buildStructureTree(ocrLines, 'numbered').length === 0) {
