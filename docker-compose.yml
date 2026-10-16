@@ -568,7 +568,7 @@ services:
       dockerfile: Dockerfile.ai2
     container_name: ci-ai2-service
     restart: unless-stopped
-    mem_limit: ${AI2_MEM_LIMIT:-2g}
+    mem_limit: ${AI2_MEM_LIMIT:-3584m}
     env_file:
       - path: ./ai-service/.env
         required: false
@@ -583,6 +583,8 @@ services:
       AI2_LLM_API_KEY: ${AI2_LLM_API_KEY:-}
       AI2_LLM_MODEL: ${AI2_LLM_MODEL:-gpt-5.5}
       AI2_LLM_STRONG_MODEL: ${AI2_LLM_STRONG_MODEL:-gpt-5.5}
+      AI2_LLM_PROBE_MAX_TOKENS: ${AI2_LLM_PROBE_MAX_TOKENS:-}
+      AI2_LLM_PROBE_TIMEOUT_SECONDS: ${AI2_LLM_PROBE_TIMEOUT_SECONDS:-}
       AI2_CONTRACT_GRAPH_ENABLED: ${AI2_CONTRACT_GRAPH_ENABLED:-true}
       AI2_CONTRACT_GRAPH_PAIRS_ENABLED: ${AI2_CONTRACT_GRAPH_PAIRS_ENABLED:-true}
       AI2_CONTRACT_GRAPH_PAIRS_MODEL: ${AI2_CONTRACT_GRAPH_PAIRS_MODEL:-gpt-5.5}
