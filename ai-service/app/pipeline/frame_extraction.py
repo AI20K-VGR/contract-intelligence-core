@@ -11,8 +11,16 @@ from app.contracts.contract_profiles import get_contract_profile, map_profile_fi
 
 _ACTION = re.compile(r"\b(thanh toán|giao hàng|bồi thường|thông báo|chấm dứt|tiết lộ)\b", re.I)
 _SYMBOLS = {"thanh toán": "PAY", "giao hàng": "DELIVER", "bồi thường": "COMPENSATE",
-            "thông báo": "NOTIFY", "chấm dứt": "TERMINATE", "tiết lộ": "DISCLOSE"}
+            "thông báo": "NOTIFY", "chấm dứt": "TERMINATE", "tiết lộ": "DISCLOSE",
+            "nghiệm thu": "ACCEPT"}
 _PARTY = re.compile(r"\bbên\s+([ab])\b", re.I)
+_BOTH_PARTIES = re.compile(r"\bhai\s+bên\b", re.I)
+# "nghiệm thu" is mostly a noun ("sau khi nghiệm thu", "biên bản nghiệm thu"); it is the
+# clause's action only right after its subject ("Hai bên nghiệm thu", "Bên A phải nghiệm thu").
+_ACCEPT_ACTION = re.compile(
+    r"(?:\bbên\s+[ab]|\bhai\s+bên)\s+(?:(?:phải|có\s+nghĩa\s+vụ|sẽ)\s+)?(nghiệm\s+thu)\b", re.I
+)
+_ACCEPT_WORD = re.compile(r"nghiệm\s+thu", re.I)
 _MONEY = re.compile(
     r"(?<![\d.,])(?P<amount>\d[\d.,\s]*\d|\d)\s*"
     r"(?P<currency>VND|USD|EUR|\u0111\u1ed3ng|\u0111)\b",
@@ -36,6 +44,8 @@ def extract_frames(source: Evidence, *, profile: str, dossier_id: str) -> tuple[
         evidence = Evidence(source.document_id, source.snapshot_id,
                             f"{source.source_ref}#span{clause_match.start()}", raw)
         actions = list(_ACTION.finditer(raw))
+        if not actions and (accept := _ACCEPT_ACTION.search(raw)):
+            actions = [_ACCEPT_WORD.search(raw, accept.start(1))]
         for action in actions or [None]:
             slots = {name: Slot(None, "UNKNOWN", (evidence,), "not_assessed")
                      for name in sorted(SLOT_NAMES)}
@@ -49,6 +59,7 @@ def extract_frames(source: Evidence, *, profile: str, dossier_id: str) -> tuple[
             prefix = raw[:action.start()].casefold() if action else raw.casefold()
             parties = list(_PARTY.finditer(prefix))
             party = parties[0] if len(parties) == 1 else None
+            both = not parties and bool(_BOTH_PARTIES.search(prefix))
             family = "OBLIGATION"
             modality = None
             if re.search(r"kh\u00f4ng\s+\u0111\u01b0\u1ee3c(?:\s+ph\u00e9p)?\s*$", prefix):
@@ -65,20 +76,23 @@ def extract_frames(source: Evidence, *, profile: str, dossier_id: str) -> tuple[
                 else:
                     grounded("actor", party.group(1).upper())
                     absent("beneficiary")
+            elif both and not passive:
+                grounded("actor", "BOTH")
+                absent("beneficiary")
             if modality:
                 grounded("modality_negation", modality)
-            elif (action and party and not passive
+            elif (action and (party or both) and not passive
                   and not re.search(r"\b(?:không|chưa|chẳng|được|quyền|có\s+thể)\b",
                                     prefix)):
                 # "Bên A thanh toán ..." binds without "phải"; leaving it UNKNOWN blocked
                 # every comparison of declarative duties. Hedged forms stay UNKNOWN.
                 slots["modality_negation"] = Slot("REQUIRED", "GROUNDED", (evidence,), "declarative_obligation")
             if action:
-                symbol = _SYMBOLS[action.group().casefold()]
+                symbol = _SYMBOLS[" ".join(action.group().casefold().split())]
                 grounded("action", symbol)
-                if symbol in {"PAY", "DELIVER", "COMPENSATE"}:
+                if symbol in {"PAY", "DELIVER", "COMPENSATE", "ACCEPT"}:
                     object_match = re.search(
-                        r"\b(?:thanh to\u00e1n|giao h\u00e0ng|b\u1ed3i th\u01b0\u1eddng)\s+(.+?)"
+                        r"\b(?:thanh to\u00e1n|giao h\u00e0ng|b\u1ed3i th\u01b0\u1eddng|nghi\u1ec7m\s+thu)\s+(.+?)"
                         r"(?=\s+(?:trong|sau|khi|n\u1ebfu)\b|[.,;](?!\d)|$)",
                         raw,
                         re.I,
@@ -153,7 +167,7 @@ def extract_frames(source: Evidence, *, profile: str, dossier_id: str) -> tuple[
                 # stayed UNKNOWN and a 07 -> 10 day amendment compared as "insufficient".
                 deadline = re.search(
                     r'\btrong\s+(?:v\u00f2ng\s+|th\u1eddi\s+h\u1ea1n\s+)?(\d+)\s+'
-                    r'(ng\u00e0y\s+l\u00e0m\s+vi\u1ec7c|ng\u00e0y|th\u00e1ng)\b',
+                    r'(ng\u00e0y\s+l\u00e0m\s+vi\u1ec7c|ng\u00e0y|th\u00e1ng|tu\u1ea7n|n\u0103m|gi\u1edd)\b',
                     raw, re.I,
                 )
                 if deadline:
@@ -227,7 +241,8 @@ def _deadline_unit(raw: str) -> str:
     folded = raw.casefold()
     if "l\u00e0m vi\u1ec7c" in folded:
         return "business-day"
-    return {"ng\u00e0y": "day", "th\u00e1ng": "month"}.get(folded, "unknown")
+    return {"ng\u00e0y": "day", "th\u00e1ng": "month", "tu\u1ea7n": "week",
+            "n\u0103m": "year", "gi\u1edd": "hour"}.get(folded, "unknown")
 
 
 def _payment_trigger(raw: str) -> str | None:
@@ -239,4 +254,10 @@ def _payment_trigger(raw: str) -> str | None:
         (r"(?:k\u1ec3\s+t\u1eeb|sau\s+khi)\s+(?:ng\u00e0y\s+)?nh\u1eadn\s+(?:\u0111\u01b0\u1ee3c\s+)?h\u00f3a\s+\u0111\u01a1n"
          r"|upon\s+receipt\s+of\s+(?:the\s+)?invoice", "INVOICE"),
     )
-    return next((symbol for pattern, symbol in patterns if re.search(pattern, raw, re.I)), None)
+    symbol = next((symbol for pattern, symbol in patterns if re.search(pattern, raw, re.I)), None)
+    if symbol:
+        return symbol
+    # Any other stated start ("kể từ ngày kết thúc tháng") stays comparable as its own
+    # normalized phrase: equal phrases match, different phrases are different triggers.
+    start = re.search(r"\bkể\s+từ\s+(?:ngày\s+|khi\s+)?([^.,;:\n]{3,60}?)\s*(?:[.,;:]|$)", raw, re.I)
+    return f"AFTER:{' '.join(start.group(1).casefold().split())}" if start else None

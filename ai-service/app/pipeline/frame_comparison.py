@@ -181,7 +181,7 @@ def compare_frames(
             return result("NEEDS_REVIEW_UNPARSED", f"uncertain_slot:{name}")
         if name in key_fields and a.state == b.state == "GROUNDED":
             continue
-        if (a.state, a.value) != (b.state, b.value):
+        if (a.state, _comparable(name, a.value)) != (b.state, _comparable(name, b.value)):
             differing.append(name)
 
     left_modality = left.get("modality_negation")
@@ -212,3 +212,10 @@ def compare_frames(
     if quantity_context_unknown:
         return result("NEEDS_REVIEW_UNPARSED", "uncertain_quantity_context:" + ",".join(quantity_context_unknown))
     return result("DUPLICATE", "all_represented_slots_grounded_and_equal")
+
+
+def _comparable(name: str, value: object) -> object:
+    # "05 ngày" and "5 ngày" state the same deadline; the extractor keeps the source digits.
+    if name == "deadline" and isinstance(value, str) and value.isdigit():
+        return int(value)
+    return value

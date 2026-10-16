@@ -254,3 +254,30 @@ def test_slot_context_prompt_names_json_for_provider_json_mode(monkeypatch):
 
     assert prompts, "fixture must reach the slot-context LLM call"
     assert all("json" in p.casefold() for p in prompts)
+
+
+def test_proposal_citing_an_empty_context_node_is_rejected_not_raised(monkeypatch):
+    # gpt-5.6-luna named the empty root node as a slot source; Evidence() raised and the
+    # whole IDP job crashed. An ungrounded proposal is dropped like any other.
+    from app.contracts.clause_frames import ClauseFrame, Evidence, Slot
+    from app.contracts.models import StructuralNode
+    from app.pipeline import frame_context
+    from app.pipeline.frame_context import _enrich
+
+    record = semantic_record()
+    node = record.nodes[0]
+    empty = StructuralNode(node_id="ai2-root:body-file", type="SECTION", raw_label="", text="",
+                           source_file_id=node.source_file_id)
+    evidence = Evidence("doc-1", "snapshot-1", node.node_id, node.text)
+    frame = ClauseFrame(
+        "frame-1", "OBLIGATION", "SALES", "doc-1", "snapshot-1", (evidence,),
+        (("action", Slot("PAY", "GROUNDED", (evidence,))), ("deadline", Slot(None, "UNKNOWN", ()))),
+        "dossier",
+    )
+    monkeypatch.setattr(ProcessingRuntime, "complete_json", lambda *_a, **_k: {
+        "slots": [{"slot": "deadline", "node_id": empty.node_id, "value": "5"}]})
+    monkeypatch.setattr(frame_context, "context_nodes", lambda *_a: ((node, empty), ()))
+    runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=5)
+    _, _, _, reasons, _ = _enrich(record, (frame,), runtime, SimpleNamespace(configured=lambda: True),
+                                  record.semantic_profile.context_bounds, runtime.clock() + 60, 0)
+    assert "PROPOSAL_SOURCE_NOT_GROUNDED" in reasons

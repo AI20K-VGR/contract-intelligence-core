@@ -324,6 +324,7 @@ def _enrich(
                 encoded,
                 max_output_tokens=bounds.max_output_tokens,
                 operation_deadline=operation_deadline,
+                operation="slot_context",
             )
         finally:
             runtime.max_llm_calls, runtime.call_timeout_seconds = original_limit, original_timeout
@@ -335,7 +336,9 @@ def _enrich(
             proposals = response["slots"]
             for proposal in proposals:
                 target = next((n for n in context if n.node_id == proposal["node_id"]), None)
-                if target is None:
+                # A model may name an empty container (e.g. the document root); there is no
+                # span to ground on, and Evidence() would raise and sink the whole job.
+                if target is None or not (target.text or "").strip():
                     reasons.append("PROPOSAL_SOURCE_NOT_GROUNDED")
                     continue
                 snapshot = record.semantic_snapshots.get(target.source_file_id)

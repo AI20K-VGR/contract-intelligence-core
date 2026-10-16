@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+import pytest
+
 from app.contracts.clause_frames import Evidence
 from app.pipeline.clause_keys import build_candidates
 from app.pipeline.frame_comparison import compare_frames
@@ -182,3 +184,34 @@ def test_copula_is_not_an_object_scope():
     # "giao hàng là trong vòng 30 ngày": the word after the verb is the copula, not the goods.
     frame = _only_frame("3.1. Thời gian giao hàng là trong vòng 30 ngày kể từ ngày ký Hợp đồng.")
     assert frame.get("object_scope").state != "GROUNDED", frame.get("object_scope")
+
+
+@pytest.mark.parametrize(("text", "value", "unit"), [
+    ("Bên B phải khắc phục sự cố trong vòng 04 giờ kể từ khi nhận thông báo.", "04", "hour"),
+    ("Bên B giao hàng trong vòng 2 tuần kể từ ngày ký.", "2", "week"),
+    ("Bên B bảo hành trong 1 năm kể từ ngày nghiệm thu.", "1", "year"),
+])
+def test_deadline_units_beyond_days(text, value, unit):
+    frame = _only_frame(text)
+    assert (frame.get("deadline").value, frame.get("deadline_unit").value) == (value, unit)
+
+
+def test_same_deadline_written_with_leading_zero_is_not_a_difference():
+    left = _only_frame("Bên A thanh toán mỗi đợt trong vòng 05 ngày kể từ ngày nhận được hóa đơn.")
+    right = _only_frame("Bên A thanh toán mỗi đợt trong vòng 5 ngày kể từ ngày nhận được hóa đơn.", "node-2")
+    assert compare_frames(left, right).disposition not in {"COMPARABLE_DIFFERENCE", "CONFLICT_CANDIDATE"}
+
+
+def test_both_parties_accepting_is_a_grounded_obligation():
+    frame = _only_frame("Hai bên nghiệm thu kết quả bảo trì trong vòng 05 ngày làm việc kể từ ngày kết thúc tháng.")
+    assert (frame.get("actor").value, frame.get("action").value) == ("BOTH", "ACCEPT")
+    assert frame.get("temporal_trigger").state == "GROUNDED"
+
+
+def test_acceptance_deadline_change_by_substitution_compares():
+    left = _only_frame("6.1. Hai bên nghiệm thu kết quả bảo trì hằng tháng trong vòng 05 ngày làm việc kể từ ngày kết thúc tháng.")
+    right = _only_frame(
+        "Thay thế khoản 1 Điều 6 của Hợp đồng bằng nội dung sau: Hai bên nghiệm thu kết quả bảo trì hằng tháng\n"
+        "trong vòng 03 ngày làm việc kể từ ngày kết thúc tháng.", "node-2")
+    pair = compare_frames(left, right)
+    assert pair.disposition == "COMPARABLE_DIFFERENCE" and "deadline" in pair.reason, pair.reason
