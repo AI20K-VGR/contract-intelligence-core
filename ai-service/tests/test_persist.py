@@ -1,7 +1,37 @@
+import pytest
+
 from app.contracts.models import JobResult, JobStatus, ReviewState
 from app.pipeline.ai1_ingest import ingest_files
 from app.tools.persist import load_session, record_from_dict, record_to_dict, save_session
 from app.tools.store import InMemorySnapshotStore
+
+
+@pytest.mark.parametrize("consent", [True, False])
+def test_record_roundtrip_preserves_explicit_content_sharing_consent(consent):
+    from fixtures import mock_record
+
+    record = mock_record()
+    record.content_sharing_consent = consent
+    payload = record_to_dict(record)
+    assert payload["content_sharing_consent"] is consent
+    assert record_from_dict(payload).content_sharing_consent is consent
+
+
+@pytest.mark.parametrize("value", [None, "true", "false", 1, 0, {}])
+def test_record_consent_restores_only_explicit_boolean_true(value):
+    from fixtures import mock_record
+
+    payload = record_to_dict(mock_record())
+    payload["content_sharing_consent"] = value
+    assert record_from_dict(payload).content_sharing_consent is False
+
+
+def test_legacy_record_without_consent_fails_closed():
+    from fixtures import mock_record
+
+    payload = record_to_dict(mock_record())
+    payload.pop("content_sharing_consent", None)
+    assert record_from_dict(payload).content_sharing_consent is False
 
 
 def test_record_roundtrip_keeps_nodes():
