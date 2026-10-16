@@ -981,8 +981,9 @@ paths:
         Mỗi phần tử giống payload sự kiện SSE `step.changed` của `/runs/{run_id}/events`
         (DOC-05b). `progress` là tiến độ trong bước, `null` khi bước không đo được
         (frontend hiện vòng quay). Trong lúc bước `running`, backend phát lại
-        `step.changed` mỗi khi `progress` đổi đủ nhiều (tối đa khoảng 20 lần mỗi bước
-        cộng một lần mỗi 15 giây); bước `succeeded` luôn có `done = total`.
+        `step.changed` khi `done` tăng: ít nhất 5% (tối đa khoảng 20 lần mỗi bước), hoặc
+        tăng bất kỳ sau 15 giây; không quá 1 lần mỗi giây. Bước đứng yên không có sự kiện
+        mới. Bước `succeeded` luôn có `done = total`.
       operationId: getRunSteps
       x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
       responses:

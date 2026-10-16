@@ -336,7 +336,7 @@ Theo dõi hành trình chạy của Pipeline AI qua 11 bước (S0..S10), xem lo
   - `unit`: `page` (trang), `document` (tài liệu), `chunk` (đoạn), `clause` (điều khoản), `pair` (cặp). Frontend ghi "37/202 trang" theo `unit`; giá trị lạ thì hiện như `null`.
   - `progress: null` khi bước không đo được tiến độ: frontend hiện vòng quay. Luôn có `0 <= done <= total`, `total >= 1`.
   - Bước `succeeded` có `done = total`. Bước quay lại `queued` (chạy lại) có `progress: null`. `done` không giảm trong một lần chạy của bước.
-  - Trong lúc bước `running`, backend phát lại `step.changed` khi `progress` đổi đủ nhiều: không quá 1 lần mỗi giây, mỗi lần tăng ít nhất 5% (tối đa khoảng 20 lần), cộng một lần mỗi 15 giây nếu bước chậm. Frontend không cần tự giới hạn.
+  - Trong lúc bước `running`, backend phát lại `step.changed` khi `progress` đổi đủ nhiều: không quá 1 lần mỗi giây, và chỉ khi `done` đã tăng: tăng ít nhất 5% (tối đa khoảng 20 lần), hoặc tăng bất kỳ sau 15 giây kể từ lần trước (bước chậm). Bước đứng yên (`done` không đổi) thì không có sự kiện mới. Frontend không cần tự giới hạn.
   - Nguồn số liệu hiện có:
 
     | Bước | `unit` | Nguồn | Có từ |

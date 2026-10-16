@@ -19,9 +19,10 @@ from typing import Any
 UNITS: frozenset[str] = frozenset({"page", "document", "chunk", "clause", "pair"})
 
 # A value that moved by at least 1/MIN_STEP_FRACTION of the total is written
-# once MIN_INTERVAL_SECONDS passed; a slow step still refreshes every
-# HEARTBEAT_SECONDS. With these, one step writes at most ~20 values plus one
-# per 15 s, whatever the producer sends.
+# once MIN_INTERVAL_SECONDS passed; any rise is written after HEARTBEAT_SECONDS,
+# so a slow step still moves. A step whose ``done`` does not rise writes nothing.
+# With these, one step writes at most ~20 values plus one per 15 s of slow
+# progress, whatever the producer sends.
 MIN_INTERVAL_SECONDS = 1.0
 MIN_STEP_FRACTION = 20  # 5 %
 HEARTBEAT_SECONDS = 15.0
