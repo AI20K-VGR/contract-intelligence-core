@@ -403,3 +403,24 @@ def test_resolved_node_ids_are_always_input_nodes(index):
         if res.status != Status.UNIQUE:
             assert res.node_id is None
     assert len(index.node_ids()) == len(input_ids)
+
+
+def test_point_after_dotted_clause_inherits_its_khoan_when_parent_is_the_article():
+    # Flat OCR: "3.1. ..." and "a) ..." are both children of the "Điều 3" heading. The point
+    # belongs to the dotted clause right before it; addressing it as "điểm a Điều 3" made
+    # "Sửa đổi điểm a khoản 1 Điều 3" end in TARGET_NOT_FOUND.
+    nodes = [
+        _node("d3", "Điều 3. Thanh toán"),
+        _node("k31", "3.1. Bên A thanh toán theo hai đợt như sau:", "d3"),
+        _node("pa", "a) 40% giá trị hợp đồng", "d3"),
+        _node("pb", "b) 60% giá trị hợp đồng", "d3"),
+        _node("k32", "3.2. Bên A thanh toán mỗi đợt", "d3"),
+        _node("pa2", "a) điểm của khoản 2", "d3"),
+    ]
+    for order, node in enumerate(nodes):
+        node.order = order
+    index = StructureIndex.build(nodes, {"f-body": "body"})
+    assert index.levels_of("pa") == {"dieu": "3", "khoan": "1", "diem": "a"}
+    assert index.levels_of("pb") == {"dieu": "3", "khoan": "1", "diem": "b"}
+    assert index.levels_of("pa2") == {"dieu": "3", "khoan": "2", "diem": "a"}
+    assert index.levels_of("k31") == {"dieu": "3", "khoan": "1"}
