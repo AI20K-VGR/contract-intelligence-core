@@ -361,6 +361,10 @@ def _enrich(
             reasons.append("context_time_cap")
             output[frame.frame_id] = frame
             continue
+        if not _groundable(record, frame, context, aliases):
+            reasons.append("context_no_groundable_source")
+            output[frame.frame_id] = frame
+            continue
         source = nodes[base]
         item = {
             "id": f"f{len(pending) + 1}",
@@ -380,6 +384,35 @@ def _enrich(
     flush()
     ordered_output = tuple(output.get(frame.frame_id, frame) for frame in frames)
     return ordered_output, context_count, runtime.llm_calls_used - start_calls, reasons, token_bytes
+
+
+def _groundable(record, frame, context, aliases) -> bool:
+    """Whether any context clause could pass ``validate_proposal`` for a missing slot.
+
+    The validator accepts only a value that a context clause's own extracted frame already
+    grounds, with the same family and actor/action/modality. When no clause qualifies the
+    model cannot succeed, so the call is skipped. Approved tenant aliases take a separate
+    path for action/qualifier and keep the call.
+    """
+    from app.pipeline.semantic_proposal_validation import _shared_context_matches
+
+    missing = [name for name, slot in frame.slots if slot.state == "UNKNOWN"]
+    if aliases is not None and aliases.aliases and {"action", "qualifier"} & set(missing):
+        return True
+    for node in context:
+        snapshot = record.semantic_snapshots.get(node.source_file_id)
+        if not snapshot or not (node.text or "").strip():
+            continue
+        evidence = Evidence(node.source_file_id, snapshot, node.node_id, node.text)
+        for candidate in extract_frames(evidence, profile=frame.profile, dossier_id=record.dossier_id):
+            if candidate.family != frame.family:
+                continue
+            for name in missing:
+                slot = candidate.get(name)
+                if slot is not None and slot.state == "GROUNDED" and _shared_context_matches(
+                        frame, candidate, excluded=name):
+                    return True
+    return False
 
 
 def _apply_proposals(record, frame, context, response, aliases, reasons):

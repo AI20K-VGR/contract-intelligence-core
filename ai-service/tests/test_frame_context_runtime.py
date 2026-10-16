@@ -248,6 +248,7 @@ def test_slot_context_prompt_names_json_for_provider_json_mode(monkeypatch):
     monkeypatch.setattr(ProcessingRuntime, "complete_json", complete_json)
     # One-node fixture has no parent; any context is enough to reach the provider call.
     monkeypatch.setattr(frame_context, "context_nodes", lambda *_a: ((node,), ()))
+    monkeypatch.setattr(frame_context, "_groundable", lambda *_a: True)  # isolate from the pre-call gate
     runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=5)
     _enrich(record, (frame,), runtime, SimpleNamespace(configured=lambda: True), bounds,
             runtime.clock() + 60, 0)
@@ -277,6 +278,7 @@ def test_proposal_citing_an_empty_context_node_is_rejected_not_raised(monkeypatc
     monkeypatch.setattr(ProcessingRuntime, "complete_json", lambda *_a, **_k: {"frames": [
         {"id": "f1", "slots": [{"slot": "deadline", "node_id": empty.node_id, "value": "5"}]}]})
     monkeypatch.setattr(frame_context, "context_nodes", lambda *_a: ((node, empty), ()))
+    monkeypatch.setattr(frame_context, "_groundable", lambda *_a: True)  # isolate from the pre-call gate
     runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=5)
     _, _, _, reasons, _ = _enrich(record, (frame,), runtime, SimpleNamespace(configured=lambda: True),
                                   record.semantic_profile.context_bounds, runtime.clock() + 60, 0)
@@ -305,6 +307,7 @@ def _batch_setup(monkeypatch, n_frames, respond):
 
     monkeypatch.setattr(ProcessingRuntime, "complete_json", complete_json)
     monkeypatch.setattr(frame_context, "context_nodes", lambda *_a: ((node,), ()))
+    monkeypatch.setattr(frame_context, "_groundable", lambda *_a: True)  # isolate from the pre-call gate
     bounds = record.semantic_profile.context_bounds.model_copy(update={"max_llm_calls": 20, "max_nodes": 256,
                                                                          "max_context_tokens": 100_000})
     runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=20)
@@ -326,3 +329,55 @@ def test_frame_missing_from_batch_answer_is_kept_unchanged(monkeypatch):
     calls, (frames, _, _, reasons, _) = _batch_setup(
         monkeypatch, 3, lambda payload: {"frames": [{"id": payload["frames"][0]["id"], "slots": []}]})
     assert len(frames) == 3 and reasons.count("PROPOSAL_FRAME_MISSING") == 2
+
+
+def _two_clause_record(context_text):
+    record = semantic_record()
+    frame_node = record.nodes[0]
+    frame_node.text = "Bên A thanh toán đợt 2 theo thời hạn quy định tại khoản 2 Điều 5."
+    ctx = frame_node.model_copy(update={"node_id": "ctx-1", "text": context_text, "source_line_ids": ["line-2"]})
+    record.nodes.append(ctx)
+    page = record.pages[0]
+    page.text = f"{frame_node.text}\n{context_text}"
+    page.line_texts = {"line-1": frame_node.text, "line-2": context_text}
+    return record, frame_node, ctx
+
+
+def _run_enrich(monkeypatch, record, frame_node, ctx, respond):
+    from app.contracts.clause_frames import Evidence
+    from app.pipeline import frame_context
+    from app.pipeline.frame_extraction import extract_frames
+
+    frame = extract_frames(Evidence("body-file", "snapshot-body", frame_node.node_id, frame_node.text),
+                           profile="SALES", dossier_id=record.dossier_id)[0]
+    calls = []
+
+    def complete_json(_runtime, _client, system, user, **_kwargs):
+        calls.append(json.loads(user))
+        _runtime.llm_calls_used += 1
+        return respond(json.loads(user))
+
+    monkeypatch.setattr(ProcessingRuntime, "complete_json", complete_json)
+    monkeypatch.setattr(frame_context, "context_nodes", lambda *_a: ((ctx,), ()))
+    bounds = record.semantic_profile.context_bounds.model_copy(update={"max_llm_calls": 5, "max_context_tokens": 100_000})
+    runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=5)
+    frames, *_rest = frame_context._enrich(record, (frame,), runtime, SimpleNamespace(configured=lambda: True),
+                                           bounds, runtime.clock() + 60, 0)
+    return calls, frames[0], _rest[2]
+
+
+def test_context_slot_is_filled_when_a_referenced_clause_grounds_it(monkeypatch):
+    record, frame_node, ctx = _two_clause_record(
+        "5.2. Bên A thanh toán mỗi đợt trong vòng 07 ngày kể từ ngày nhận được hóa đơn hợp lệ.")
+    calls, frame, reasons = _run_enrich(monkeypatch, record, frame_node, ctx, lambda p: {"frames": [
+        {"id": p["frames"][0]["id"], "slots": [{"slot": "deadline", "node_id": "ctx-1", "value": "07"}]}]})
+    assert len(calls) == 1
+    assert (frame.get("deadline").state, frame.get("deadline").value) == ("GROUNDED", "07"), reasons
+
+
+def test_no_llm_call_when_no_context_clause_can_ground_a_missing_slot(monkeypatch):
+    # The validator only accepts a value the context clause already grounds with the same
+    # actor/action/modality; without such a clause every call was paid for nothing.
+    record, frame_node, ctx = _two_clause_record("Bên B giao hàng tại kho của Bên A.")
+    calls, frame, reasons = _run_enrich(monkeypatch, record, frame_node, ctx, lambda p: {"frames": []})
+    assert calls == [] and "context_no_groundable_source" in reasons

@@ -173,6 +173,12 @@ def extract_frames(source: Evidence, *, profile: str, dossier_id: str) -> tuple[
                 if deadline:
                     grounded("deadline", deadline.group(1))
                     grounded("deadline_unit", _deadline_unit(deadline.group(2)))
+                elif re.search(r"\bthời\s+hạn\b[^.;]*\b(?:quy\s+định\s+tại|theo)\b"
+                               r"|\btheo\s+thời\s+hạn\b", raw, re.I):
+                    # "theo thời hạn quy định tại khoản 2 Điều 5": the deadline exists but lives
+                    # in the referenced clause; ABSENT would forbid context from filling it.
+                    for name in ("deadline", "deadline_unit"):
+                        slots[name] = Slot(None, "UNKNOWN", (evidence,), "deferred_by_reference")
                 elif not re.search(r"\btrong\b", raw, re.I):
                     absent("deadline")
                     absent("deadline_unit")

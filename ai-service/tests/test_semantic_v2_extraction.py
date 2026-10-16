@@ -215,3 +215,13 @@ def test_acceptance_deadline_change_by_substitution_compares():
         "trong vòng 03 ngày làm việc kể từ ngày kết thúc tháng.", "node-2")
     pair = compare_frames(left, right)
     assert pair.disposition == "COMPARABLE_DIFFERENCE" and "deadline" in pair.reason, pair.reason
+
+
+def test_deadline_stated_by_reference_stays_unknown_not_absent():
+    frame = _only_frame("Bên A thanh toán đợt 2 theo thời hạn quy định tại khoản 2 Điều 5.")
+    deadline = frame.get("deadline")
+    assert (deadline.state, deadline.reason) == ("UNKNOWN", "deferred_by_reference")
+
+
+def test_clause_without_any_deadline_is_still_absent():
+    assert _only_frame("Bên B giao hàng tại kho của Bên A.").get("deadline").state == "ABSENT"
