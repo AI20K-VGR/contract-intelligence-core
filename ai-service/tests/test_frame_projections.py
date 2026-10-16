@@ -132,7 +132,10 @@ def test_explicit_deadline_preserves_unit_without_calendar_conversion(text, unit
     frame = extract(text)[0]
     assert frame.get("deadline").value == "5"
     assert frame.get("deadline_unit").value == unit
-    assert frame.get("unit").state == "UNKNOWN"
+    # The deadline unit never leaks into the quantity unit; with no amount in the text the
+    # extractor now records the quantity as stated-absent (a timing-only payment term).
+    assert (frame.get("unit").state, frame.get("unit").value) == ("ABSENT", None)
+    assert frame.get("amount").state == "ABSENT"
     assert frame.get("temporal_trigger").state == "UNKNOWN"
 
 

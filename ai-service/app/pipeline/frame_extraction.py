@@ -67,6 +67,12 @@ def extract_frames(source: Evidence, *, profile: str, dossier_id: str) -> tuple[
                     absent("beneficiary")
             if modality:
                 grounded("modality_negation", modality)
+            elif (action and party and not passive
+                  and not re.search(r"\b(?:không|chưa|chẳng|được|quyền|có\s+thể)\b",
+                                    prefix)):
+                # "Bên A thanh toán ..." binds without "phải"; leaving it UNKNOWN blocked
+                # every comparison of declarative duties. Hedged forms stay UNKNOWN.
+                slots["modality_negation"] = Slot("REQUIRED", "GROUNDED", (evidence,), "declarative_obligation")
             if action:
                 symbol = _SYMBOLS[action.group().casefold()]
                 grounded("action", symbol)
@@ -88,7 +94,9 @@ def extract_frames(source: Evidence, *, profile: str, dossier_id: str) -> tuple[
                         object_value,
                         flags=re.I,
                     ).strip(" ,:-")
-                    if object_value and not re.match(r"(?:theo|nh\u01b0|t\u00f9y)", object_value, re.I):
+                    # "giao h\u00e0ng l\u00e0 trong v\u00f2ng 30 ng\u00e0y": a copula/passive marker is not goods.
+                    if object_value and not re.match(r"(?:theo|nh\u01b0|t\u00f9y|l\u00e0|\u0111\u01b0\u1ee3c)\b",
+                                                     object_value, re.I):
                         grounded("object_scope", object_value)
                 if symbol == "COMPENSATE" and family == "OBLIGATION":
                     family = "REMEDY"
@@ -141,13 +149,25 @@ def extract_frames(source: Evidence, *, profile: str, dossier_id: str) -> tuple[
                     grounded("amount", Decimal(percentages[0].group(1)))
                     grounded("unit", "percent")
                     absent("currency")
-                deadline = re.search(r'\btrong\s+(\d+)\s+(ng\u00e0y\s+l\u00e0m\s+vi\u1ec7c|ng\u00e0y|th\u00e1ng)\b', raw, re.I)
+                # "trong v\u00f2ng 07 ng\u00e0y" is the common drafting; without it every such term
+                # stayed UNKNOWN and a 07 -> 10 day amendment compared as "insufficient".
+                deadline = re.search(
+                    r'\btrong\s+(?:v\u00f2ng\s+|th\u1eddi\s+h\u1ea1n\s+)?(\d+)\s+'
+                    r'(ng\u00e0y\s+l\u00e0m\s+vi\u1ec7c|ng\u00e0y|th\u00e1ng)\b',
+                    raw, re.I,
+                )
                 if deadline:
                     grounded("deadline", deadline.group(1))
                     grounded("deadline_unit", _deadline_unit(deadline.group(2)))
                 elif not re.search(r"\btrong\b", raw, re.I):
                     absent("deadline")
                     absent("deadline_unit")
+                if slots["amount"].state == "UNKNOWN" and not money and not percentages \
+                        and not re.search(r"\d", _non_quantity_residue(raw, deadline)):
+                    # Only numbering, references and the deadline carried digits: the
+                    # clause states no amount (a timing-only payment term).
+                    absent("amount")
+                    absent("unit")
                 trigger = _payment_trigger(raw)
                 if trigger:
                     grounded("temporal_trigger", trigger)
@@ -167,6 +187,18 @@ def extract_frames(source: Evidence, *, profile: str, dossier_id: str) -> tuple[
             frames.append(ClauseFrame(frame_id, family, profile, source.document_id,
                                       source.snapshot_id, (evidence,), tuple(slots.items()), dossier_id))
     return tuple(frames)
+
+
+_CLAUSE_REFERENCE = re.compile(
+    r"\b(?:khoản|điểm|điều|mục|chương|phụ\s+lục)\s+[\w.]+", re.I
+)
+
+
+def _non_quantity_residue(raw: str, deadline: re.Match[str] | None) -> str:
+    """``raw`` without its leading numbering, clause references and parsed deadline."""
+    text = raw[:deadline.start()] + raw[deadline.end():] if deadline else raw
+    text = re.sub(r"^\s*\d+(?:\.\d+)*\.?\s*", "", text)
+    return _CLAUSE_REFERENCE.sub("", text)
 
 
 def _decimal_amount(raw: str) -> Decimal | None:
@@ -204,5 +236,7 @@ def _payment_trigger(raw: str) -> str | None:
         (r"(?:sau\s+khi|khi)\s+giao\s+h\u00e0ng|upon\s+delivery", "DELIVERY"),
         (r"(?:sau\s+khi|khi)\s+nghi\u1ec7m\s+thu|upon\s+acceptance", "ACCEPTANCE"),
         (r"(?:sau\s+khi|khi)\s+(?:nh\u1eadn\s+)?\u0111\u1ee7\s+h\u1ed3\s+s\u01a1|after\s+complete\s+documents", "DOCUMENTS_COMPLETE"),
+        (r"(?:k\u1ec3\s+t\u1eeb|sau\s+khi)\s+(?:ng\u00e0y\s+)?nh\u1eadn\s+(?:\u0111\u01b0\u1ee3c\s+)?h\u00f3a\s+\u0111\u01a1n"
+         r"|upon\s+receipt\s+of\s+(?:the\s+)?invoice", "INVOICE"),
     )
     return next((symbol for pattern, symbol in patterns if re.search(pattern, raw, re.I)), None)

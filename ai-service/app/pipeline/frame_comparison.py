@@ -86,11 +86,16 @@ def compare_frames(
         required = {"parameter", "definition", "object_scope", "condition", "exception", "temporal_trigger"}
     if left.family == "REMEDY":
         required.add("qualifier")
-    quantitative = left.family in {"REMEDY", "PARAMETER"} or any(
+    timing_only = all(
+        frame.get("amount") is not None and frame.get("amount").state == "ABSENT" for frame in (left, right)
+    )
+    # A PAY clause normally needs both amounts; when the extractor established that
+    # neither side states one, it is a timing term and compares on its other slots.
+    quantitative = left.family in {"REMEDY", "PARAMETER"} or (not timing_only and any(
         frame.get("action") and frame.get("action").value in {"PAY", "COMPENSATE", "PENALTY"}
         or frame.get("amount") and frame.get("amount").value is not None
         for frame in (left, right)
-    )
+    ))
     if quantitative:
         required.update({"amount", "unit", "currency", "base", "period"})
     for name in sorted(required):

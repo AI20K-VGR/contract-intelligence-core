@@ -122,3 +122,63 @@ def test_grouped_money_is_not_truncated_into_object_scope():
     assert frame.get("amount").value == Decimal("30000000")
     assert frame.get("unit").value == "money"
     assert frame.get("object_scope").state == "UNKNOWN"
+
+
+def _only_frame(text, source_ref="node-1"):
+    frames = extract_frames(Evidence("doc-1", "snap-1", source_ref, text), profile="SALES", dossier_id="dos-1")
+    assert len(frames) == 1
+    return frames[0]
+
+
+def test_trong_vong_deadline_is_grounded():
+    frame = _only_frame("5.2. Bên A thanh toán mỗi khoản trong vòng 07 ngày kể từ ngày nhận hóa đơn.")
+    assert (frame.get("deadline").value, frame.get("deadline_unit").value) == ("07", "day")
+
+
+def test_declarative_party_action_is_a_required_obligation():
+    # Vietnamese drafting states duties without "phải"; UNKNOWN modality sent every such
+    # pair (incl. a planted 07 -> 10 day amendment) to NEEDS_REVIEW_BACKOFF.
+    modality = _only_frame("Bên A thanh toán mỗi khoản trong vòng 07 ngày.").get("modality_negation")
+    assert (modality.value, modality.state, modality.reason) == ("REQUIRED", "GROUNDED", "declarative_obligation")
+
+
+def test_hedged_declaratives_keep_modality_unknown():
+    for text in ("Bên A có quyền thanh toán sớm.", "Bên A chưa thanh toán khoản đợt 2.",
+                 "Bên A có thể thanh toán bằng tiền mặt."):
+        assert _only_frame(text).get("modality_negation").state == "UNKNOWN", text
+
+
+def test_declarative_amendment_pair_compares_on_deadline():
+    left = _only_frame("5.2. Bên A thanh toán mỗi khoản trong vòng 07 ngày kể từ ngày nhận được hóa đơn.")
+    right = _only_frame(
+        "Điều chỉnh khoản 2 Điều 5 của Hợp đồng như sau: Bên A thanh toán mỗi khoản trong vòng 10 ngày"
+        " kể từ ngày nhận được hóa đơn hợp lệ của Bên B.",
+        "node-2",
+    )
+    assert left.get("temporal_trigger").value == right.get("temporal_trigger").value == "INVOICE"
+    pair = compare_frames(left, right)
+    assert pair.disposition in {"COMPARABLE_DIFFERENCE", "CONFLICT_CANDIDATE"}, pair.reason
+    assert "deadline" in pair.reason
+
+
+def test_payment_timing_clause_states_no_amount():
+    frame = _only_frame("5.2. Bên A thanh toán mỗi khoản trong vòng 07 ngày kể từ ngày nhận hóa đơn theo khoản 2 Điều 5.")
+    assert (frame.get("amount").state, frame.get("unit").state) == ("ABSENT", "ABSENT")
+
+
+def test_unparsed_number_keeps_amount_unknown():
+    # A leftover number may be an amount the extractor could not type; never claim ABSENT.
+    frame = _only_frame("Bên A thanh toán đợt 2 là 500.000.000 trong vòng 07 ngày.")
+    assert frame.get("amount").state == "UNKNOWN"
+
+
+def test_two_unparsed_payments_are_not_duplicates():
+    left = _only_frame("Bên A thanh toán đợt 1 là 500.000.000 trong vòng 07 ngày.")
+    right = _only_frame("Bên A thanh toán đợt 2 là 300.000.000 trong vòng 07 ngày.", "node-2")
+    assert compare_frames(left, right).disposition != "DUPLICATE"
+
+
+def test_copula_is_not_an_object_scope():
+    # "giao hàng là trong vòng 30 ngày": the word after the verb is the copula, not the goods.
+    frame = _only_frame("3.1. Thời gian giao hàng là trong vòng 30 ngày kể từ ngày ký Hợp đồng.")
+    assert frame.get("object_scope").state != "GROUNDED", frame.get("object_scope")
