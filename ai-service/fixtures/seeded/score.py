@@ -17,10 +17,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from fixtures.seeded import funnel as seeded_funnel
-from fixtures.seeded import hd_test_2026_001, hd_test_2026_002
+from fixtures.seeded import hd_test_2026_001, hd_test_2026_002, hd_test_2026_003, hd_test_2026_004
 from fixtures.seeded.common import context_caps_env
 
-DOSSIERS = {"dev": [hd_test_2026_001], "heldout": [hd_test_2026_002]}
+DOSSIERS = {"dev": [hd_test_2026_001, hd_test_2026_003, hd_test_2026_004], "heldout": [hd_test_2026_002]}
 
 
 @dataclass
@@ -87,6 +87,22 @@ def _checks(module, split: str) -> list[Check]:
         add("semantic_difference", f"{left} <> {right} on {slot}", ok,
             "semantic_compare" if pairs else "semantic_candidates",
             str([(p.disposition, p.reason) for p in pairs])[:120])
+    for left, right, slot in gold.get("semantic_same", []):
+        # A false "difference" between the same value written two ways ("05" vs "5").
+        ids = _ids(f, left, right)
+        pairs = []
+        if not isinstance(ids, str):
+            lids = {fr.frame_id for fr in f.frames_of(left)}
+            rids = {fr.frame_id for fr in f.frames_of(right)}
+            pairs = [p for p in f.semantic_pairs
+                     if {p.left_id, p.right_id} & lids and {p.left_id, p.right_id} & rids]
+        bad = [p for p in pairs if p.disposition in {"COMPARABLE_DIFFERENCE", "CONFLICT_CANDIDATE"} and slot in p.reason]
+        add("semantic_same", f"{left} == {right} on {slot}", not isinstance(ids, str) and not bad,
+            "semantic_compare", str([(p.disposition, p.reason) for p in pairs])[:120])
+    for prefix in gold.get("clause_starts", []):
+        ids = _ids(f, prefix)
+        add("clause_starts", f"node starts with {prefix!r}", not isinstance(ids, str), "structure",
+            ids if isinstance(ids, str) else "")
     for a, b in gold.get("candidates_must_keep", []):
         ids = _ids(f, a, b)
         kept = not isinstance(ids, str) and any({c.node_a, c.node_b} == set(ids) for c in f.candidates)
