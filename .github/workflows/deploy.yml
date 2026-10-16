@@ -60,8 +60,18 @@ on:
 permissions:
   contents: read
 
+# GitHub keeps one pending run per group: a new run replaces the pending one.
+# So each kind of run gets its own group, and nothing but a newer develop
+# deployment can replace a production deployment that is waiting:
+#   push / dispatch production  deploy-production (staging-then-production chain)
+#   dispatch target=staging     deploy-staging-manual
+#   pull_request                one group per run (preflight only, never waits)
+# A pushed staging job and a manual staging run may then reach the staging
+# server together; deploy-target.yml serialises them with a lock on the server.
 concurrency:
-  group: deploy-server
+  group: >-
+    ${{ github.event_name == 'pull_request' && format('deploy-pr-{0}', github.run_id)
+    || (inputs.target == 'staging' && 'deploy-staging-manual' || 'deploy-production') }}
   cancel-in-progress: false
 
 jobs:

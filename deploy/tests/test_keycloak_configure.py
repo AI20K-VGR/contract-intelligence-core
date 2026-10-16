@@ -8,6 +8,7 @@ import subprocess
 import sys
 import urllib.error
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -154,6 +155,62 @@ def test_deploy_workflow_has_develop_preflight_and_requires_all_ssh_settings():
         assert f"STAGING_{name}" in deploy_text
     assert "::error::" in deploy_text
     assert "exit 1" in deploy_text
+
+
+
+def _concurrency_group(event_name: str, target: str = "", run_id: str = "101") -> str:
+    """Evaluate deploy.yml's concurrency expression for one run.
+
+    It uses only quoted strings, ==, &&, || and format(), which behave the same
+    in Python (and/or return an operand; an empty string is falsy)."""
+
+    expression = _workflow("deploy.yml")["concurrency"]["group"].strip()
+    assert expression.startswith("${{") and expression.endswith("}}")
+    body = expression[3:-2].replace("&&", " and ").replace("||", " or ")
+    body = body.replace("format(", "_format(")
+    context = {
+        "github": SimpleNamespace(event_name=event_name, run_id=run_id),
+        "inputs": SimpleNamespace(target=target),
+        "_format": lambda template, *args: template.format(*args),
+    }
+    return eval(body, {"__builtins__": {}}, context)  # noqa: S307 - our own workflow file
+
+
+def test_manual_staging_cannot_replace_a_waiting_production_deployment():
+    """Production is deploying, the next develop merge waits, and someone
+    dispatches target=staging from a branch. GitHub keeps one pending run per
+    concurrency group, so staging must not share the production group, or the
+    waiting production deployment is cancelled (PR #112 review)."""
+
+    workflow = _workflow("deploy.yml")
+    assert workflow["concurrency"]["cancel-in-progress"] == "false"
+    production = _concurrency_group("push")
+    assert production == "deploy-production"
+    # The waiting merge and a manual production dispatch share it: a newer
+    # develop deployment may replace an older waiting one, nothing else may.
+    assert _concurrency_group("push", run_id="102") == production
+    assert _concurrency_group("workflow_dispatch", "production") == production
+    assert _concurrency_group("workflow_dispatch", "staging") == "deploy-staging-manual"
+    # A PR's preflight never queues behind, or replaces, any deployment.
+    pr_groups = {_concurrency_group("pull_request", run_id=str(n)) for n in (1, 2)}
+    assert len(pr_groups) == 2 and not pr_groups & {production, "deploy-staging-manual"}
+    # No job may reintroduce a shared group, in either workflow.
+    for name in ("deploy.yml", "deploy-target.yml"):
+        assert all("concurrency" not in job for job in _workflow(name)["jobs"].values())
+
+
+def test_deployments_to_one_server_take_a_lock_there():
+    """A pushed staging job and a manual staging run may reach the staging
+    server at the same time; the remote script serialises them."""
+
+    step = next(
+        item
+        for item in _workflow("deploy-target.yml")["jobs"]["deploy"]["steps"]
+        if item.get("name") == "Deploy the exact triggering SHA"
+    )
+    script = step["run"]
+    assert 'exec 9>>"$HOME/.ci-deploy.lock"' in script
+    assert script.index("flock -w") < script.index('cd "$APP_DIR"')
 
 
 def test_staging_never_falls_back_to_production_settings():

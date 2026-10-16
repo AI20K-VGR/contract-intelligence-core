@@ -503,7 +503,7 @@ Một máy riêng, dựng giống production, để thử bản mới **trước
 | Lúc deploy | Merge vào `develop`, hoặc bấm tay từ `develop` | Merge vào `develop` (chạy trước production), hoặc bấm tay từ **bất kỳ nhánh nào** |
 | Máy | `ci-app` + DB server `ci-db` | Một máy, DB chạy ngay trên máy đó |
 | Tên miền | Tên miền thật, sau Cloudflare | `*.sslip.io` theo Elastic IP (do `bootstrap.sh` tạo), không qua Cloudflare |
-| Dữ liệu | Dữ liệu thật | Chỉ hồ sơ thử. **Không chép dữ liệu production sang** |
+| Dữ liệu | Dữ liệu thật | Cả nhóm được tải lên, nhưng chỉ hợp đồng mẫu đã ẩn thông tin. Không hồ sơ thật, **không chép dữ liệu production sang** (Lead chốt 16/10) |
 
 ### Luồng deploy
 
@@ -515,17 +515,18 @@ Một máy riêng, dựng giống production, để thử bản mới **trước
   ```
 
   Chỉ deploy lên staging, không đụng production. Production vẫn chỉ deploy được từ `develop`.
+- Bấm tay staging không bao giờ huỷ hay thay một lần deploy production đang chờ: mỗi loại lần chạy có nhóm `concurrency` riêng, và hai lần deploy lên cùng một máy chạy lần lượt nhờ khoá `~/.ci-deploy.lock` trên server (DOC-15, "Workflow `deploy`").
 - Các bước của một lần deploy nằm trong `.github/workflows/deploy-target.yml`, dùng chung cho cả hai nơi. Staging đọc secret và biến tên `STAGING_*`, **không bao giờ dùng giá trị production thay thế**: thiếu một secret staging thì lần chạy báo lỗi, chứ không deploy nhầm vào máy production.
 
 ### Dựng máy staging (một lần)
 
 Làm theo "Triển khai trên AWS EC2", với các điểm khác:
 
-1. **Máy:** `m7i-flex.large`, Ubuntu 24.04 x86-64, đĩa 40 GB gp3, cùng key pair. Không cần DB server riêng: để trống `BACKEND_DB_HOST`/`KEYCLOAK_DB_HOST`, DB chạy trên chính máy này.
+1. **Máy:** `m7i-flex.large` (Lead chốt 16/10), chỉ bật khi cần; Ubuntu 24.04 x86-64, đĩa 40 GB gp3, cùng key pair. Không cần DB server riêng: để trống `BACKEND_DB_HOST`/`KEYCLOAK_DB_HOST`, DB chạy trên chính máy này.
 2. **Security group riêng `ci-staging`:** TCP 22 từ IP người vận hành; TCP 80, 443 và UDP 443 từ mọi nơi. Không dùng chung `ci-app`.
 3. **Elastic IP**, gắn trước khi chạy `bootstrap.sh`.
 4. Bước 1–6 ở "Kế hoạch triển khai qua SSH". `bootstrap.sh` tự tạo mật khẩu mới và tên miền `sslip.io`. Không dùng chung mật khẩu với production.
-5. **Khoá LLM:** điền `AI2_LLM_*`/`AI2_EMBEDDING_*` giống production, nhưng nên dùng một API key riêng có hạn mức thấp (đội AI2 quyết định), để staging không ăn vào trần chi phí của production.
+5. **Khoá LLM:** điền `AI2_LLM_*`/`AI2_EMBEDDING_*` giống production, nhưng bằng **key LLM riêng của staging**, do @vdungx giữ, có hard limit thấp riêng, không dùng chung trần 30 USD/tháng của production (Lead chốt 16/10). Key và hạn mức phải có trước lần deploy staging đầu tiên; không ghi key vào repo hay comment.
 
 ### Khai báo trên GitHub (một lần, cần quyền admin repo)
 
