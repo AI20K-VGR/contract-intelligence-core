@@ -163,9 +163,14 @@ def _build_outline(record: DossierRecord, file_id: str) -> _Outline:
     )
     node_by_line: dict[tuple[str, str], StructuralNode] = {}
     for node in record.evidence_nodes():
-        if node.source_file_id != file_id or len(node.source_line_ids) != 1:
+        # Single-line nodes and wrapped-paragraph nodes ("line:*") map each of their lines;
+        # a whole-page fallback node spanning every line must not claim them.
+        if node.source_file_id != file_id or not node.source_line_ids:
             continue
-        node_by_line.setdefault((node.page_revision_id or "", node.source_line_ids[0]), node)
+        if len(node.source_line_ids) != 1 and not node.node_id.startswith("line:"):
+            continue
+        for line_id in node.source_line_ids:
+            node_by_line.setdefault((node.page_revision_id or "", line_id), node)
 
     repeated = _repeated_lines(pages)
     lines: list[_Line] = []
