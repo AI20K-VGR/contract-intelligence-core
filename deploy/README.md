@@ -503,7 +503,7 @@ Một máy riêng, dựng giống production, để thử bản mới **trước
 | Lúc deploy | Merge vào `develop`, hoặc bấm tay từ `develop` | Merge vào `develop` (chạy trước production), hoặc bấm tay từ **bất kỳ nhánh nào** |
 | Máy | `ci-app` + DB server `ci-db` | Một máy, DB chạy ngay trên máy đó |
 | Tên miền | Tên miền thật, sau Cloudflare | `*.sslip.io` theo Elastic IP (do `bootstrap.sh` tạo), không qua Cloudflare |
-| Dữ liệu | Dữ liệu thật | Cả nhóm được tải lên, nhưng chỉ hợp đồng mẫu đã ẩn thông tin. Không hồ sơ thật, **không chép dữ liệu production sang** (Lead chốt 16/10) |
+| Dữ liệu | Chỉ hợp đồng mẫu đã ẩn thông tin, không hồ sơ thật (Lead chốt; DEC-BE-AI2-01 D6, BE-AI2-PROCESSING-CONTRACT §6.2) | Cả nhóm được tải lên, nhưng chỉ hợp đồng mẫu đã ẩn thông tin. Không hồ sơ thật, **không chép dữ liệu production sang** (Lead chốt 16/10) |
 
 ### Luồng deploy
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -210,7 +211,27 @@ def test_deployments_to_one_server_take_a_lock_there():
     )
     script = step["run"]
     assert 'exec 9>>"$HOME/.ci-deploy.lock"' in script
+    # Fail before the checkout or the stack changes when the lock never comes.
     assert script.index("flock -w") < script.index('cd "$APP_DIR"')
+    assert script.index("flock -w") < script.index("git fetch")
+
+
+# What one deployment needs once it holds the lock: image build, provider
+# preflight, AI2 readiness (600 s cap, deploy.sh), Keycloak and external checks.
+DEPLOY_SECONDS_AFTER_LOCK = 45 * 60
+
+
+def test_lock_wait_leaves_a_whole_deploy_within_the_job_timeout():
+    """A run that waits the whole lock budget must still have time to finish
+    its deployment; otherwise GitHub cancels it after `up -d` (PR #112 review)."""
+
+    job = _workflow("deploy-target.yml")["jobs"]["deploy"]
+    step = next(s for s in job["steps"] if s.get("name") == "Deploy the exact triggering SHA")
+    waits = re.findall(r"flock -w (\d+) ", step["run"])
+    assert len(waits) == 1
+    lock_wait = int(waits[0])
+    assert 0 < lock_wait
+    assert lock_wait + DEPLOY_SECONDS_AFTER_LOCK <= int(job["timeout-minutes"]) * 60
 
 
 def test_staging_never_falls_back_to_production_settings():

@@ -111,10 +111,17 @@ jobs:
           sudo=""; [ "$(id -u)" -eq 0 ] || sudo="sudo"
           # One deployment at a time on this server: a pushed staging job and a
           # manual staging run sit in different concurrency groups (deploy.yml).
+          # Taken before the checkout is touched. The wait is capped so that what
+          # is left of timeout-minutes still fits one whole deployment (build,
+          # provider preflight, AI2 readiness up to 600 s, Keycloak, checks):
+          # 15 min wait + 45 min deploy = 60 (test_lock_wait_leaves_a_whole_deploy).
           exec 9>>"$HOME/.ci-deploy.lock"
           if ! flock -n 9; then
             echo "another deployment is running on this server; waiting for it"
-            flock -w 3000 9 || { echo "deployment lock not released after 50 min" >&2; exit 1; }
+            flock -w 900 9 || {
+              echo "deployment lock still held after 15 min; nothing was changed" >&2
+              exit 1
+            }
           fi
           cd "$APP_DIR"
           if ! $sudo git diff --quiet || ! $sudo git diff --cached --quiet || [ -n "$($sudo git ls-files --others --exclude-standard)" ]; then

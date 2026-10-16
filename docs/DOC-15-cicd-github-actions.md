@@ -86,7 +86,7 @@ Một lần chạy tối đa 60 phút. GitHub chỉ giữ **một** lần chạy
 | Bấm tay `target=staging` | `deploy-staging-manual` | Không bao giờ huỷ hay thay lần deploy production đang chờ |
 | PR vào `develop` | Riêng cho từng lần chạy | Chỉ chạy `preflight`, không chờ ai và không thay ai |
 
-Job staging của một lần push và một lần bấm tay staging có thể tới máy staging cùng lúc. Script deploy giữ khoá `~/.ci-deploy.lock` trên server (`flock`, chờ tối đa 50 phút), nên hai lần deploy lên cùng một máy vẫn chạy lần lượt. Test `test_manual_staging_cannot_replace_a_waiting_production_deployment` trong `deploy/tests/test_keycloak_configure.py` giữ các luật này.
+Job staging của một lần push và một lần bấm tay staging có thể tới máy staging cùng lúc. Script deploy giữ khoá `~/.ci-deploy.lock` trên server (`flock`), nên hai lần deploy lên cùng một máy vẫn chạy lần lượt. Khoá được lấy trước khi đụng tới checkout. Chờ tối đa 15 phút; quá thì job báo lỗi và không đổi gì trên server. 45 phút còn lại của `timeout-minutes: 60` đủ cho một lần deploy trọn vẹn (build, preflight provider, chờ AI2 sẵn sàng tối đa 600 giây, Keycloak, kiểm tra ngoài); test `test_lock_wait_leaves_a_whole_deploy_within_the_job_timeout` giữ quan hệ này. Test `test_manual_staging_cannot_replace_a_waiting_production_deployment` trong `deploy/tests/test_keycloak_configure.py` giữ các luật này.
 
 ### Secrets
 
