@@ -2330,3 +2330,80 @@ async def test_progress_is_dropped_for_a_run_that_is_not_current_or_not_running(
     async with factory() as session:
         await worker._record_ai2_progress(session, ai2, tenant_id=TENANT, run_id=run_id)
     assert (await _steps(factory, run_id))["S6"] == ("queued", None)
+
+
+@pytest.mark.asyncio
+async def test_progress_guard_reads_fresh_state_after_cancel_in_another_session(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The worker session that polls AI2 loads the run once and holds it for
+    minutes. ``expire_on_commit=False`` plus the lack of a refresh on the guard
+    used to return the cached "running" row even after another session
+    cancelled the run; the guard must read the current row instead, otherwise
+    progress keeps landing on a cancelled run.
+
+    Repro: load the run in ``session_a`` (the polling session), commit a
+    cancel from ``session_b``, then ask the guard from ``session_a``.
+    """
+    monkeypatch.setattr(worker.step_progress, "MIN_INTERVAL_SECONDS", 0.0)
+    run_id = await _start(factory)
+    ai2 = {"step": "S6", "done": 3, "total": 10, "unit": "clause"}
+
+    session_a = factory()
+    try:
+        # The polling session already saw the run as "running".
+        async with session_a.begin():
+            run_a = await session_a.get(PipelineRunORM, run_id)
+        assert run_a is not None and run_a.status == "running"
+        # An API session cancels the run while session_a is still open.
+        async with factory() as session_b:
+            run_b = await session_b.get(PipelineRunORM, run_id)
+            job_b = await session_b.get(JobORM, JOB)
+            assert run_b is not None and job_b is not None
+            run_b.status = "cancelled"
+            job_b.status = "cancelled"
+            await session_b.commit()
+        # The polling session's identity map still says "running"; the guard
+        # must not trust it.
+        assert not await worker._run_takes_progress(session_a, tenant_id=TENANT, run_id=run_id)
+        await worker._record_ai2_progress(session_a, ai2, tenant_id=TENANT, run_id=run_id)
+    finally:
+        await session_a.close()
+
+    assert (await _steps(factory, run_id))["S6"] == ("queued", None)
+
+
+@pytest.mark.asyncio
+async def test_progress_guard_reads_fresh_state_after_restart_in_another_session(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Same staleness, but the run is superseded by a restart: ``current_run_id``
+    on the job now points at the new run. The old run is no longer the current
+    one, so its progress must be dropped even if it is still ``running``."""
+    monkeypatch.setattr(worker.step_progress, "MIN_INTERVAL_SECONDS", 0.0)
+    old_run = await _start(factory)
+    ai2 = {"step": "S6", "done": 3, "total": 10, "unit": "clause"}
+
+    session_a = factory()
+    try:
+        async with session_a.begin():
+            old = await session_a.get(PipelineRunORM, old_run)
+        assert old is not None and old.status == "running"
+        # An API session opens a fresh run and points the job at it.
+        async with factory() as session_b:
+            await worker._mark_processing(session_b, DOSSIER, restart=True)
+            await session_b.commit()
+        new_job = await _job(factory)
+        assert new_job.current_run_id not in (None, old_run)
+        # The polling session still holds the old ``PipelineRunORM`` cached as
+        # running. The guard must notice the new ``current_run_id`` and refuse.
+        assert not await worker._run_takes_progress(session_a, tenant_id=TENANT, run_id=old_run)
+        await worker._record_ai2_progress(session_a, ai2, tenant_id=TENANT, run_id=old_run)
+    finally:
+        await session_a.close()
+
+    assert (await _steps(factory, old_run))["S6"] == ("queued", None)

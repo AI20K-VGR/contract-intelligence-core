@@ -966,12 +966,28 @@ async def _step_statuses(
 async def _run_takes_progress(session: AsyncSession, *, tenant_id: str, run_id: str) -> bool:
     """Progress is shown only on the run its job currently points at, while it
     runs, in its own tenant: a report from an old, cancelled or finished run, or
-    one naming another tenant, is dropped."""
-    run = await _load_run(session, run_id)
-    if run is None or run.tenant_id != tenant_id or run.status != "running":
-        return False
-    job = await _job_for_run(session, run_id)
-    return job is not None and job.tenant_id == tenant_id and job.current_run_id == run_id
+    one naming another tenant, is dropped.
+
+    The check is a single scalar query joined to ``JobORM`` so the answer
+    reflects the row as the database sees it now. The polling session
+    (``_run_ai2_if_ready``) loads the run long before the first progress
+    arrives and uses ``expire_on_commit=False``: a plain ``SELECT … ORM``
+    would hand back the cached object from the identity map and miss a
+    cancel or a ``current_run_id`` swap made by another session.
+    """
+    row = (
+        await session.execute(
+            select(PipelineRunORM.status)
+            .join(JobORM, JobORM.current_run_id == PipelineRunORM.id)
+            .where(
+                PipelineRunORM.id == run_id,
+                PipelineRunORM.tenant_id == tenant_id,
+                JobORM.tenant_id == tenant_id,
+                PipelineRunORM.status == "running",
+            )
+        )
+    ).scalar_one_or_none()
+    return row == "running"
 
 
 def _ai1_page_progress(
