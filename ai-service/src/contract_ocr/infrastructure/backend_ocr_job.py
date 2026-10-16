@@ -11,6 +11,7 @@ import os
 import tempfile
 import threading
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -255,8 +256,13 @@ def run_backend_ocr(
     request: BackendOcrJobRequest,
     *,
     trace_seed: str | None = None,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> None:
-    """Execute one OCR job with a privacy-safe Langfuse trace when configured."""
+    """Execute one OCR job with a privacy-safe Langfuse trace when configured.
+
+    ``on_progress(done, total)`` reports the document's finished pages while it
+    is read (the Kafka worker turns it into ``ai1.ocr.progress``, DOC-05d).
+    """
     engine_id = str(request.options.get("engine", "pymupdf"))
     with observation(
         "process-ocr-job",
@@ -277,7 +283,7 @@ def run_backend_ocr(
         session_id=f"ocr-document:{request.document_id}",
         tags=["ai1", "ocr", engine_id],
     ) as root_span:
-        _run_backend_ocr(job_id, request)
+        _run_backend_ocr(job_id, request, on_progress)
         if root_span is not None:
             job = get_backend_job(job_id) or {}
             snapshot = (job.get("result") or {}).get("snapshot") or {}
@@ -299,8 +305,19 @@ def run_backend_ocr(
             )
 
 
-def _run_backend_ocr(job_id: str, request: BackendOcrJobRequest) -> None:
+def _run_backend_ocr(
+    job_id: str,
+    request: BackendOcrJobRequest,
+    on_progress: Callable[[int, int], None] | None = None,
+) -> None:
     """Internal OCR execution; public callers should use :func:`run_backend_ocr`."""
+
+    def page_done(done: int, total: int) -> None:
+        # OCR spans 15 % -> 80 % of the job; before this it sat at 15 % throughout.
+        update_backend_job(job_id, progress_pct=15 + 65 * done // max(total, 1))
+        if on_progress is not None:
+            on_progress(done, total)
+
     update_backend_job(job_id, status="processing", progress_pct=5, current_stage="download")
     try:
         with observation(
@@ -353,6 +370,7 @@ def _run_backend_ocr(job_id: str, request: BackendOcrJobRequest) -> None:
                         run_id=job_id,
                         dpi=dpi,
                         max_workers=max_workers,
+                        on_page_done=page_done,
                     )
                 if process_span is not None:
                     process_span.update(

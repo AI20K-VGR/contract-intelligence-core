@@ -96,6 +96,7 @@ sequenceDiagram
     BW->>K: ai1.ocr.command (engine, dpi=150, presigned GET/PUT)
     K->>A1: command
     A1->>A1: download → ProcessDocument → BuildSnapshot → upload ảnh trang
+    A1-->>K: ai1.ocr.progress { done, total, unit: page } (tối đa 1 lần/giây)
     A1->>K: ai1.ocr.completed { snapshot ai1.snapshot.v1 }
     K->>BW: result
     BW->>BW: lưu snapshot, dòng, node, bảng (bước S2, S3, S8)
@@ -110,7 +111,7 @@ Chi tiết trong AI1 (`backend_ocr_job._run_backend_ocr`), theo `current_stage` 
 | Stage | Tiến độ | Việc làm |
 |---|---|---|
 | `download` | 5% | Tải PDF qua presigned URL, kiểm tra SHA-256, đếm trang |
-| `ocr` | 15% | `ProcessDocument.execute` (mục 5–6) |
+| `ocr` | 15% → 80% | `ProcessDocument.execute` (mục 5–6); tăng theo số trang đã xong: `15 + 65 × done / total` |
 | `build_snapshot` | 80% | `BuildSnapshot.execute` (mục 7) |
 | upload renders | — | PUT ảnh từng trang lên presigned URL của backend |
 | `completed` | 100% | Trả `{"schema_version": "ai1.snapshot.v1", "snapshot": ...}` |
@@ -118,6 +119,18 @@ Chi tiết trong AI1 (`backend_ocr_job._run_backend_ocr`), theo `current_stage` 
 Lệnh OCR từ backend (`worker.py`): `render_target.dpi = 150`, `options.dpi = 150`,
 `options.engine = AI1_OCR_ENGINE` (mặc định `mistral`), `language`, `document_role`, `filename`.
 AI1 hiện chỉ nhận toàn bộ dải trang của tài liệu (`pages_to_process` phải khớp số trang PDF).
+
+Tiến độ trong lúc OCR (issue #115, DOC-05d `ai1.ocr.progress`): mỗi trang xong (đọc, bỏ qua, trắng,
+lỗi hay chép từ trang trùng) `ProcessDocument` gọi `on_page_done(done, total)`, có khoá để `done` chỉ
+tăng dù 8 trang chạy song song. Kafka worker gửi `ai1.ocr.progress` lên `ci.ai1.ocr.results` tối đa
+1 lần mỗi giây (trang cuối luôn gửi), cùng `correlation` và khoá partition (`document_id`) với kết quả,
+từ thread OCR qua event loop của producer, không chờ Kafka. Mỗi bản có `event_id` riêng
+(`<event_id lệnh>:progress:<done>`): backend bỏ qua mọi message trên topic kết quả có `event_id` đã
+xử lý, và `ai1.ocr.completed` mang `event_id` của lệnh. Dùng chung sẽ làm mất kết quả.
+
+Không đọc được trang nào: snapshot có trạng thái trang mà không trang nào `SUCCESS`/`PARTIAL` (ví dụ
+mọi trang `FAILED` vì thiếu `OPENAI_API_KEY`) thì AI1 gửi `ai1.ocr.failed` với mã
+`AI1_NO_READABLE_PAGE`, không tải snapshot lên, giống quy tắc phía backend.
 
 Idempotency: AI1 worker nhớ `event_id` đã xử lý **trong bộ nhớ tiến trình** (`_processed`) để bỏ
 qua bản gửi lặp của Kafka; bộ nhớ này mất khi worker khởi động lại.
