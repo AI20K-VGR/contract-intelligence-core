@@ -128,9 +128,11 @@ từ thread OCR qua event loop của producer, không chờ Kafka. Mỗi bản c
 (`<event_id lệnh>:progress:<done>`): backend bỏ qua mọi message trên topic kết quả có `event_id` đã
 xử lý, và `ai1.ocr.completed` mang `event_id` của lệnh. Dùng chung sẽ làm mất kết quả.
 
-Không đọc được trang nào: snapshot có trạng thái trang mà không trang nào `SUCCESS`/`PARTIAL` (ví dụ
-mọi trang `FAILED` vì thiếu `OPENAI_API_KEY`) thì AI1 gửi `ai1.ocr.failed` với mã
-`AI1_NO_READABLE_PAGE`, không tải snapshot lên, giống quy tắc phía backend.
+Không đọc được trang nào: **mọi** trang của snapshot đều có `status` và không trang nào `SUCCESS`/`PARTIAL`
+(ví dụ mọi trang `FAILED` vì thiếu `OPENAI_API_KEY`) thì AI1 gửi `ai1.ocr.failed` với mã
+`AI1_NO_READABLE_PAGE`, không tải snapshot lên. Có một trang thiếu `status` thì không kết luận và vẫn gửi
+`completed`. `error.message` giống câu backend: `AI1 không đọc được trang nào (N/N trang lỗi): <lỗi trang đầu, 200 ký tự>`.
+Quy tắc và câu chữ trùng `worker._no_readable_page` của backend, để hai bên luôn cho cùng kết quả.
 
 Idempotency: AI1 worker nhớ `event_id` đã xử lý **trong bộ nhớ tiến trình** (`_processed`) để bỏ
 qua bản gửi lặp của Kafka; bộ nhớ này mất khi worker khởi động lại.

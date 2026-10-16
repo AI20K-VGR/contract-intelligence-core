@@ -139,31 +139,24 @@ def _progress_reporter(
     return report
 
 
-def _unreadable(result: Any) -> bool:
-    """True when the snapshot judged its pages and none of them was read.
+def _no_readable_page(result: Any) -> str | None:
+    """``error.message`` for AI1_NO_READABLE_PAGE, or None when the snapshot is usable.
 
-    Pages without a status are not judged, as on the backend (DOC-05d §5).
+    The backend's rule and wording (``worker._no_readable_page``, #117), so both
+    sides fail exactly the same documents: every page has a status and none is
+    SUCCESS/PARTIAL. A page without a status is not judged, and then nothing is
+    concluded. The message names the page count and the first page error, cut to
+    200 characters, as the run's ``error_detail`` shows it.
     """
     snapshot = result.get("snapshot") if isinstance(result, dict) else None
-    pages = snapshot.get("pages") if isinstance(snapshot, dict) else None
-    statuses = [p.get("status") for p in pages or [] if isinstance(p, dict) and p.get("status")]
-    return bool(statuses) and not any(status in READABLE_PAGE_STATUSES for status in statuses)
-
-
-def _no_readable_page_message(result: Any, pages: int) -> str:
-    """Build the error.message for AI1_NO_READABLE_PAGE: page count and first
-    error, truncated to 200 chars like the backend does (DOC-05d v16/10/2026)."""
-    snapshot = result.get("snapshot") if isinstance(result, dict) else None
-    pages_list = snapshot.get("pages") if isinstance(snapshot, dict) else None
-    first_error = ""
-    if pages_list:
-        for p in pages_list:
-            if isinstance(p, dict) and p.get("error"):
-                first_error = str(p["error"])[:200]
-                break
-    if first_error:
-        return f"{pages}/{pages} trang lỗi: {first_error}"
-    return f"{pages}/{pages} trang không đọc được"
+    raw_pages = snapshot.get("pages") if isinstance(snapshot, dict) else None
+    pages = [p if isinstance(p, dict) else {} for p in raw_pages or []]
+    statuses = {str(p.get("status") or "").upper() for p in pages}
+    if not pages or "" in statuses or READABLE_PAGE_STATUSES & statuses:
+        return None
+    first_error = next((str(p["error"]) for p in pages if p.get("error")), "")
+    detail = f"AI1 không đọc được trang nào ({len(pages)}/{len(pages)} trang lỗi)"
+    return f"{detail}: {first_error[:200]}" if first_error else detail
 
 
 def _make_progress_sink(
@@ -325,14 +318,13 @@ def _process_command(message: dict[str, Any]) -> tuple[dict[str, Any], Any]:
     engine = str(request.options.get("engine", "pymupdf"))
     pages = len(request.pages_to_process)
     result, result_ref, error = job.get("result"), None, job.get("error")
-    if status == "completed" and _unreadable(result):
+    unreadable = _no_readable_page(result) if status == "completed" else None
+    if unreadable is not None:
         # Every page FAILED (e.g. "SKIPPED: OpenAI vision unavailable" when a key is
-        # missing): an empty dossier must not reach AI2. Same code as the backend.
+        # missing): an empty dossier must not reach AI2. The message is built from
+        # the snapshot above, before it is dropped here and never uploaded.
         status, result = "failed", None
-        error = {
-            "code": "AI1_NO_READABLE_PAGE",
-            "message": _no_readable_page_message(result, pages),
-        }
+        error = {"code": "AI1_NO_READABLE_PAGE", "message": unreadable}
     if status == "completed" and isinstance(result, dict):
         result, result_ref, upload_error = _deliver_result(
             result, request.options.get("result_target")
