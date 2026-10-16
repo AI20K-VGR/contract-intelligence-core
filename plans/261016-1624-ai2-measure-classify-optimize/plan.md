@@ -49,3 +49,33 @@ Phân loại:
 | 6 | Tập dev đã bão hòa (18/18): vòng lặp tối ưu không còn gì để leo | Thước đo | Cần thêm hồ sơ dev |
 
 Sự cố vận hành: tài khoản OpenAI dùng cho AI2 local hết credit (`429 credit_balance_exhausted`) lúc chạy `budget_probe`. Mọi lời gọi live sau đó đều thất bại cho tới khi nạp credit.
+
+## Kết quả vòng 2 (2026-10-16, key OpenAI mới)
+
+Thêm hồ sơ dev HD-TEST-2026-003 (dịch vụ bảo trì) và HD-TEST-2026-004 (cung cấp nội thất, gồm bẫy báo nhầm "05" ↔ "5"); gold viết trước lần chạy đầu. Loại kỳ vọng mới: `semantic_same`, `clause_starts`.
+
+| Thước đo | Trước vòng 2 | Sau vòng 2 |
+|---|---|---|
+| Offline dev (001+003+004) | 36/42 (0,857) | **42/42** |
+| Offline held-out (002) | 20/21 | 20/21 (không tụt) |
+| Live ×1, cả 4 hồ sơ | — | mọi kỳ vọng đạt; cạnh bị cấm 0 |
+| Toàn bộ ai-service | 1921 | 1933 pass |
+| evals/contract_graph | — | 304 pass (3 fail môi trường có từ trước) |
+
+Lỗi loại 1 đã sửa, đều có test:
+
+| Lỗi | Tầng | Sửa |
+|---|---|---|
+| "Sửa đổi điểm a khoản 1 Điều 3" → TARGET_NOT_FOUND: điểm "a)" sau khoản dạng "3.1." được gán `{dieu 3, diem a}`, thiếu khoản | luồng 1 (`resolver._place`) | Điểm lấy khoản đứng ngay trước trong cùng điều khi node cha chỉ là tiêu đề điều |
+| Thời hạn tính bằng giờ/tuần/năm không trích được | semantic | Thêm đơn vị `hour/week/year` |
+| "05" ↔ "5" bị báo `COMPARABLE_DIFFERENCE` (báo nhầm) | semantic compare | So `deadline` theo giá trị số |
+| "Hai bên nghiệm thu…" không có chủ thể/hành động | semantic | `actor=BOTH`; "nghiệm thu" thành `ACCEPT` chỉ khi đứng ngay sau chủ thể |
+| Trigger ngoài tập ký hiệu ("kể từ ngày kết thúc tháng") luôn UNKNOWN | semantic | Trigger dạng cụm từ chuẩn hóa `AFTER:<cụm từ>` |
+| Đối tượng của "nghiệm thu" không được trích | semantic | `object_scope` cho `ACCEPT` |
+| Chân trang toàn chữ hoa chỉ xuất hiện một lần trong mỗi file không bị loại | pairs | Dòng toàn chữ hoa lặp trên ≥ 2 trang của hồ sơ là chân/đầu trang |
+| Khoản trùng nguyên văn ở hai điều khác nhau không thành ứng viên | pairs | Nguồn `VERBATIM` (hash text đã bỏ số thứ tự, thuộc nhóm core) |
+| Log lỗi LLM không nói tầng nào | runtime | `operation=pairs|slot_context|alias|fact_normalize|table` |
+
+Phát hiện loại 2 mới: cả 6 `LLM_TIMEOUT` của lượt live đều ở `operation=pairs`. Độ trễ một batch pairs là 15–31 giây, so với timeout 45 giây × 3 lần thử. Các hướng: timeout riêng cho pairs, giảm cỡ batch, hoặc hạ reasoning effort. Cần đo bằng live run (tốn phí) nên chưa đổi.
+
+Vẫn chờ quyết định: held-out `semantic_difference` (câu tham số dạng danh từ, loại 3) và chính sách budget LLM (loại 3).
