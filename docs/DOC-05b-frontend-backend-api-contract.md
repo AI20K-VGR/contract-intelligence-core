@@ -521,8 +521,6 @@ Ba `GET` đọc kết quả AI2 qua Backend; frontend không gọi AI2 trực ti
 
 Backend đã có cả hai endpoint và các trường dưới đây. Response bọc trong `{ data, meta }`, phân trang bằng `limit` (1–100, mặc định 20) và `offset`; `meta.total` là tổng số dòng.
 
-**Phạm vi frontend bản hiện tại (15/10/2026):** màn chia sẻ hồ sơ (`PUT /dossiers/{id}/access`) chỉ có cho `ADMINISTRATOR`. `OPERATOR` chưa có màn chia sẻ ở bản này, nên frontend chưa gọi `GET /users/directory`; phần này để bản sau (backend đã sẵn sàng). API không đổi, nên không nâng phiên bản.
-
 | Phương thức | Endpoint | Phân quyền `x-rbac` | Chức năng |
 |:---:|---|:---:|---|
 | `GET` | `/users/directory?q=&role=&limit=20&offset=0` | `OPERATOR`, `ADMINISTRATOR` | Danh bạ thành viên cùng tenant để chọn người chia sẻ hồ sơ. `REVIEWER` nhận `403` |
