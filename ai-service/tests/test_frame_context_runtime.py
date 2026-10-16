@@ -274,10 +274,55 @@ def test_proposal_citing_an_empty_context_node_is_rejected_not_raised(monkeypatc
         (("action", Slot("PAY", "GROUNDED", (evidence,))), ("deadline", Slot(None, "UNKNOWN", ()))),
         "dossier",
     )
-    monkeypatch.setattr(ProcessingRuntime, "complete_json", lambda *_a, **_k: {
-        "slots": [{"slot": "deadline", "node_id": empty.node_id, "value": "5"}]})
+    monkeypatch.setattr(ProcessingRuntime, "complete_json", lambda *_a, **_k: {"frames": [
+        {"id": "f1", "slots": [{"slot": "deadline", "node_id": empty.node_id, "value": "5"}]}]})
     monkeypatch.setattr(frame_context, "context_nodes", lambda *_a: ((node, empty), ()))
     runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=5)
     _, _, _, reasons, _ = _enrich(record, (frame,), runtime, SimpleNamespace(configured=lambda: True),
                                   record.semantic_profile.context_bounds, runtime.clock() + 60, 0)
     assert "PROPOSAL_SOURCE_NOT_GROUNDED" in reasons
+
+
+def _batch_setup(monkeypatch, n_frames, respond):
+    from app.contracts.clause_frames import ClauseFrame, Evidence, Slot
+    from app.pipeline import frame_context
+
+    record = semantic_record()
+    node = record.nodes[0]
+    frames = []
+    for i in range(n_frames):
+        evidence = Evidence("doc-1", "snapshot-1", f"{node.node_id}#span{i}", node.text)
+        frames.append(ClauseFrame(
+            f"frame-{i}", "OBLIGATION", "SALES", "doc-1", "snapshot-1", (evidence,),
+            (("action", Slot("PAY", "GROUNDED", (evidence,))), ("deadline", Slot(None, "UNKNOWN", ()))),
+            "dossier"))
+    calls = []
+
+    def complete_json(_runtime, _client, system, user, **_kwargs):
+        calls.append(json.loads(user))
+        _runtime.llm_calls_used += 1
+        return respond(json.loads(user))
+
+    monkeypatch.setattr(ProcessingRuntime, "complete_json", complete_json)
+    monkeypatch.setattr(frame_context, "context_nodes", lambda *_a: ((node,), ()))
+    bounds = record.semantic_profile.context_bounds.model_copy(update={"max_llm_calls": 20, "max_nodes": 256,
+                                                                         "max_context_tokens": 100_000})
+    runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=20)
+    out = frame_context._enrich(record, tuple(frames), runtime, SimpleNamespace(configured=lambda: True),
+                                bounds, runtime.clock() + 60, 0)
+    return calls, out
+
+
+def test_slot_context_batches_frames_into_few_calls(monkeypatch):
+    # One call per frame spent the whole job budget on ~12 frames; a batch carries several.
+    calls, (frames, _, used, reasons, _) = _batch_setup(
+        monkeypatch, 10, lambda payload: {"frames": [{"id": f["id"], "slots": []} for f in payload["frames"]]})
+    assert len(calls) == 2 and used == 2
+    assert [len(c["frames"]) for c in calls] == [8, 2]
+    assert len(frames) == 10 and "PROPOSAL_FRAME_MISSING" not in reasons
+
+
+def test_frame_missing_from_batch_answer_is_kept_unchanged(monkeypatch):
+    calls, (frames, _, _, reasons, _) = _batch_setup(
+        monkeypatch, 3, lambda payload: {"frames": [{"id": payload["frames"][0]["id"], "slots": []}]})
+    assert len(frames) == 3 and reasons.count("PROPOSAL_FRAME_MISSING") == 2
