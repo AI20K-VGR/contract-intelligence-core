@@ -150,10 +150,29 @@ describe('AI2 graph accessible views', () => {
 
   it('keeps an interrupted trace distinct from a successful or unavailable trace', () => {
     const html = renderToStaticMarkup(<ProcessingTimeline trace={trace} />)
-    expect(html).toContain('Chưa rõ kết quả bước xử lý')
+    expect(html).toContain('Chưa rõ kết quả')
     expect(html).toContain('bước này chưa ghi nhận kết thúc')
-    expect(html).not.toContain('TERMINAL_WITH_OPEN_STAGE')
     expect(html).not.toContain('Hoàn tất xử lý AI2')
+  })
+
+  it('shows only the stage that feeds the selected graph tab', () => {
+    const both = {
+      ...trace,
+      stages: [
+        { ...trace.stages[0]!, stage_id: 'contract_graph_operation' },
+        { ...trace.stages[0]!, stage_id: 'contract_graph_pairs' },
+      ],
+    }
+    const pair = renderToStaticMarkup(
+      <ProcessingTimeline trace={both} graphKind="pair" />,
+    )
+    const operation = renderToStaticMarkup(
+      <ProcessingTimeline trace={both} graphKind="operation" />,
+    )
+    expect(pair).toContain('Tìm quan hệ giữa các điều khoản')
+    expect(pair).not.toContain('Tìm quan hệ điều khoản sửa đổi')
+    expect(operation).toContain('Tìm quan hệ điều khoản sửa đổi')
+    expect(operation).not.toContain('Tìm quan hệ giữa các điều khoản')
   })
 
   it('explains stage reason codes in plain words and never shows the code', () => {
@@ -161,9 +180,14 @@ describe('AI2 graph accessible views', () => {
       <ProcessingTimeline
         trace={{
           ...trace,
+          status: 'COMPLETE',
+          job_status: 'SUCCEEDED',
           stages: [
             {
               ...trace.stages[0]!,
+              stage_id: 'contract_graph_pairs',
+              status: 'COMPLETED',
+              item_count: 0,
               reason_code: 'RULE_ONLY_LLM_UNAVAILABLE',
             },
           ],
@@ -171,9 +195,14 @@ describe('AI2 graph accessible views', () => {
       />,
     )
     expect(html).toContain('Dịch vụ AI tạm thời chưa sẵn sàng')
+    expect(html).toContain('Không tìm thấy quan hệ nào')
     expect(html).not.toContain('RULE_ONLY')
     expect(html).not.toContain('Mã trạng thái')
+  })
+
+  it('shows nothing for an unknown reason code', () => {
     expect(stageReasonText('SOMETHING_NEW')).toBeNull()
+    expect(stageReasonText(null)).toBeNull()
   })
 
   it('keeps job outcome separate from a failed enrichment stage', () => {
@@ -220,6 +249,40 @@ describe('AI2 graph accessible views', () => {
       }),
     ).toBe('job-succeeded')
     expect(html).toContain('role="status"')
+  })
+
+  it('does not call a rule-only run complete, and judges each tab on its own stage', () => {
+    const ruleOnlyPairs = {
+      ...trace,
+      status: 'COMPLETE' as const,
+      job_status: 'SUCCEEDED' as const,
+      stages: [
+        {
+          ...trace.stages[0]!,
+          stage_id: 'contract_graph_operation',
+          status: 'COMPLETED' as const,
+          reason_code: null,
+        },
+        {
+          ...trace.stages[0]!,
+          stage_id: 'contract_graph_pairs',
+          status: 'COMPLETED' as const,
+          reason_code: 'RULE_ONLY_LLM_UNAVAILABLE',
+        },
+      ],
+    }
+    expect(processingTimelineOutcome(ruleOnlyPairs)).toBe(
+      'job-succeeded-limited',
+    )
+    const pair = renderToStaticMarkup(
+      <ProcessingTimeline trace={ruleOnlyPairs} graphKind="pair" />,
+    )
+    const operation = renderToStaticMarkup(
+      <ProcessingTimeline trace={ruleOnlyPairs} graphKind="operation" />,
+    )
+    expect(pair).toContain('Xong, kết quả chưa đầy đủ')
+    expect(pair).not.toContain('Phân tích hoàn tất')
+    expect(operation).toContain('Phân tích hoàn tất')
   })
 
   it('distinguishes a verified empty graph from failed or unavailable persistence', () => {

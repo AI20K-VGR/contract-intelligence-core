@@ -113,11 +113,12 @@ describe('dossier AI2 graph integration', () => {
       />,
     )
     expect(html).toContain('role="group"')
-    expect(html).toContain('Đang xem 1/3 quan hệ')
-    expect(html).toContain('danh sách bên dưới tải theo trang')
+    expect(html).toContain('1/3 quan hệ')
+    expect(html).toContain('Sơ đồ đang vẽ 1/3 quan hệ')
+    expect(html).toContain('danh sách bên dưới tải thêm được')
     expect(html).toContain('Dẫn chiếu')
-    expect(html).toContain('Kéo vùng trống để di chuyển')
-    expect(html).toContain('Chọn đường nối để xem chi tiết')
+    expect(html).toContain('Kéo để di chuyển')
+    expect(html).toContain('Chọn một đường nối để xem chi tiết')
     expect(html).toContain('tabindex="0"')
     expect(html).toContain('aria-pressed="true"')
   })
@@ -282,7 +283,7 @@ describe('dossier AI2 graph integration', () => {
     console.info(
       `AI2_RENDERER_SPIKE ${JSON.stringify({ fixture: 'synthetic-multi-annex-30-edges', iterations: 8, canvas, list })}`,
     )
-    expect(renderCanvas()).toContain('Đang xem 30/250 quan hệ')
+    expect(renderCanvas()).toContain('30/250 quan hệ')
     expect(renderList()).toContain('Đã tải 30/250 quan hệ')
     expect(renderList()).toContain('Danh sách chưa tải hết')
   })

@@ -1140,7 +1140,7 @@ export function DossierStructurePage() {
                 </div>
               </div>
               {phase === 'ready' ? (
-                <div className="flex w-full shrink-0 items-center gap-space-sm md:w-auto">
+                <div className="flex w-full shrink-0 items-center gap-space-sm pr-2 pt-1.5 md:w-auto">
                   {AI2_GRAPH_UI_ENABLED ? (
                     <button
                       aria-disabled={ai2Locked || undefined}
@@ -1502,17 +1502,40 @@ export function DossierStructurePage() {
             <QueryHistoryPanel
               dossierId={dossierId}
               refreshKey={historyRefresh}
+              onClose={closeAnswer}
               onReuse={(question) => {
                 setQuery(question)
                 searchInputRef.current?.focus()
               }}
               onCite={(citation, citeNo) => {
+                const cite: SearchCite = {
+                  id: citation.lineId ?? `history-citation-${citeNo}`,
+                  n: citeNo,
+                  quote: citation.quote,
+                  documentId: citation.documentId,
+                  pageNo: citation.pageNo,
+                  lineId: citation.lineId,
+                  bbox: citation.bbox,
+                }
+                // Trích dẫn ở phụ lục (tài liệu khác): mở đúng tài liệu đó như câu
+                // trả lời trực tiếp, không dò trên cây của hợp đồng chính.
+                if (citation.documentId && citation.documentId !== documentId) {
+                  openForeignSearchCitation(cite)
+                  return
+                }
+                if (!documentId) return
                 const node = findClauseByQuote(
                   answerNodes,
                   citation.quote,
                   citation.pageNo,
                 )
-                if (!node || !documentId) return
+                if (!node) {
+                  // Không khớp được nút cây: vẫn mở theo trang/vùng AI2 trả về.
+                  if (citation.pageNo) {
+                    openForeignSearchCitation({ ...cite, documentId })
+                  }
+                  return
+                }
                 setShowLines(false)
                 setPdfDocumentId(null)
                 setCiteId(null)
@@ -1563,9 +1586,10 @@ export function DossierStructurePage() {
           detail &&
           !qaMode &&
           !reviewCiteId ? (
-            <div className="mb-space-sm flex flex-wrap items-center justify-between gap-space-sm rounded-xl border border-outline-variant/20 bg-surface-container-lowest p-space-sm">
+            <div className="mb-space-md flex flex-wrap items-center justify-between gap-space-sm rounded-lg bg-surface-container-lowest px-space-lg py-space-sm shadow-sm">
+              {/* Cùng kiểu nhóm nút chọn loại cấu trúc / kiểu xem ở thanh trên. */}
               <div
-                className="flex flex-wrap items-center gap-space-xs"
+                className="inline-flex items-center gap-0.5 rounded-full bg-surface-container p-1"
                 role="group"
                 aria-label="Loại sơ đồ"
               >
@@ -1573,10 +1597,18 @@ export function DossierStructurePage() {
                   <button
                     key={kind}
                     aria-pressed={ai2GraphKind === kind}
-                    className={`rounded-full px-3 py-1.5 font-body-sm text-body-sm ${ai2GraphKind === kind ? 'bg-primary text-white' : 'bg-surface-container text-on-surface hover:bg-primary/10'}`}
+                    className={`inline-flex h-8 items-center gap-space-xs rounded-full px-space-md font-body-sm text-body-sm font-semibold transition-colors ${
+                      ai2GraphKind === kind
+                        ? 'bg-brand-100 text-brand-700 shadow-sm ring-1 ring-brand-200'
+                        : 'text-on-surface-variant hover:bg-surface-container-high hover:text-primary'
+                    }`}
                     type="button"
                     onClick={() => setAi2GraphKind(kind)}
                   >
+                    <MaterialIcon
+                      name={kind === 'pair' ? 'link' : 'edit_note'}
+                      className="text-[18px]"
+                    />
                     {kind === 'pair'
                       ? 'Quan hệ điều khoản'
                       : 'Sửa đổi điều khoản'}
@@ -1629,7 +1661,7 @@ export function DossierStructurePage() {
                 ) : (
                   <p
                     role="status"
-                    className="rounded border border-outline-variant p-3"
+                    className="rounded-lg bg-surface-container-lowest p-space-lg font-body-sm text-body-sm text-on-surface-variant shadow-sm"
                   >
                     {analysis === 'running'
                       ? 'Đang phân tích hồ sơ. Sơ đồ quan hệ sẽ hiện khi phân tích xong.'

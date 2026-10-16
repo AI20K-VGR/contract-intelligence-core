@@ -46,7 +46,12 @@ export function answerBlocks(answer: string) {
  * Trích dẫn thuộc mục nào: so phần đầu câu trích (bỏ số khoản) với nội dung mục.
  * Trích dẫn không khớp mục nào, hoặc không có câu trích, vào `unplaced`; không
  * gắn vào mục cuối, để người đọc không hiểu nhầm nó chứng minh cho mục đó.
- * `n` là số thứ tự trong danh sách trích dẫn gốc (bắt đầu từ 1).
+ *
+ * AI2 thường trả một trích dẫn cho mỗi dòng chữ, nên một khoản dài hai dòng có
+ * hai trích dẫn cùng mở một chỗ. Trong cùng một mục, các trích dẫn cùng tài
+ * liệu chỉ giữ một số; hợp đồng và phụ lục vẫn tách riêng. Trích dẫn không đặt
+ * được vào mục chỉ gộp khi trùng hẳn (cùng tài liệu, trang, câu trích).
+ * `n` đánh liên tục từ 1 theo thứ tự xuất hiện, sau khi đã gộp.
  */
 export function citesByBlock(
   blocks: AnswerBlock[],
@@ -54,21 +59,30 @@ export function citesByBlock(
 ) {
   const placed = new Map<number, NumberedCitation[]>()
   const unplaced: NumberedCitation[] = []
-  citations.forEach((citation, index) => {
-    const entry = { citation, n: index + 1 }
-    const key = norm(citation.quote)
-      .replace(/^\d+(\.\d+)*\.?\s*/, '')
-      .slice(0, 40)
+  const seen = new Set<string>()
+  let n = 0
+  for (const citation of citations) {
+    const quote = norm(citation.quote)
+    const key = quote.replace(/^\d+(\.\d+)*\.?\s*/, '').slice(0, 40)
     const at = key
       ? blocks.findIndex((block) =>
           norm(`${block.no ?? ''} ${block.text}`).includes(key),
         )
       : -1
+    const source = citation.documentId ?? ''
+    const identity =
+      at < 0
+        ? `none|${source}|${citation.pageNo ?? ''}|${quote}`
+        : `${at}|${source || `q:${quote}`}`
+    if (seen.has(identity)) continue
+    seen.add(identity)
+    n += 1
+    const entry = { citation, n }
     if (at < 0) {
       unplaced.push(entry)
-      return
+      continue
     }
     placed.set(at, [...(placed.get(at) ?? []), entry])
-  })
+  }
   return { placed, unplaced }
 }

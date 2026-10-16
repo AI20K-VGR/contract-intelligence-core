@@ -42,12 +42,7 @@ import { bodyOf, headOf } from '../structure/display'
 import { clauseForCitation, regionsOf } from '../structure/conflictCite'
 import { reviewTargetNode } from '../structure/reviewTarget'
 import { buildStructureTree } from '../structure'
-import {
-  conflictKind,
-  withinDocumentId,
-  withinSideLabel,
-  type ConflictKind,
-} from '../structure/withinDocument'
+import { withinDocumentId, withinSideLabel } from '../structure/withinDocument'
 import type { OcrLine } from '../structure/types'
 
 type Verdict = 'correct' | 'deviation'
@@ -113,22 +108,6 @@ function linkedClausesOf(panes: ComparePane[]): LinkedClause[] {
     ]
   })
 }
-
-type KindFilter = 'all' | ConflictKind
-
-const KIND_OPTIONS: { id: KindFilter; label: string; hint: string }[] = [
-  { id: 'all', label: 'Tất cả', hint: 'Mọi xung đột trong hồ sơ.' },
-  {
-    id: 'between',
-    label: 'Hợp đồng – Phụ lục',
-    hint: 'Hai chỗ khác nhau nằm ở hai tài liệu: hợp đồng và phụ lục.',
-  },
-  {
-    id: 'within',
-    label: 'Trong cùng hợp đồng',
-    hint: 'Hai chỗ mâu thuẫn nằm trong cùng một file hợp đồng.',
-  },
-]
 
 const MARKS = ['amber', 'sky'] as const
 
@@ -466,7 +445,6 @@ export function ClauseConflictPage() {
   }>({ mark: 'both', tick: 0 })
   const [query, setQuery] = useState('')
   const [reviewedIds, setReviewedIds] = useState<Record<string, boolean>>({})
-  const [kind, setKind] = useState<KindFilter>('all')
   const [verdicts, setVerdicts] = useState<Record<string, Verdict>>({})
   const backTo = dossierId
     ? structurePath(dossierId)
@@ -542,36 +520,13 @@ export function ClauseConflictPage() {
     return spots.map((spot) => spotToCard(spot, nodes, pageCount))
   }, [dossierId, nodes, pageCount, spots])
 
-  const kindById = useMemo(() => {
-    const map = new Map<string, ConflictKind>()
-    for (const spot of spots) map.set(spot.id, conflictKind(spot))
-    return map
-  }, [spots])
-  const kindCounts = useMemo(() => {
-    const counts = { between: 0, within: 0 }
-    for (const card of cards) {
-      const value = kindById.get(card.id)
-      if (value) counts[value] += 1
-    }
-    return counts
-  }, [cards, kindById])
-  // Chỉ hiện bộ lọc khi hồ sơ có cả hai loại, tránh gây rối khi chỉ có một.
-  const showKinds = kindCounts.between > 0 && kindCounts.within > 0
-  const inKind = useMemo(
-    () =>
-      kind === 'all' || !showKinds
-        ? cards
-        : cards.filter((card) => kindById.get(card.id) === kind),
-    [cards, kind, kindById, showKinds],
-  )
-
   const visible = useMemo(() => {
     const term = query.trim().toLowerCase()
-    if (!term) return inKind
-    return inKind.filter((card) =>
+    if (!term) return cards
+    return cards.filter((card) =>
       `${card.title} ${card.quote} ${card.basis}`.toLowerCase().includes(term),
     )
-  }, [inKind, query])
+  }, [cards, query])
 
   const structureMode = detail?.structureMode ?? 'numbered'
   const trees = useMemo(() => {
@@ -596,11 +551,7 @@ export function ClauseConflictPage() {
     return map
   }, [linesByDocument, nodesByDocument])
   const active =
-    inKind.find((card) => card.id === activeId) ??
-    visible[0] ??
-    inKind[0] ??
-    cards[0] ??
-    null
+    cards.find((card) => card.id === activeId) ?? visible[0] ?? cards[0] ?? null
   const linksById = useMemo(() => {
     const map = new Map<string, ComparePane[]>()
     const documents = detail?.documents ?? []
@@ -621,16 +572,14 @@ export function ClauseConflictPage() {
   }, [active?.id])
 
   useEffect(() => {
-    if (inKind.length === 0) return
-    if (!inKind.some((card) => card.id === activeId)) setActiveId(inKind[0].id)
-  }, [activeId, inKind])
+    if (cards.length === 0) return
+    if (!cards.some((card) => card.id === activeId)) setActiveId(cards[0].id)
+  }, [activeId, cards])
 
   useEffect(() => {
     if (!requestedId || scrolledTo.current === requestedId) return
     if (!cards.some((card) => card.id === requestedId)) return
     scrolledTo.current = requestedId
-    // Đi tới từ chấm xung đột trên cây: nếu bộ lọc đang ẩn thẻ này thì bỏ lọc.
-    setKind('all')
     setActiveId(requestedId)
     const frame = window.requestAnimationFrame(() => {
       window.document
@@ -842,39 +791,6 @@ export function ClauseConflictPage() {
                 </span>
               )}
             </div>
-            {showKinds ? (
-              <div>
-                <div
-                  aria-label="Loại xung đột"
-                  className="flex flex-wrap gap-1"
-                  role="group"
-                >
-                  {KIND_OPTIONS.map((option) => {
-                    const count =
-                      option.id === 'all' ? cards.length : kindCounts[option.id]
-                    const on = kind === option.id
-                    return (
-                      <button
-                        key={option.id}
-                        aria-pressed={on}
-                        className={`rounded px-2.5 py-1 font-label-sm text-label-sm transition-colors ${
-                          on
-                            ? 'bg-brand-100 font-semibold text-brand-700'
-                            : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
-                        }`}
-                        type="button"
-                        onClick={() => setKind(option.id)}
-                      >
-                        {option.label} · {count}
-                      </button>
-                    )
-                  })}
-                </div>
-                <p className="mt-1 font-label-sm text-label-sm text-secondary">
-                  {KIND_OPTIONS.find((option) => option.id === kind)?.hint}
-                </p>
-              </div>
-            ) : null}
           </div>
           <div className="flex-1 space-y-space-sm overflow-y-auto p-space-md">
             {loading ? (
@@ -975,9 +891,7 @@ export function ClauseConflictPage() {
                   </div>
                   {(linksById.get(card.id)?.length ?? 0) > 1 ? (
                     <div className="mb-space-sm space-y-1.5">
-                      <p className="font-body-sm text-body-sm leading-normal text-on-surface-variant">
-                        {card.quote}
-                      </p>
+                      {/* Đoạn tóm tắt trùng với ô trích của từng bên bên dưới: không lặp lại. */}
                       {linksById.get(card.id)?.map((pane) => (
                         <button
                           key={pane.key}
@@ -1024,11 +938,6 @@ export function ClauseConflictPage() {
                       ) : null}
                     </>
                   )}
-                  <div className="mb-space-sm flex flex-wrap items-center justify-between gap-space-xs border-t border-outline-variant/30 pt-space-xs font-label-sm text-label-sm text-secondary">
-                    <span className="font-code-sm text-code-sm font-medium text-on-surface-variant">
-                      {card.basis}
-                    </span>
-                  </div>
                   {dossierId ? (
                     <ConflictFindingReview
                       findingId={card.id}

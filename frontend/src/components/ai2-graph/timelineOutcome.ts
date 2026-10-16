@@ -11,6 +11,12 @@ export function processingTimelineOutcome(trace: ProcessingTrace) {
     return 'job-succeeded-with-stage-failure'
   }
   if (hasFailedStage) return 'stage-failed-job-unknown'
+  // Bước xong nhưng AI không tham gia (chỉ dùng quy tắc): kết quả có thể thiếu.
+  const limited = trace.stages.some((stage) =>
+    stage.reason_code?.startsWith('RULE_ONLY'),
+  )
+  if (trace.job_status === 'SUCCEEDED' && limited)
+    return 'job-succeeded-limited'
   if (trace.job_status === 'SUCCEEDED') return 'job-succeeded'
   return trace.status
 }

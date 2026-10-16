@@ -41,6 +41,45 @@ describe('citesByBlock', () => {
     ])
     expect(placed.get(1)).toEqual([{ citation: MATCHED, n: 2 }])
   })
+
+  it('gives one number to the lines of the same clause in the same document', () => {
+    const answer = [
+      'Điều 1. Định nghĩa',
+      '1.3. Trường hợp một thuật ngữ có nhiều cách hiểu, ưu tiên cách hiểu đã được hai bên phê duyệt.',
+      '1.4. Ngày làm việc không gồm thứ Bảy.',
+    ].join('\n')
+    const firstLine = {
+      quote: '1.3. Trường hợp một thuật ngữ có nhiều cách hiểu',
+      pageNo: 2,
+      documentId: 'doc_contract',
+    }
+    const secondLine = {
+      quote: 'ưu tiên cách hiểu đã được hai bên phê duyệt',
+      pageNo: 2,
+      documentId: 'doc_contract',
+    }
+    const next = {
+      quote: '1.4. Ngày làm việc không gồm thứ Bảy',
+      pageNo: 2,
+      documentId: 'doc_contract',
+    }
+    const blocks = answerBlocks(answer)
+    const { placed } = citesByBlock(blocks, [firstLine, secondLine, next])
+    expect(placed.get(1)).toEqual([{ citation: firstLine, n: 1 }])
+    // Số đánh liên tục sau khi gộp: khoản 1.4 là số 2, không phải 3.
+    expect(placed.get(2)).toEqual([{ citation: next, n: 2 }])
+  })
+
+  it('keeps the contract and the annex apart even on the same clause', () => {
+    const blocks = answerBlocks(ANSWER)
+    const contract = { ...MATCHED, documentId: 'doc_contract' }
+    const annex = { ...MATCHED, documentId: 'doc_annex' }
+    const { placed } = citesByBlock(blocks, [contract, annex])
+    expect(placed.get(1)).toEqual([
+      { citation: contract, n: 1 },
+      { citation: annex, n: 2 },
+    ])
+  })
 })
 
 describe('AnswerView', () => {

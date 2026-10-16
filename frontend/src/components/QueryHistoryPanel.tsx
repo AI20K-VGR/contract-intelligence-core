@@ -21,6 +21,8 @@ type QueryHistoryPanelProps = {
   onReuse: (question: string) => void
   /** Bấm số trích dẫn trong câu trả lời: mở vùng trích trên hợp đồng. */
   onCite?: (citation: QueryHistoryCitation, citeNo: number) => void
+  /** Có thì tiêu đề có nút đóng, quay về cấu trúc cây. */
+  onClose?: () => void
 }
 
 function failureText(item: QueryHistoryItem) {
@@ -135,6 +137,7 @@ export function QueryHistoryPanel({
   refreshKey,
   onReuse,
   onCite,
+  onClose,
 }: QueryHistoryPanelProps) {
   const [items, setItems] = useState<QueryHistoryItem[]>([])
   const [total, setTotal] = useState(0)
@@ -192,9 +195,22 @@ export function QueryHistoryPanel({
       aria-label="Lịch sử hỏi đáp"
       className="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm space-y-space-md"
     >
-      <h2 className="font-title-sm text-title-sm text-primary uppercase tracking-wider">
-        Lịch sử hỏi đáp
-      </h2>
+      <div className="flex items-center justify-between gap-space-sm">
+        <h2 className="font-title-sm text-title-sm text-primary uppercase tracking-wider">
+          Lịch sử hỏi đáp
+        </h2>
+        {onClose ? (
+          <button
+            aria-label="Đóng lịch sử hỏi đáp"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container"
+            title="Đóng, về cấu trúc cây"
+            type="button"
+            onClick={onClose}
+          >
+            <MaterialIcon name="close" className="text-[20px]" />
+          </button>
+        ) : null}
+      </div>
 
       {error ? (
         <p className="font-label-sm text-label-sm text-error" role="alert">
