@@ -74,8 +74,12 @@ export function getUserManager(): UserManager | null {
 export function requireUserManager(): UserManager {
   const instance = getUserManager()
   if (!instance) {
+    // Hướng dẫn cho người cài đặt chỉ ghi Console; người dùng thấy câu chung.
+    console.warn(
+      '[Lỗi kỹ thuật] Chưa cấu hình Keycloak: thêm VITE_KEYCLOAK_URL, VITE_KEYCLOAK_REALM, VITE_KEYCLOAK_CLIENT_ID vào .env.local.',
+    )
     throw new Error(
-      'Chưa cấu hình Keycloak. Thêm VITE_KEYCLOAK_URL, VITE_KEYCLOAK_REALM, VITE_KEYCLOAK_CLIENT_ID vào .env.local.',
+      'Hệ thống đăng nhập chưa được cấu hình. Vui lòng báo quản trị viên.',
     )
   }
   return instance

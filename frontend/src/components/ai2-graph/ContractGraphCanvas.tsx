@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { relationLabel, reviewStateLabel } from '../../structure/displayLabels'
 import {
   getContractGraphPage,
   type ContractGraphEdge,
@@ -166,7 +167,7 @@ export function Ai2GraphDossierView({
     [onSelectRelation],
   )
 
-  if (loading) return <p role="status">Đang tải graph và dấu vết xử lý AI2…</p>
+  if (loading) return <p role="status">Đang tải sơ đồ và các bước phân tích…</p>
   if (error || !data)
     return (
       <div
@@ -174,7 +175,7 @@ export function Ai2GraphDossierView({
         className="flex min-w-0 flex-col items-start gap-2 rounded border border-error p-3"
       >
         <p>
-          Không tải được graph AI2. Kiểm tra quyền đọc trích dẫn hoặc thử lại
+          Không tải được sơ đồ quan hệ. Kiểm tra quyền xem trích dẫn hoặc thử lại
           sau.
         </p>
         <button
@@ -195,14 +196,14 @@ export function Ai2GraphDossierView({
           className="flex min-w-0 flex-col items-start gap-2 rounded border border-error p-3"
         >
           <p>
-            Không tải được graph AI2. Dấu vết xử lý vẫn được hiển thị riêng.
+            Không tải được sơ đồ quan hệ. Các bước phân tích vẫn hiện ở trên.
           </p>
           <button
             className="min-h-11 rounded border border-outline px-3 py-2 focus-visible:outline focus-visible:outline-2"
             onClick={() => setRetry((value) => value + 1)}
             type="button"
           >
-            Thử tải graph lại
+            Tải lại sơ đồ
           </button>
         </div>
       ) : (
@@ -294,7 +295,7 @@ export function ContractGraphCanvas({
       className="min-w-0 rounded-lg border border-outline-variant p-3"
     >
       <h2 id="ai2-graph-canvas-title" className="font-title-md font-semibold">
-        Sơ đồ quan hệ AI2
+        Sơ đồ quan hệ
       </h2>
       <p className="mt-1 break-words text-sm" role="status">
         Đang xem {page.edges.length}/{page.total_count} quan hệ trong trang này;
@@ -379,7 +380,7 @@ export function ContractGraphCanvas({
             {rows.map(({ edge, source, target }) => (
               <g
                 key={edge.id}
-                aria-label={`${edge.label}: ${source.label} ${edge.directed ? 'đến' : 'và'} ${target.label}${edge.target_address ? `; địa chỉ đích ${edge.target_address}` : ''}`}
+                aria-label={`${relationLabel(edge.label)}: ${source.label} ${edge.directed ? 'đến' : 'và'} ${target.label}${edge.target_address ? `; địa chỉ đích ${edge.target_address}` : ''}`}
                 aria-pressed={selectedId === edge.id}
                 className="cursor-pointer focus:outline focus:outline-2"
                 onClick={() => onSelectEdge(edge.id)}
@@ -393,7 +394,7 @@ export function ContractGraphCanvas({
                 tabIndex={0}
                 data-graph-edge="true"
               >
-                <title>{`${edge.label} · ${edge.review_state === 'NEEDS_REVIEW' ? 'AI2 đề xuất, cần review' : edge.review_state}`}</title>
+                <title>{`${relationLabel(edge.label)} · ${edge.review_state === 'NEEDS_REVIEW' ? 'AI đề xuất, cần rà soát' : reviewStateLabel(edge.review_state)}`}</title>
                 <path
                   d={`M ${source.x + 132} ${source.y} C 400 ${source.y}, 560 ${target.y}, ${target.x - 132} ${target.y}`}
                   fill="none"
@@ -418,10 +419,10 @@ export function ContractGraphCanvas({
                   x="480"
                   y={(source.y + target.y) / 2 + 5}
                 >
-                  {edge.label} ·{' '}
+                  {relationLabel(edge.label)} ·{' '}
                   {edge.review_state === 'NEEDS_REVIEW'
-                    ? 'cần review'
-                    : edge.review_state}
+                    ? 'cần rà soát'
+                    : reviewStateLabel(edge.review_state)}
                 </text>
               </g>
             ))}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { clauseOrdinal } from '../api/clauseReview'
 import {
+  analysisState,
   conflictName,
   contractDocument,
   getDossierStructure,
@@ -20,6 +21,7 @@ import {
 import { dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { useDossierPermissions } from '../auth/dossierPermissions'
+import { AnalysisNotice } from '../components/AnalysisNotice'
 import { ClauseFrameResults } from '../components/ClauseFrameResults'
 import {
   ConflictFindingReview,
@@ -32,6 +34,7 @@ import {
 import { MaterialIcon } from '../components/icons'
 import { clauseConflicts } from '../data/clauseConflicts'
 import { structurePath } from '../data/dossiers'
+import { useAnalysisWatch } from '../hooks/useAnalysisWatch'
 import { useGoBack } from '../hooks/useGoBack'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { findClause, findClauseByQuote } from '../structure/citations'
@@ -472,6 +475,21 @@ export function ClauseConflictPage() {
       : '/'
   const goBack = useGoBack(backTo)
 
+  // Hồ sơ đang phân tích: AI2 xong thì tải lại danh sách xung đột.
+  const [reloadKey, setReloadKey] = useState(0)
+  const analysis = detail
+    ? analysisState(detail.latestJobStatus, detail.latestJobErrorCode)
+    : null
+  const [justFinished, setJustFinished] = useState(false)
+  const { percent: analysisPercent } = useAnalysisWatch(
+    dossierId,
+    analysis === 'running',
+    () => {
+      setJustFinished(true)
+      setReloadKey((key) => key + 1)
+    },
+  )
+
   useEffect(() => {
     if (!dossierId) return
     const controller = new AbortController()
@@ -511,7 +529,7 @@ export function ClauseConflictPage() {
         if (!controller.signal.aborted) setLoading(false)
       })
     return () => controller.abort()
-  }, [dossierId])
+  }, [dossierId, reloadKey])
 
   const contractId = useMemo(
     () => (detail ? (contractDocument(detail)?.id ?? null) : null),
@@ -877,7 +895,21 @@ export function ClauseConflictPage() {
             {error ? (
               <p className="font-body-sm text-body-sm text-error">{error}</p>
             ) : null}
-            {!loading && dossierId && cards.length === 0 ? (
+            {!loading && dossierId ? (
+              <AnalysisNotice
+                errorCode={detail?.latestJobErrorCode}
+                justFinished={justFinished}
+                percent={analysisPercent}
+                state={analysis}
+                waitingFor="Các chỗ cần đối soát"
+                onDismiss={() => setJustFinished(false)}
+              />
+            ) : null}
+            {!loading &&
+            dossierId &&
+            cards.length === 0 &&
+            analysis !== 'running' &&
+            analysis !== 'failed' ? (
               <section className="flex flex-col items-start gap-space-sm rounded bg-surface-container-low p-space-md">
                 <h2 className="font-title-sm text-title-sm text-on-surface">
                   Không có mục đối soát

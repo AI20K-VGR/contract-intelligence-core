@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { relationLabel, reviewStateLabel } from '../../structure/displayLabels'
 
 import type {
   ContractGraphEdge,
@@ -188,10 +189,10 @@ function RelationRow({
         type="button"
       >
         <span className="block break-words font-semibold">
-          {edge.label} ·{' '}
+          {relationLabel(edge.label)} ·{' '}
           {edge.review_state === 'NEEDS_REVIEW'
-            ? 'cần review'
-            : edge.review_state}
+            ? 'cần rà soát'
+            : reviewStateLabel(edge.review_state)}
         </span>
         <span className="mt-1 grid min-w-0 gap-1 text-sm text-on-surface-variant sm:grid-cols-[1fr_auto_1fr] sm:items-center">
           <span className="break-words">

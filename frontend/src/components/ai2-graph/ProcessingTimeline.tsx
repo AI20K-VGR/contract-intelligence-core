@@ -1,5 +1,6 @@
 import type { ProcessingTrace } from '../../api/contractGraph'
-import { processingTimelineOutcome } from './timelineOutcome'
+import { TechnicalDetail } from '../TechnicalDetail'
+import { processingTimelineOutcome, stageReasonText } from './timelineOutcome'
 
 const stageLabels: Record<string, string> = {
   contract_graph_operation: 'Tìm quan hệ điều khoản sửa đổi',
@@ -17,19 +18,19 @@ const stageStatusLabels: Record<string, string> = {
 
 const traceStatusLabels: Record<ProcessingTrace['status'], string> = {
   COMPLETE: 'Các bước xử lý đã kết thúc',
-  IN_PROGRESS: 'AI2 đang xử lý',
-  INTERRUPTED_UNKNOWN: 'Xử lý AI2 bị gián đoạn, chưa rõ kết quả',
-  INCOMPLETE_UNKNOWN: 'Luồng AI2 chưa đầy đủ, chưa rõ kết quả',
-  TRACE_UNAVAILABLE: 'Chưa có dấu vết xử lý AI2',
+  IN_PROGRESS: 'Đang phân tích',
+  INTERRUPTED_UNKNOWN: 'Phân tích bị gián đoạn, chưa rõ kết quả',
+  INCOMPLETE_UNKNOWN: 'Phân tích chưa đầy đủ, chưa rõ kết quả',
+  TRACE_UNAVAILABLE: 'Chưa có thông tin các bước phân tích',
 }
 
 const outcomeLabels: Record<string, string> = {
-  'job-failed': 'AI2 thất bại',
-  'job-cancelled': 'AI2 đã bị hủy',
-  'job-running': 'AI2 đang xử lý',
-  'job-succeeded-with-stage-failure': 'AI2 hoàn tất nhưng có bước xử lý lỗi',
-  'stage-failed-job-unknown': 'Có bước AI2 thất bại; trạng thái job chưa rõ',
-  'job-succeeded': 'AI2 hoàn tất',
+  'job-failed': 'Phân tích thất bại',
+  'job-cancelled': 'Đã hủy phân tích',
+  'job-running': 'Đang phân tích',
+  'job-succeeded-with-stage-failure': 'Phân tích xong nhưng có bước bị lỗi',
+  'stage-failed-job-unknown': 'Có bước phân tích bị lỗi, chưa rõ kết quả chung',
+  'job-succeeded': 'Phân tích hoàn tất',
 }
 
 export function ProcessingTimeline({ trace }: { trace: ProcessingTrace }) {
@@ -41,7 +42,7 @@ export function ProcessingTimeline({ trace }: { trace: ProcessingTrace }) {
       className="min-w-0 rounded-lg border border-outline-variant p-3"
     >
       <h2 id="ai2-processing-title" className="font-title-md font-semibold">
-        Luồng xử lý AI2
+        Các bước phân tích
       </h2>
       <p className="mt-1 font-body-md" role="status">
         {outcomeLabels[processingTimelineOutcome(trace)] ??
@@ -64,7 +65,7 @@ export function ProcessingTimeline({ trace }: { trace: ProcessingTrace }) {
             >
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-1">
                 <h3 className="min-w-0 break-words font-semibold">
-                  {stageLabels[stage.stage_id] ?? 'Bước xử lý AI2'}
+                  {stageLabels[stage.stage_id] ?? 'Bước phân tích'}
                 </h3>
                 <span className="shrink-0 rounded bg-surface-container px-2 py-1 text-sm">
                   {stageStatusLabels[stage.status]}
@@ -79,11 +80,16 @@ export function ProcessingTimeline({ trace }: { trace: ProcessingTrace }) {
                   : ` · ${new Date(stage.started_ms).toLocaleString()}`}
                 {stage.duration_ms === null ? '' : ` · ${stage.duration_ms} ms`}
               </p>
-              {stage.reason_code ? (
-                <p className="mt-1 break-all text-sm">
-                  Mã trạng thái: {stage.reason_code}
+              {stageReasonText(stage.reason_code) ? (
+                <p className="mt-1 break-words text-sm">
+                  {stageReasonText(stage.reason_code)}
                 </p>
               ) : null}
+              <TechnicalDetail
+                text={
+                  stage.reason_code && `${stage.stage_id}: ${stage.reason_code}`
+                }
+              />
             </li>
           ))}
         </ol>

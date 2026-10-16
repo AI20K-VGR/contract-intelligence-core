@@ -23,30 +23,10 @@ type QueryHistoryPanelProps = {
   onCite?: (citation: QueryHistoryCitation, citeNo: number) => void
 }
 
-const whenFormat = new Intl.DateTimeFormat('vi-VN', {
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-})
-
-function formatWhen(value: string) {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '' : whenFormat.format(date)
-}
-
 function failureText(item: QueryHistoryItem) {
   if (item.errorCode)
     return `AI chưa trả lời được câu này (mã ${item.errorCode}).`
   return 'Chưa có câu trả lời được lưu.'
-}
-
-const STATE_LABELS: Record<string, string> = {
-  ANSWERED: 'Đã trả lời',
-  PARTIAL: 'Trả lời một phần',
-  NOT_FOUND: 'Không tìm thấy',
-  BLOCKED: 'Bị chặn',
 }
 
 /** Câu trả lời dài chỉ hiện vài mục đầu, bấm để xem hết. */
@@ -266,32 +246,6 @@ export function QueryHistoryPanel({
                   {failureText(answered)}
                 </p>
               )}
-              <div className="flex flex-wrap items-center gap-space-xs font-label-sm text-label-sm text-secondary">
-                {group.length > 1 ? (
-                  <span className="font-semibold text-on-surface-variant">
-                    Đã hỏi {group.length} lần:
-                  </span>
-                ) : null}
-                {group.map((entry) => (
-                  <span
-                    key={entry.traceId}
-                    className="rounded-full bg-surface-container px-2 py-0.5 tabular-nums"
-                  >
-                    {formatWhen(entry.createdAt)}
-                  </span>
-                ))}
-                {answered.state ? (
-                  <span
-                    className={`rounded-full px-2 py-0.5 font-semibold ${
-                      answered.state === 'ANSWERED'
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : 'bg-surface-container text-on-surface-variant'
-                    }`}
-                  >
-                    {STATE_LABELS[answered.state] ?? answered.state}
-                  </span>
-                ) : null}
-              </div>
             </li>
           )
         })}

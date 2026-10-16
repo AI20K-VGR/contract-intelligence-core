@@ -106,8 +106,7 @@ function inDossierSection(pathname: string, role: AppRole) {
     pathname.startsWith('/tien-trinh-phan-tich') ||
     pathname.startsWith('/cau-truc/') ||
     pathname.startsWith('/lich-su-hoi-dap/') ||
-    pathname.startsWith('/ocr/') ||
-    pathname.startsWith('/xac-nhan-manifest')
+    pathname.startsWith('/ocr/')
   )
 }
 

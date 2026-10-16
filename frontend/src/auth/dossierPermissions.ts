@@ -26,7 +26,7 @@ export type DossierPermissions = {
   /** Quyền chia sẻ còn hiệu lực của người này; null nếu là chủ hoặc không có. */
   grant: 'read' | 'edit' | null
   expired: boolean
-  /** Sửa hồ sơ, xác nhận manifest, tách file, chạy lại, hủy (DOSSIER_EDIT). */
+  /** Sửa hồ sơ, tách file, chạy lại, hủy (DOSSIER_EDIT). */
   canEdit: boolean
   /** Lưu thẩm định, khóa hồ sơ, OCR lại trang khi là Thẩm định (REVIEW_MUTATE). */
   canReview: boolean

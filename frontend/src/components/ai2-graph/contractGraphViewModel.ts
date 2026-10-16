@@ -86,7 +86,7 @@ export function graphStatusLabel(status: ContractGraphStatus): string {
     case 'PERSIST_FAILED':
       return 'Không lưu được quan hệ'
     case 'SKIPPED':
-      return 'AI2 đã bỏ qua bước tạo quan hệ'
+      return 'Đã bỏ qua bước tìm quan hệ'
     case 'FAILED':
       return 'Bước tạo quan hệ thất bại'
   }

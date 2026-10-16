@@ -6,7 +6,7 @@ import {
 import { usePageTitle } from '../hooks/usePageTitle'
 
 export function CitationComparePage() {
-  usePageTitle('Đối soát citation')
+  usePageTitle('Đối soát trích dẫn')
   const location = useLocation()
   const state = location.state as {
     citation?: unknown
@@ -21,11 +21,11 @@ export function CitationComparePage() {
     <main className="w-full space-y-space-md">
       <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-space-md">
         <h1 className="font-headline-md text-headline-md text-primary">
-          Đối soát citation
+          Đối soát trích dẫn
         </h1>
         <p className="mt-space-xs font-body-sm text-body-sm text-secondary">
-          Viewer dùng dossier/document/source citation từ Backend; citation chưa
-          resolve được giữ ở trạng thái gap.
+          Trích dẫn lấy từ hồ sơ và tài liệu gốc; trích dẫn chưa xác định được
+          vị trí sẽ được đánh dấu là còn thiếu.
         </p>
       </div>
       <DynamicCitationViewer citation={citation} />

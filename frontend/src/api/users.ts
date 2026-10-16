@@ -106,7 +106,7 @@ export function userAdminErrorMessage(error: unknown) {
       return 'Chỉ gửi lại email khi người dùng còn ở trạng thái đã mời.'
     }
     if (error.code === 'email_not_configured') {
-      return 'Hệ thống chưa cấu hình email mời. Phía backend cần bật SMTP trên Keycloak.'
+      return 'Hệ thống chưa gửi được email mời. Vui lòng báo quản trị viên.'
     }
     if (error.code === 'keycloak_unavailable') {
       return 'Không kết nối được dịch vụ đăng nhập. Thử lại sau.'
@@ -115,7 +115,7 @@ export function userAdminErrorMessage(error: unknown) {
       return 'Chỉ quản trị viên mới quản lý được người dùng.'
     }
     if (error.status === 404 && error.message === 'Not Found') {
-      return 'API quản lý người dùng chưa có trên backend.'
+      return 'Chức năng quản lý người dùng chưa sẵn sàng. Vui lòng báo quản trị viên.'
     }
     if (error.status === 404) {
       return 'Không tìm thấy người dùng này.'
@@ -123,7 +123,7 @@ export function userAdminErrorMessage(error: unknown) {
     return error.message
   }
   if (error instanceof TypeError) {
-    return 'Không kết nối được backend. API quản lý người dùng chưa sẵn sàng.'
+    return 'Không kết nối được máy chủ nên chưa tải được người dùng. Vui lòng thử lại.'
   }
   return 'Không thực hiện được. Thử lại.'
 }

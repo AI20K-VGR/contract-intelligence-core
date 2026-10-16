@@ -65,8 +65,8 @@ describe('dossier AI2 graph integration', () => {
     )
     expect(html).toContain('type="checkbox"')
     expect(html).not.toContain('checked=""')
-    expect(html).toContain('Cho phép AI2 xử lý nội dung hồ sơ')
-    expect(html).toContain('Thay đổi có hiệu lực từ yêu cầu AI2 tiếp theo.')
+    expect(html).toContain('Cho phép AI phân tích nội dung hồ sơ')
+    expect(html).toContain('Thay đổi có hiệu lực từ lần phân tích tiếp theo.')
   })
 
   it('shows consent read-only to someone who may not change it', () => {
@@ -79,7 +79,7 @@ describe('dossier AI2 graph integration', () => {
       />,
     )
     expect(html).not.toContain('type="checkbox"')
-    expect(html).toContain('AI2 xử lý nội dung hồ sơ: đang bật')
+    expect(html).toContain('AI phân tích nội dung hồ sơ: đang bật')
     expect(html).toContain('Chỉ chủ hồ sơ hoặc Quản trị đổi được.')
   })
 
@@ -115,7 +115,7 @@ describe('dossier AI2 graph integration', () => {
     expect(html).toContain('role="group"')
     expect(html).toContain('Đang xem 1/3 quan hệ')
     expect(html).toContain('danh sách bên dưới tải theo trang')
-    expect(html).toContain('REFERENCE')
+    expect(html).toContain('Dẫn chiếu')
     expect(html).toContain('Kéo vùng trống để di chuyển')
     expect(html).toContain('Chọn đường nối để xem chi tiết')
     expect(html).toContain('tabindex="0"')

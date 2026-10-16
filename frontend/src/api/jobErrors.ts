@@ -18,11 +18,11 @@ const PERMANENT: Record<string, string> = {
 }
 
 const MESSAGES: Record<string, string> = {
-  AI2_TIMEOUT: 'AI2 xử lý quá thời gian. Có thể chạy lại.',
-  PROCESSING_TIMEOUT: 'AI2 xử lý quá thời gian. Có thể chạy lại.',
-  AI2_PROCESSING_FAILED: 'AI2 xử lý lỗi tạm thời. Có thể chạy lại.',
-  AI2_UNAVAILABLE: 'Dịch vụ AI2 chưa sẵn sàng. Thử lại sau.',
-  RUN_CANCELLED: 'Đã hủy lần xử lý. Có thể chạy tiếp phần OCR.',
+  AI2_TIMEOUT: 'Phân tích hồ sơ quá lâu. Bạn có thể chạy lại.',
+  PROCESSING_TIMEOUT: 'Phân tích hồ sơ quá lâu. Bạn có thể chạy lại.',
+  AI2_PROCESSING_FAILED: 'Phân tích hồ sơ bị gián đoạn. Bạn có thể chạy lại.',
+  AI2_UNAVAILABLE: 'Hệ thống phân tích chưa sẵn sàng. Vui lòng thử lại sau.',
+  RUN_CANCELLED: 'Đã hủy lần xử lý. Bạn có thể chạy tiếp.',
   DISPATCH_FAILED: 'Không gửi được hồ sơ đi xử lý. Thử lại.',
   // DOC-05b v3.2.0: AI1 trả mọi trang lỗi (thường do thiếu cấu hình OCR), nên
   // không có gì gửi sang AI2. Chạy lại OCR sau khi sửa cấu hình.
@@ -64,13 +64,18 @@ export function isAi2Failure(
 export function jobErrorInfo(code: string | null | undefined): JobErrorInfo {
   const normalized = code?.trim() || null
   if (!normalized) {
-    return { code: null, message: 'Hồ sơ xử lý lỗi.', retry: 'ocr' }
+    return {
+      code: null,
+      message: 'Xử lý hồ sơ không thành công. Vui lòng thử lại.',
+      retry: 'ocr',
+    }
   }
   const permanent = PERMANENT[normalized]
   if (permanent) return { code: normalized, message: permanent, retry: 'none' }
   return {
     code: normalized,
-    message: MESSAGES[normalized] ?? 'Hồ sơ xử lý lỗi.',
+    message:
+      MESSAGES[normalized] ?? 'Xử lý hồ sơ không thành công. Vui lòng thử lại.',
     retry: AI2_RETRYABLE.has(normalized) ? 'ai2' : 'ocr',
   }
 }

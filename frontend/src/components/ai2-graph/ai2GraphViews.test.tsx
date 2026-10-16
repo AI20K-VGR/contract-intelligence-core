@@ -8,7 +8,7 @@ import type {
 } from '../../api/contractGraph'
 import { ContractGraphCanvas } from './ContractGraphCanvas'
 import { ProcessingTimeline } from './ProcessingTimeline'
-import { processingTimelineOutcome } from './timelineOutcome'
+import { processingTimelineOutcome, stageReasonText } from './timelineOutcome'
 import { RelationList } from './RelationList'
 import { ManualGraphFixture } from './ManualGraphFixture'
 import {
@@ -69,12 +69,12 @@ describe('AI2 graph accessible views', () => {
   it('renders the standalone manual fixture without using Backend API reads', () => {
     const html = renderToStaticMarkup(<ManualGraphFixture />)
 
-    expect(html).toContain('Dữ liệu demo tổng hợp')
-    expect(html).toContain('Luồng xử lý AI2')
-    expect(html).toContain('Sơ đồ quan hệ AI2')
-    expect(html).toContain('REFERENCE')
-    expect(html).toContain('CONFLICT')
-    expect(html).toContain('GENERAL_SPECIFIC')
+    expect(html).toContain('Dữ liệu mẫu để minh họa')
+    expect(html).toContain('Các bước phân tích')
+    expect(html).toContain('Sơ đồ quan hệ')
+    expect(html).toContain('Dẫn chiếu')
+    expect(html).toContain('Có thể mâu thuẫn')
+    expect(html).toContain('Quy định chung – riêng')
     expect(html).toContain('Hợp đồng gốc')
     expect(html).toContain('Phụ lục')
     expect(html).toMatch(/<rect[^>]*width="260"[^>]*x="350"/)
@@ -151,8 +151,29 @@ describe('AI2 graph accessible views', () => {
   it('keeps an interrupted trace distinct from a successful or unavailable trace', () => {
     const html = renderToStaticMarkup(<ProcessingTimeline trace={trace} />)
     expect(html).toContain('Chưa rõ kết quả bước xử lý')
-    expect(html).toContain('TERMINAL_WITH_OPEN_STAGE')
+    expect(html).toContain('bước này chưa ghi nhận kết thúc')
+    expect(html).not.toContain('TERMINAL_WITH_OPEN_STAGE')
     expect(html).not.toContain('Hoàn tất xử lý AI2')
+  })
+
+  it('explains stage reason codes in plain words and never shows the code', () => {
+    const html = renderToStaticMarkup(
+      <ProcessingTimeline
+        trace={{
+          ...trace,
+          stages: [
+            {
+              ...trace.stages[0]!,
+              reason_code: 'RULE_ONLY_LLM_UNAVAILABLE',
+            },
+          ],
+        }}
+      />,
+    )
+    expect(html).toContain('Dịch vụ AI tạm thời chưa sẵn sàng')
+    expect(html).not.toContain('RULE_ONLY')
+    expect(html).not.toContain('Mã trạng thái')
+    expect(stageReasonText('SOMETHING_NEW')).toBeNull()
   })
 
   it('keeps job outcome separate from a failed enrichment stage', () => {
@@ -229,7 +250,7 @@ describe('AI2 graph accessible views', () => {
     expect(html).toContain('Danh sách chưa tải hết')
     expect(html).toContain('Tải thêm quan hệ')
     expect(html).toContain('Mở bằng chứng nguồn')
-    expect(html).toContain('cần review')
+    expect(html).toContain('cần rà soát')
   })
 
   it('appends three pages without duplicates and is complete only after the final count matches', () => {

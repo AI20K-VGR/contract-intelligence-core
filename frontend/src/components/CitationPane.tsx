@@ -187,7 +187,7 @@ export function CitationPane({
       {boxes.length > 0 ? (
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-outline-variant/20 px-4 py-1.5 text-xs text-on-surface-variant">
           <ul
-            aria-label="Mức tin cậy OCR"
+            aria-label="Mức tin cậy khi đọc"
             className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${showBoxes ? '' : 'opacity-50'}`}
           >
             {LEGEND.map((item) => (
@@ -204,7 +204,7 @@ export function CitationPane({
             type="button"
             onClick={() => setShowBoxes((current) => !current)}
           >
-            Khung OCR
+            Khung chữ
             <span
               className={`relative h-4 w-7 rounded-full transition-colors ${showBoxes ? 'bg-brand-600' : 'bg-tone-300'}`}
             >
@@ -238,7 +238,7 @@ export function CitationPane({
                 }`}
                 title={
                   level && confidence !== null
-                    ? `OCR ${formatConfidence(confidence)} · ${confidenceLabels[level]}`
+                    ? `Độ tin cậy ${formatConfidence(confidence)} · ${confidenceLabels[level]}`
                     : undefined
                 }
                 style={{

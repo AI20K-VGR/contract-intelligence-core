@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import {
   findLatestRunId,
   formatStepProgress,
+  isAi2Step,
   listRunSteps,
+  OCR_RUN_STEP_ORDER,
   RUN_STEP_GROUPS,
   RUN_STEP_LABELS,
-  RUN_STEP_ORDER,
   stepFromEvent,
   stepProgressPercent,
   watchRun,
   type RunStep,
-  type StepProgress,
 } from '../api/runEvents'
 import {
   deleteDossier,
@@ -33,7 +33,6 @@ import {
   type StructureDocument,
 } from '../api/structure'
 import { isAi2Failure, isCancelledJob, jobErrorInfo } from '../api/jobErrors'
-import { getManifest, manifestConfirmPath } from '../api/manifest'
 import {
   cancelRun,
   isCancellableRun,
@@ -42,6 +41,7 @@ import {
 } from '../api/runs'
 import { dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
+import { TechnicalDetail } from '../components/TechnicalDetail'
 import { useDossierPermissions } from '../auth/dossierPermissions'
 import { MaterialIcon } from '../components/icons'
 import { structurePath } from '../data/dossiers'
@@ -49,8 +49,6 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { parseStructureMode, type StructureMode } from '../structure'
 
 const POLL_INTERVAL_MS = 2000
-// Job đứng ở 'extracted' chờ người dùng xác nhận manifest có thể mất hàng giờ.
-const WAITING_POLL_INTERVAL_MS = 5000
 // BE phát lại step.changed khi chỉ `progress` đổi (khoảng 20 lần mỗi bước):
 // tin đó tự cập nhật vòng tiến độ, chỉ tải lại hồ sơ cách nhau ít nhất chừng này.
 const PROGRESS_RELOAD_INTERVAL_MS = 10000
@@ -77,6 +75,14 @@ type LogRowModel = {
   step?: string
 }
 
+// Một danh sách liền, theo thứ tự chạy thật. Chỉ phần đọc tài liệu: AI2 chạy
+// ngầm sau OCR, tiến độ của nó hiện trên trang cấu trúc.
+const RUN_STEPS = RUN_STEP_GROUPS.flatMap((group) =>
+  group.id === 'ai2'
+    ? []
+    : group.steps.map((code) => ({ code, ocr: group.id === 'ai1' })),
+)
+
 function pageDone(page: OcrPageRow) {
   return page.status === 'SUCCESS' || page.status === 'PARTIAL'
 }
@@ -102,7 +108,7 @@ function fileModel(
       name: document.filename,
       meta,
       status: 'failed',
-      label: 'OCR lỗi',
+      label: 'Đọc lỗi',
     }
   }
   if (total > 0 && done >= total && isOcrComplete(jobStatus)) {
@@ -165,8 +171,6 @@ export function AnalysisProgressPage() {
   const [detail, setDetail] = useState<DossierStructure | null>(null)
   const [pagesByDoc, setPagesByDoc] = useState<Record<string, OcrPageRow[]>>({})
   const [clauseCount, setClauseCount] = useState<number | null>(null)
-  // Worker chỉ gọi AI2 sau khi manifest được xác nhận: chưa xác nhận thì job đứng ở 'extracted'.
-  const [awaitingManifest, setAwaitingManifest] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -212,9 +216,8 @@ export function AnalysisProgressPage() {
     let reloadQueued = false
     let finishedRunId: string | null = null
     let polling = false
-    // Trang OCR, điều khoản và manifest không đổi khi job đã 'extracted': tải một lần.
+    // Trang OCR và điều khoản không đổi khi job đã 'extracted': tải một lần.
     let settled = false
-    let slowPoll = false
     // Trạng thái đã nhận của từng bước: tin chỉ đổi tiến độ không thêm dòng nhật ký.
     const seenStatus: Record<string, string> = {}
     let lastProgressReload = 0
@@ -231,10 +234,7 @@ export function AnalysisProgressPage() {
     function schedulePoll() {
       if (stopped) return
       if (timer !== undefined) window.clearTimeout(timer)
-      timer = window.setTimeout(
-        requestReload,
-        slowPoll ? WAITING_POLL_INTERVAL_MS : POLL_INTERVAL_MS,
-      )
+      timer = window.setTimeout(requestReload, POLL_INTERVAL_MS)
     }
 
     // Server đẩy tin xuống thì chỉ tải lại số liệu; không hẹn giờ hỏi định kỳ.
@@ -292,6 +292,8 @@ export function AnalysisProgressPage() {
           {
             onEvent: (event) => {
               const step = stepFromEvent(event)
+              // Bước AI2 không hiện ở đây và không đổi gì trên trang này.
+              if (step && isAi2Step(step.step)) return
               if (step) {
                 setSteps((current) => ({ ...current, [step.step]: step }))
                 const statusChanged = seenStatus[step.step] !== step.status
@@ -386,7 +388,6 @@ export function AnalysisProgressPage() {
         notFoundTries = 0
         if (isOcrComplete(next.latestJobStatus)) {
           const finishedRun = isRunFinished(next.latestJobStatus)
-          if (finishedRun) setAwaitingManifest(false)
           if (!settled || polling || finishedRun) void syncSteps()
           if (!settled) {
             settled = true
@@ -402,21 +403,8 @@ export function AnalysisProgressPage() {
                 if (!stopped) setClauseCount(null)
               }
             }
-            if (!finishedRun) {
-              try {
-                const manifest = await getManifest(dossierId, controller.signal)
-                const waiting = manifest.status !== 'confirmed'
-                slowPoll = waiting
-                if (!stopped) setAwaitingManifest(waiting)
-              } catch {
-                if (!stopped) setAwaitingManifest(false)
-              }
-            }
           }
-          if (stopped || finishedRun) return
-          // Mới dựng xong cấu trúc: AI2 còn chạy nên tiếp tục theo dõi tiến độ.
-          if (polling) schedulePoll()
-          else void watch()
+          // OCR xong là trang này xong: AI2 chạy ngầm, không theo dõi tiếp.
           return
         }
         if (isStoppedJob(next.latestJobStatus)) {
@@ -462,9 +450,7 @@ export function AnalysisProgressPage() {
 
   const documents = useMemo(() => detail?.documents ?? [], [detail])
   const jobStatus = detail?.latestJobStatus ?? null
-  const ready = isOcrComplete(jobStatus)
-  const failed = isStoppedJob(jobStatus)
-  const runDone = isRunFinished(jobStatus)
+  const stopped = isStoppedJob(jobStatus)
   const failure = useMemo(
     () => jobErrorInfo(detail?.latestJobErrorCode),
     [detail?.latestJobErrorCode],
@@ -472,8 +458,13 @@ export function AnalysisProgressPage() {
   // Job dừng sau khi OCR đã xong (AI2 lỗi) hoặc do người dùng hủy thì không phải lỗi OCR.
   const cancelled = isCancelledJob(jobStatus, detail?.latestJobErrorCode)
   const ai2Failed =
-    failed && !cancelled && isAi2Failure(detail?.latestJobErrorCode, steps)
-  const ocrFailed = failed && !cancelled && !ai2Failed
+    stopped && !cancelled && isAi2Failure(detail?.latestJobErrorCode, steps)
+  const ocrFailed = stopped && !cancelled && !ai2Failed
+  // Trang này chỉ theo dõi phần đọc tài liệu: AI2 lỗi vẫn là OCR đã xong,
+  // lỗi đó hiện trên trang cấu trúc.
+  const ready = isOcrComplete(jobStatus) || ai2Failed
+  const failed = stopped && !ai2Failed
+  const fileJobStatus = ai2Failed ? 'extracted' : jobStatus
   const files = useMemo(() => {
     const current = documents.find((document) => {
       const pages = pagesByDoc[document.id] ?? []
@@ -485,12 +476,12 @@ export function AnalysisProgressPage() {
       fileModel(
         document,
         pagesByDoc[document.id] ?? [],
-        jobStatus,
+        fileJobStatus,
         current?.id === document.id,
         ocrFailed,
       ),
     )
-  }, [documents, jobStatus, ocrFailed, pagesByDoc])
+  }, [documents, fileJobStatus, ocrFailed, pagesByDoc])
 
   const pageTotals = documents.reduce(
     (totals, document) => {
@@ -503,7 +494,12 @@ export function AnalysisProgressPage() {
     },
     { total: 0, done: 0 },
   )
-  const stepList = RUN_STEP_ORDER.flatMap((code) =>
+  // BE không báo % của từng bước; bước AI1 lấy theo số trang OCR đã đọc, bước khác chỉ quay.
+  const ocrPercent =
+    pageTotals.total > 0
+      ? Math.min(99, Math.round((pageTotals.done / pageTotals.total) * 100))
+      : null
+  const stepList = OCR_RUN_STEP_ORDER.flatMap((code) =>
     steps[code] ? [steps[code]] : [],
   )
   const stepsDone = stepList.filter((row) => row.status === 'succeeded').length
@@ -528,12 +524,14 @@ export function AnalysisProgressPage() {
   const percent = hasSteps
     ? Math.min(
         99,
-        Math.round(((stepsDone + runningShare) / RUN_STEP_ORDER.length) * 100),
+        Math.round(
+          ((stepsDone + runningShare) / OCR_RUN_STEP_ORDER.length) * 100,
+        ),
       )
     : pageTotals.total > 0
       ? // Đọc xong mọi trang mới là phần OCR: chưa tới 100 khi AI2 chưa xong.
         Math.min(99, Math.round((pageTotals.done / pageTotals.total) * 100))
-      : runDone
+      : ready
         ? 100
         : 0
 
@@ -563,7 +561,7 @@ export function AnalysisProgressPage() {
         rows.push({
           id: `${file.id}-fail`,
           status: 'failed',
-          text: `OCR lỗi trên ${file.name}`,
+          text: `Đọc lỗi trên ${file.name}`,
         })
       }
     }
@@ -582,12 +580,12 @@ export function AnalysisProgressPage() {
     const live = liveLog.map((row) =>
       row.status === 'active' &&
       row.step &&
-      (runDone || failed || steps[row.step]?.status !== 'running')
+      (ready || failed || steps[row.step]?.status !== 'running')
         ? { ...row, status: 'done' as const }
         : row,
     )
     return [...received, ...live, ...finish]
-  }, [documents.length, failed, files, liveLog, ready, runDone, steps])
+  }, [documents.length, failed, files, liveLog, ready, steps])
 
   const mode = detail?.structureMode ?? stateStructureMode(location.state)
 
@@ -653,33 +651,18 @@ export function AnalysisProgressPage() {
     }
   }
 
-  const failedLabel = cancelled
-    ? 'Đã hủy lần xử lý'
-    : ai2Failed
-      ? 'Phân tích AI2 thất bại'
-      : 'OCR thất bại'
-  const waitingManifest =
-    ready &&
-    !runDone &&
-    !failed &&
-    awaitingManifest &&
-    steps.S4?.status !== 'running'
-
-  const finished = runDone || failed
+  const failedLabel = cancelled ? 'Đã hủy lần xử lý' : 'Đọc tài liệu thất bại'
+  const finished = ready || failed
   const runningStep = finished
     ? undefined
     : stepList.find((row) => row.status === 'running')
   const activeLabel = failed
     ? failedLabel
-    : runDone
-      ? 'Đã phân tích xong'
-      : waitingManifest
-        ? 'Chờ bạn xác nhận hồ sơ để bắt đầu phân tích'
-        : runningStep
-          ? `Đang chạy: ${runningStep.step} · ${RUN_STEP_LABELS[runningStep.step] ?? ''}`
-          : ready
-            ? 'Đang chờ AI2 bắt đầu phân tích'
-            : 'Đang chờ máy chủ nhận tệp'
+    : ready
+      ? 'Đã đọc xong tài liệu. Có thể mở hồ sơ.'
+      : runningStep
+        ? `Đang chạy: ${runningStep.step} · ${RUN_STEP_LABELS[runningStep.step] ?? ''}`
+        : 'Đang chờ máy chủ nhận tệp'
 
   return (
     <div className="flex flex-col w-full pt-space-md pb-margin-lg">
@@ -692,32 +675,13 @@ export function AnalysisProgressPage() {
         </p>
       ) : null}
 
-      {waitingManifest && dossierId ? (
-        <p
-          className="mb-gutter rounded-lg bg-surface-container-low px-space-md py-space-sm font-body-sm text-body-sm text-on-surface"
-          role="status"
-        >
-          OCR đã xong nhưng AI2 chỉ bắt đầu sau khi hồ sơ được xác nhận.{' '}
-          <Link
-            className="font-semibold text-primary hover:underline"
-            to={manifestConfirmPath(dossierId)}
-          >
-            Xác nhận hồ sơ
-          </Link>
-        </p>
-      ) : null}
-
       {failed ? (
         <p
           className="mb-gutter rounded-lg bg-error-container px-space-md py-space-sm font-body-sm text-body-sm text-on-error-container"
           role="alert"
         >
           {failure.message}
-          {failure.code ? (
-            <span className="ml-space-sm font-code-sm text-code-sm opacity-80">
-              ({failure.code})
-            </span>
-          ) : null}
+          <TechnicalDetail text={failure.code && `Mã ${failure.code}`} />
         </p>
       ) : null}
 
@@ -733,7 +697,7 @@ export function AnalysisProgressPage() {
                 {activeLabel}
               </span>
               <span className="font-headline-md text-headline-md text-primary font-bold">
-                {runDone ? '100%' : `${percent}%`}
+                {ready ? '100%' : `${percent}%`}
               </span>
             </div>
             <div className="h-2 w-full rounded-full bg-surface-container overflow-hidden">
@@ -741,13 +705,13 @@ export function AnalysisProgressPage() {
                 className={`h-full rounded-full transition-all duration-500 ${
                   failed ? 'bg-error' : 'bg-primary'
                 }`}
-                style={{ width: `${runDone ? 100 : percent}%` }}
+                style={{ width: `${ready ? 100 : percent}%` }}
               />
             </div>
             <span className="font-label-sm text-label-sm text-on-surface-variant mt-space-xs block">
               {finished
                 ? 'Đã kết thúc'
-                : `${stepsDone}/${RUN_STEP_ORDER.length} bước hoàn thành`}{' '}
+                : `${stepsDone}/${OCR_RUN_STEP_ORDER.length} bước hoàn thành`}{' '}
               · cập nhật trực tiếp từ máy chủ
             </span>
           </div>
@@ -773,97 +737,91 @@ export function AnalysisProgressPage() {
               Các bước xử lý
             </span>
           </div>
-          <div className="flex flex-col gap-space-md">
-            {RUN_STEP_GROUPS.map((group) => (
-              <div key={group.id} className="flex flex-col gap-space-sm">
-                <div className="flex items-baseline gap-space-sm">
-                  <span className="font-label-md text-label-md text-on-surface font-semibold">
-                    {group.label}
-                  </span>
-                  <span className="font-label-sm text-label-sm text-on-surface-variant">
-                    {group.hint}
-                  </span>
-                </div>
-                <ol className="flex flex-col">
-                  {group.steps.map((code, index) => {
-                    const row = steps[code]
-                    const rawStatus = row?.status ?? 'queued'
-                    // Run đã kết thúc mà BE không ghi nhận bước này thì không để xoay/chờ mãi.
-                    const status =
-                      finished &&
-                      rawStatus !== 'succeeded' &&
-                      rawStatus !== 'failed'
-                        ? 'unrecorded'
-                        : rawStatus
-                    const last = index === group.steps.length - 1
-                    return (
-                      <li key={code} className="flex gap-space-md">
-                        <div className="flex flex-col items-center">
-                          <StepDot
-                            status={status}
-                            progress={row?.progress ?? null}
-                          />
-                          {last ? null : (
-                            <div
-                              className={`w-px flex-1 min-h-4 ${
-                                status === 'succeeded'
-                                  ? 'bg-emerald-300'
-                                  : 'bg-outline-variant'
-                              }`}
-                            />
-                          )}
-                        </div>
-                        <div className="flex flex-1 items-start justify-between gap-space-sm pb-space-md">
-                          <div className="flex flex-col">
-                            <span
-                              className={`font-body-sm text-body-sm ${
-                                status === 'queued'
-                                  ? 'text-on-surface-variant'
-                                  : 'text-on-surface font-semibold'
-                              }`}
-                            >
-                              {RUN_STEP_LABELS[code]}
-                            </span>
-                            <span className="font-label-sm text-label-sm text-on-surface-variant">
-                              {code}
-                              {row?.pages != null
-                                ? ` · ${row.pages} trang`
-                                : ''}
-                            </span>
-                          </div>
-                          <span
-                            className={`font-label-sm text-label-sm font-semibold shrink-0 ${
-                              status === 'succeeded'
-                                ? 'text-emerald-700'
-                                : status === 'failed'
-                                  ? 'text-error'
-                                  : status === 'running'
-                                    ? 'text-on-tertiary-container'
-                                    : 'text-on-surface-variant'
-                            }`}
-                          >
-                            {status === 'succeeded'
-                              ? row?.durationMs != null
-                                ? `Xong · ${(row.durationMs / 1000).toFixed(1)}s`
-                                : 'Xong'
-                              : status === 'running'
-                                ? row?.progress
-                                  ? `${formatStepProgress(row.progress)} · ${stepProgressPercent(row.progress)}%`
-                                  : 'Đang chạy…'
-                                : status === 'failed'
-                                  ? 'Lỗi'
-                                  : status === 'unrecorded'
-                                    ? 'Không ghi nhận'
-                                    : 'Chờ'}
-                          </span>
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ol>
-              </div>
-            ))}
-          </div>
+          <ol className="flex flex-col">
+            {RUN_STEPS.map(({ code, ocr }, index) => {
+              const row = steps[code]
+              const rawStatus = row?.status ?? 'queued'
+              // Run đã kết thúc mà BE không ghi nhận bước này thì không để xoay/chờ mãi.
+              const status =
+                finished && rawStatus !== 'succeeded' && rawStatus !== 'failed'
+                  ? 'unrecorded'
+                  : rawStatus
+              const last = index === RUN_STEPS.length - 1
+              return (
+                <li key={code} className="flex gap-space-md">
+                  <div className="flex flex-col items-center">
+                    <StepDot status={status} />
+                    {last ? null : (
+                      <div
+                        className={`w-px flex-1 min-h-4 ${
+                          status === 'succeeded'
+                            ? 'bg-emerald-300'
+                            : 'bg-outline-variant'
+                        }`}
+                      />
+                    )}
+                  </div>
+                  <div className="flex flex-1 items-start justify-between gap-space-sm pb-space-md">
+                    <div className="flex flex-col">
+                      <span
+                        className={`font-body-sm text-body-sm ${
+                          status === 'queued'
+                            ? 'text-on-surface-variant'
+                            : 'text-on-surface font-semibold'
+                        }`}
+                      >
+                        {RUN_STEP_LABELS[code]}
+                      </span>
+                      <span className="font-label-sm text-label-sm text-on-surface-variant">
+                        {code}
+                        {row?.pages != null ? ` · ${row.pages} trang` : ''}
+                      </span>
+                    </div>
+                    <span
+                      className={`font-label-sm text-label-sm font-semibold shrink-0 ${
+                        status === 'succeeded'
+                          ? 'text-emerald-700'
+                          : status === 'failed'
+                            ? 'text-error'
+                            : status === 'running'
+                              ? 'text-on-tertiary-container'
+                              : 'text-on-surface-variant'
+                      }`}
+                    >
+                      {status === 'succeeded' ? (
+                        row?.durationMs != null ? (
+                          `Xong · ${(row.durationMs / 1000).toFixed(1)}s`
+                        ) : (
+                          'Xong'
+                        )
+                      ) : status === 'running' ? (
+                        <StepProgress
+                          percent={
+                            row?.progress
+                              ? stepProgressPercent(row.progress)
+                              : ocr
+                                ? ocrPercent
+                                : null
+                          }
+                          detail={
+                            row?.progress
+                              ? formatStepProgress(row.progress)
+                              : null
+                          }
+                        />
+                      ) : status === 'failed' ? (
+                        'Lỗi'
+                      ) : status === 'unrecorded' ? (
+                        'Không ghi nhận'
+                      ) : (
+                        'Chờ'
+                      )}
+                    </span>
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
         </section>
 
         <div className="xl:col-span-5 flex flex-col gap-gutter">
@@ -922,8 +880,8 @@ export function AnalysisProgressPage() {
               <MaterialIcon name="refresh" className="text-[16px]" />
               <span>
                 {failure.retry === 'ai2'
-                  ? 'Chạy lại AI2'
-                  : 'Chạy lại phần OCR lỗi'}
+                  ? 'Chạy lại phân tích'
+                  : 'Đọc lại phần bị lỗi'}
               </span>
             </button>
           ) : null}
@@ -982,53 +940,67 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
-// Vòng tiến độ 24px cho bước đang chạy có `progress`; không có thì vòng quay.
-const RING_RADIUS = 10
-const RING_LENGTH = 2 * Math.PI * RING_RADIUS
-
-function StepDot({
-  status,
-  progress,
+/** Vòng tiến độ của bước đang chạy; không có số % thì vòng quay liên tục. */
+function StepProgress({
+  percent,
+  detail = null,
 }: {
-  status: string
-  progress: StepProgress | null
+  percent: number | null
+  detail?: string | null
 }) {
-  if (status === 'running' && progress) {
-    const percent = stepProgressPercent(progress)
-    return (
-      <div
-        className="relative w-6 h-6 shrink-0 text-brand-700"
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={progress.total}
-        aria-valuenow={progress.done}
-        aria-valuetext={formatStepProgress(progress)}
+  const radius = 9
+  const circumference = 2 * Math.PI * radius
+  const known = percent !== null
+  const filled = known ? percent / 100 : 0.25
+  return (
+    <span
+      aria-label={known ? `Đang chạy ${percent}%` : 'Đang chạy'}
+      className="inline-flex items-center gap-1.5"
+      role="progressbar"
+      aria-valuemax={100}
+      aria-valuemin={0}
+      aria-valuenow={known ? percent : undefined}
+      title={
+        detail ??
+        (known
+          ? `Đã đọc ${percent}% số trang`
+          : 'Đang chạy, chưa có số tiến độ')
+      }
+    >
+      <svg
+        className={`h-6 w-6 -rotate-90 ${known ? '' : 'animate-spin'}`}
+        viewBox="0 0 24 24"
       >
-        <svg viewBox="0 0 24 24" className="w-6 h-6 -rotate-90">
-          <circle
-            cx="12"
-            cy="12"
-            r={RING_RADIUS}
-            fill="none"
-            strokeWidth="3"
-            className="stroke-brand-100"
-          />
-          <circle
-            cx="12"
-            cy="12"
-            r={RING_RADIUS}
-            fill="none"
-            strokeWidth="3"
-            strokeLinecap="round"
-            stroke="currentColor"
-            strokeDasharray={RING_LENGTH}
-            strokeDashoffset={RING_LENGTH * (1 - percent / 100)}
-            className="transition-[stroke-dashoffset] duration-500"
-          />
-        </svg>
-      </div>
-    )
-  }
+        <circle
+          className="text-brand-100"
+          cx="12"
+          cy="12"
+          fill="none"
+          r={radius}
+          stroke="currentColor"
+          strokeWidth="3"
+        />
+        <circle
+          className="text-brand-600 transition-[stroke-dashoffset] duration-500"
+          cx="12"
+          cy="12"
+          fill="none"
+          r={radius}
+          stroke="currentColor"
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - filled)}
+          strokeLinecap="round"
+          strokeWidth="3"
+        />
+      </svg>
+      {known ? (
+        <span className="tabular-nums text-brand-700">{percent}%</span>
+      ) : null}
+    </span>
+  )
+}
+
+function StepDot({ status }: { status: string }) {
   if (status === 'succeeded') {
     return (
       <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">

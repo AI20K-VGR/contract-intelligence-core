@@ -6,6 +6,7 @@ import {
 } from '../structure/types'
 import { ApiError, apiFetch, getJson, requestJson } from './client'
 import { patchDossier } from './dossiers'
+import { isAi2Failure } from './jobErrors'
 import {
   normalizeAi2SearchResult,
   type Ai2SearchHit,
@@ -133,6 +134,22 @@ export function isOcrComplete(status: string | null) {
 // nên run chỉ xong hẳn khi job sang bước rà soát.
 export function isRunFinished(status: string | null | undefined) {
   return status != null && REVIEW_STATUSES.has(status)
+}
+
+/**
+ * Phần phân tích (AI2) của hồ sơ sau khi OCR xong. Worker giữ job ở
+ * 'extracted' suốt lúc AI2 chạy; null khi OCR chưa xong hoặc OCR lỗi.
+ */
+export type AnalysisState = 'running' | 'done' | 'failed'
+
+export function analysisState(
+  status: string | null | undefined,
+  errorCode: string | null | undefined,
+): AnalysisState | null {
+  if (status === 'extracted') return 'running'
+  if (isRunFinished(status)) return 'done'
+  if (status === 'failed' && isAi2Failure(errorCode)) return 'failed'
+  return null
 }
 
 export function countClauses(nodes: ClauseNode[]): number {
@@ -294,7 +311,8 @@ export async function getDossierStructure(
   return {
     id,
     name: asString(row.name) || 'Hồ sơ chưa đặt tên',
-    latestJobId: typeof row.latest_job_id === 'string' ? row.latest_job_id : null,
+    latestJobId:
+      typeof row.latest_job_id === 'string' ? row.latest_job_id : null,
     ai2JobId:
       typeof metadata?.ai2_job_id === 'string' && metadata.ai2_job_id
         ? metadata.ai2_job_id
@@ -306,7 +324,8 @@ export async function getDossierStructure(
         ? row.latest_job_error_code
         : null,
     snapshotDigest:
-      typeof metadata?.ai2_snapshot_digest === 'string' && metadata.ai2_snapshot_digest
+      typeof metadata?.ai2_snapshot_digest === 'string' &&
+      metadata.ai2_snapshot_digest
         ? metadata.ai2_snapshot_digest
         : null,
     documents,
@@ -755,7 +774,7 @@ export function structureErrorMessage(error: unknown) {
     return error.message
   }
   if (error instanceof TypeError) {
-    return 'Không kết nối được backend.'
+    return 'Không kết nối được máy chủ. Vui lòng kiểm tra mạng rồi thử lại.'
   }
   if (error instanceof Error && error.message) return error.message
   return 'Không tải được cấu trúc hợp đồng. Thử lại.'

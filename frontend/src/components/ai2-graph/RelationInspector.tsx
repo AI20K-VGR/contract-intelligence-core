@@ -1,4 +1,5 @@
 import type { ContractGraphEdge } from '../../api/contractGraph'
+import { relationLabel, reviewStateLabel } from '../../structure/displayLabels'
 
 export function RelationInspector({
   edge,
@@ -40,7 +41,7 @@ export function RelationInspector({
       <dl className="mt-2 grid min-w-0 gap-2 text-sm">
         <div className="min-w-0">
           <dt className="font-semibold">Loại quan hệ</dt>
-          <dd className="break-words">{edge.label}</dd>
+          <dd className="break-words">{relationLabel(edge.label)}</dd>
         </div>
         <div className="min-w-0">
           <dt className="font-semibold">Điều khoản nguồn</dt>
@@ -63,8 +64,8 @@ export function RelationInspector({
           <dt className="font-semibold">Trạng thái rà soát</dt>
           <dd>
             {edge.review_state === 'NEEDS_REVIEW'
-              ? 'AI2 đề xuất · cần review'
-              : edge.review_state}
+              ? 'AI đề xuất · cần rà soát'
+              : reviewStateLabel(edge.review_state)}
           </dd>
         </div>
       </dl>

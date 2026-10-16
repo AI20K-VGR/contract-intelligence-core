@@ -178,7 +178,7 @@ export function TableStructure({
   if (!tables) {
     return (
       <p className="font-body-sm text-body-sm text-on-surface-variant">
-        Đang tải các bảng OCR…
+        Đang tải các bảng…
       </p>
     )
   }
@@ -188,7 +188,7 @@ export function TableStructure({
         <p className="font-body-sm text-body-sm text-on-surface-variant">
           {needle
             ? `Không có bảng khớp “${query.trim()}”.`
-            : 'OCR chưa trích được bảng nào trong hồ sơ này.'}
+            : 'Chưa trích được bảng nào trong hồ sơ này.'}
         </p>
       </div>
     )
