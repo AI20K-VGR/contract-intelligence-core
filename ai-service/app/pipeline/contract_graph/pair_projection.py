@@ -38,7 +38,8 @@ _LIMITED_REASONS = {
 }
 _COUNTS = (
     "candidates_total", "candidates_kept", "candidates_capped", "excluded_luong1",
-    "excluded_external_ref", "pairs_sent", "pairs_unclassified", "llm_calls", "prompt_tokens",
+    "excluded_external_ref", "excluded_page_furniture", "near_duplicate_kept",
+    "pairs_sent", "pairs_unclassified", "llm_calls", "prompt_tokens",
     "completion_tokens", "injection_signals", "abstentions",
 )
 _CONFLICT_COUNTS = (

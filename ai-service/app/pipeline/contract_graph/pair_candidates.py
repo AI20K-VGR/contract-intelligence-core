@@ -30,7 +30,7 @@ CONTEXT_CHARS_MAX = 300
 MIN_CLAUSE_CHARS = 25
 CUE_LOOKBACK = 3
 EXTERNAL_WINDOW = 60
-CANDIDATES_VERSION = "pairs-cand-v5"
+CANDIDATES_VERSION = "pairs-cand-v6"
 
 _SKIPPED_TYPES = frozenset({"FIELD", "TABLE"})
 
@@ -57,7 +57,16 @@ WEIGHTS = {
     PairSource.STRUCTURED_KEY: 8,
 }
 
-_VALUE_NUMBER = re.compile(r"(?<!\w)\d+(?:[.,]\d+)*(?:\s?%)?(?!\w)")
+_VALUE_WITH_UNIT = re.compile(r"(?<!\w)(\d+(?:[.,]\d+)*)(?!\w)\s*(%|[a-z]+)?")
+# Folded clause numbering / addresses: "2.1. ...", "khoan 1 dieu 6", "phu luc 01" are positions,
+# not values; counting them made every two clauses citing different articles a "mismatch".
+_CLAUSE_NUMBERING = re.compile(r"^\s*\d+(?:\.\d+)*\.?\s+")
+_CLAUSE_ADDRESS = re.compile(r"\b(?:khoan|diem|dieu|muc|chuong|phu luc)\s+[\w.]+")
+# Near-verbatim clauses (token Jaccard) are duplicate/conflict suspects regardless of source.
+_NEAR_DUPLICATE_JACCARD = 0.85
+_NEAR_DUPLICATE_BONUS = 2
+# A line repeated on several pages of one file is page furniture (header/footer).
+_FURNITURE_MIN_PAGES = 2
 _CONTENT_WORD = re.compile(r"\b[a-z]{3,}\b")
 _VALUE_MISMATCH_MIN_SHARED = 4
 _VALUE_MISMATCH_MIN_JACCARD = 0.12
@@ -81,6 +90,47 @@ class PairCandidate:
 class PairCandidateSet:
     candidates: tuple[PairCandidate, ...]
     stats: dict = field(default_factory=dict)
+
+
+def _value_text(text: str) -> str:
+    return _CLAUSE_ADDRESS.sub(" ", _CLAUSE_NUMBERING.sub("", _fold(text)))
+
+
+def _unit_values(text: str) -> dict[str, frozenset[str]]:
+    """Numbers keyed by the unit word after them ("07 ngay" -> {"ngay": {"07"}}, "30 %")."""
+    by_unit: dict[str, set[str]] = {}
+    for match in _VALUE_WITH_UNIT.finditer(_value_text(text)):
+        by_unit.setdefault(match.group(2) or "", set()).add(match.group(1))
+    return {unit: frozenset(numbers) for unit, numbers in by_unit.items()}
+
+
+def _values_differ(left: Mapping[str, frozenset[str]], right: Mapping[str, frozenset[str]]) -> bool:
+    # "07 ngày" vs "02 bản" measure different things; only a shared unit can disagree.
+    return any(left[unit] != right[unit] for unit in left.keys() & right.keys())
+
+
+def _jaccard(left: frozenset[str] | None, right: frozenset[str] | None) -> float:
+    if not left or not right:
+        return 0.0
+    return len(left & right) / len(left | right)
+
+
+def _page_furniture(nodes: Iterable[StructuralNode]) -> set[str]:
+    """Unnumbered lines that recur on ≥ 2 pages of the same file (running headers/footers).
+
+    Scoped per file so body/annex restating one clause stays comparable; numbered lines are
+    never furniture, so a clause duplicated across pages is still a candidate.
+    """
+    pages: dict[tuple[str | None, str], set[int]] = {}
+    members: dict[tuple[str | None, str], list[str]] = {}
+    for node in nodes:
+        text = (node.text or "").strip()
+        if not text or _CLAUSE_NUMBERING.match(_fold(text)) or not node.page_range:
+            continue
+        key = (node.source_file_id, re.sub(r"\d+", "#", _fold(text)))
+        pages.setdefault(key, set()).add(node.page_range[0])
+        members.setdefault(key, []).append(node.node_id)
+    return {nid for key, seen in pages.items() if len(seen) >= _FURNITURE_MIN_PAGES for nid in members[key]}
 
 
 def _fold(text: str) -> str:
@@ -171,7 +221,11 @@ def generate_pair_candidates(
     stats: Counter[str] = Counter()
     eligible: list[str] = []
     structured_fields: list[str] = []
+    furniture = _page_furniture(by_id.values())
     for nid in ordered:
+        if nid in furniture:
+            stats["excluded_page_furniture"] += 1
+            continue
         node = by_id[nid]
         if node.type == "FIELD" and node.structured_key in {
             "contract_value", "payment_schedule", "payment_term", "payment_method",
@@ -193,10 +247,7 @@ def generate_pair_candidates(
     value_numbers = {}
     content_words = {}
     if PairSource.VALUE_MISMATCH in sources:
-        value_numbers = {
-            nid: frozenset(_VALUE_NUMBER.findall(_fold(by_id[nid].text or "")))
-            for nid in eligible
-        }
+        value_numbers = {nid: _unit_values(by_id[nid].text or "") for nid in eligible}
         content_words = {
             nid: frozenset(w for w in _CONTENT_WORD.findall(_fold(by_id[nid].text or ""))
                            if w not in _VALUE_STOPWORDS)
@@ -261,8 +312,7 @@ def generate_pair_candidates(
                     shared_counts[_ordered(x, y, pos)] += 1
                     stats["value_mismatch_pair_comparisons"] += 1
         for (x, y), shared in shared_counts.items():
-            nums_x, nums_y = value_numbers[x], value_numbers[y]
-            if shared < _VALUE_MISMATCH_MIN_SHARED or not nums_x or not nums_y or nums_x == nums_y:
+            if shared < _VALUE_MISMATCH_MIN_SHARED or not _values_differ(value_numbers[x], value_numbers[y]):
                 continue
             union = len(content_words[x] | content_words[y])
             if union and shared / union >= _VALUE_MISMATCH_MIN_JACCARD and (x, y) not in found:
@@ -286,6 +336,8 @@ def generate_pair_candidates(
 
     excluded = {tuple(sorted(p)) for p in excluded_pairs}
     candidates: list[PairCandidate] = []
+    words = {nid: frozenset(_CONTENT_WORD.findall(_fold(by_id[nid].text or ""))) for nid in eligible}
+    near_duplicate: set[tuple[str, str]] = set()
     for (a, b), srcs in found.items():
         if tuple(sorted((a, b))) in excluded:
             stats["excluded_luong1"] += 1
@@ -293,7 +345,10 @@ def generate_pair_candidates(
         if _nested(index, a, b):
             stats["excluded_ancestor"] += 1
             continue
+        if _jaccard(words.get(a), words.get(b)) >= _NEAR_DUPLICATE_JACCARD:
+            near_duplicate.add((a, b))
         score = sum(WEIGHTS[s] for s in srcs)
+        score += _NEAR_DUPLICATE_BONUS if (a, b) in near_duplicate else 0
         score += 1 if PairSource.SAME_ARTICLE in srcs and (a, b) in adjacent else 0
         score += 1 if _body_annex(index, a, b) else 0
         topic = topics[a] if topics[a] == topics[b] else None
@@ -312,6 +367,7 @@ def generate_pair_candidates(
             score += int(PairSource.SAME_ARTICLE in candidate.sources
                          and (candidate.node_a, candidate.node_b) in adjacent)
             score += int(_body_annex(index, candidate.node_a, candidate.node_b))
+            score += _NEAR_DUPLICATE_BONUS if (candidate.node_a, candidate.node_b) in near_duplicate else 0
             return (-score, pos[candidate.node_a], pos[candidate.node_b],
                     candidate.node_a, candidate.node_b)
 
@@ -349,6 +405,8 @@ def generate_pair_candidates(
         "excluded_ancestor": stats["excluded_ancestor"],
         "excluded_short": stats["excluded_short"],
         "excluded_external_ref": stats["excluded_external_ref"],
+        "excluded_page_furniture": stats["excluded_page_furniture"],
+        "near_duplicate_kept": sum((c.node_a, c.node_b) in near_duplicate for c in kept),
         "candidates_capped": len(candidates) - len(kept),
         "candidates_kept": len(kept),
         "value_mismatch_terms": stats["value_mismatch_terms"],

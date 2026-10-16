@@ -225,6 +225,23 @@ def test_duplicate_numeric_multiset_ignores_line_labels():
     assert len(result.decisions) == 1
 
 
+@pytest.mark.parametrize(("a", "b"), [
+    # Seeded HD-TEST: the model said DUPLICATE, the validator read "1.1"/"1.3" as values.
+    ("1.1. Bên B cung cấp 20 máy quét mã vạch và hướng dẫn sử dụng cho Bên A.",
+     "1.3. Bên B cung cấp 20 máy quét mã vạch và hướng dẫn sử dụng cho Bên A."),
+    ("2.1.3. Phạt 8% khi giao hàng chậm.", "4.2.1. Phạt 8% khi giao hàng chậm."),
+])
+def test_duplicate_ignores_multilevel_clause_numbering(a, b):
+    result = classify([pair(a, b)], {"results": [answer("DUPLICATE", span_a=a, span_b=b)]})
+    assert len(result.decisions) == 1, result.stats["rejected"]
+
+
+def test_duplicate_still_rejects_differing_decimal_value():
+    a, b = "1.1. Phạt 1.5% khi giao hàng chậm.", "1.3. Phạt 2.5% khi giao hàng chậm."
+    result = classify([pair(a, b)], {"results": [answer("DUPLICATE", span_a=a, span_b=b)]})
+    assert result.stats["rejected"]["duplicate_value_mismatch"] == 1
+
+
 def test_duplicate_numeric_multiset_preserves_repetition():
     a, b = "1. Phạt 8% và 8% khi giao hàng.", "2. Phạt 8% khi giao hàng."
     result = classify([pair(a, b)], {"results": [answer("DUPLICATE", span_a=a, span_b=b)]})

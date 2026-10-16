@@ -113,7 +113,9 @@ _INJECTION = re.compile(
 )
 _LINE_LABEL = re.compile(
     r"^\s*(?:(?:Điều|Article|Khoản|Điểm)\s+\d+[a-zđ]?[.:]?\s*"
-    r"|\d+[a-zđ]?[.)](?!\d)\s*|\(?[a-zđ]\d*\)\s*)", re.IGNORECASE | re.MULTILINE,
+    # "1.1." / "2.1.3." are clause positions too; reading them as values rejected the
+    # model's correct DUPLICATE for two verbatim clauses numbered 1.1 and 1.3.
+    r"|\d+(?:\.\d+)*[a-zđ]?[.)](?!\d)\s*|\(?[a-zđ]\d*\)\s*)", re.IGNORECASE | re.MULTILINE,
 )
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)*(?:\s*%)?")
 REJECTION_CODES = (
