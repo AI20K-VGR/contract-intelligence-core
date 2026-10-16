@@ -150,6 +150,22 @@ def _unreadable(result: Any) -> bool:
     return bool(statuses) and not any(status in READABLE_PAGE_STATUSES for status in statuses)
 
 
+def _no_readable_page_message(result: Any, pages: int) -> str:
+    """Build the error.message for AI1_NO_READABLE_PAGE: page count and first
+    error, truncated to 200 chars like the backend does (DOC-05d v16/10/2026)."""
+    snapshot = result.get("snapshot") if isinstance(result, dict) else None
+    pages_list = snapshot.get("pages") if isinstance(snapshot, dict) else None
+    first_error = ""
+    if pages_list:
+        for p in pages_list:
+            if isinstance(p, dict) and p.get("error"):
+                first_error = str(p["error"])[:200]
+                break
+    if first_error:
+        return f"{pages}/{pages} trang lỗi: {first_error}"
+    return f"{pages}/{pages} trang không đọc được"
+
+
 def _make_progress_sink(
     producer: Any, topic: str, loop: asyncio.AbstractEventLoop
 ) -> Callable[[bytes, bytes | None], None]:
@@ -315,7 +331,7 @@ def _process_command(message: dict[str, Any]) -> tuple[dict[str, Any], Any]:
         status, result = "failed", None
         error = {
             "code": "AI1_NO_READABLE_PAGE",
-            "message": "OCR read none of the document's pages; see each page's error",
+            "message": _no_readable_page_message(result, pages),
         }
     if status == "completed" and isinstance(result, dict):
         result, result_ref, upload_error = _deliver_result(
