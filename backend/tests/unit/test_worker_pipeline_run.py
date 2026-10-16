@@ -624,6 +624,36 @@ async def test_failed_event_for_a_document_without_result_still_fails_the_run(
 
 
 @pytest.mark.asyncio
+async def test_failed_event_with_no_readable_page_fails_s2_s3_s8(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    """ai1.ocr.failed with AI1_NO_READABLE_PAGE mirrors the snapshot-rejection
+    path: S2, S3 and S8 all move to failed in one shot, AI2 is not called."""
+    run_id = await _start(factory)
+    message = _ocr_completed(run_id, DOC_A, event_type=worker.EVENT_OCR_FAILED)
+    message["event_id"] = f"evt_failed_{run_id}_{DOC_A}"
+    message["payload"] = {
+        "job_id": None,
+        "status": "failed",
+        "error": {
+            "code": "AI1_NO_READABLE_PAGE",
+            "message": "3/3 trang lỗi: SKIPPED: OpenAI vision unavailable",
+        },
+    }
+
+    await _deliver(factory, message)
+
+    job = await _job(factory)
+    assert job.status == "failed" and job.error_code == "AI1_NO_READABLE_PAGE"
+    assert "3/3 trang lỗi" in str(job.error_detail)
+    steps = await _steps(factory, run_id)
+    assert {step: steps[step][0] for step in ("S2", "S3", "S8")} == dict.fromkeys(
+        ("S2", "S3", "S8"), "failed"
+    )
+    ai2_ready.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_envelope_with_wrong_schema_version_is_dropped(
     factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
 ) -> None:

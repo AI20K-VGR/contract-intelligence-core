@@ -1862,6 +1862,7 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
     if event_type == EVENT_OCR_FAILED or str(payload.get("status")) == "failed":
         raw_error = payload.get("error")
         error: dict[str, Any] = raw_error if isinstance(raw_error, dict) else {}
+        failed_code = str(error.get("code") or "AI1_OCR_FAILED")
         # AI1 publishes its result before committing the Kafka offset; when
         # that commit fails it also publishes a failed event for a document
         # whose result is already on the run. The OCR succeeded: keep it.
@@ -1881,10 +1882,12 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
             session,
             tenant_id=tenant_id,
             run_id=run_id,
-            code=str(error.get("code") or "AI1_OCR_FAILED"),
+            code=failed_code,
             detail=str(error.get("message") or "OCR failed"),
             audit_action="ai1.ocr_failed",
             audit_detail=base_audit,
+            # No page read: render, classification and annex steps have nothing.
+            steps=("S2", "S3", "S8") if failed_code == "AI1_NO_READABLE_PAGE" else ("S2",),
         )
         logger.warning(
             "worker.ai1_result.failed",

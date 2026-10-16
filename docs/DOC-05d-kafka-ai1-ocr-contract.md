@@ -250,8 +250,14 @@ If every page of an `ai1.ocr.completed` snapshot has a `status` other than
 `SUCCESS` or `PARTIAL` (for example all `FAILED` with
 `SKIPPED: OpenAI vision unavailable`), the backend rejects the result: job
 `failed` with `AI1_NO_READABLE_PAGE`, steps S2, S3, S8 `failed`, nothing sent
-to AI2. Pages without a `status` are not judged. AI1 may instead publish
-`ai1.ocr.failed` itself for such a document.
+to AI2. Pages without a `status` are not judged.
+
+AI1 may also reach the same outcome by publishing `ai1.ocr.failed` with
+`error.code = AI1_NO_READABLE_PAGE` and `error.message` giving the page
+count and the first page's error (truncated to 200 chars). The backend
+treats this event the same way: job `failed` with the same code and
+`error_detail`, steps S2, S3, S8 `failed`, nothing sent to AI2. The two
+routes are equivalent on the run step screen.
 
 ## 6. Delivery semantics
 
