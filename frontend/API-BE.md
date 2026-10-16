@@ -2,7 +2,13 @@
 
 Spec: **Contract Intelligence API** `1.1.0+sprint4-ai-integration` (DOC-05b + DOC-05c).  
 Đã chốt theo OpenAPI backend (envelope `{ data, meta }`, header `X-Backend-Version`).
-Hợp đồng FE-BE: **DOC-05b `v2.1.0`**, header response `X-API-Contract: v2.1.0`. 4 endpoint `/notifications` của `v1.6.0` vẫn là đề xuất, backend chưa có ([24](#24-thông-báo-cá-nhân-đề-xuất-be-chưa-có)).
+Hợp đồng FE-BE: **DOC-05b `v3.2.0`**, header response `X-API-Contract: v3.2.0`. 4 endpoint `/notifications` của `v1.6.0` vẫn là đề xuất, backend chưa có ([24](#24-thông-báo-cá-nhân-đề-xuất-be-chưa-có)).
+
+Từ `v2.1.0`:
+
+- `v3.0.0` (siết quyền trước pentest): token không có role ứng dụng trả `403`; `/ai/jobs/{id}` chỉ `ADMINISTRATOR`; batch cancel/resume chỉ người tạo hoặc `ADMINISTRATOR`. Frontend không dùng các endpoint này.
+- `v3.1.0`: bật consent AI2 cho hồ sơ đã qua AI2 thì backend tự cho AI2 chạy lại; response consent thêm `ai2_reindex_queued` ([26](#26-đồ-thị-hợp-đồng-vết-xử-lý-và-consent-ai2-v210)).
+- `v3.2.0`: tiến độ trong bước `progress` trên `/runs/{id}/steps` và SSE `step.changed`; mã lỗi job `AI1_NO_READABLE_PAGE` ([mục steps](#steps-s0s10-get-apiv1runsrun_idsteps)).
 
 Dùng file này khi bỏ mock: mở mục tương ứng màn hình / file `src/data/*`, copy endpoint + shape, nối `src/api/client.ts`.
 
@@ -83,7 +89,7 @@ type ApiResponse<T> = {
 }
 ```
 
-Header response: `X-API-Contract` (hiện `v2.1.0`). `X-Backend-Version` chỉ có ở dev/test; bản online không gửi.
+Header response: `X-API-Contract` (hiện `v3.2.0`). `X-Backend-Version` chỉ có ở dev/test; bản online không gửi.
 
 ### Request headers (mọi endpoint trừ health)
 
@@ -375,18 +381,45 @@ Query: `dossier_id?`, `status?` (`queued|running|completed|failed|cancelled`), `
 
 ### Steps S0..S10: `GET /api/v1/runs/{run_id}/steps`
 
-`ApiResponse<any[]>` — OpenAPI không schema hóa từng step. UI progress: poll endpoint này hoặc SSE `step.changed`.
+`ApiResponse<RunStepDTO[]>`, theo thứ tự S0..S10 (DOC-05 `RunStep`). Mỗi phần tử giống payload SSE `step.changed`. UI progress: endpoint này khi mở trang, rồi SSE `step.changed`.
 
-Map phase UI (tùy product, chỉ gợi ý):
+```ts
+type RunStepDTO = {
+  step: string // S0..S10
+  status: 'queued' | 'running' | 'succeeded' | 'failed'
+  attempt: number
+  pages: number | null
+  duration_ms: number | null
+  progress: StepProgressDTO | null // v3.2.0
+  created_at: string
+}
 
-| UI phase                | Step BE (gợi ý)       |
-| ----------------------- | --------------------- |
-| 1. Tải tệp              | S0 ingest             |
-| 2. Nhận diện chữ        | OCR steps đầu         |
-| 3. Phân tích điều khoản | clause / fact         |
-| 4. Hoàn tất             | S10 + run `completed` |
+type StepProgressDTO = {
+  done: number // 0..total
+  total: number // >= 1
+  unit: 'page' | 'document' | 'chunk' | 'clause' | 'pair'
+}
+```
 
-Danh sách file đang xử lý: `GET /dossiers/{id}/documents` — không có % per-file trên OpenAPI; % đang mock.
+**Tiến độ trong bước (`progress`, DOC-05b v3.2.0):**
+
+- `null`: bước không đo được, UI hiện vòng quay. Có giá trị: UI ghi "37/202 trang" theo `unit` (trang, tài liệu, đoạn, điều khoản, cặp) và vẽ vòng %. `unit` lạ thì coi như `null` (`parseStepProgress` ở `src/api/runEvents.ts`).
+- Bước `succeeded` có `done = total`. Bước quay lại `queued` (chạy lại) có `progress: null`. `done` không giảm.
+- Trong lúc bước `running`, BE phát lại `step.changed` khi `done` tăng: không quá 1 lần mỗi giây, mỗi lần ít nhất 5% (khoảng 20 lần mỗi bước), hoặc tăng bất kỳ sau 15 giây. Bước đứng yên không có tin mới. Tin chỉ đổi `progress` thì UI chỉ cập nhật vòng tiến độ, không thêm dòng nhật ký và không tải lại cả hồ sơ mỗi lần.
+- Nguồn theo bước:
+
+| Bước           | `unit`                                            | Có số khi nào                                                                                                         |
+| -------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| S0, S1         | —                                                 | Luôn `null`                                                                                                           |
+| S2             | `page` (`document` khi tài liệu chưa có số trang) | Trang đã OCR / tổng trang cả hồ sơ. Theo từng tài liệu xong; theo từng trang khi AI1 gửi `ai1.ocr.progress` (DOC-05d) |
+| S3, S8         | như S2                                            | Chỉ được đánh dấu khi AI1 xong cả hồ sơ, nên thấy thẳng `done = total`                                                |
+| S4–S7, S9, S10 | `chunk`, `clause`, `pair`…                        | Khi AI2 trả `progress` trong `GET /jobs/{id}` (#116). Trước đó `null`                                                 |
+
+Nghĩa bước theo BE: S2 là cả lượt OCR của AI1 (chữ, bố cục, bảng); S4 là lúc AI2 bắt đầu xử lý hồ sơ. Nhãn ở `RUN_STEP_LABELS` theo nghĩa này.
+
+**Không đọc được trang nào (v3.2.0):** AI1 trả mọi trang lỗi (ví dụ thiếu khoá OCR vision) thì job `failed` với `error_code: "AI1_NO_READABLE_PAGE"`, S2, S3, S8 `failed`, không gửi sang AI2. UI báo lỗi OCR và cho "Chạy lại phần OCR lỗi" (`POST /dossiers/{id}/ocr/retry-failed`) sau khi sửa cấu hình.
+
+Danh sách file đang xử lý: `GET /dossiers/{id}/documents`. Trang OCR của một tài liệu chỉ có sau khi cả tài liệu xong; số trang đang đọc lấy từ `progress` của S2.
 
 ### Cancel: `POST /api/v1/runs/{run_id}/cancel`
 
@@ -396,14 +429,14 @@ Danh sách file đang xử lý: `GET /dossiers/{id}/documents` — không có % 
 
 `text/event-stream`. Events:
 
-| Event                | Khi nào                       |
-| -------------------- | ----------------------------- |
-| `run.started`        | mở stream                     |
-| `step.changed`       | 1 step S0..S10 đổi trạng thái |
-| `run.status_changed` | đổi status run                |
-| `run.completed`      | terminal → đóng stream        |
-| `error`              | lỗi / run not found           |
-| `:heartbeat`         | 15s                           |
+| Event                | Khi nào                                                      |
+| -------------------- | ------------------------------------------------------------ |
+| `run.started`        | mở stream                                                    |
+| `step.changed`       | 1 step S0..S10 đổi trạng thái, hoặc `progress` tăng (v3.2.0) |
+| `run.status_changed` | đổi status run                                               |
+| `run.completed`      | terminal → đóng stream                                       |
+| `error`              | lỗi / run not found                                          |
+| `:heartbeat`         | 15s                                                          |
 
 **Trình duyệt `EventSource` không gửi `Authorization`.** Không dùng:
 
@@ -1387,9 +1420,10 @@ RBAC: **REVIEWER**, **ADMINISTRATOR**. `OPERATOR` nhận 403.
 | `GET`       | `/api/v1/dossiers/{id}/ai2/contract-graph/{graph_kind}`          | đọc trích dẫn                                         | `graph_kind`: `pair` (Quan hệ điều khoản) hoặc `operation` (Sửa đổi điều khoản). Query bắt buộc `job_id`, `snapshot_digest`; tuỳ chọn `cursor`, `limit` (1–100) |
 | `GET`       | `/api/v1/dossiers/{id}/ai2/contract-graph/{graph_kind}/evidence` | đọc trích dẫn                                         | Bằng chứng của một quan hệ: `job_id`, `snapshot_digest`, `node_id`, `citation_ref`                                                                              |
 | `GET`       | `/api/v1/dossiers/{id}/ai2/processing-trace`                     | đọc trích dẫn                                         | Vết xử lý AI2: `job_id`, `snapshot_digest`                                                                                                                      |
-| `PATCH`     | `/api/v1/dossiers/{id}/ai2-content-sharing-consent`              | chủ hồ sơ hoặc ADMINISTRATOR (`my_access.can_manage`) | Body `{"enabled": true}` hoặc `false`. Trả `{dossier_id, enabled, effective_from: "next_request"}`                                                              |
+| `PATCH`     | `/api/v1/dossiers/{id}/ai2-content-sharing-consent`              | chủ hồ sơ hoặc ADMINISTRATOR (`my_access.can_manage`) | Body `{"enabled": true}` hoặc `false`. Trả `{dossier_id, enabled, effective_from: "next_request", ai2_reindex_queued}` (v3.1.0)                                 |
 
 - `snapshot_digest` phải là của hồ sơ hiện tại, không thì `409 AI2_SNAPSHOT_CHANGED`. `next_cursor` gửi lại nguyên văn; con trỏ hỏng `400 GRAPH_CURSOR_INVALID`, của lần chạy khác `409 GRAPH_CURSOR_STALE`.
 - Quan hệ do đồ thị sinh ra luôn ở trạng thái chờ rà soát; UI không hiển thị như đã duyệt.
 - Consent đọc ở `detail.metadata.ai2_content_sharing_consent === true`. Hồ sơ mới nhận mặc định của server (bản online: bật). Chỉ người có `can_manage` thấy ô bật/tắt; người khác chỉ thấy trạng thái. `PATCH /dossiers/{id}` thường không đổi được trường này.
+- **v3.1.0:** bật consent (từ chưa bật sang `true`) cho hồ sơ mà lượt chạy cuối đã qua AI2 thì backend tự cho AI2 dựng lại hồ sơ từ OCR đã lưu, trả `ai2_reindex_queued: true`; kết quả mới có sau khi lượt đó xong. `false` khi tắt consent, consent đã bật sẵn, hồ sơ chưa qua AI2, hoặc không gửi được sự kiện (consent vẫn lưu; dùng `POST /dossiers/{id}/ai2/reindex`).
 - `503` (`AI2_GRAPH_UNAVAILABLE`, `AI2_GRAPH_EVIDENCE_UNAVAILABLE`, `AI2_TRACE_UNAVAILABLE`): AI2 chưa trả được, cho thử lại.

@@ -24,6 +24,10 @@ const MESSAGES: Record<string, string> = {
   AI2_UNAVAILABLE: 'Dịch vụ AI2 chưa sẵn sàng. Thử lại sau.',
   RUN_CANCELLED: 'Đã hủy lần xử lý. Có thể chạy tiếp phần OCR.',
   DISPATCH_FAILED: 'Không gửi được hồ sơ đi xử lý. Thử lại.',
+  // DOC-05b v3.2.0: AI1 trả mọi trang lỗi (thường do thiếu cấu hình OCR), nên
+  // không có gì gửi sang AI2. Chạy lại OCR sau khi sửa cấu hình.
+  AI1_NO_READABLE_PAGE:
+    'OCR không đọc được trang nào của tài liệu. Kiểm tra cấu hình OCR rồi chạy lại phần OCR lỗi.',
 }
 
 // Mã worker gắn khi AI2 lỗi (xem _fail_ai2_run).
