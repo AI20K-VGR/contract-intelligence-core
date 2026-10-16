@@ -816,8 +816,10 @@ class _RowsResult:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("consent", [True, False])
 async def test_ai2_transient_failure_can_be_retried(
     monkeypatch: pytest.MonkeyPatch,
+    consent: bool,
 ) -> None:
     run_id = "run_ai2_retry"
     manifest = SimpleNamespace(id="manifest_test", status="confirmed")
@@ -831,7 +833,7 @@ async def test_ai2_transient_failure_can_be_retried(
             _RowsResult([_CONTRACT_MEMBER]),
             _RowsResult([]),
             _RowsResult([]),
-            _ScalarResult(None),
+            _ScalarResult({"ai2_content_sharing_consent": consent}),
         ]
 
     session = SimpleNamespace(
@@ -839,11 +841,8 @@ async def test_ai2_transient_failure_can_be_retried(
         commit=AsyncMock(),
         rollback=AsyncMock(),
     )
-    monkeypatch.setattr(
-        worker,
-        "build_processing_request",
-        lambda **_kwargs: {"snapshots": [{"snapshot_id": "snap_test"}]},
-    )
+    build_request = MagicMock(return_value={"snapshots": [{"snapshot_id": "snap_test"}]})
+    monkeypatch.setattr(worker, "build_processing_request", build_request)
     monkeypatch.setattr(worker, "update_pipeline_run_status", AsyncMock())
     monkeypatch.setattr(worker, "update_pipeline_step", AsyncMock())
     monkeypatch.setattr(worker, "_mark_status", AsyncMock())
@@ -863,6 +862,10 @@ async def test_ai2_transient_failure_can_be_retried(
     )
 
     assert submit.await_count == 2
+    assert build_request.call_count == 4
+    assert all(
+        call.kwargs["content_sharing_consent"] is consent for call in build_request.call_args_list
+    )
 
 
 @pytest.mark.asyncio
