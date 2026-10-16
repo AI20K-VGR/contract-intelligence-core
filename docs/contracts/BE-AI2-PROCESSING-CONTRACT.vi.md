@@ -117,6 +117,18 @@ Public job status ở cả hai kênh là:
 
 `QUEUED → RUNNING → SUCCEEDED | FAILED`
 
+**Tiến độ trong bước (đề xuất 16/10/2026, Backend đã sẵn sàng).** Khi job `RUNNING`, response `GET /jobs/{job_id}` có thể thêm trường tuỳ chọn:
+
+```json
+"progress": { "step": "S6", "done": 12, "total": 40, "unit": "clause" }
+```
+
+- `step`: bước AI2 đang chạy, một trong `S4`, `S5`, `S6`, `S7`, `S9`, `S10` (nhãn trên giao diện: S4 nhận diện, S5 kiểm tra chất lượng, S6 dựng cấu trúc, S7 trích xuất dữ kiện, S9 so sánh tìm mâu thuẫn, S10 xếp hàng rà soát).
+- `done`, `total`: số nguyên, `total >= 1`; `unit`: `chunk`, `clause`, `pair`, `page` hoặc `document`.
+- Backend đánh dấu các bước AI2 trước `step` là `succeeded`, `step` là `running`, rồi hiện `done/total` trên giao diện (DOC-05b v3.2.0). Job lỗi thì bước đang `running` thành `failed`.
+- Chỉ mang tính tham khảo: thiếu trường hoặc giá trị sai thì Backend bỏ qua, không làm hỏng run. Backend tự giới hạn số lần ghi, AI2 không cần.
+- Không có trường này thì giao diện chỉ hiện vòng quay cho các bước AI2, như trước.
+
 `review_state` là trạng thái chất lượng/review độc lập: `PASS`, `NEEDS_REVIEW`, `INSUFFICIENT_EVIDENCE`, `BLOCKED` hoặc `null` khi job chưa hoàn tất.
 
 `idempotency_key` = `<run_id>:ai2`, cố định trong một run. Retry của Backend tạo `attempt + 1` và command mới; cùng `(idempotency_key, attempt)` thì AI2 không chạy lại mà trả lại kết quả đã lưu (cùng `job_id`). Cùng cặp nhưng `payload_sha256` khác → `AI2_IDEMPOTENCY_CONFLICT`. Kết quả của attempt cũ đến muộn bị Backend bỏ qua và ghi audit.

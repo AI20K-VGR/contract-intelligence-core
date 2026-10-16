@@ -847,6 +847,7 @@ async def test_ai2_transient_failure_can_be_retried(
     monkeypatch.setattr(worker, "update_pipeline_run_status", AsyncMock())
     monkeypatch.setattr(worker, "update_pipeline_step", AsyncMock())
     monkeypatch.setattr(worker, "_mark_status", AsyncMock())
+    monkeypatch.setattr(worker, "_step_statuses", AsyncMock(return_value={"S4": "running"}))
     submit = AsyncMock(side_effect=RuntimeError("temporary AI2 outage"))
     monkeypatch.setattr(worker, "submit_ai2_processing", submit)
 
@@ -2052,3 +2053,205 @@ def test_run_stored_before_the_stamp_falls_back_to_the_run_time() -> None:
     assert worker._snapshot_created_at(run) == {  # type: ignore[arg-type]
         DOC_A: created.replace(tzinfo=UTC).isoformat()
     }
+
+
+# ---------------------------------------------------------------------------
+# In-step progress and unreadable OCR results
+# ---------------------------------------------------------------------------
+
+
+async def _steps(factory: async_sessionmaker[AsyncSession], run_id: str) -> dict[str, Any]:
+    async with factory() as session:
+        rows = (
+            await session.execute(select(PipelineStepORM).where(PipelineStepORM.run_id == run_id))
+        ).scalars()
+        return {
+            row.step: (row.status, json.loads(row.progress) if row.progress else None)
+            for row in rows
+        }
+
+
+async def _set_page_counts(factory: async_sessionmaker[AsyncSession], **counts: int) -> None:
+    async with factory() as session:
+        for doc_id, count in counts.items():
+            document = await session.get(DocumentORM, doc_id)
+            assert document is not None
+            document.page_count = count
+        await session.commit()
+
+
+def _ocr_progress(run_id: str, document_id: str, done: int, total: int) -> dict[str, Any]:
+    return _ocr_completed(
+        run_id,
+        document_id,
+        event_id=f"evt_progress_{document_id}_{done}",
+        event_type=worker.EVENT_OCR_PROGRESS,
+        payload={
+            "job_id": f"ai1_{document_id}",
+            "status": "processing",
+            "progress": {"done": done, "total": total, "unit": "page"},
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_ocr_progress_counts_documents_when_page_counts_are_unknown(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    steps = await _steps(factory, run_id)
+    assert steps["S2"] == ("running", {"done": 1, "total": 2, "unit": "document"})
+
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+    steps = await _steps(factory, run_id)
+    for step in ("S2", "S3", "S8"):
+        assert steps[step] == ("succeeded", {"done": 2, "total": 2, "unit": "document"})
+
+
+@pytest.mark.asyncio
+async def test_ai1_page_reports_drive_dossier_wide_s2_progress(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(worker.step_progress, "MIN_INTERVAL_SECONDS", 0.0)
+    await _set_page_counts(factory, doc_a=150, doc_b=52)
+    run_id = await _start(factory)
+
+    await _deliver(factory, _ocr_progress(run_id, DOC_A, 37, 150))
+    assert (await _steps(factory, run_id))["S2"] == (
+        "running",
+        {"done": 37, "total": 202, "unit": "page"},
+    )
+
+    # A report above the document's own page count cannot push past it.
+    await _deliver(factory, _ocr_progress(run_id, DOC_A, 900, 150))
+    assert (await _steps(factory, run_id))["S2"][1] == {"done": 150, "total": 202, "unit": "page"}
+
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    await _deliver(factory, _ocr_progress(run_id, DOC_B, 26, 52))
+    assert (await _steps(factory, run_id))["S2"][1] == {"done": 176, "total": 202, "unit": "page"}
+
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+    steps = await _steps(factory, run_id)
+    assert steps["S2"] == ("succeeded", {"done": 202, "total": 202, "unit": "page"})
+    # A late report never reopens a finished step.
+    await _deliver(factory, _ocr_progress(run_id, DOC_B, 1, 52))
+    assert (await _steps(factory, run_id))["S2"] == steps["S2"]
+
+
+@pytest.mark.asyncio
+async def test_malformed_ai1_progress_is_ignored(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    await _set_page_counts(factory, doc_a=150, doc_b=52)
+    run_id = await _start(factory)
+    message = _ocr_progress(run_id, DOC_A, 37, 150)
+    message["payload"]["progress"] = {"done": "37", "total": 150, "unit": "page"}
+
+    await _deliver(factory, message)
+
+    assert (await _steps(factory, run_id))["S2"] == ("running", None)
+    assert (await _job(factory)).status == "processing"
+
+
+@pytest.mark.asyncio
+async def test_result_with_no_readable_page_fails_ocr_and_skips_ai2(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failed_page = SimpleNamespace(
+        features={"ai1_page_status": "FAILED", "error": "SKIPPED: OpenAI vision unavailable"}
+    )
+    monkeypatch.setattr(
+        worker,
+        "adapt_ai1_snapshot_result",
+        lambda result: SimpleNamespace(
+            document_id=result["snapshot"]["document_id"], pages=[failed_page, failed_page]
+        ),
+    )
+    run_id = await _start(factory)
+
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+
+    job = await _job(factory)
+    assert job.status == "failed" and job.error_code == "AI1_NO_READABLE_PAGE"
+    assert "SKIPPED: OpenAI vision unavailable" in str(job.error_detail)
+    steps = await _steps(factory, run_id)
+    assert {step: steps[step][0] for step in ("S2", "S3", "S8")} == dict.fromkeys(
+        ("S2", "S3", "S8"), "failed"
+    )
+    ai2_ready.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("statuses", "rejected"),
+    [
+        (["FAILED", "FAILED"], True),
+        (["FAILED", "SKIPPED"], True),
+        (["FAILED", "PARTIAL"], False),
+        (["SUCCESS"], False),
+        (["FAILED", None], False),  # a page without a status is not judged
+        ([], False),
+    ],
+)
+def test_no_readable_page_needs_every_page_unreadable(
+    statuses: list[str | None], rejected: bool
+) -> None:
+    snapshot = SimpleNamespace(
+        pages=[SimpleNamespace(features={"ai1_page_status": status}) for status in statuses]
+    )
+    result = worker._no_readable_page(snapshot)
+    assert (result is not None) is rejected
+    if result is not None:
+        assert result[0] == "AI1_NO_READABLE_PAGE"
+
+
+@pytest.mark.asyncio
+async def test_ai2_progress_moves_steps_and_a_failure_fails_the_running_one(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    run_id = await _start(factory)
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.status = "extracted"
+        await worker.update_pipeline_step(
+            session, tenant_id=TENANT, run_id=run_id, step="S4", status="running"
+        )
+        await session.commit()
+
+    async with factory() as session:
+        await worker._record_ai2_progress(
+            session,
+            {"step": "S6", "done": 12, "total": 40, "unit": "clause"},
+            tenant_id=TENANT,
+            run_id=run_id,
+        )
+        # Not an AI2 step: ignored.
+        await worker._record_ai2_progress(
+            session,
+            {"step": "S8", "done": 1, "total": 2, "unit": "page"},
+            tenant_id=TENANT,
+            run_id=run_id,
+        )
+    steps = await _steps(factory, run_id)
+    assert steps["S4"][0] == steps["S5"][0] == "succeeded"
+    assert steps["S6"] == ("running", {"done": 12, "total": 40, "unit": "clause"})
+    assert steps["S7"][0] == "queued" and steps["S8"][0] == "queued"
+
+    async with factory() as session:
+        await worker._fail_ai2_run(
+            session,
+            tenant_id=TENANT,
+            run_id=run_id,
+            code="AI2_PROCESSING_FAILED",
+            detail="poll timed out",
+            audit_detail={},
+        )
+    steps = await _steps(factory, run_id)
+    assert steps["S6"][0] == "failed"
+    assert not [s for s in worker.AI2_STEPS if steps[s][0] == "running"]

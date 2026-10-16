@@ -60,6 +60,7 @@ presigned URLs and DOC-05c fields.
 | `ai1.ocr.command` | `ci.ai1.ocr.commands` | Backend orchestrator |
 | `ai1.ocr.completed` | `ci.ai1.ocr.results` | AI1 worker |
 | `ai1.ocr.failed` | `ci.ai1.ocr.results` | AI1 worker |
+| `ai1.ocr.progress` | `ci.ai1.ocr.results` | AI1 worker (**proposed** 16/10, see §5) |
 
 ## 4. Command payload (`ai1.ocr.command`)
 
@@ -210,6 +211,40 @@ maps each such page number to its reasons:
 
 Otherwise the document is OCR'd; each poor page is read once only and
 carries the page warning `low_quality_scan:<reasons>` in the snapshot.
+
+### `ai1.ocr.progress` (proposed 16/10/2026, backend ready)
+
+Optional, advisory. While a document is being OCR'd, AI1 may report how many
+of its pages are done, on the results topic with the same envelope and
+`correlation` (`dossier_id`, `document_id`, `run_id`) as `ai1.ocr.completed`:
+
+```json
+{
+  "job_id": "ai1_abc123",
+  "kind": "ocr",
+  "status": "processing",
+  "progress": { "done": 37, "total": 150, "unit": "page" }
+}
+```
+
+- `done`, `total`: integers, pages of **this document**; `unit` is always `"page"`.
+- Send it at most once per page, and preferably no more than once a second.
+  The backend writes at most ~20 values per step anyway (one UPDATE and one
+  SSE `step.changed` each), so extra messages are dropped, not stored.
+- The backend adds the pages of documents already finished and shows the
+  dossier-wide count on step S2 (DOC-05b v3.2.0, "Tiến độ trong bước"). A
+  report for a run or document that is not current, a malformed one, or one
+  that arrives after `ai1.ocr.completed` is ignored; it never fails the run.
+- Without these messages S2 still moves when each document completes.
+
+### A result in which no page was read (backend, 16/10/2026)
+
+If every page of an `ai1.ocr.completed` snapshot has a `status` other than
+`SUCCESS` or `PARTIAL` (for example all `FAILED` with
+`SKIPPED: OpenAI vision unavailable`), the backend rejects the result: job
+`failed` with `AI1_NO_READABLE_PAGE`, steps S2, S3, S8 `failed`, nothing sent
+to AI2. Pages without a `status` are not judged. AI1 may instead publish
+`ai1.ocr.failed` itself for such a document.
 
 ## 6. Delivery semantics
 

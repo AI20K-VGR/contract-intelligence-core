@@ -50,6 +50,7 @@ from contract_intelligence.infrastructure.ai_adapters import (
     poll_ai2_processing,
     submit_ai2_processing,
 )
+from contract_intelligence.shared import step_progress
 from contract_intelligence.shared.ai.ai1_adapter import adapt_ai1_snapshot_result
 from contract_intelligence.shared.ai.canonical_processing import (
     build_processing_request,
@@ -60,6 +61,7 @@ from contract_intelligence.shared.ai.persistence import (
     persist_ai2_processing_result,
     update_pipeline_run_status,
     update_pipeline_step,
+    update_pipeline_step_progress,
 )
 from contract_intelligence.shared.audit import add_audit_event
 from contract_intelligence.shared.base import new_ulid
@@ -76,6 +78,11 @@ SCHEMA_VERSION = "ci.kafka.v1"
 EVENT_OCR_COMMAND = "ai1.ocr.command"
 EVENT_OCR_COMPLETED = "ai1.ocr.completed"
 EVENT_OCR_FAILED = "ai1.ocr.failed"
+EVENT_OCR_PROGRESS = "ai1.ocr.progress"
+# AI2's steps in the order it runs them (S8 is AI1's annex links).
+AI2_STEPS: tuple[str, ...] = ("S4", "S5", "S6", "S7", "S9", "S10")
+# Pages AI1 could read; any other status (FAILED, SKIPPED...) yields no text.
+_READABLE_PAGE_STATUSES = frozenset({"SUCCESS", "PARTIAL"})
 
 Handler = Callable[[AsyncSession, dict[str, Any]], Awaitable[None]]
 
@@ -864,8 +871,9 @@ async def _fail_ai1_run(
     detail: str,
     audit_action: str,
     audit_detail: dict[str, Any],
+    steps: tuple[str, ...] = ("S2",),
 ) -> None:
-    """Mark the job, the run and the OCR step FAILED (with audit) and commit.
+    """Mark the job, the run and the OCR step(s) FAILED (with audit) and commit.
 
     Nothing is written when the job may no longer fail (e.g. already in review).
     """
@@ -880,14 +888,15 @@ async def _fail_ai1_run(
         audit_detail=audit_detail,
     ):
         return
-    await update_pipeline_step(
-        session,
-        tenant_id=tenant_id,
-        run_id=run_id,
-        step="S2",
-        status="failed",
-        metrics={"service": "ai1", "error": detail[:500], **audit_detail},
-    )
+    for step in steps:
+        await update_pipeline_step(
+            session,
+            tenant_id=tenant_id,
+            run_id=run_id,
+            step=step,
+            status="failed",
+            metrics={"service": "ai1", "error": detail[:500], **audit_detail},
+        )
     await update_pipeline_run_status(
         session,
         tenant_id=tenant_id,
@@ -908,7 +917,7 @@ async def _fail_ai2_run(
     detail: str,
     audit_detail: dict[str, Any],
 ) -> None:
-    """Mark the job, the run and the AI2 step FAILED (with audit) and commit."""
+    """Mark the job, the run and the running AI2 step FAILED (with audit) and commit."""
     if not await _mark_status(
         session,
         status_value=JobStatus.FAILED.value,
@@ -920,11 +929,15 @@ async def _fail_ai2_run(
         audit_detail=audit_detail,
     ):
         return
+    statuses = await _step_statuses(session, run_id=run_id, steps=AI2_STEPS)
+    # AI2 progress may have moved past S4 (_record_ai2_progress): fail the step
+    # it stopped in, so no step is left "running" on a failed run.
+    failed_step = next((s for s in AI2_STEPS if statuses.get(s) == "running"), "S4")
     await update_pipeline_step(
         session,
         tenant_id=tenant_id,
         run_id=run_id,
-        step="S4",
+        step=failed_step,
         status="failed",
         metrics={"service": "ai2", "error": detail[:500], **audit_detail},
     )
@@ -937,6 +950,59 @@ async def _fail_ai2_run(
         error_detail=detail,
     )
     await session.commit()
+
+
+async def _step_statuses(
+    session: AsyncSession, *, run_id: str, steps: tuple[str, ...]
+) -> dict[str, str]:
+    result = await session.execute(
+        select(PipelineStepORM.step, PipelineStepORM.status).where(
+            PipelineStepORM.run_id == run_id, PipelineStepORM.step.in_(steps)
+        )
+    )
+    return {str(step): str(status) for step, status in result.all()}
+
+
+def _ai1_page_progress(
+    documents: list[DocumentORM],
+    extracted: set[str],
+    partial: dict[str, int] | None = None,
+) -> dict[str, Any] | None:
+    """Dossier-wide OCR progress for S2: pages of finished documents plus the
+    pages AI1 reported for one still running (``partial``).
+
+    Counted in pages when every document knows its page count (S1 counts it at
+    upload), otherwise in documents.
+    """
+    pages = {str(d.id): int(d.page_count or 0) for d in documents}
+    if not pages:
+        return None
+    if all(count > 0 for count in pages.values()):
+        done = sum(count for doc, count in pages.items() if doc in extracted)
+        done += sum(
+            min(max(value, 0), pages[doc])
+            for doc, value in (partial or {}).items()
+            if doc in pages and doc not in extracted
+        )
+        return step_progress.normalize(done, sum(pages.values()), "page")
+    return step_progress.normalize(len(extracted & pages.keys()), len(pages), "document")
+
+
+def _no_readable_page(snapshot: Any) -> tuple[str, str] | None:
+    """Reject an OCR result in which AI1 could read no page at all.
+
+    Such a result used to pass as SUCCEEDED and send an empty dossier to AI2
+    (e.g. every page ``FAILED`` with "SKIPPED: OpenAI vision unavailable" when
+    the vision key is missing). Pages without a status are not judged.
+    """
+    pages = list(getattr(snapshot, "pages", None) or [])
+    features = [page.features or {} for page in pages]
+    statuses = [str(f.get("ai1_page_status") or "").upper() for f in features]
+    if not pages or "" in statuses or _READABLE_PAGE_STATUSES & set(statuses):
+        return None
+    first_error = next((str(f["error"]) for f in features if f.get("error")), "")
+    detail = f"AI1 không đọc được trang nào ({len(pages)}/{len(pages)} trang lỗi)"
+    return "AI1_NO_READABLE_PAGE", f"{detail}: {first_error[:200]}" if first_error else detail
 
 
 async def _load_documents(session: AsyncSession, dossier_id: str) -> list[DocumentORM]:
@@ -1396,6 +1462,9 @@ async def _run_ai2_if_ready(
             tenant_id=tenant_id,
             dossier_id=dossier_id,
             timeout_seconds=budget + get_settings().ai2_poll_grace_seconds,
+            on_progress=functools.partial(
+                _record_ai2_progress, session, tenant_id=tenant_id, run_id=run_id
+            ),
         )
         if str(report.get("status", "")).upper() != "SUCCEEDED":
             errors = report.get("errors") or [
@@ -1649,6 +1718,85 @@ async def _audit_late_result(
     logger.warning("worker.ai1_result.late", run_id=run_id, **detail)
 
 
+async def _record_ai1_progress(
+    session: AsyncSession,
+    *,
+    payload: dict[str, Any],
+    tenant_id: str,
+    dossier_id: str,
+    run_id: str,
+    job_status: str,
+    document_id: str,
+) -> None:
+    """Show AI1's page count for one document as S2 progress (DOC-05d).
+
+    Advisory only: a malformed or late report is dropped, never fails the run,
+    and the throttle in ``update_pipeline_step_progress`` bounds the writes.
+    """
+    raw = payload.get("progress")
+    progress: dict[str, Any] = raw if isinstance(raw, dict) else {}
+    done = progress.get("done")
+    if progress.get("unit") != "page" or type(done) is not int:
+        logger.debug("worker.ai1_progress.ignored", run_id=run_id, document_id=document_id)
+        return
+    if not _worker_transition_allowed(job_status, JobStatus.EXTRACTED.value):
+        return
+    documents = await _load_documents(session, dossier_id)
+    if document_id not in {str(d.id) for d in documents}:
+        return
+    extracted = await _recorded_extractions(session, run_id) or set()
+    value = _ai1_page_progress(documents, extracted, {document_id: done})
+    if value is None:
+        return
+    if await update_pipeline_step_progress(
+        session, tenant_id=tenant_id, run_id=run_id, step="S2", **value
+    ):
+        await session.commit()
+
+
+async def _record_ai2_progress(
+    session: AsyncSession,
+    progress: dict[str, Any],
+    *,
+    tenant_id: str,
+    run_id: str,
+) -> None:
+    """Show AI2's ``progress`` from ``GET /jobs/{id}`` on the step it names.
+
+    ``{"step": "S6", "done": 12, "total": 40, "unit": "clause"}``
+    (BE-AI2-PROCESSING-CONTRACT §3): the AI2 steps before ``step`` are done,
+    ``step`` is running.
+    Advisory: anything else is ignored and never fails the run.
+    """
+    step = progress.get("step")
+    value = step_progress.normalize(
+        progress.get("done"), progress.get("total"), progress.get("unit")
+    )
+    if step not in AI2_STEPS or value is None:
+        return
+    try:
+        statuses = await _step_statuses(session, run_id=run_id, steps=AI2_STEPS)
+        if statuses.get(step) in {"succeeded", "failed"}:
+            return
+        for earlier in AI2_STEPS[: AI2_STEPS.index(step)]:
+            if statuses.get(earlier) in {"queued", "running"}:
+                await update_pipeline_step(
+                    session, tenant_id=tenant_id, run_id=run_id, step=earlier, status="succeeded"
+                )
+        if statuses.get(step) != "running":
+            await update_pipeline_step(
+                session, tenant_id=tenant_id, run_id=run_id, step=step, status="running"
+            )
+        await update_pipeline_step_progress(
+            session, tenant_id=tenant_id, run_id=run_id, step=step, **value
+        )
+        await session.commit()
+    except Exception:
+        # The poll goes on with this session: leave it usable.
+        await session.rollback()
+        raise
+
+
 async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> None:
     """Persist AI1 OCR result and update job/dossier status.
 
@@ -1682,6 +1830,18 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
     run_id = str(job.current_run_id)
     job_status = job.status
     base_audit = {"event_id": event_id, "ai1_job_id": job_id, "document_id": claimed_document_id}
+
+    if event_type == EVENT_OCR_PROGRESS:
+        await _record_ai1_progress(
+            session,
+            payload=payload,
+            tenant_id=tenant_id,
+            dossier_id=dossier_id,
+            run_id=run_id,
+            job_status=job_status,
+            document_id=claimed_document_id,
+        )
+        return
 
     if event_type == EVENT_OCR_FAILED or str(payload.get("status")) == "failed":
         raw_error = payload.get("error")
@@ -1771,6 +1931,8 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
                     "AI1_SNAPSHOT_INVALID",
                     f"Snapshot document {document_id!r} does not belong to this dossier/command",
                 )
+            else:
+                rejection = _no_readable_page(snapshot)
     if rejection is not None and late:
         await _audit_late_result(
             session,
@@ -1791,6 +1953,8 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
             detail=detail,
             audit_action="ai1.snapshot_rejected",
             audit_detail=base_audit,
+            # No page read: render, classification and annex steps have nothing.
+            steps=("S2", "S3", "S8") if code == "AI1_NO_READABLE_PAGE" else ("S2",),
         )
         logger.error("worker.ai1_result.rejected", event_id=event_id, run_id=run_id, code=code)
         return
@@ -1863,6 +2027,7 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
         )
         all_extracted = dossier_document_ids <= extracted
         steps = ("S2", "S3", "S8") if all_extracted else ("S2",)
+        ocr_progress = _ai1_page_progress(documents, extracted & dossier_document_ids)
         for step in steps:
             await update_pipeline_step(
                 session,
@@ -1871,6 +2036,7 @@ async def handle_ai1_result(session: AsyncSession, message: dict[str, Any]) -> N
                 step=step,
                 status="succeeded" if all_extracted else "running",
                 pages=page_count,
+                progress=ocr_progress,
                 metrics={
                     "service": "ai1",
                     "document_id": document_id,

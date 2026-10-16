@@ -105,6 +105,10 @@ class PipelineStepORM(Base):
     pages: Mapped[int | None] = mapped_column(Integer, nullable=True)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     metrics: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSONB
+    # In-step progress {"done", "total", "unit"} as JSON; null when the step
+    # cannot measure it. progress_at throttles how often it is rewritten.
+    progress: Mapped[str | None] = mapped_column(Text, nullable=True)
+    progress_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

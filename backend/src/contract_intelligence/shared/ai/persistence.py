@@ -25,7 +25,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -43,6 +43,7 @@ from contract_intelligence.extraction.infrastructure.persistence.orm import (
     PipelineStepORM,
     stored_line_confidence,
 )
+from contract_intelligence.shared import step_progress
 from contract_intelligence.shared.ai.citation_guard import verify_citation
 from contract_intelligence.shared.ai.fact_confidence import cited_lines, fact_confidence
 from contract_intelligence.shared.ai.schemas import (
@@ -284,8 +285,15 @@ async def update_pipeline_step(
     pages: int | None = None,
     duration_ms: int | None = None,
     metrics: dict[str, Any] | None = None,
+    progress: dict[str, Any] | None = None,
 ) -> None:
-    """Cập nhật trạng thái 1 bước S0..S10 trong pipeline."""
+    """Cập nhật trạng thái 1 bước S0..S10 trong pipeline.
+
+    ``progress`` (``step_progress.normalize``) replaces the stored value, but
+    never lowers ``done`` for the same total and unit. Whatever the caller
+    passes, a step that succeeded shows ``done = total`` and a step back to
+    ``queued`` (retry) shows no progress.
+    """
     from sqlalchemy import select
 
     stmt = select(PipelineStepORM).where(
@@ -316,7 +324,70 @@ async def update_pipeline_step(
             row.duration_ms = duration_ms
         if metrics is not None:
             row.metrics = json.dumps(metrics)
+    previous = step_progress.parse(row.progress)
+    current = progress if progress is not None else previous
+    if (
+        current is not None
+        and previous is not None
+        and (current["total"], current["unit"]) == (previous["total"], previous["unit"])
+        and current["done"] < previous["done"]
+    ):
+        # A document finishing after another one's page report must not move
+        # the bar back; only a retry (queued) resets it.
+        current = previous
+    if status == "queued":
+        current = None
+    elif status == "succeeded":
+        current = step_progress.completed(current)
+    stored = step_progress.dump(current)
+    if stored != row.progress:
+        row.progress = stored
+        row.progress_at = datetime.now(UTC)
     await session.flush()
+
+
+async def update_pipeline_step_progress(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    run_id: str,
+    step: str,
+    done: Any,
+    total: Any,
+    unit: str,
+    now: datetime | None = None,
+) -> bool:
+    """Record the progress of a running step, throttled; True when written.
+
+    Producers may report every page. A value is written (one UPDATE, one SSE
+    ``step.changed``) only when ``step_progress.should_write`` allows it, and
+    only while the step is ``running``: a late report never rewrites a step
+    that already succeeded or failed.
+    """
+    value = step_progress.normalize(done, total, unit)
+    if value is None:
+        return False
+    row = (
+        await session.execute(
+            select(PipelineStepORM).where(
+                PipelineStepORM.run_id == run_id,
+                PipelineStepORM.tenant_id == tenant_id,
+                PipelineStepORM.step == step,
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None or row.status != "running":
+        return False
+    now = now or datetime.now(UTC)
+    previous_at = row.progress_at
+    if previous_at is not None and previous_at.tzinfo is None:
+        previous_at = previous_at.replace(tzinfo=UTC)  # SQLite drops the zone
+    if not step_progress.should_write(step_progress.parse(row.progress), previous_at, value, now):
+        return False
+    row.progress = step_progress.dump(value)
+    row.progress_at = now
+    await session.flush()
+    return True
 
 
 # ──────────────────────────────────────────────────────────────────────────────
