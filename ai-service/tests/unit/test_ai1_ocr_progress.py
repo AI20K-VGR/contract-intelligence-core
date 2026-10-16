@@ -115,31 +115,73 @@ def test_a_document_reports_progress_then_its_result_keeps_the_command_event_id(
     assert envelope["event_id"] not in {e["event_id"] for e, _ in sent}
 
 
-def test_a_document_with_no_readable_page_fails_with_ai1_no_readable_page(worker, sent):
+def test_a_document_with_no_readable_page_fails_with_the_first_page_error(
+    worker, sent, monkeypatch
+):
+    long_error = "SKIPPED: OpenAI vision unavailable — " + "x" * 300
     worker["pages"] = [
-        {"status": "FAILED", "error": "SKIPPED: OpenAI vision unavailable"},
-        {"status": "FAILED", "error": "SKIPPED: OpenAI vision unavailable"},
+        {"status": "FAILED", "error": long_error},
+        {"status": "FAILED", "error": "TimeoutError: mistral-ocr-2512"},
     ]
+    uploads = []
+    monkeypatch.setattr(kw, "_put_result", lambda *args: uploads.append(args))
+    command = _command()
+    command["payload"]["options"]["result_target"] = {
+        "put_url": "http://minio:9000/ci-render/doc_1/ai1-result/run_1.json?X-Amz-Signature=x",
+        "uri": "s3://ci-render/doc_1/ai1-result/run_1.json",
+    }
+
+    envelope = kw._handle_command(command)
+
+    assert envelope["event_type"] == kw.EVENT_FAILED
+    payload = envelope["payload"]
+    assert payload["status"] == "failed"
+    assert payload["error"]["code"] == "AI1_NO_READABLE_PAGE"
+    # The backend's wording: page count, then the first page error cut to 200 characters.
+    assert payload["error"]["message"] == (
+        f"AI1 không đọc được trang nào (2/2 trang lỗi): {long_error[:200]}"
+    )
+    assert payload["result"] is None
+    assert "result_ref" not in payload
+    assert uploads == []  # the empty snapshot is never uploaded
+
+
+def test_a_page_without_a_status_keeps_the_document_completed(worker, sent):
+    # The backend does not judge such a snapshot (#117): AI1 must not fail it either.
+    worker["pages"] = [{"status": "FAILED", "error": "TimeoutError"}, {}]
 
     envelope = kw._handle_command(_command())
 
-    assert envelope["event_type"] == kw.EVENT_FAILED
-    assert envelope["payload"]["status"] == "failed"
-    assert envelope["payload"]["error"]["code"] == "AI1_NO_READABLE_PAGE"
-    assert envelope["payload"]["result"] is None
+    assert envelope["event_type"] == kw.EVENT_COMPLETED
+    assert envelope["payload"]["error"] is None
 
 
 @pytest.mark.parametrize(
-    ("pages", "unreadable"),
+    ("pages", "message"),
     [
-        ([{"status": "FAILED"}, {"status": "PARTIAL"}], False),
-        ([{"status": "FAILED"}], True),
-        ([{}, {}], False),  # pages without a status are not judged, as on the backend
-        ([], False),
+        ([{"status": "FAILED"}, {"status": "PARTIAL"}], None),
+        ([{"status": "FAILED"}, {"status": "SUCCESS"}], None),
+        (
+            [{"status": "FAILED", "error": "boom"}],
+            "AI1 không đọc được trang nào (1/1 trang lỗi): boom",
+        ),
+        (
+            [{"status": "FAILED"}, {"status": "FAILED"}],
+            "AI1 không đọc được trang nào (2/2 trang lỗi)",
+        ),
+        ([{"status": "FAILED", "error": "boom"}, {}], None),  # mixed: one page not judged
+        ([{"status": "FAILED"}, {"status": ""}], None),
+        ([{}, {}], None),  # pages without a status are not judged, as on the backend
+        ([], None),
     ],
 )
-def test_unreadable_matches_the_backend_rule(pages, unreadable):
-    assert kw._unreadable({"snapshot": {"pages": pages}}) is unreadable
+def test_no_readable_page_matches_the_backend_rule(pages, message):
+    assert kw._no_readable_page({"snapshot": {"pages": pages}}) == message
+
+
+def test_no_readable_page_ignores_a_result_without_a_snapshot():
+    assert kw._no_readable_page(None) is None
+    assert kw._no_readable_page({"schema_version": "ai1.snapshot.v1"}) is None
 
 
 def test_ocr_progress_moves_the_job_percentage(monkeypatch):
