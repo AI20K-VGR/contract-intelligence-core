@@ -438,7 +438,7 @@ Script khi đó dò các cổng nội bộ trên máy chủ, và kiểm thêm r�
 
 ## Cập nhật
 
-Tự động: workflow `deploy` (`.github/workflows/deploy.yml`) chạy sau mỗi lần merge vào `develop`, hoặc bấm tay ở GitHub → Actions → `deploy` → Run workflow. Nó SSH vào server, fast-forward checkout tới commit vừa merge, chạy `deploy/deploy.sh`, rồi chạy `deploy/check_external.sh` từ runner (tức từ bên ngoài server).
+Tự động: workflow `deploy` (`.github/workflows/deploy.yml`) chạy sau mỗi lần merge vào `develop`, hoặc bấm tay ở GitHub → Actions → `deploy` → Run workflow. Khi đã bật staging (mục "Staging" bên dưới), mỗi lần merge chạy trên staging trước, rồi mới đến production. Nó SSH vào server, fast-forward checkout tới commit vừa merge, chạy `deploy/deploy.sh`, rồi chạy `deploy/check_external.sh` từ runner (tức từ bên ngoài server).
 
 Bằng tay, trên server:
 
@@ -493,6 +493,67 @@ Server cài trước 02/10/2026 (trước issue #52) cần làm thêm một lầ
 2. Thêm `AI2_DB_PASSWORD=$(openssl rand -hex 24)` vào `deploy/.env.prod`.
 
 Mỗi lần khởi động, backend tạo hoặc cập nhật role `ai2` với mật khẩu này. Role chỉ sở hữu schema `ai2` (ADR-14), không có quyền trên bảng nghiệp vụ.
+
+## Staging
+
+Một máy riêng, dựng giống production, để thử bản mới **trước** khi nó lên production: thử một nhánh trước khi merge, và chặn lần deploy lên production khi bản mới không chạy được trên staging.
+
+| | Production | Staging |
+|---|---|---|
+| Lúc deploy | Merge vào `develop`, hoặc bấm tay từ `develop` | Merge vào `develop` (chạy trước production), hoặc bấm tay từ **bất kỳ nhánh nào** |
+| Máy | `ci-app` + DB server `ci-db` | Một máy, DB chạy ngay trên máy đó |
+| Tên miền | Tên miền thật, sau Cloudflare | `*.sslip.io` theo Elastic IP (do `bootstrap.sh` tạo), không qua Cloudflare |
+| Dữ liệu | Chỉ hợp đồng mẫu đã ẩn thông tin, không hồ sơ thật (Lead chốt; DEC-BE-AI2-01 D6, BE-AI2-PROCESSING-CONTRACT §6.2) | Cả nhóm được tải lên, nhưng chỉ hợp đồng mẫu đã ẩn thông tin. Không hồ sơ thật, **không chép dữ liệu production sang** (Lead chốt 16/10) |
+
+### Luồng deploy
+
+- **Merge vào `develop`**, khi biến repo `STAGING_ENABLED=true`: job `staging` chạy trước. Staging lỗi thì job `deploy` (production) **không chạy**, production giữ nguyên bản cũ. `STAGING_ENABLED` khác `true` thì bỏ qua staging, production deploy như trước.
+- **Thử một nhánh trước khi merge**:
+
+  ```bash
+  gh workflow run deploy.yml --ref <nhánh> -f target=staging
+  ```
+
+  Chỉ deploy lên staging, không đụng production. Production vẫn chỉ deploy được từ `develop`.
+- Bấm tay staging không bao giờ huỷ hay thay một lần deploy production đang chờ: mỗi loại lần chạy có nhóm `concurrency` riêng, và hai lần deploy lên cùng một máy chạy lần lượt nhờ khoá `~/.ci-deploy.lock` trên server (DOC-15, "Workflow `deploy`").
+- Các bước của một lần deploy nằm trong `.github/workflows/deploy-target.yml`, dùng chung cho cả hai nơi. Staging đọc secret và biến tên `STAGING_*`, **không bao giờ dùng giá trị production thay thế**: thiếu một secret staging thì lần chạy báo lỗi, chứ không deploy nhầm vào máy production.
+
+### Dựng máy staging (một lần)
+
+Làm theo "Triển khai trên AWS EC2", với các điểm khác:
+
+1. **Máy:** `m7i-flex.large` (Lead chốt 16/10), chỉ bật khi cần; Ubuntu 24.04 x86-64, đĩa 40 GB gp3, cùng key pair. Không cần DB server riêng: để trống `BACKEND_DB_HOST`/`KEYCLOAK_DB_HOST`, DB chạy trên chính máy này.
+2. **Security group riêng `ci-staging`:** TCP 22 từ IP người vận hành; TCP 80, 443 và UDP 443 từ mọi nơi. Không dùng chung `ci-app`.
+3. **Elastic IP**, gắn trước khi chạy `bootstrap.sh`.
+4. Bước 1–6 ở "Kế hoạch triển khai qua SSH". `bootstrap.sh` tự tạo mật khẩu mới và tên miền `sslip.io`. Không dùng chung mật khẩu với production.
+5. **Khoá LLM:** điền `AI2_LLM_*`/`AI2_EMBEDDING_*` giống production, nhưng bằng **key LLM riêng của staging**, do @vdungx giữ, có hard limit thấp riêng, không dùng chung trần 30 USD/tháng của production (Lead chốt 16/10). Key và hạn mức phải có trước lần deploy staging đầu tiên; không ghi key vào repo hay comment.
+
+### Khai báo trên GitHub (một lần, cần quyền admin repo)
+
+1. Settings → Environments → **New environment** `staging`. Không cần người duyệt.
+2. Secret của staging (khai trong environment `staging` hoặc ở cấp repo):
+
+   | Secret | Giá trị |
+   |---|---|
+   | `STAGING_DEPLOY_HOST` | Elastic IP của máy staging |
+   | `STAGING_DEPLOY_USER` | `ubuntu` |
+   | `STAGING_DEPLOY_SSH_KEY` | Khoá bí mật cho GitHub Actions (tạo như "Cài CI/CD"; nên dùng khoá riêng cho staging) |
+   | `STAGING_DEPLOY_KNOWN_HOSTS` | Dòng `ssh-keyscan -t ed25519 <elastic-ip>`, đã so với khoá máy |
+
+3. Biến:
+   - `STAGING_SECURITY_GROUP_ID` = ID của `ci-staging`, để workflow mở và đóng cổng 22 cho runner. Thêm security group này vào inline policy `ssh-window-on-ci-app` của IAM user `ci-github-deploy` (hiện chỉ cho phép `ci-app`).
+   - Không đặt `STAGING_BEHIND_CLOUDFLARE`: staging không qua Cloudflare.
+   - Biến repo `STAGING_ENABLED=true`: bật bước staging trước production. Đặt **sau cùng**, khi đã thử `-f target=staging` thành công.
+
+### Chi phí và tạm tắt
+
+- `m7i-flex.large` chạy cả tháng khoảng $87 ở Sydney, trừ vào cùng khoản credit với production. Không dùng thì **stop** máy (dữ liệu và Elastic IP giữ nguyên).
+- **Trước khi stop, đặt `STAGING_ENABLED=false`**. Nếu không, mọi lần merge đều lỗi ở staging và production không được deploy. Start lại máy rồi mới bật lại `true`.
+
+### Khác với production cần nhớ
+
+- Staging không qua Cloudflare nên **không có giới hạn 100 MB** khi tải lên. File trên 100 MB chạy được trên staging vẫn bị từ chối (413) trên production.
+- Trước buổi demo, chạy đúng kịch bản demo trên staging, gồm cả hồ sơ lớn (ví dụ hợp đồng 200 trang), rồi mới merge.
 
 ## Frontend dùng API online
 
