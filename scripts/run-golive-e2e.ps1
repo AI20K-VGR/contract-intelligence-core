@@ -55,7 +55,7 @@ while ((Get-Date) -lt $deadline) {
   try {
     $front = Invoke-RestMethod -Uri 'http://localhost:5173/healthz' -TimeoutSec 3
     $back = Invoke-RestMethod -Uri 'http://localhost:8000/health' -TimeoutSec 3
-    docker compose @compose exec -T ai2-service python -c "import urllib.request; urllib.request.urlopen('http://localhost:8002/readyz', timeout=5)" | Out-Null
+    docker compose @compose exec -T ai2-service python -c "import urllib.request; urllib.request.urlopen('http://localhost:8002/readyz', timeout=90)" | Out-Null
     if ($front.status -eq 'ok' -and $back.status -eq 'ok' -and $LASTEXITCODE -eq 0) { $ready = $true; break }
     Start-Sleep -Seconds 5
   } catch { Start-Sleep -Seconds 5 }

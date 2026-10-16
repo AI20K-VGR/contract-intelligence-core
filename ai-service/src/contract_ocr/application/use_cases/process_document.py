@@ -2,6 +2,8 @@ import hashlib
 import json
 import logging
 import tempfile
+import threading
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
 from pathlib import Path
@@ -33,6 +35,31 @@ MAX_LOW_QUALITY_SHARE = 0.3
 # ...and never on fewer poor pages than this: a text-layer contract whose only
 # scan is a speckled signature page (1 of 1 OCR pages) must still be read.
 MIN_LOW_QUALITY_PAGES = 3
+
+
+class _PageProgress:
+    """Counts finished pages of one document and reports ``(done, total)``.
+
+    OCR pages finish on worker threads in any order: the count and the report
+    happen under one lock, so reports arrive with ``done`` strictly increasing.
+    Progress is advisory, so a failing callback is logged and never fails a page.
+    """
+
+    def __init__(self, total: int, on_page_done: Callable[[int, int], None] | None) -> None:
+        self.total = total
+        self.done = 0
+        self._on_page_done = on_page_done
+        self._lock = threading.Lock()
+
+    def tick(self) -> None:
+        with self._lock:
+            self.done += 1
+            if self._on_page_done is None:
+                return
+            try:
+                self._on_page_done(self.done, self.total)
+            except Exception:
+                logger.warning("page progress callback failed", exc_info=True)
 
 
 class LowQualityDocument(Exception):
@@ -84,12 +111,17 @@ class ProcessDocument:
         run_id: str,
         dpi: int = 300,
         max_workers: int = 1,
+        on_page_done: Callable[[int, int], None] | None = None,
     ) -> Document:
         """max_workers only parallelizes the OCR engine call itself (network-bound API
         engines): PDF reading/classification/rendering always stays sequential because
         the underlying PDF SDK page object is not safe for concurrent access, and a
         single loaded local model is not safe (or faster) for concurrent inference
-        either. Callers must only raise max_workers for stateless remote engines."""
+        either. Callers must only raise max_workers for stateless remote engines.
+
+        `on_page_done(done, total)` is called each time a page of the document is
+        finished (read, skipped, blank, failed or copied from a duplicate), with
+        `done` increasing by one up to `total`, the document's page count."""
         # Page images wait for OCR on disk, not in RAM: a 200-page scan at 150 DPI
         # is ~1.3 GB of pixels, all rendered before the first OCR call. Each image
         # is loaded only while its page is being read, and the folder goes away
@@ -106,6 +138,7 @@ class ProcessDocument:
                 dpi,
                 max_workers,
                 Path(image_dir),
+                on_page_done,
             )
 
     def _execute(
@@ -119,12 +152,19 @@ class ProcessDocument:
         dpi: int,
         max_workers: int,
         image_dir: Path,
+        on_page_done: Callable[[int, int], None] | None = None,
     ) -> Document:
         result = Document(document_id=document_id, source_file=source)
         with self.extractor.open(source) as pdf:
             if len(pdf) == 0:
                 raise ValueError("document has no pages")
             pages: list[Page | None] = [None] * len(pdf)
+            progress = _PageProgress(len(pdf), on_page_done)
+
+            def finish(index: int, page_result: Page, start: float) -> None:
+                self._finish_page(pages, index, page_result, start, experiment, run_id, document_id)
+                progress.tick()
+
             ocr_jobs = []
             first_page_with: dict[str, int] = {}
             reused: list[tuple[int, Page, int, float]] = []
@@ -151,9 +191,7 @@ class ProcessDocument:
                     if evidence.usable_text and not evidence.requires_ocr_regions:
                         page_result = self.extractor.extract(page, document_id)
                         page_result.evidence, page_result.input_type = evidence, evidence.input_type
-                        self._finish_page(
-                            pages, index, page_result, start, experiment, run_id, document_id
-                        )
+                        finish(index, page_result, start)
                         continue
                     # Every other page is rendered: OCR needs the image, and a look at
                     # it first can make the OCR call unnecessary.
@@ -167,9 +205,7 @@ class ProcessDocument:
                         page_result.evidence = evidence.model_copy(
                             update={"reason_codes": [*evidence.reason_codes, "BLANK_PAGE"]}
                         )
-                        self._finish_page(
-                            pages, index, page_result, start, experiment, run_id, document_id
-                        )
+                        finish(index, page_result, start)
                         continue
                     if "SHORT_NATIVE_TEXT" in evidence.reason_codes:
                         native = self.extractor.extract(page, document_id)
@@ -187,9 +223,7 @@ class ProcessDocument:
                                 }
                             )
                             native.evidence, native.input_type = evidence, evidence.input_type
-                            self._finish_page(
-                                pages, index, native, start, experiment, run_id, document_id
-                            )
+                            finish(index, native, start)
                             continue
                     if engine is None:
                         reason = (
@@ -200,9 +234,7 @@ class ProcessDocument:
                         )
                         page_result.status, page_result.error = Status.SKIPPED, reason
                         page_result.evidence, page_result.input_type = evidence, evidence.input_type
-                        self._finish_page(
-                            pages, index, page_result, start, experiment, run_id, document_id
-                        )
+                        finish(index, page_result, start)
                     else:
                         # Covers both SCANNED and MIXED pages. Known limitation for MIXED:
                         # this re-OCRs the *whole* page rather than compositing the already-
@@ -256,9 +288,7 @@ class ProcessDocument:
                         Status.FAILED,
                         f"{type(exc).__name__}: {exc}",
                     )
-                    self._finish_page(
-                        pages, index, page_result, start, experiment, run_id, document_id
-                    )
+                    finish(index, page_result, start)
 
             def run_ocr_job(job: tuple) -> None:
                 (
@@ -350,7 +380,7 @@ class ProcessDocument:
                                 else None
                             ),
                         )
-                self._finish_page(pages, index, page_result, start, experiment, run_id, document_id)
+                finish(index, page_result, start)
 
             poor = {job[0] + 1: job[7] for job in ocr_jobs if job[7]}
             if (
@@ -377,7 +407,7 @@ class ProcessDocument:
 
             for index, page_result, source_index, start in reused:
                 self._reuse_reading(pages[source_index], page_result, document_id)
-                self._finish_page(pages, index, page_result, start, experiment, run_id, document_id)
+                finish(index, page_result, start)
 
         result.pages = pages
         mark_duplicate_pages(result)

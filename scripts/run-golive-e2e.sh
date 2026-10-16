@@ -58,7 +58,7 @@ compose=(docker compose -f docker-compose.yml --env-file "$ENV_FILE")
 "${compose[@]}" up --build -d
 
 deadline=$((SECONDS + 300))
-until curl -fsS --max-time 3 http://localhost:5173/healthz >/dev/null && curl -fsS --max-time 3 http://localhost:8000/health >/dev/null && "${compose[@]}" exec -T ai2-service python -c "import urllib.request; urllib.request.urlopen('http://localhost:8002/readyz', timeout=5)" >/dev/null; do
+until curl -fsS --max-time 3 http://localhost:5173/healthz >/dev/null && curl -fsS --max-time 3 http://localhost:8000/health >/dev/null && "${compose[@]}" exec -T ai2-service python -c "import urllib.request; urllib.request.urlopen('http://localhost:8002/readyz', timeout=90)" >/dev/null; do
   (( SECONDS < deadline )) || { "${compose[@]}" ps; echo 'Frontend/backend health did not become ready. AI2 is internal-only; inspect it with docker compose exec ai2-service.' >&2; exit 1; }
   sleep 5
 done

@@ -19,14 +19,19 @@ def test_adapter_maps_egress_allowed_to_consent(value):
     assert adapted.record.content_sharing_consent is bool(value)
 
 
-def test_consent_not_in_record_to_dict():
+@pytest.mark.parametrize("consent", [True, False])
+def test_consent_persisted_for_query_reload_without_changing_wire_flags(consent):
     rec = pair_record()
-    rec.content_sharing_consent = True
-    assert "content_sharing_consent" not in record_to_dict(rec)
+    rec.content_sharing_consent = consent
+    assert record_to_dict(rec)["content_sharing_consent"] is consent
 
 
 def test_policy_flags_contract_unchanged():
-    assert set(ProcessingPolicyFlags.model_fields) == {"egress_allowed", "use_vector", "budget_limits"}
+    assert set(ProcessingPolicyFlags.model_fields) == {
+        "egress_allowed",
+        "use_vector",
+        "budget_limits",
+    }
     with pytest.raises(ValidationError):
         ProcessingPolicyFlags(content_sharing_consent=True)
 
