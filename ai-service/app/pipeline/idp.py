@@ -530,7 +530,18 @@ def run_idp(
     if record.semantic_profile is not None:
         if os.getenv("AI2_SEMANTIC_ENABLED", "true").strip().casefold() == "true":
             bounds = effective_context_bounds(record.semantic_profile.context_bounds)
-            record.semantic_extension = build_semantic_extension(record, runtime, llm, bounds)
+            # Spend the capped semantic budget on clauses already known to be related.
+            related = [
+                node_id
+                for source, target in (
+                    *((e.source_node_id, e.target_node_id) for e in (graph.edges if graph else ())),
+                    *((r.node_a_id, r.node_b_id) for r in (pair_result.relations if pair_result else ())),
+                )
+                for node_id in (source, target)
+            ]
+            record.semantic_extension = build_semantic_extension(
+                record, runtime, llm, bounds, priority_nodes=tuple(related)
+            )
             issues.append(
                 EvidenceIssue(
                     issue_id="semantic:review",

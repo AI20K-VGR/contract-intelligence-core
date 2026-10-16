@@ -55,6 +55,28 @@ def _is_heading_only(text: str) -> bool:
     return bool(_HEADING_ONLY.fullmatch(stripped)) and not re.search(r"\bbên\s+[ab]\b", stripped, re.I)
 
 
+def _semantic_order(nodes, priority_nodes: tuple[str, ...]) -> list[StructuralNode]:
+    """Nodes in the order the capped semantic stage should spend its budget on them.
+
+    Related nodes first (operation-edge and pair endpoints), then the rest interleaved
+    across source files. Document order alone let a long body exhaust max_nodes before
+    any annex clause, where the amendments usually are.
+    """
+    nodes = list(nodes)
+    by_id = {node.node_id: node for node in nodes}
+    first = [by_id[nid] for nid in dict.fromkeys(priority_nodes) if nid in by_id]
+    taken = {node.node_id for node in first}
+    per_file: dict[str | None, list[StructuralNode]] = {}
+    for node in nodes:
+        if node.node_id not in taken:
+            per_file.setdefault(node.source_file_id, []).append(node)
+    rest: list[StructuralNode] = []
+    queues = list(per_file.values())
+    for index in range(max((len(queue) for queue in queues), default=0)):
+        rest.extend(queue[index] for queue in queues if index < len(queue))
+    return [*first, *rest]
+
+
 def effective_context_bounds(requested: ContextBounds) -> ContextBounds:
     try:
         caps = ContextBounds.model_validate(json.loads(os.environ["AI2_SEMANTIC_CONTEXT_CAPS"]))
@@ -554,6 +576,7 @@ def build_semantic_extension(
     runtime: ProcessingRuntime,
     client: NineRouterClient | None = None,
     bounds: ContextBounds | None = None,
+    priority_nodes: tuple[str, ...] = (),
 ) -> SemanticExtension:
     profile = record.semantic_profile
     if profile is None or profile.tenant_id != record.tenant_id:
@@ -575,7 +598,7 @@ def build_semantic_extension(
     frames, attempted, reasons = [], 0, []
     stage_started, start_calls = runtime.clock(), runtime.llm_calls_used
     token_bytes = 0
-    for node in record.evidence_nodes():
+    for node in _semantic_order(record.evidence_nodes(), priority_nodes):
         if not node.text.strip() or node.type == "SECTION" or _is_heading_only(node.text):
             continue
         try:
