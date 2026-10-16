@@ -161,6 +161,10 @@ services:
       AI2_CONTRACT_GRAPH_ENABLED: ${AI2_CONTRACT_GRAPH_ENABLED:-true}
       AI2_CONTRACT_GRAPH_PAIRS_ENABLED: ${AI2_CONTRACT_GRAPH_PAIRS_ENABLED:-true}
       AI2_CONTRACT_GRAPH_PAIRS_MODEL: ${AI2_CONTRACT_GRAPH_PAIRS_MODEL:-gpt-5.5}
+      # Pair classifier endpoint and key (docs/ai2/AI2-20-contract-graph-pairs.vi.md).
+      # Both or neither: empty skips pairs with RULE_ONLY_LLM_UNAVAILABLE.
+      AI2_CONTRACT_GRAPH_PAIRS_BASE_URL: ${AI2_CONTRACT_GRAPH_PAIRS_BASE_URL:-}
+      AI2_CONTRACT_GRAPH_PAIRS_API_KEY: ${AI2_CONTRACT_GRAPH_PAIRS_API_KEY:-}
       AI2_EMBEDDING_BASE_URL: ${AI2_EMBEDDING_BASE_URL:?set the embedding provider in deploy/.env.prod}
       AI2_EMBEDDING_API_KEY: ${AI2_EMBEDDING_API_KEY:?set the embedding key in deploy/.env.prod}
       AI2_EMBEDDING_MODEL: ${AI2_EMBEDDING_MODEL:-text-embedding-3-small}
