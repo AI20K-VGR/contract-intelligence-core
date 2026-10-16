@@ -150,6 +150,7 @@ def propose_aliases(
         json.dumps(
             {"source": source, "kind": kind, "allowed_symbols": sorted(symbols)}, ensure_ascii=False
         ),
+        operation="alias",
     )
     if data is None:
         return ProposalResult((), "PROVIDER_UNAVAILABLE")

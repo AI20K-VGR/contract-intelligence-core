@@ -228,6 +228,7 @@ class TablePipeline:
                 "You generate sandbox table extraction code only.",
                 prompt,
                 strong=strong,
+                operation="table",
             )
         else:
             data = self.llm.complete_json("You generate sandbox table extraction code only.", prompt, strong=strong)

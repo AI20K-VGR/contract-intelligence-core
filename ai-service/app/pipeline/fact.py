@@ -115,6 +115,7 @@ class FactExtractor:
                     self.llm,
                     _NORMALIZE_SYSTEM,
                     f"raw={raw}\ncontext={text[:1500]}",
+                    operation="fact_normalize",
                 )
             else:
                 data = self.llm.complete_json(

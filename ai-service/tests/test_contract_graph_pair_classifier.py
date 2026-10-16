@@ -47,7 +47,7 @@ class Runtime:
     def remaining(self):
         return self.left
 
-    def complete_json(self, client, system, user):
+    def complete_json(self, client, system, user, **_kwargs):
         self.calls.append((system, json.loads(user)))
         self.llm_calls_used += 1
         if self.error:
@@ -384,7 +384,7 @@ def test_runtime_rejects_non_anthropic_served_model(served):
 
 def test_missing_current_trace_cannot_reuse_prior_claude_trace():
     class MissingTrace(Runtime):
-        def complete_json(self, client, system, user):
+        def complete_json(self, client, system, user, **_kwargs):
             self.calls.append((system, json.loads(user)))
             self.llm_calls_used += 1
             if len(self.calls) == 1:

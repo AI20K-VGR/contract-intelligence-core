@@ -308,7 +308,9 @@ def classify_pairs(
         stats["pairs_sent"] += len(batch)
         batch_trace_start = len(getattr(client, "traces", []))
         try:
-            response = runtime.complete_json(client, system_prompt, json.dumps({"pairs": messages}, ensure_ascii=False))
+            response = runtime.complete_json(
+                client, system_prompt, json.dumps({"pairs": messages}, ensure_ascii=False), operation="pairs"
+            )
         except ProcessingTimeout:
             response, stop = None, "DEADLINE"
         if response is None:

@@ -103,13 +103,14 @@ def classify_provider_error(exc: BaseException) -> str | None:
     return None
 
 
-def _log_provider_failure(client: Any, exc: BaseException, attempt: int) -> None:
+def _log_provider_failure(client: Any, exc: BaseException, attempt: int, operation: str | None) -> None:
     # Identifiers only: the provider message can echo contract text.
     body = getattr(exc, "body", None)
     detail = body.get("error", body) if isinstance(body, dict) else {}
     detail = detail if isinstance(detail, dict) else {}
     logger.warning(
-        "ai2.llm_call_failed model=%s attempt=%s error=%s http_status=%s code=%s param=%s retry_code=%s",
+        "ai2.llm_call_failed operation=%s model=%s attempt=%s error=%s http_status=%s code=%s param=%s retry_code=%s",
+        operation or "unlabelled",
         getattr(client, "model", None),
         attempt + 1,
         type(exc).__name__,
@@ -212,6 +213,7 @@ class ProcessingRuntime:
         strong: bool = False,
         max_output_tokens: int | None = None,
         operation_deadline: float | None = None,
+        operation: str | None = None,
     ) -> dict[str, Any] | None:
         """Call the LLM within budget and deadline; ``None`` means use the local fallback.
 
@@ -262,7 +264,7 @@ class ProcessingRuntime:
                 self._fall_back("LLM_BUDGET_EXCEEDED")
                 return None
             except Exception as exc:
-                _log_provider_failure(client, exc, attempt)
+                _log_provider_failure(client, exc, attempt, operation)
                 if _quota_exhausted(exc):
                     self.provider_exhausted = True
                     self._fall_back("LLM_QUOTA_EXHAUSTED")

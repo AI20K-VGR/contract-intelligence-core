@@ -255,3 +255,24 @@ def test_plain_rate_limit_is_still_retried() -> None:
     assert runtime.complete_json(client, "Return JSON.", "u") is None
     assert len(calls) == runtime.max_attempts
     assert runtime.issues[0][0] == "LLM_RATE_LIMITED"
+
+
+def test_provider_failure_log_names_the_calling_stage(caplog: pytest.LogCaptureFixture) -> None:
+    # LLM_TIMEOUT showed up intermittently but the log could not say which stage timed out.
+    calls: list = []
+    client = _quota_client("rate_limit_exceeded", calls)
+    runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=1)
+    with caplog.at_level("WARNING", logger="app.pipeline.runtime"):
+        runtime.complete_json(client, "Return JSON.", "u", operation="pairs")
+    assert any("operation=pairs" in r.getMessage() for r in caplog.records)
+
+
+def test_pipeline_call_sites_label_their_stage() -> None:
+    import inspect
+
+    from app.pipeline import fact, frame_context, table, tenant_aliases
+    from app.pipeline.contract_graph import pair_classifier
+
+    for module, label in ((pair_classifier, "pairs"), (frame_context, "slot_context"),
+                          (tenant_aliases, "alias"), (fact, "fact_normalize"), (table, "table")):
+        assert f'operation="{label}"' in inspect.getsource(module), module.__name__
