@@ -534,3 +534,40 @@ def test_postgres_adapter_migrates_and_persists_trace_across_store_instances(pg_
         tenant_id=job["tenant_id"], dossier_id=job["dossier_id"], job_id=job["job_id"],
         snapshot_digest="sha256:pg",
     ) == []
+
+
+def test_pairs_llm_stop_is_visible_on_completed_stage(monkeypatch, tmp_path):
+    # Every classifier call failing used to finish COMPLETED with no reason, so the
+    # timeline showed "Đã hoàn tất · 0 mục" for a run that classified nothing.
+    from app.contracts.contract_graph import PairResult
+    from fixtures import envelope
+    from fixtures.contract_graph_pair_records import pair_record
+
+    jobs, job_id, token = _claimed_job(tmp_path / "jobs.sqlite")
+    store = ProcessingTraceStore(jobs)
+    writer = ProcessingTraceWriter(
+        store, tenant_id="tenant-a", dossier_id="dossier-a", job_id=job_id,
+        snapshot_digest="sha256:abc", execution_id="execution-a", worker_token=token,
+    )
+    monkeypatch.setenv("AI2_CONTRACT_GRAPH_ENABLED", "1")
+    monkeypatch.setenv("AI2_CONTRACT_GRAPH_PAIRS_ENABLED", "1")
+    monkeypatch.setattr(
+        pair_builder,
+        "build_pair_relations",
+        lambda *_a, **_kw: PairResult(
+            mode="llm", prompt_version="test", stats={"stopped_reason": "LLM_FALLBACK"}
+        ),
+    )
+
+    idp.run_idp(pair_record(), envelope(), llm=None, job_id=job_id, trace_writer=writer)
+
+    pairs = [
+        event for event in store.read_latest_execution(
+            tenant_id="tenant-a", dossier_id="dossier-a", job_id=job_id,
+            snapshot_digest="sha256:abc",
+        )
+        if event.stage_id == "contract_graph_pairs" and event.status != "STARTED"
+    ]
+    assert [(e.status, e.item_count, e.reason_code) for e in pairs] == [
+        ("COMPLETED", 0, "PARTIAL_LLM_FALLBACK")
+    ]

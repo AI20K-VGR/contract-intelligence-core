@@ -44,6 +44,16 @@ def _is_format_error(error: Exception) -> bool:
     )
 
 
+def _json_mode_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
+    """OpenAI rejects ``response_format=json_object`` with a 400 unless some
+    message contains the word "json"; a prompt that only shows the shape
+    (``{"slots": ...}``) is not enough."""
+    if any("json" in message["content"].casefold() for message in messages):
+        return messages
+    system, *rest = messages
+    return [{**system, "content": system["content"] + "\nReturn a JSON object."}, *rest]
+
+
 def _is_gpt5(model: str) -> bool:
     """GPT-5 family, also behind a provider prefix such as ``openai/gpt-5.5``."""
 
@@ -173,7 +183,7 @@ class NineRouterClient:
             self.last_http_calls += 1
             resp = self._client.chat.completions.create(
                 model=model,
-                messages=messages,
+                messages=_json_mode_messages(messages),
                 response_format={"type": "json_object"},
                 **sampling_options,
                 **request_options,

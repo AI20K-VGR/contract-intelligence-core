@@ -39,11 +39,15 @@ def test_runtime_normalizes_through_complete_json() -> None:
 
 
 @pytest.mark.parametrize(
-    ("model", "temperature_expected"),
-    [("gpt-5.5", False), ("openai/gpt-5.5", False), ("gh/gpt-4o-mini", True)],
+    ("model", "temperature_expected", "token_limit_key"),
+    [
+        ("gpt-5.5", False, "max_completion_tokens"),
+        ("openai/gpt-5.5", False, "max_completion_tokens"),
+        ("gh/gpt-4o-mini", True, "max_tokens"),
+    ],
 )
 def test_reasoning_models_omit_unsupported_temperature(
-    model: str, temperature_expected: bool
+    model: str, temperature_expected: bool, token_limit_key: str
 ) -> None:
     client = NineRouterClient(api_key="sk-test", model=model)
     captured: dict[str, object] = {}
@@ -57,7 +61,12 @@ def test_reasoning_models_omit_unsupported_temperature(
         )
 
     client._client.chat.completions.create = create  # type: ignore[method-assign]
-    assert client.complete_json("system", "user") == {"ok": True}
+    assert client.complete_json("system", "user", max_output_tokens=64) == {"ok": True}
+    assert captured[token_limit_key] == 64
+    other_token_limit_key = (
+        "max_tokens" if token_limit_key == "max_completion_tokens" else "max_completion_tokens"
+    )
+    assert other_token_limit_key not in captured
     if temperature_expected:
         assert captured["temperature"] == 0
     else:
@@ -144,3 +153,105 @@ def test_runtime_snapshot_reports_remaining_budgets_without_payload_data() -> No
 
     assert snapshot["llm_calls_remaining"] == 1
     assert snapshot["embedding_tokens_remaining"] == 13
+
+
+def _capture_messages(client: NineRouterClient) -> list[dict[str, object]]:
+    requests: list[dict[str, object]] = []
+
+    def create(**kwargs: object) -> SimpleNamespace:
+        requests.append(kwargs)
+        return SimpleNamespace(
+            model="gpt-5.5-2026-04-23",
+            usage=None,
+            choices=[SimpleNamespace(message=SimpleNamespace(content='{"slots": []}'))],
+        )
+
+    client._client.chat.completions.create = create  # type: ignore[method-assign]
+    return requests
+
+
+def test_json_mode_request_always_names_json() -> None:
+    # OpenAI answers 400 "'messages' must contain the word 'json'" for
+    # response_format=json_object; a Vietnamese prompt naming only {"slots": ...} hit it.
+    client = NineRouterClient(api_key="sk-test", model="gpt-5.5")
+    requests = _capture_messages(client)
+
+    assert client.complete_json('Chỉ trả {"slots": []}.', '{"frame": "f-1"}') == {"slots": []}
+
+    assert requests[0]["response_format"] == {"type": "json_object"}
+    text = " ".join(str(m["content"]) for m in requests[0]["messages"])  # type: ignore[union-attr]
+    assert "json" in text.casefold()
+
+
+def test_prompt_that_already_names_json_is_sent_unchanged() -> None:
+    client = NineRouterClient(api_key="sk-test", model="gpt-5.5")
+    requests = _capture_messages(client)
+
+    client.complete_json("Return JSON {slots}.", "user")
+
+    assert requests[0]["messages"] == [
+        {"role": "system", "content": "Return JSON {slots}."},
+        {"role": "user", "content": "user"},
+    ]
+
+
+def test_runtime_logs_provider_rejection_without_payload(caplog: pytest.LogCaptureFixture) -> None:
+    client = NineRouterClient(api_key="sk-test", model="gpt-5.5")
+
+    def create(**_kwargs: object) -> SimpleNamespace:
+        response = httpx.Response(400, request=httpx.Request("POST", "http://example.test"))
+        raise BadRequestError(
+            "bad request",
+            response=response,
+            body={"error": {"param": "messages", "code": None, "message": "secret-raw-text"}},
+        )
+
+    client._client.chat.completions.create = create  # type: ignore[method-assign]
+    runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=2)
+
+    with caplog.at_level("WARNING", logger="app.pipeline.runtime"):
+        assert runtime.complete_json(client, "Return JSON.", "raw=private") is None
+
+    line = next(r.getMessage() for r in caplog.records if "ai2.llm_call_failed" in r.getMessage())
+    assert "error=BadRequestError" in line and "http_status=400" in line and "param=messages" in line
+    assert "secret-raw-text" not in line and "raw=private" not in line
+
+
+def _quota_client(code: str, calls: list) -> NineRouterClient:
+    from openai import RateLimitError
+
+    client = NineRouterClient(api_key="sk-test", model="gpt-5.5")
+
+    def create(**_kwargs: object) -> SimpleNamespace:
+        calls.append(1)
+        response = httpx.Response(429, request=httpx.Request("POST", "http://example.test"))
+        raise RateLimitError("429", response=response, body={"error": {"code": code, "message": "x"}})
+
+    client._client.chat.completions.create = create  # type: ignore[method-assign]
+    return client
+
+
+@pytest.mark.parametrize("code", ["credit_balance_exhausted", "insufficient_quota"])
+def test_exhausted_quota_fails_fast_and_stops_the_job(code: str) -> None:
+    # Observed live: 429 code=credit_balance_exhausted was retried 3x per call as a rate
+    # limit, burning the whole call budget and reporting "quá tải" instead of the cause.
+    calls: list = []
+    client = _quota_client(code, calls)
+    runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=20)
+
+    assert runtime.complete_json(client, "Return JSON.", "u") is None
+    assert len(calls) == 1
+    assert [issue[0] for issue in runtime.issues] == ["LLM_QUOTA_EXHAUSTED"]
+    assert runtime.complete_json(client, "Return JSON.", "u") is None
+    assert len(calls) == 1  # later calls in the same job send nothing
+
+
+def test_plain_rate_limit_is_still_retried() -> None:
+    calls: list = []
+    client = _quota_client("rate_limit_exceeded", calls)
+    runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=20)
+    runtime.sleep = lambda _seconds: None  # type: ignore[method-assign]
+
+    assert runtime.complete_json(client, "Return JSON.", "u") is None
+    assert len(calls) == runtime.max_attempts
+    assert runtime.issues[0][0] == "LLM_RATE_LIMITED"

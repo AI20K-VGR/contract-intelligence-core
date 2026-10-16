@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import os
 import threading
@@ -12,7 +13,14 @@ from typing import Any, Callable
 
 import openai
 
-from app.llm.client import LLMRequestBudgetExceeded, NineRouterClient, call_with_timeout
+from app.llm.client import (
+    LLMRequestBudgetExceeded,
+    NineRouterClient,
+    _safe_error_identifier,
+    call_with_timeout,
+)
+
+logger = logging.getLogger(__name__)
 
 # Vietnamese messages for every code a job can end with (ST-067, D-4). The UI
 # shows them as-is, so they say what happened and that the result needs review.
@@ -26,6 +34,10 @@ ISSUE_MESSAGES_VI: dict[str, str] = {
         "phần còn lại chỉ trích xuất cục bộ, cần người xem lại."
     ),
     "LLM_TIMEOUT": "Lời gọi LLM quá thời gian chờ; phần còn lại chỉ trích xuất cục bộ, cần người xem lại.",
+    "LLM_QUOTA_EXHAUSTED": (
+        "Tài khoản nhà cung cấp LLM đã hết hạn mức/credit; AI2 ngừng gọi mô hình cho hồ sơ này, "
+        "phần còn lại chỉ trích xuất cục bộ. Cần nạp hạn mức rồi xử lý lại."
+    ),
     "LLM_BUDGET_EXCEEDED": (
         "Đã dùng hết số lượt gọi LLM cho hồ sơ này; các mục còn lại chỉ trích xuất cục bộ, cần người xem lại."
     ),
@@ -41,8 +53,22 @@ ISSUE_MESSAGES_VI: dict[str, str] = {
 # Runtime issues that explain why a job stopped using the LLM. They are
 # surfaced as handoff issues so the code reaches the wire ``errors[]``.
 TERMINATION_CODES = frozenset(
-    {"LLM_RATE_LIMITED", "LLM_UNAVAILABLE", "LLM_TIMEOUT", "LLM_BUDGET_EXCEEDED"}
+    {"LLM_RATE_LIMITED", "LLM_UNAVAILABLE", "LLM_TIMEOUT", "LLM_BUDGET_EXCEEDED", "LLM_QUOTA_EXHAUSTED"}
 )
+# 429 bodies that mean the account cannot be served at all, not "slow down": retrying only
+# burns the job's call budget and time.
+_QUOTA_EXHAUSTED_CODES = frozenset({
+    "credit_balance_exhausted", "insufficient_quota", "billing_hard_limit_reached", "billing_not_active",
+})
+
+
+def _quota_exhausted(exc: BaseException) -> bool:
+    status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+    body = getattr(exc, "body", None)
+    detail = body.get("error", body) if isinstance(body, dict) else {}
+    return status == 429 and isinstance(detail, dict) and (
+        detail.get("code") in _QUOTA_EXHAUSTED_CODES or detail.get("type") in _QUOTA_EXHAUSTED_CODES
+    )
 
 _BACKOFF_BASE_SECONDS = 0.5
 _BACKOFF_CAP_SECONDS = 8.0
@@ -75,6 +101,23 @@ def classify_provider_error(exc: BaseException) -> str | None:
     if status == 409 or status >= 500:
         return "LLM_UNAVAILABLE"
     return None
+
+
+def _log_provider_failure(client: Any, exc: BaseException, attempt: int) -> None:
+    # Identifiers only: the provider message can echo contract text.
+    body = getattr(exc, "body", None)
+    detail = body.get("error", body) if isinstance(body, dict) else {}
+    detail = detail if isinstance(detail, dict) else {}
+    logger.warning(
+        "ai2.llm_call_failed model=%s attempt=%s error=%s http_status=%s code=%s param=%s retry_code=%s",
+        getattr(client, "model", None),
+        attempt + 1,
+        type(exc).__name__,
+        getattr(exc, "status_code", None),
+        _safe_error_identifier(detail.get("code")),
+        _safe_error_identifier(detail.get("param")),
+        classify_provider_error(exc),
+    )
 
 
 def _retry_after_seconds(exc: BaseException) -> float | None:
@@ -119,6 +162,8 @@ class ProcessingRuntime:
     llm_calls_used: int = 0
     embedding_tokens_used: int = 0
     fallback_count: int = 0
+    # Set once the provider reports an exhausted quota; later calls in the job send nothing.
+    provider_exhausted: bool = False
     default_max_output_tokens: int | None = None
     default_operation_deadline: float | None = None
     issues: list[tuple[str, str]] = field(default_factory=list)
@@ -191,6 +236,8 @@ class ProcessingRuntime:
         if client is None or not client.configured():
             self._fall_back("LLM_UNAVAILABLE", "NineRouter is not configured")
             return None
+        if self.provider_exhausted:
+            return None
 
         last_code: str | None = None
         for attempt in range(max(self.max_attempts, 1)):
@@ -215,6 +262,11 @@ class ProcessingRuntime:
                 self._fall_back("LLM_BUDGET_EXCEEDED")
                 return None
             except Exception as exc:
+                _log_provider_failure(client, exc, attempt)
+                if _quota_exhausted(exc):
+                    self.provider_exhausted = True
+                    self._fall_back("LLM_QUOTA_EXHAUSTED")
+                    return None
                 if self.remaining() <= 0:
                     raise ProcessingTimeout("processing time budget exceeded") from exc
                 if operation_remaining() <= 0:

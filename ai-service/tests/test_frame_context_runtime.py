@@ -223,3 +223,34 @@ def test_reference_context_rejects_stale_heuristic_and_exhausted_chain(fault, re
     assert reason in gaps
     if fault != "hop":
         assert selected == ()
+
+
+def test_slot_context_prompt_names_json_for_provider_json_mode(monkeypatch):
+    from app.contracts.clause_frames import ClauseFrame, Evidence, Slot
+    from app.pipeline import frame_context
+    from app.pipeline.frame_context import _enrich
+
+    record = semantic_record()
+    node = record.nodes[0]
+    bounds = record.semantic_profile.context_bounds
+    evidence = Evidence("doc-1", "snapshot-1", node.node_id, node.text)
+    frame = ClauseFrame(
+        "frame-1", "OBLIGATION", "SALES", "doc-1", "snapshot-1", (evidence,),
+        (("action", Slot("PAY", "GROUNDED", (evidence,))), ("deadline", Slot(None, "UNKNOWN", ()))),
+        "dossier",
+    )
+    prompts = []
+
+    def complete_json(_runtime, _client, system, user, **_kwargs):
+        prompts.append(f"{system}\n{user}")
+        return {"slots": []}
+
+    monkeypatch.setattr(ProcessingRuntime, "complete_json", complete_json)
+    # One-node fixture has no parent; any context is enough to reach the provider call.
+    monkeypatch.setattr(frame_context, "context_nodes", lambda *_a: ((node,), ()))
+    runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=5)
+    _enrich(record, (frame,), runtime, SimpleNamespace(configured=lambda: True), bounds,
+            runtime.clock() + 60, 0)
+
+    assert prompts, "fixture must reach the slot-context LLM call"
+    assert all("json" in p.casefold() for p in prompts)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from app.contracts.models import (
@@ -20,6 +21,9 @@ from app.contracts.models import (
     ValidatedHandoff,
 )
 from app.llm.client import NineRouterClient
+
+if TYPE_CHECKING:
+    from app.contracts.contract_graph import PairResult
 from app.pipeline.ai1_snapshot_adapter import fold_for_match
 from app.pipeline.candidate import CandidatePairer
 from app.pipeline.citations import CitationResolver
@@ -472,13 +476,7 @@ def run_idp(
                         "contract_graph_pairs",
                         "COMPLETED",
                         item_count=len(pair_result.relations),
-                        reason_code=(
-                            f"RULE_ONLY_{pair_result.rule_only_reason}"
-                            if pair_result.mode == "rule_only" and pair_result.rule_only_reason
-                            else "RULE_ONLY"
-                            if pair_result.mode == "rule_only"
-                            else None
-                        ),
+                        reason_code=_pairs_reason_code(pair_result),
                     )
                 if pair_result.mode == "rule_only":
                     issues.append(limited_coverage_issue(pair_result))
@@ -632,6 +630,16 @@ def _contract_graph_enabled() -> bool:
         "yes",
         "on",
     }
+
+
+def _pairs_reason_code(pair_result: PairResult) -> str | None:
+    if pair_result.mode == "rule_only":
+        reason = pair_result.rule_only_reason
+        return f"RULE_ONLY_{reason}" if reason else "RULE_ONLY"
+    # An LLM run that stopped early (provider failure, deadline, call cap) classified
+    # only part of the candidates; COMPLETED alone read as full coverage.
+    stopped = pair_result.stats.get("stopped_reason")
+    return f"PARTIAL_{stopped}" if stopped else None
 
 
 def _contract_graph_pairs_enabled() -> bool:

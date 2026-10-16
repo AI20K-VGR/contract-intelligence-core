@@ -100,3 +100,20 @@ def test_missing_policy_does_not_call_llm():
     )
     assert result.reason == "POLICY_NOT_FROZEN"
     assert client.calls == 0
+
+
+def test_alias_prompt_names_json_for_provider_json_mode():
+    seen = []
+
+    class Recording(Client):
+        def complete_json(self, system, user, **kwargs):
+            seen.append(system + "\n" + user)
+            return super().complete_json(system, user, **kwargs)
+
+    propose_aliases(
+        "trả tiền", "source-1", kind="action",
+        runtime=ProcessingRuntime(egress_allowed=True, max_llm_calls=1),
+        client=Recording(), minimum_length=4,
+    )
+
+    assert seen and "json" in seen[0].casefold()
