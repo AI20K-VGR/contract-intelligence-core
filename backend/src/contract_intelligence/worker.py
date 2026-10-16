@@ -963,6 +963,17 @@ async def _step_statuses(
     return {str(step): str(status) for step, status in result.all()}
 
 
+async def _run_takes_progress(session: AsyncSession, *, tenant_id: str, run_id: str) -> bool:
+    """Progress is shown only on the run its job currently points at, while it
+    runs, in its own tenant: a report from an old, cancelled or finished run, or
+    one naming another tenant, is dropped."""
+    run = await _load_run(session, run_id)
+    if run is None or run.tenant_id != tenant_id or run.status != "running":
+        return False
+    job = await _job_for_run(session, run_id)
+    return job is not None and job.tenant_id == tenant_id and job.current_run_id == run_id
+
+
 def _ai1_page_progress(
     documents: list[DocumentORM],
     extracted: set[str],
@@ -1742,6 +1753,8 @@ async def _record_ai1_progress(
         return
     if not _worker_transition_allowed(job_status, JobStatus.EXTRACTED.value):
         return
+    if not await _run_takes_progress(session, tenant_id=tenant_id, run_id=run_id):
+        return
     documents = await _load_documents(session, dossier_id)
     if document_id not in {str(d.id) for d in documents}:
         return
@@ -1776,6 +1789,8 @@ async def _record_ai2_progress(
     if step not in AI2_STEPS or value is None:
         return
     try:
+        if not await _run_takes_progress(session, tenant_id=tenant_id, run_id=run_id):
+            return
         statuses = await _step_statuses(session, run_id=run_id, steps=AI2_STEPS)
         if statuses.get(step) in {"succeeded", "failed"}:
             return
@@ -2523,11 +2538,15 @@ async def _handle_with_retry(
     attempts = settings.worker_handler_max_attempts
     consumer = getattr(handler, "__name__", "handler")
     key = event_key(record, message)
+    # An advisory progress report is safe to handle twice (throttled, never
+    # moves backwards) and must never take the marker of the result that may
+    # share its event_id: that result would then be skipped as a duplicate.
+    dedupe = message.get("event_type") != EVENT_OCR_PROGRESS
     last_error: Exception | None = None
     for attempt in range(1, attempts + 1):
         try:
             async with session_factory() as session:
-                if await already_processed(session, consumer, key):
+                if dedupe and await already_processed(session, consumer, key):
                     logger.info(
                         "worker.record_already_processed",
                         consumer=consumer,
@@ -2537,7 +2556,8 @@ async def _handle_with_retry(
                     )
                     return None
                 await handler(session, message)
-                mark_processed(session, consumer, key, record)
+                if dedupe:
+                    mark_processed(session, consumer, key, record)
                 try:
                     await session.commit()
                 except IntegrityError:

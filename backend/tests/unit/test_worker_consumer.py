@@ -351,6 +351,29 @@ async def test_same_event_id_at_another_offset_is_skipped(
 
 
 @pytest.mark.asyncio
+async def test_progress_report_never_takes_the_result_marker(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """An AI1 progress report sharing the result's event_id (PR #117 review):
+    the progress is handled, and the completed result after it is still run."""
+    handler = _named_handler()
+    progress = json.dumps({"event_id": "evt_cmd", "event_type": "ai1.ocr.progress"}).encode()
+    completed = json.dumps({"event_id": "evt_cmd", "event_type": "ai1.ocr.completed"}).encode()
+
+    for raw, offset in ((progress, 40), (progress, 41), (completed, 42), (completed, 43)):
+        await worker._process_record(
+            _record(raw, offset=offset),
+            consumer=_consumer(),
+            handler=handler,
+            session_factory=factory,
+        )
+
+    types = [call.args[1]["event_type"] for call in handler.await_args_list]
+    # Both progress reports run (harmless twice); the result runs exactly once.
+    assert types == ["ai1.ocr.progress", "ai1.ocr.progress", "ai1.ocr.completed"]
+
+
+@pytest.mark.asyncio
 async def test_failed_record_leaves_no_marker(factory: async_sessionmaker[AsyncSession]) -> None:
     raw = json.dumps({"event": "dossier.uploaded", "dossier_id": "dos_1"}).encode()
     failing = _named_handler(side_effect=RuntimeError("down"))

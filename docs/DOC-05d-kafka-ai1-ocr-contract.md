@@ -228,6 +228,13 @@ of its pages are done, on the results topic with the same envelope and
 ```
 
 - `done`, `total`: integers, pages of **this document**; `unit` is always `"page"`.
+- Each report MUST carry its own `event_id`, distinct from the command's and
+  from the result's (AI1 uses `<command event_id>:progress:<done>`, #118). The
+  backend dedupes the results topic by `event_id`. It never records a
+  progress report as processed, so a report cannot hide the result, but
+  distinct ids keep logs and replays readable.
+- Accepted only for the run the job currently points at, while it is
+  `running`, in the same tenant; anything else is dropped.
 - Send it at most once per page, and preferably no more than once a second.
   The backend writes at most ~20 values per step anyway (one UPDATE and one
   SSE `step.changed` each), so extra messages are dropped, not stored.

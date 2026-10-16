@@ -127,6 +127,7 @@ Public job status ở cả hai kênh là:
 - `done`, `total`: số nguyên, `total >= 1`; `unit`: `chunk`, `clause`, `pair`, `page` hoặc `document`.
 - Backend đánh dấu các bước AI2 trước `step` là `succeeded`, `step` là `running`, rồi hiện `done/total` trên giao diện (DOC-05b v3.2.0). Job lỗi thì bước đang `running` thành `failed`.
 - Chỉ mang tính tham khảo: thiếu trường hoặc giá trị sai thì Backend bỏ qua, không làm hỏng run. Backend tự giới hạn số lần ghi, AI2 không cần.
+- Backend chỉ nhận tiến độ cho run mà job đang trỏ tới (`current_run_id`), khi run còn `running` và đúng tenant; tiến độ sau khi huỷ hoặc của run cũ bị bỏ qua.
 - Không có trường này thì giao diện chỉ hiện vòng quay cho các bước AI2, như trước.
 
 `review_state` là trạng thái chất lượng/review độc lập: `PASS`, `NEEDS_REVIEW`, `INSUFFICIENT_EVIDENCE`, `BLOCKED` hoặc `null` khi job chưa hoàn tất.

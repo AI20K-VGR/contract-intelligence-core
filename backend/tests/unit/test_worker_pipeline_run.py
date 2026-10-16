@@ -2258,3 +2258,45 @@ async def test_ai2_progress_moves_steps_and_a_failure_fails_the_running_one(
     steps = await _steps(factory, run_id)
     assert steps["S6"][0] == "failed"
     assert not [s for s in worker.AI2_STEPS if steps[s][0] == "running"]
+
+
+@pytest.mark.asyncio
+async def test_progress_is_dropped_for_a_run_that_is_not_current_or_not_running(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """vdungx review on PR #117: progress after cancel, from an old run or for
+    another tenant never reaches the steps."""
+    monkeypatch.setattr(worker.step_progress, "MIN_INTERVAL_SECONDS", 0.0)
+    await _set_page_counts(factory, doc_a=150, doc_b=52)
+    run_id = await _start(factory)
+    ai2 = {"step": "S6", "done": 3, "total": 10, "unit": "clause"}
+
+    async with factory() as session:
+        assert not await worker._run_takes_progress(session, tenant_id="other", run_id=run_id)
+        assert await worker._run_takes_progress(session, tenant_id=TENANT, run_id=run_id)
+
+    # A newer run replaces this one on the job: the old run takes nothing.
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.current_run_id = "run_newer"
+        await session.commit()
+    await _deliver(factory, _ocr_progress(run_id, DOC_A, 37, 150))
+    async with factory() as session:
+        await worker._record_ai2_progress(session, ai2, tenant_id=TENANT, run_id=run_id)
+    steps = await _steps(factory, run_id)
+    assert steps["S2"][1] is None and steps["S6"] == ("queued", None)
+
+    # Back on the job but cancelled: still nothing.
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        run = await session.get(PipelineRunORM, run_id)
+        assert job is not None and run is not None
+        job.current_run_id = run_id
+        run.status = "cancelled"
+        await session.commit()
+    async with factory() as session:
+        await worker._record_ai2_progress(session, ai2, tenant_id=TENANT, run_id=run_id)
+    assert (await _steps(factory, run_id))["S6"] == ("queued", None)
