@@ -313,6 +313,9 @@ class Settings(BaseSettings):
         default_factory=lambda: ["http://localhost:5173"]
     )
     cors_allow_credentials: bool = Field(default=True)
+    # Server-Timing header (app and SQL time per request) for DevTools and the
+    # frontend's Resource Timing; Timing-Allow-Origin follows cors_allow_origins.
+    server_timing_enabled: bool = Field(default=True)
 
     @field_validator("cors_allow_origins", mode="before")
     @classmethod

@@ -401,6 +401,7 @@ class TestDossierEndpoints:
         assert response.json()["data"]["latest_job_status"] is not None
         assert len(response.json()["data"]["documents"]) == 1
         assert len(statements) == 5, statements
+        assert response.headers["server-timing"].endswith('desc="5 queries"')
         assert not any("count(*)" in s.lower() and "job" in s.lower() for s in statements)
 
     @pytest.mark.asyncio

@@ -58,6 +58,13 @@
 | `Accept` | Có | `application/json` hoặc `application/pdf` (khi tải file gốc) |
 | `X-Request-Id` | Tùy chọn | Client sinh UUIDv4 để truy vết log từ Frontend sang Backend |
 
+Header backend trả về để đo hiệu năng (tắt bằng `SERVER_TIMING_ENABLED=false` trong `deploy/.env.prod`):
+
+| Header | Mô tả |
+|---|---|
+| `Server-Timing` | `app;dur=<ms>, db;dur=<ms>;desc="<n> queries"`: thời gian xử lý trong API (tới khi gửi header, với SSE là tới byte đầu) và tổng thời gian + số câu SQL của request. Xem ở DevTools → Network → Timing; phần còn lại của thời gian request là mạng (Cloudflare → origin). |
+| `Timing-Allow-Origin` | Các origin trong `CORS_ALLOW_ORIGINS`, để frontend đọc được giá trị trên qua `performance.getEntriesByType('resource')[i].serverTiming`. |
+
 ---
 
 ## 2. Cơ chế Xác thực & Phân quyền (Auth & RBAC)
