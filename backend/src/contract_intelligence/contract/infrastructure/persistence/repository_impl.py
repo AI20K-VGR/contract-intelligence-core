@@ -5,11 +5,12 @@ Layer: infrastructure (persistence) — concrete impl cho Dossier/Document/Job/M
 
 from __future__ import annotations
 
+import weakref
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import and_, bindparam, delete, exists, func, or_, select, text
+from sqlalchemy import Engine, and_, bindparam, delete, exists, func, inspect, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.sql.schema import Table
@@ -46,6 +47,7 @@ from contract_intelligence.contract.infrastructure.persistence.orm import (
     ManifestRelationORM,
 )
 from contract_intelligence.shared.base import Page, new_ulid, utcnow
+from contract_intelligence.shared.page_features import page_ocr_status
 from contract_intelligence.shared.run_events import record_run_event
 
 
@@ -65,9 +67,15 @@ def _coerce_int(value: object, default: int = 0) -> int:
     return default
 
 
+_PAGE_ERROR_MAX = 500
+
+
 # ============================================================================
 # Dossier
 # ============================================================================
+
+# Engines whose database already has ``deletion_ledger`` (see ``_ensure_ledger``).
+_LEDGER_PRESENT: weakref.WeakSet[Engine] = weakref.WeakSet()
 
 
 def _dossier_to_domain(orm: DossierORM) -> Dossier:
@@ -102,10 +110,27 @@ class DossierRepositoryImpl(DossierRepository):
         self._tenant_id = tenant_id
 
     async def _ensure_ledger(self) -> None:
+        """Create ``deletion_ledger`` when missing (migration v8 creates it in production).
+
+        Checked once per engine: the catalog lookup used to run before every
+        dossier read. Only a table that already existed is remembered, so one
+        created inside a transaction that later rolls back is checked again.
+        """
         connection = await self._session.connection()
+        engine = connection.sync_engine
+        if engine in _LEDGER_PRESENT:
+            return
         table = DeletionLedgerORM.__table__
         assert isinstance(table, Table)
-        await connection.run_sync(table.create, checkfirst=True)
+
+        def ensure(sync_connection: Any) -> bool:
+            if inspect(sync_connection).has_table(table.name, schema=table.schema):
+                return True
+            table.create(sync_connection)
+            return False
+
+        if await connection.run_sync(ensure):
+            _LEDGER_PRESENT.add(engine)
 
     def _visible(self) -> ColumnElement[bool]:
         return ~exists(
@@ -633,6 +658,74 @@ class DossierRepositoryImpl(DossierRepository):
             result[str(dossier_id)] = (bool(is_locked), approved_at)
         return result
 
+    async def document_summaries(self, dossier_ids: Sequence[str]) -> dict[str, dict[str, Any]]:
+        """``{dossier_id: {contracts, annexes, contract_ocr}}`` in two queries.
+
+        ``contract_ocr`` describes the first contract document (the one the
+        list screen inspects): page count, failed pages and the first page
+        error. Raw SQL on ``page`` keeps the extraction BC's ORM out of here.
+        """
+        if not dossier_ids:
+            return {}
+        docs = await self._session.execute(
+            text(
+                "SELECT id, dossier_id, role, filename FROM document "
+                "WHERE tenant_id = :tenant_id AND dossier_id IN :ids "
+                "ORDER BY dossier_id, order_index, created_at"
+            ).bindparams(bindparam("ids", expanding=True)),
+            {"tenant_id": self._tenant_id, "ids": list(dossier_ids)},
+        )
+        result: dict[str, dict[str, Any]] = {}
+        contract_of: dict[str, str] = {}  # document_id -> dossier_id
+        for doc_id, dossier_id, role, filename in docs:
+            entry = result.setdefault(
+                str(dossier_id), {"contracts": 0, "annexes": 0, "contract_ocr": None}
+            )
+            role = str(role or "").lower()
+            if role == DocumentRole.CONTRACT.value:
+                entry["contracts"] += 1
+            elif role == DocumentRole.ANNEX.value:
+                entry["annexes"] += 1
+            # Same pick as the per-dossier client code: first contract, else first document.
+            current = entry["contract_ocr"]
+            if current is None or (
+                role == DocumentRole.CONTRACT.value and not current["_is_contract"]
+            ):
+                if current is not None:
+                    contract_of.pop(current["document_id"], None)
+                entry["contract_ocr"] = {
+                    "document_id": str(doc_id),
+                    "filename": filename,
+                    "page_count": 0,
+                    "failed_pages": 0,
+                    "first_error": None,
+                    "_is_contract": role == DocumentRole.CONTRACT.value,
+                }
+                contract_of[str(doc_id)] = str(dossier_id)
+        if contract_of:
+            pages = await self._session.execute(
+                text(
+                    "SELECT document_id, features FROM page "
+                    "WHERE tenant_id = :tenant_id AND document_id IN :ids "
+                    "ORDER BY document_id, page_no"
+                ).bindparams(bindparam("ids", expanding=True)),
+                {"tenant_id": self._tenant_id, "ids": list(contract_of)},
+            )
+            for doc_id, features in pages:
+                ocr = result[contract_of[str(doc_id)]]["contract_ocr"]
+                ocr["page_count"] += 1
+                status, error = page_ocr_status(features)
+                if status == "FAILED" or error:
+                    # The first failed page's error, as the list screen showed it;
+                    # null when that page failed without a message.
+                    if ocr["failed_pages"] == 0 and error:
+                        ocr["first_error"] = error[:_PAGE_ERROR_MAX]
+                    ocr["failed_pages"] += 1
+        for entry in result.values():
+            if entry["contract_ocr"] is not None:
+                entry["contract_ocr"].pop("_is_contract")
+        return result
+
     async def is_tombstoned(self, dossier_id: str) -> bool:
         """True when dossier exists for tenant but has been tombstoned."""
         stmt = select(DossierORM.deleted_at).where(
@@ -813,7 +906,7 @@ class JobRepositoryImpl(JobRepository):
             stmt = stmt.where(JobORM.status == status.value)
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total = int((await self._session.execute(count_stmt)).scalar() or 0)
-        stmt = stmt.order_by(JobORM.created_at.desc()).limit(limit).offset(offset)
+        stmt = stmt.order_by(JobORM.created_at.desc(), JobORM.id.desc()).limit(limit).offset(offset)
         result = await self._session.execute(stmt)
         return Page(
             items=[_job_to_domain(o) for o in result.scalars().all()],
@@ -821,6 +914,27 @@ class JobRepositoryImpl(JobRepository):
             limit=limit,
             offset=offset,
         )
+
+    async def latest_by_dossiers(self, dossier_ids: Sequence[str]) -> dict[str, Job]:
+        """Newest job of each dossier (same order as ``list``), in one query."""
+        if not dossier_ids:
+            return {}
+        rank = (
+            func.row_number()
+            .over(
+                partition_by=JobORM.dossier_id,
+                order_by=(JobORM.created_at.desc(), JobORM.id.desc()),
+            )
+            .label("rank")
+        )
+        ranked = (
+            select(JobORM.id, rank)
+            .where(JobORM.tenant_id == self._tenant_id, JobORM.dossier_id.in_(list(dossier_ids)))
+            .subquery()
+        )
+        stmt = select(JobORM).join(ranked, JobORM.id == ranked.c.id).where(ranked.c.rank == 1)
+        result = await self._session.execute(stmt)
+        return {o.dossier_id: _job_to_domain(o) for o in result.scalars().all()}
 
     async def add(self, entity: Job) -> None:
         orm = JobORM(
@@ -856,6 +970,17 @@ class JobRepositoryImpl(JobRepository):
         if orm:
             await self._session.delete(orm)
             await self._session.flush()
+
+    async def latest_for_dossier(self, dossier_id: str) -> Job | None:
+        """Newest job of the dossier (same order as ``list``), without counting."""
+        stmt = (
+            select(JobORM)
+            .where(JobORM.tenant_id == self._tenant_id, JobORM.dossier_id == dossier_id)
+            .order_by(JobORM.created_at.desc(), JobORM.id.desc())
+            .limit(1)
+        )
+        orm = (await self._session.execute(stmt)).scalar_one_or_none()
+        return _job_to_domain(orm) if orm else None
 
 
 # ============================================================================
