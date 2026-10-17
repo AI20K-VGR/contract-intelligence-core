@@ -237,10 +237,25 @@ class ContractService:
             await self._dossier_repo.list(**list_kwargs),
         )
         items = list(page.items)
-        # Hydrate latest job onto each dossier for DossierSummary.latest_job_status
-        for dossier in items:
-            await self._hydrate_latest_job(dossier)
+        # Hydrate latest job onto each dossier for DossierSummary.latest_job_status,
+        # in one query when the repository supports it (test doubles may not).
+        latest_by_dossiers = getattr(self._job_repo, "latest_by_dossiers", None)
+        if latest_by_dossiers is not None:
+            latest = await latest_by_dossiers([d.id for d in items if not d.jobs])
+            for dossier in items:
+                if not dossier.jobs and dossier.id in latest:
+                    dossier.jobs = [latest[dossier.id]]
+        else:
+            for dossier in items:
+                await self._hydrate_latest_job(dossier)
         return items, page.total
+
+    async def document_summaries(self, dossier_ids: Sequence[str]) -> dict[str, dict[str, Any]]:
+        """Document counts and contract OCR status per dossier, for list screens."""
+        summaries = getattr(self._dossier_repo, "document_summaries", None)
+        if summaries is None or not dossier_ids:
+            return {}
+        return cast(dict[str, dict[str, Any]], await summaries(dossier_ids))
 
     async def get_dossier(self, dossier_id: str) -> Dossier:
         dossier = await self._dossier_repo.get(dossier_id)

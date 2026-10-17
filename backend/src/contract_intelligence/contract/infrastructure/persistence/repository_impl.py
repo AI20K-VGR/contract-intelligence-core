@@ -5,6 +5,7 @@ Layer: infrastructure (persistence) — concrete impl cho Dossier/Document/Job/M
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
@@ -63,6 +64,25 @@ def _coerce_int(value: object, default: int = 0) -> int:
         except ValueError:
             return default
     return default
+
+
+_PAGE_ERROR_MAX = 500
+
+
+def _page_ocr_status(features: object) -> tuple[str, str | None]:
+    """``(ai1_page_status upper-cased, error)`` from a ``page.features`` value.
+
+    Raw SQL gives JSON text on SQLite and may give a dict on Postgres.
+    """
+    if isinstance(features, str):
+        try:
+            features = json.loads(features)
+        except ValueError:
+            return "", None
+    if not isinstance(features, dict):
+        return "", None
+    error = features.get("error")
+    return str(features.get("ai1_page_status") or "").upper(), (str(error) if error else None)
 
 
 # ============================================================================
@@ -633,6 +653,72 @@ class DossierRepositoryImpl(DossierRepository):
             result[str(dossier_id)] = (bool(is_locked), approved_at)
         return result
 
+    async def document_summaries(self, dossier_ids: Sequence[str]) -> dict[str, dict[str, Any]]:
+        """``{dossier_id: {contracts, annexes, contract_ocr}}`` in two queries.
+
+        ``contract_ocr`` describes the first contract document (the one the
+        list screen inspects): page count, failed pages and the first page
+        error. Raw SQL on ``page`` keeps the extraction BC's ORM out of here.
+        """
+        if not dossier_ids:
+            return {}
+        docs = await self._session.execute(
+            text(
+                "SELECT id, dossier_id, role, filename FROM document "
+                "WHERE tenant_id = :tenant_id AND dossier_id IN :ids "
+                "ORDER BY dossier_id, order_index, created_at"
+            ).bindparams(bindparam("ids", expanding=True)),
+            {"tenant_id": self._tenant_id, "ids": list(dossier_ids)},
+        )
+        result: dict[str, dict[str, Any]] = {}
+        contract_of: dict[str, str] = {}  # document_id -> dossier_id
+        for doc_id, dossier_id, role, filename in docs:
+            entry = result.setdefault(
+                str(dossier_id), {"contracts": 0, "annexes": 0, "contract_ocr": None}
+            )
+            role = str(role or "").lower()
+            if role == DocumentRole.CONTRACT.value:
+                entry["contracts"] += 1
+            elif role == DocumentRole.ANNEX.value:
+                entry["annexes"] += 1
+            # Same pick as the per-dossier client code: first contract, else first document.
+            current = entry["contract_ocr"]
+            if current is None or (
+                role == DocumentRole.CONTRACT.value and not current["_is_contract"]
+            ):
+                if current is not None:
+                    contract_of.pop(current["document_id"], None)
+                entry["contract_ocr"] = {
+                    "document_id": str(doc_id),
+                    "filename": filename,
+                    "page_count": 0,
+                    "failed_pages": 0,
+                    "first_error": None,
+                    "_is_contract": role == DocumentRole.CONTRACT.value,
+                }
+                contract_of[str(doc_id)] = str(dossier_id)
+        if contract_of:
+            pages = await self._session.execute(
+                text(
+                    "SELECT document_id, features FROM page "
+                    "WHERE tenant_id = :tenant_id AND document_id IN :ids "
+                    "ORDER BY document_id, page_no"
+                ).bindparams(bindparam("ids", expanding=True)),
+                {"tenant_id": self._tenant_id, "ids": list(contract_of)},
+            )
+            for doc_id, features in pages:
+                ocr = result[contract_of[str(doc_id)]]["contract_ocr"]
+                ocr["page_count"] += 1
+                status, error = _page_ocr_status(features)
+                if status == "FAILED" or error:
+                    ocr["failed_pages"] += 1
+                    if ocr["first_error"] is None and error:
+                        ocr["first_error"] = error[:_PAGE_ERROR_MAX]
+        for entry in result.values():
+            if entry["contract_ocr"] is not None:
+                entry["contract_ocr"].pop("_is_contract")
+        return result
+
     async def is_tombstoned(self, dossier_id: str) -> bool:
         """True when dossier exists for tenant but has been tombstoned."""
         stmt = select(DossierORM.deleted_at).where(
@@ -821,6 +907,24 @@ class JobRepositoryImpl(JobRepository):
             limit=limit,
             offset=offset,
         )
+
+    async def latest_by_dossiers(self, dossier_ids: Sequence[str]) -> dict[str, Job]:
+        """Newest job of each dossier (same order as ``list``), in one query."""
+        if not dossier_ids:
+            return {}
+        rank = (
+            func.row_number()
+            .over(partition_by=JobORM.dossier_id, order_by=JobORM.created_at.desc())
+            .label("rank")
+        )
+        ranked = (
+            select(JobORM.id, rank)
+            .where(JobORM.tenant_id == self._tenant_id, JobORM.dossier_id.in_(list(dossier_ids)))
+            .subquery()
+        )
+        stmt = select(JobORM).join(ranked, JobORM.id == ranked.c.id).where(ranked.c.rank == 1)
+        result = await self._session.execute(stmt)
+        return {o.dossier_id: _job_to_domain(o) for o in result.scalars().all()}
 
     async def add(self, entity: Job) -> None:
         orm = JobORM(

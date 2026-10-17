@@ -166,9 +166,9 @@ class TestDossierEndpoints:
             data={"metadata": '{"name": "Test Contract"}'},
             headers=_auth_headers(token),
         )
-        assert response.status_code == 202, (
-            f"Expected 202, got {response.status_code}: {response.text}"
-        )
+        assert (
+            response.status_code == 202
+        ), f"Expected 202, got {response.status_code}: {response.text}"
         body = response.json()
         assert "data" in body
         assert "dossier_id" in body["data"]
@@ -274,6 +274,91 @@ class TestDossierEndpoints:
         assert response.status_code == 200, response.text
         body = response.json()
         assert len(body["data"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_list_dossiers_carries_document_counts_and_contract_ocr(
+        self,
+        client: AsyncClient,
+        db_engine: Any,
+        make_keycloak_token: Any,
+    ) -> None:
+        """Each list item carries what the list screen used to fetch per dossier."""
+        from contract_intelligence.extraction.infrastructure.persistence.orm import PageORM
+
+        token = make_keycloak_token(role="OPERATOR")
+        r = await client.post(
+            "/api/v1/dossiers",
+            files=[
+                ("contract", ("main.pdf", make_pdf(marker="main"), "application/pdf")),
+                ("annexes", ("a1.pdf", make_pdf(marker="a1"), "application/pdf")),
+                ("annexes", ("a2.pdf", make_pdf(marker="a2"), "application/pdf")),
+            ],
+            data={"metadata": _json.dumps({"name": "With OCR"})},
+            headers=_auth_headers(token),
+        )
+        assert r.status_code == 202, r.text
+        dossier_id = r.json()["data"]["dossier_id"]
+        docs = (
+            await client.get(
+                f"/api/v1/dossiers/{dossier_id}/documents", headers=_auth_headers(token)
+            )
+        ).json()["data"]
+        contract_id = next(d["id"] for d in docs if d["role"].lower() == "contract")
+        annex_id = next(d["id"] for d in docs if d["role"].lower() == "annex")
+
+        factory = async_sessionmaker(bind=db_engine, expire_on_commit=False, class_=AsyncSession)
+        async with factory() as session:
+            rows = [
+                (contract_id, 1, {"ai1_page_status": "ok"}),
+                (contract_id, 2, {"ai1_page_status": "failed", "error": "RuntimeError: blank"}),
+                (contract_id, 3, {"ai1_page_status": "ok", "error": "SKIPPED: too dark"}),
+                (annex_id, 1, {"ai1_page_status": "failed", "error": "annex only"}),
+            ]
+            for doc_id, page_no, features in rows:
+                session.add(
+                    PageORM(
+                        id=f"page-{doc_id}-{page_no}",
+                        tenant_id="tenant_vgr_01",
+                        document_id=doc_id,
+                        page_no=page_no,
+                        width_pt="595",
+                        height_pt="842",
+                        features=_json.dumps(features),
+                    )
+                )
+            await session.commit()
+
+        body = (await client.get("/api/v1/dossiers", headers=_auth_headers(token))).json()
+        item = next(d for d in body["data"] if d["id"] == dossier_id)
+        assert item["document_counts"] == {"contracts": 1, "annexes": 2}
+        assert item["contract_ocr"] == {
+            "document_id": contract_id,
+            "filename": "main.pdf",
+            "page_count": 3,
+            "failed_pages": 2,
+            "first_error": "RuntimeError: blank",
+        }
+        assert item["latest_job_status"] is not None
+
+    def test_list_document_fields_follow_the_documents_acl(self) -> None:
+        """List items carry documents only when /documents would allow the caller."""
+        from types import SimpleNamespace
+
+        from contract_intelligence.contract.interfaces.api.routers.contract_router import (
+            _may_read_documents,
+        )
+        from contract_intelligence.shared.auth.schemas import AuthenticatedUser
+
+        def user(user_id: str, role: str) -> AuthenticatedUser:
+            return AuthenticatedUser(
+                user_id=user_id, tenant_id="t1", email="", display_name="", role=role
+            )
+
+        dossier = SimpleNamespace(id="dos_1", tenant_id="t1", metadata={"created_by": "owner"})
+        assert _may_read_documents(dossier, user("owner", "OPERATOR"))
+        assert not _may_read_documents(dossier, user("admin", "ADMINISTRATOR"))
+        other_tenant = SimpleNamespace(id="dos_1", tenant_id="t2", metadata={"created_by": "owner"})
+        assert not _may_read_documents(other_tenant, user("owner", "OPERATOR"))
 
     @pytest.mark.asyncio
     async def test_get_dossier_detail(

@@ -62,6 +62,8 @@ from contract_intelligence.contract.application.dtos.document_dtos import (
     DocumentListItemDTO,
 )
 from contract_intelligence.contract.application.dtos.dossier_dtos import (
+    ContractOcrSummaryDTO,
+    DocumentCountsDTO,
     DossierCreatedDTO,
     DossierDetailDTO,
     DossierSummaryDTO,
@@ -285,6 +287,19 @@ async def _require_readable(
             detail=dossier_denied_message(**decision),
         )
     return dossier
+
+
+def _may_read_documents(dossier: Any, user: AuthenticatedUser) -> bool:
+    """Whether ``user`` may list this dossier's documents (see ``list_dossier_documents``)."""
+    return bool(
+        dossier_access_decision(
+            action=AclAction.CITATION_READ,
+            principal=user,
+            dossier_id=dossier.id,
+            dossier_tenant_id=getattr(dossier, "tenant_id", user.tenant_id),
+            metadata=dossier.metadata,
+        )
+    )
 
 
 _DossierDTO = TypeVar("_DossierDTO", DossierSummaryDTO, DossierDetailDTO)
@@ -1119,21 +1134,32 @@ async def list_dossiers(
         offset=offset,
     )
     lifecycle = await svc.lifecycle([d.id for d in items])
+    # Documents and contract OCR state for the whole page, so the list screen
+    # needs no per-dossier /documents and /pages calls. Same ACL as /documents.
+    document_readable = [d.id for d in items if _may_read_documents(d, user)]
+    documents = await svc.document_summaries(document_readable)
     summaries: list[DossierSummaryDTO] = []
     for d in items:
         latest = d.latest_job()
         locked, approved_at = lifecycle.get(d.id, (False, None))
-        summaries.append(
-            _for_viewer(
-                DossierSummaryDTO.from_domain(
-                    d,
-                    latest_job_status=latest.status if latest else None,
-                    locked=locked,
-                    approved_at=approved_at,
-                ),
-                user,
-            )
+        dto = DossierSummaryDTO.from_domain(
+            d,
+            latest_job_status=latest.status if latest else None,
+            locked=locked,
+            approved_at=approved_at,
         )
+        if d.id in document_readable:
+            doc = documents.get(d.id) or {}
+            ocr = doc.get("contract_ocr")
+            dto = dto.model_copy(
+                update={
+                    "document_counts": DocumentCountsDTO(
+                        contracts=doc.get("contracts", 0), annexes=doc.get("annexes", 0)
+                    ),
+                    "contract_ocr": ContractOcrSummaryDTO(**ocr) if ocr else None,
+                }
+            )
+        summaries.append(_for_viewer(dto, user))
     return ApiResponse(
         data=summaries,
         meta=ApiMeta(

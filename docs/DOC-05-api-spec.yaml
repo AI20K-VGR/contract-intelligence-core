@@ -2459,6 +2459,28 @@ components:
         approved_at: { type: string, format: date-time, nullable: true }
         my_access: { $ref: '#/components/schemas/DossierMyAccess' }
         created_at: { type: string, format: date-time }
+        document_counts:
+          type: object
+          nullable: true
+          description: >
+            Số tài liệu theo vai trò. `null` khi người gọi không được đọc tài liệu của hồ sơ
+            (cùng ACL với `GET /dossiers/{id}/documents`). Thay cho việc gọi `/documents` mỗi hồ sơ.
+          properties:
+            contracts: { type: integer }
+            annexes: { type: integer }
+        contract_ocr:
+          type: object
+          nullable: true
+          description: >
+            Trạng thái OCR của hợp đồng chính (không có thì tài liệu đầu tiên). Thay cho việc gọi
+            `/documents` rồi `/documents/{id}/pages` mỗi hồ sơ. Trang lỗi = `ai1_page_status` là
+            `FAILED` hoặc có `error`. `null` khi hồ sơ chưa có tài liệu hoặc người gọi không được đọc.
+          properties:
+            document_id: { type: string }
+            filename: { type: string, nullable: true }
+            page_count: { type: integer, description: Số trang đã có kết quả OCR (0 = chưa OCR) }
+            failed_pages: { type: integer }
+            first_error: { type: string, nullable: true, description: Lỗi thô của trang lỗi đầu tiên, tối đa 500 ký tự }
 
     DossierMyAccess:
       type: object

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from contract_intelligence.contract.domain.entities.job import Job, JobStatus
@@ -24,6 +26,9 @@ class SqlJobRepository:
         limit: int = 50,
         offset: int = 0,
     ) -> Page[str]:
+        raise NotImplementedError
+
+    async def latest_by_dossiers(self, dossier_ids: Sequence[str]) -> dict[str, Job]:
         raise NotImplementedError
 
     async def add(self, job: Job) -> None:

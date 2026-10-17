@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Protocol, runtime_checkable
 
 from contract_intelligence.contract.domain.entities.job import Job, JobStatus
@@ -20,6 +21,10 @@ class JobRepository(Protocol):
         limit: int = 50,
         offset: int = 0,
     ) -> Page[str]: ...
+
+    async def latest_by_dossiers(self, dossier_ids: Sequence[str]) -> dict[str, Job]:
+        """Newest job of each given dossier, in one query."""
+        ...
 
     async def add(self, job: Job) -> None: ...
 
