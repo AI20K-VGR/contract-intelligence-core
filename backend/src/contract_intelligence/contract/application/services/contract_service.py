@@ -241,7 +241,8 @@ class ContractService:
         # in one query when the repository supports it (test doubles may not).
         latest_by_dossiers = getattr(self._job_repo, "latest_by_dossiers", None)
         if latest_by_dossiers is not None:
-            latest = await latest_by_dossiers([d.id for d in items if not d.jobs])
+            # ``or {}``: a repository subclassing the Protocol inherits its empty body.
+            latest = await latest_by_dossiers([d.id for d in items if not d.jobs]) or {}
             for dossier in items:
                 if not dossier.jobs and dossier.id in latest:
                     dossier.jobs = [latest[dossier.id]]
@@ -255,7 +256,7 @@ class ContractService:
         summaries = getattr(self._dossier_repo, "document_summaries", None)
         if summaries is None or not dossier_ids:
             return {}
-        return cast(dict[str, dict[str, Any]], await summaries(dossier_ids))
+        return cast(dict[str, dict[str, Any]], await summaries(dossier_ids) or {})
 
     async def get_dossier(self, dossier_id: str) -> Dossier:
         dossier = await self._dossier_repo.get(dossier_id)

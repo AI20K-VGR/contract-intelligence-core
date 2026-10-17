@@ -220,6 +220,14 @@ class FakeJobRepository(JobRepository):
     async def delete(self, job_id: str) -> None:
         self._store.pop(job_id, None)
 
+    async def latest_by_dossiers(self, dossier_ids: Any) -> dict[str, Any]:
+        latest: dict[str, Any] = {}
+        for dossier_id in dossier_ids:
+            page = await self.list(dossier_id=dossier_id, limit=1)
+            if page.items:
+                latest[dossier_id] = page.items[0]
+        return latest
+
 
 class FakeManifestRepository:
     """In-memory Manifest repository — minimal impl."""
