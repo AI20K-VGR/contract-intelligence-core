@@ -64,8 +64,20 @@ async def reconstruct_ocr_span(
 
     # Prefer contiguous reconstruction when lines cover a continuous range.
     pieces: list[str] = []
+    previous_end: int | None = None
     for line in lines:
         text = line.text or ""
+        # AI1 lays the document out as lines joined by "\n" (a one-char gap). A quote
+        # over a wrapped clause spans that gap, so restore the break instead of
+        # gluing "trong" + "vòng" into "trongvòng". Wider gaps are unknown text.
+        line_start = int(line.doc_char_start)
+        if (
+            previous_end is not None
+            and line_start - previous_end == 1
+            and doc_char_start <= previous_end < doc_char_end
+        ):
+            pieces.append("\n")
+        previous_end = int(line.doc_char_end)
         # Map absolute doc offsets → offsets within this line's text.
         local_start = max(0, doc_char_start - int(line.doc_char_start))
         local_end = min(len(text), doc_char_end - int(line.doc_char_start))

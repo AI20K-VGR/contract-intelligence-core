@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from app.contracts.models import (
@@ -20,6 +21,9 @@ from app.contracts.models import (
     ValidatedHandoff,
 )
 from app.llm.client import NineRouterClient
+
+if TYPE_CHECKING:
+    from app.contracts.contract_graph import PairResult
 from app.pipeline.ai1_snapshot_adapter import fold_for_match
 from app.pipeline.candidate import CandidatePairer
 from app.pipeline.citations import CitationResolver
@@ -63,6 +67,36 @@ def run_idp(
         egress_allowed=record.egress_approved,
         max_llm_calls=20 if llm is not None else 0,
     )
+    # Past the deadline the job ends here, wherever it was: a run nobody waits for must
+    # not keep its memory (#113).
+    try:
+        return _run_idp(
+            record,
+            envelope,
+            llm=llm,
+            store=store,
+            index=index,
+            job_id=job_id,
+            runtime=runtime,
+            trace_writer=trace_writer,
+        )
+    except ProcessingTimeout:
+        return _failed_result(
+            job_id, [], "PROCESSING_TIMEOUT", ISSUE_MESSAGES_VI["PROCESSING_TIMEOUT"]
+        )
+
+
+def _run_idp(
+    record: DossierRecord,
+    envelope: ToolEnvelope,
+    *,
+    llm: NineRouterClient | None,
+    store: InMemorySnapshotStore | None,
+    index: IndexStore | None,
+    job_id: str,
+    runtime: ProcessingRuntime,
+    trace_writer,
+) -> JobResult:
     try:
         runtime.checkpoint()
     except ProcessingTimeout:
@@ -180,6 +214,9 @@ def run_idp(
     source_fact_node_ids = {
         fact.citation.node_id for fact in facts if fact.citation and fact.citation.node_id
     }
+    runtime.report_progress("S6", 1, 1, "document")
+    if trace_writer is not None:
+        trace_writer.start("extraction")
     fact_ex = FactExtractor(
         gateway,
         llm,
@@ -196,7 +233,8 @@ def run_idp(
     unit_failures: list[HandoffIssue] = []
     extraction_units = 0
     successful_extractions = 0
-    for node in outline:
+    for done, node in enumerate(outline):
+        runtime.report_progress("S7", done, len(outline), "clause")
         try:
             runtime.checkpoint()
             route = router.route_node(node)
@@ -279,8 +317,12 @@ def run_idp(
     )
     if extraction_units and not successful_extractions and unit_failures:
         first = unit_failures[0]
+        if trace_writer is not None:
+            trace_writer.finish("extraction", "FAILED", item_count=0, reason_code=first.code)
         return _failed_result(job_id, handoff.issues, first.code, first.message)
     facts = _dedupe_same_published_key(facts)
+    if trace_writer is not None:
+        trace_writer.finish("extraction", "COMPLETED", item_count=len(facts))
     chunks = ClauseChunker().chunk(handoff)
     events: list[ContractEvent] = extract_contract_events(record)
     _downgrade_unreliable_outputs(facts, chunks, handoff)
@@ -311,7 +353,9 @@ def run_idp(
     pairs_on = graph_enabled and _contract_graph_pairs_enabled()
     graph_issues: list[EvidenceIssue] = []
     contract_graph_stage_status = "SKIPPED"
-    if graph_enabled:
+    if graph_enabled and not _past_deadline(
+        runtime, trace_writer, "contract_graph_operation", handoff
+    ):
         if trace_writer is not None:
             trace_writer.start("contract_graph_operation")
         try:
@@ -352,7 +396,7 @@ def run_idp(
                 tuple(sorted((edge.source_node_id, edge.target_node_id))) for edge in graph.edges
             }
             graph_issues.extend(graph.issues)
-    elif trace_writer is not None:
+    elif trace_writer is not None and not graph_enabled:
         trace_writer.skip("contract_graph_operation", "FEATURE_DISABLED")
     pairer = CandidatePairer()
     candidates, issues = pairer.pair_with_issues(
@@ -360,6 +404,7 @@ def run_idp(
         annex_labels=annex_labels,
         relation_pairs=relation_pairs if pairs_on else set(),
         require_relation_for_cross_document=not pairs_on,
+        split_installments=pairs_on,
     )
     if graph is not None and pairs_on:
         amendment_pairs = {
@@ -455,7 +500,10 @@ def run_idp(
 
         pairs_status = "SKIPPED_GRAPH_FAILED" if graph is None else "OK"
         conflict_stats = {}
-        if graph is not None:
+        pairs_timed_out = graph is not None and _past_deadline(
+            runtime, trace_writer, "contract_graph_pairs", handoff
+        )
+        if graph is not None and not pairs_timed_out:
             if trace_writer is not None:
                 trace_writer.start("contract_graph_pairs")
             try:
@@ -472,13 +520,7 @@ def run_idp(
                         "contract_graph_pairs",
                         "COMPLETED",
                         item_count=len(pair_result.relations),
-                        reason_code=(
-                            f"RULE_ONLY_{pair_result.rule_only_reason}"
-                            if pair_result.mode == "rule_only" and pair_result.rule_only_reason
-                            else "RULE_ONLY"
-                            if pair_result.mode == "rule_only"
-                            else None
-                        ),
+                        reason_code=_pairs_reason_code(pair_result),
                     )
                 if pair_result.mode == "rule_only":
                     issues.append(limited_coverage_issue(pair_result))
@@ -502,7 +544,7 @@ def run_idp(
                         review_state=ReviewState.NEEDS_REVIEW,
                     )
                 )
-        elif trace_writer is not None:
+        elif trace_writer is not None and not pairs_timed_out:
             trace_writer.skip("contract_graph_pairs", "GRAPH_UNAVAILABLE")
         graph_coverage_value.update(
             pair_coverage(
@@ -532,7 +574,28 @@ def run_idp(
     if record.semantic_profile is not None:
         if os.getenv("AI2_SEMANTIC_ENABLED", "true").strip().casefold() == "true":
             bounds = effective_context_bounds(record.semantic_profile.context_bounds)
-            record.semantic_extension = build_semantic_extension(record, runtime, llm, bounds)
+            # Spend the capped semantic budget on clauses already known to be related.
+            related = [
+                node_id
+                for source, target in (
+                    *((e.source_node_id, e.target_node_id) for e in (graph.edges if graph else ())),
+                    *(
+                        (r.node_a_id, r.node_b_id)
+                        for r in (pair_result.relations if pair_result else ())
+                    ),
+                )
+                for node_id in (source, target)
+            ]
+            if not _past_deadline(runtime, trace_writer, "semantic", handoff):
+                if trace_writer is not None:
+                    trace_writer.start("semantic")
+                record.semantic_extension = build_semantic_extension(
+                    record, runtime, llm, bounds, priority_nodes=tuple(related)
+                )
+                if trace_writer is not None:
+                    trace_writer.finish(
+                        "semantic", "COMPLETED", item_count=len(record.semantic_extension.frames)
+                    )
             issues.append(
                 EvidenceIssue(
                     issue_id="semantic:review",
@@ -542,6 +605,8 @@ def run_idp(
                 )
             )
         else:
+            if trace_writer is not None:
+                trace_writer.skip("semantic", "FEATURE_DISABLED")
             issues.append(
                 EvidenceIssue(
                     issue_id="semantic:disabled",
@@ -550,6 +615,7 @@ def run_idp(
                     review_state=ReviewState.NEEDS_REVIEW,
                 )
             )
+    runtime.report_progress("S10", 0, 1, "document")
     contrib = store_idx.propose(
         facts=facts,
         chunks=chunks,
@@ -623,6 +689,24 @@ def run_idp(
     )
 
 
+def _past_deadline(runtime: ProcessingRuntime, trace_writer, stage_id: str, handoff) -> bool:
+    """Past the processing deadline: skip ``stage_id`` and keep what is already done (#113)."""
+    if runtime.remaining() > 0:
+        return False
+    if not any(issue.code == "PROCESSING_TIMEOUT" for issue in handoff.issues):
+        handoff.issues.append(
+            HandoffIssue(
+                code="PROCESSING_TIMEOUT",
+                message=ISSUE_MESSAGES_VI["PROCESSING_TIMEOUT"],
+                review_state=ReviewState.NEEDS_REVIEW,
+                retryable=True,
+            )
+        )
+    if trace_writer is not None:
+        trace_writer.skip(stage_id, "PROCESSING_TIMEOUT")
+    return True
+
+
 def _contract_graph_enabled() -> bool:
     # Same rule as ``contract_graph.builder.contract_graph_enabled``; read here so the flag-off
     # path never imports the builder package.
@@ -632,6 +716,16 @@ def _contract_graph_enabled() -> bool:
         "yes",
         "on",
     }
+
+
+def _pairs_reason_code(pair_result: PairResult) -> str | None:
+    if pair_result.mode == "rule_only":
+        reason = pair_result.rule_only_reason
+        return f"RULE_ONLY_{reason}" if reason else "RULE_ONLY"
+    # An LLM run that stopped early (provider failure, deadline, call cap) classified
+    # only part of the candidates; COMPLETED alone read as full coverage.
+    stopped = pair_result.stats.get("stopped_reason")
+    return f"PARTIAL_{stopped}" if stopped else None
 
 
 def _contract_graph_pairs_enabled() -> bool:

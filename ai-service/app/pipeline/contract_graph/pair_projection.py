@@ -1,4 +1,5 @@
 """Project grounded pair proposals onto existing review findings and coverage."""
+
 from __future__ import annotations
 
 import hashlib
@@ -37,12 +38,25 @@ _LIMITED_REASONS = {
     "DEADLINE": "Thời gian còn lại không đủ để phân tích quan hệ",
 }
 _COUNTS = (
-    "candidates_total", "candidates_kept", "candidates_capped", "excluded_luong1",
-    "excluded_external_ref", "pairs_sent", "pairs_unclassified", "llm_calls", "prompt_tokens",
-    "completion_tokens", "injection_signals", "abstentions",
+    "candidates_total",
+    "candidates_kept",
+    "candidates_capped",
+    "excluded_luong1",
+    "excluded_external_ref",
+    "excluded_page_furniture",
+    "near_duplicate_kept",
+    "pairs_sent",
+    "pairs_unclassified",
+    "llm_calls",
+    "prompt_tokens",
+    "completion_tokens",
+    "injection_signals",
+    "abstentions",
 )
 _CONFLICT_COUNTS = (
-    "conflict_findings", "conflict_capped", "conflict_deduped_with_candidates",
+    "conflict_findings",
+    "conflict_capped",
+    "conflict_deduped_with_candidates",
     "conflict_citation_invalid",
 )
 
@@ -56,7 +70,9 @@ def _scope(a: str, b: str) -> ComparisonScope:
 
 
 def pair_conflict_candidates(
-    result: PairResult, candidates: Sequence[Candidate], record: DossierRecord,
+    result: PairResult,
+    candidates: Sequence[Candidate],
+    record: DossierRecord,
 ) -> tuple[list[Candidate], dict[str, int]]:
     stats = dict.fromkeys(_CONFLICT_COUNTS, 0)
     existing = {pair for c in candidates if (pair := _candidate_pair(c)) is not None}
@@ -94,15 +110,25 @@ def pair_conflict_candidates(
             stats["conflict_citation_invalid"] += 1
             continue
         ca, cb = index.canonical_of(a), index.canonical_of(b)
-        digest = hashlib.sha256(f"{record.pins.source_snapshot_digest}|{a}|{b}".encode()).hexdigest()[:12]
-        output.append(Candidate(
-            candidate_id="cand_pair_" + digest, left_id=a, right_id=b,
-            finding_type=FindingType.COMPARABLE_DIFFERENCE, model_disposition=ModelDisposition.UNCLEAR,
-            review_state=ReviewState.NEEDS_REVIEW, evidence_left=[citations[0]], evidence_right=[citations[1]],
-            reason=_CONFLICT_REASON, disposition=Disposition.COMPARABLE_DIFFERENCE,
-            scope=_scope(result.node_parts.get(a, "body:"), result.node_parts.get(b, "body:")),
-            item_key=f"{ca} ↔ {cb}" if ca and cb else None,
-        ))
+        digest = hashlib.sha256(
+            f"{record.pins.source_snapshot_digest}|{a}|{b}".encode()
+        ).hexdigest()[:12]
+        output.append(
+            Candidate(
+                candidate_id="cand_pair_" + digest,
+                left_id=a,
+                right_id=b,
+                finding_type=FindingType.COMPARABLE_DIFFERENCE,
+                model_disposition=ModelDisposition.UNCLEAR,
+                review_state=ReviewState.NEEDS_REVIEW,
+                evidence_left=[citations[0]],
+                evidence_right=[citations[1]],
+                reason=_CONFLICT_REASON,
+                disposition=Disposition.COMPARABLE_DIFFERENCE,
+                scope=_scope(result.node_parts.get(a, "body:"), result.node_parts.get(b, "body:")),
+                item_key=f"{ca} ↔ {cb}" if ca and cb else None,
+            )
+        )
         existing.add(pair)
     stats["conflict_findings"] = len(output)
     return output, stats
@@ -113,28 +139,40 @@ def limited_coverage_issue(result: PairResult) -> EvidenceIssue:
     count = result.stats.get("candidates_kept", 0)
     return EvidenceIssue(
         issue_id="contract-graph:CONTRACT_GRAPH_PAIRS_LIMITED_COVERAGE",
-        missing="CONTRACT_GRAPH_PAIRS_LIMITED_COVERAGE", review_state=ReviewState.NEEDS_REVIEW,
+        missing="CONTRACT_GRAPH_PAIRS_LIMITED_COVERAGE",
+        review_state=ReviewState.NEEDS_REVIEW,
         reason=f"{reason}; quan hệ ngầm giữa các khoản chưa được phân tích ({count} cặp ứng viên). "
-               "Không có phát hiện không có nghĩa là không có rủi ro.",
+        "Không có phát hiện không có nghĩa là không có rủi ro.",
     )
 
 
 def pair_coverage(
-    result: PairResult | None, *, status: str, conflict_stats: dict[str, int],
+    result: PairResult | None,
+    *,
+    status: str,
+    conflict_stats: dict[str, int],
 ) -> dict[str, Any]:
     active = result if status == "OK" else None
     stats = active.stats if active else {}
-    pairs = {"status": status, "mode": active.mode if active else None,
-             "rule_only_reason": active.rule_only_reason if active else None,
-             "classifier_model": active.classifier_model if active else None,
-             "prompt_version": active.prompt_version if active else None,
-             **{key: stats.get(key, 0) for key in _COUNTS},
-             "candidates_by_source": stats.get("candidates_by_source", {}),
-             "relations_total": len(active.relations) if active else 0,
-             "relations_by_label": {label.value: sum(r.label == label for r in active.relations)
-                                    if active else 0 for label in PairLabel},
-             "rejected": stats.get("rejected", {}), "stopped_reason": stats.get("stopped_reason"),
-             "batches_completed": active.batches_completed if active else 0,
-             **{key: conflict_stats.get(key, 0) if active else 0 for key in _CONFLICT_COUNTS}}
-    return {"graph_mode": "operation_first+pairs_" + active.mode if active else "operation_first",
-            "pairs": pairs}
+    pairs = {
+        "status": status,
+        "mode": active.mode if active else None,
+        "rule_only_reason": active.rule_only_reason if active else None,
+        "classifier_model": active.classifier_model if active else None,
+        "prompt_version": active.prompt_version if active else None,
+        **{key: stats.get(key, 0) for key in _COUNTS},
+        "candidates_by_source": stats.get("candidates_by_source", {}),
+        "relations_total": len(active.relations) if active else 0,
+        "relations_by_label": {
+            label.value: sum(r.label == label for r in active.relations) if active else 0
+            for label in PairLabel
+        },
+        "rejected": stats.get("rejected", {}),
+        "stopped_reason": stats.get("stopped_reason"),
+        "batches_completed": active.batches_completed if active else 0,
+        **{key: conflict_stats.get(key, 0) if active else 0 for key in _CONFLICT_COUNTS},
+    }
+    return {
+        "graph_mode": "operation_first+pairs_" + active.mode if active else "operation_first",
+        "pairs": pairs,
+    }

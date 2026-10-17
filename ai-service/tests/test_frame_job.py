@@ -279,3 +279,94 @@ def test_multiple_invalid_explicit_targets_keep_distinct_review_records():
         edge.proposed_value is None and "missing_target" in edge.reasons for edge in result.timeline
     )
     assert "explicit_amendment_target_invalid" in result.coverage.reasons
+
+
+@pytest.mark.parametrize(
+    "text,expected_frames",
+    [
+        # Flat OCR structure: article headings arrive as CLAUSE nodes. "Thanh toán"
+        # in a title made a PAY obligation that "conflicted" with every payment clause.
+        ("Điều 5. Thanh toán", 0),
+        ("Điều 6. Giao hàng và nghiệm thu", 0),
+        ("ĐIỀU 8: VI PHẠM VÀ GIẢI QUYẾT TRANH CHẤP", 0),
+        ("Chương II - Thanh toán", 0),
+        # A one-paragraph article keeps its obligation.
+        ("Điều 9. Bên A phải thanh toán 100 VND.", 1),
+        ("5.2. Bên A thanh toán mỗi khoản trong vòng 07 ngày.", 1),
+    ],
+)
+def test_article_heading_node_yields_no_semantic_frame(text, expected_frames):
+    from app.pipeline.frame_context import build_semantic_extension
+    from app.pipeline.runtime import ProcessingRuntime
+
+    record = semantic_record()
+    record.nodes[0].text = text
+    record.pages[0].text = text
+    record.pages[0].line_texts = {"line-1": text}
+
+    extension = build_semantic_extension(
+        record, ProcessingRuntime(), None, record.semantic_profile.context_bounds
+    )
+
+    assert len(extension.frames) == expected_frames
+
+
+def _crowded_record():
+    # More body clauses than the node cap (bounds.max_nodes=10), one annex clause last.
+    from app.contracts.models import StructuralNode
+
+    record = semantic_record()
+    template = record.nodes[0]
+    record.semantic_snapshots["annex-file"] = "snapshot-annex"
+    body = [
+        template.model_copy(
+            update={
+                "node_id": f"b{i}",
+                "text": f"Bên A thanh toán đợt {i} trong vòng 05 ngày làm việc.",
+                "source_line_ids": [f"line-b{i}"],
+                "order": i,
+            }
+        )
+        for i in range(14)
+    ]
+    annex = StructuralNode(
+        node_id="annex-1",
+        type="CLAUSE",
+        raw_label="1.",
+        order=0,
+        text="Bên A thanh toán mỗi đợt trong vòng 10 ngày làm việc.",
+        source_file_id="annex-file",
+        source_line_ids=["line-a1"],
+    )
+    record.nodes = [*body, annex]
+    return record
+
+
+def _framed(extension):
+    return {f.evidence[0].source_ref.split("#")[0] for f in extension.frames}
+
+
+def test_annex_clause_is_framed_when_body_exceeds_node_cap():
+    from app.pipeline.frame_context import build_semantic_extension
+    from app.pipeline.runtime import ProcessingRuntime
+
+    record = _crowded_record()
+    extension = build_semantic_extension(
+        record, ProcessingRuntime(), None, record.semantic_profile.context_bounds
+    )
+    assert "annex-1" in _framed(extension)
+
+
+def test_priority_nodes_are_framed_first():
+    from app.pipeline.frame_context import build_semantic_extension
+    from app.pipeline.runtime import ProcessingRuntime
+
+    record = _crowded_record()
+    extension = build_semantic_extension(
+        record,
+        ProcessingRuntime(),
+        None,
+        record.semantic_profile.context_bounds,
+        priority_nodes=("b13",),
+    )
+    assert "b13" in _framed(extension)

@@ -552,6 +552,18 @@ def _place(
     own_rank = _RANK["khoan" if kind == "clause" else "diem"]
     context = _addressable_ancestor(parent_id, entries)
     via_sequence = None
+    if kind == "point" and context is not None and "khoan" not in context and sequence is not None:
+        # Flat OCR parents "3.1. ..." and "a) ..." both to the "Điều 3" heading. The point
+        # belongs to the clause right before it in the same article, not to the article.
+        previous = sequence[1] or sequence[0]
+        levels = entries[previous].levels if previous in entries else None
+        if (
+            levels
+            and "khoan" in levels
+            and "diem" not in levels
+            and levels.get("dieu") == context.get("dieu")
+        ):
+            return {**levels, **own}, previous
     if context is None and sequence is not None:
         article, clause = sequence
         via_sequence = clause if kind == "point" and clause else article

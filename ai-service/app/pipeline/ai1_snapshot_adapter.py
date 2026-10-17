@@ -12,6 +12,7 @@ import json
 import os
 import re
 import unicodedata
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -213,14 +214,19 @@ def adapt_be_ai2_processing_request(
 
 
 def _semantic_profile(request: BeAi2ProcessingRequest, record: DossierRecord) -> None:
-    if request.semantic_profile and os.getenv("AI2_SEMANTIC_ENABLED", "true").strip().casefold() == "true":
+    if (
+        request.semantic_profile
+        and os.getenv("AI2_SEMANTIC_ENABLED", "true").strip().casefold() == "true"
+    ):
         from app.pipeline.frame_context import effective_context_bounds
 
         try:
             effective_context_bounds(request.semantic_profile.context_bounds)
         except ValueError as exc:
             raise SnapshotContractError(str(exc), code="SEMANTIC_BOUNDS_INVALID") from exc
-    record.semantic_profile = request.semantic_profile.model_copy(deep=True) if request.semantic_profile else None
+    record.semantic_profile = (
+        request.semantic_profile.model_copy(deep=True) if request.semantic_profile else None
+    )
     record.semantic_snapshots = {m.document_id: m.snapshot_id for m in request.dossier_members}
 
 
@@ -1021,6 +1027,7 @@ def adapt_snapshot(
         nodes.extend(page_nodes)
         tables.extend(page_tables)
         issues.extend(page_issues)
+    issues.extend(_cross_page_wrap_issues(pages, nodes, document_id=source_file.file_id))
 
     record = DossierRecord(
         tenant_id=tenant_id,
@@ -2406,10 +2413,153 @@ def _adapt_page(
     return page, nodes, tables, issues
 
 
+_WRAP_TERMINAL = re.compile(r"[.;:!?…][\"'”’)\]]*\s*$")
+_WRAP_BLOCK_START = re.compile(
+    r"^\s*(?:\d+(?:\.\d+)*[.)](?:\s|$)|[IVXLC]+(?:\.\d+)*[.)](?:\s|$)|\(?[a-zđ]\)\s|[-–•+*]\s"
+    r"|(?:điều|chương|mục|phần|phụ\s+lục|khoản|điểm)\s+\S|trang\s+\d)",
+    re.IGNORECASE,
+)
+# A wrapped line runs (nearly) to the right margin; a heading or table cell stops short.
+# The absolute floor covers pages of only short lines, where "60% of the longest" is tiny.
+_WRAP_MIN_LENGTH_RATIO = 0.6
+_WRAP_MIN_LENGTH = 45
+_WRAP_MIN_RIGHT_RATIO = 0.85
+
+
+def _all_caps(raw: str) -> bool:
+    letters = [ch for ch in raw if ch.isalpha()]
+    return len(letters) >= 4 and all(ch.isupper() for ch in letters)
+
+
+def _continues_previous(
+    previous: str, previous_bbox: list[float], current: str, *, max_length: int, max_right: float
+) -> bool:
+    """``current`` is the wrapped tail of ``previous`` (same clause, next OCR line)."""
+    # All-caps lines are titles or running headers/footers on either side, never prose.
+    if (
+        _WRAP_TERMINAL.search(previous)
+        or _WRAP_BLOCK_START.match(current)
+        or _all_caps(current)
+        or _all_caps(previous)
+    ):
+        return False
+    # AI1 renders table rows as "| a | b |" or tab-separated lines; a row is never prose.
+    if any(line.lstrip().startswith("|") or "\t" in line for line in (previous, current)):
+        return False
+    length = len(previous.strip())
+    if length < _WRAP_MIN_LENGTH or length < _WRAP_MIN_LENGTH_RATIO * max_length:
+        return False
+    return (
+        not (previous_bbox and max_right) or previous_bbox[2] >= _WRAP_MIN_RIGHT_RATIO * max_right
+    )
+
+
+_PAGE_MARK = re.compile(
+    r"^\s*(?:trang|page)\s+\d+(?:\s*/\s*\d+)?\s*$|^\s*-?\s*\d+\s*(?:/\s*\d+)?\s*-?\s*$", re.I
+)
+_TEXT_NODE_TYPES = frozenset({"CLAUSE", "UNNUMBERED_BLOCK", "FIELD"})
+
+
+def _cross_page_wrap_issues(
+    pages: list[PageSnapshot], nodes: list[StructuralNode], *, document_id: str
+) -> list[HandoffIssue]:
+    """Flag clauses cut by a page break; they are not merged.
+
+    A citation is one exact span on one page, and the running footer/header sits between
+    the two halves, so a merged node could never cite. The reviewer is told instead,
+    with both halves as evidence refs (page N tail, page N+1 head).
+    """
+    repeated = Counter(
+        re.sub(r"\d+", "#", (node.text or "").strip().casefold())
+        for node in {n.node_id: n for n in nodes}.values()
+        if node.text
+    )
+
+    def content(page_number: int) -> list[StructuralNode]:
+        return sorted(
+            (
+                n
+                for n in nodes
+                if n.page_range == [page_number]
+                and n.type in _TEXT_NODE_TYPES
+                and (n.text or "").strip()
+                and not _PAGE_MARK.match(n.text)
+                and not _all_caps(n.text)
+                and repeated[re.sub(r"\d+", "#", n.text.strip().casefold())] < 2
+            ),
+            key=lambda n: n.order,
+        )
+
+    issues: list[HandoffIssue] = []
+    ordered = sorted(pages, key=lambda page: page.page_number)
+    for left, right in zip(ordered, ordered[1:]):
+        if right.page_number != left.page_number + 1:
+            continue
+        tail, head = content(left.page_number), content(right.page_number)
+        if not tail or not head:
+            continue
+        previous = tail[-1].text.split("\n")[-1]
+        current = head[0].text.split("\n")[0]
+        max_length = max(
+            (len(text.strip()) for text in left.line_texts.values()), default=len(previous)
+        )
+        max_right = max((box[2] for box in left.line_bboxes.values() if len(box) == 4), default=0.0)
+        if not _continues_previous(
+            previous, tail[-1].bbox, current, max_length=max_length, max_right=max_right
+        ):
+            continue
+        issues.append(
+            HandoffIssue(
+                code="CLAUSE_CONTINUES_ON_NEXT_PAGE",
+                message=(
+                    f"Điều khoản ở cuối trang {left.page_number} tiếp tục ở đầu trang {right.page_number}; "
+                    "AI2 phân tích hai phần riêng, giá trị nằm ở phần sau có thể bị thiếu. Cần đối chiếu."
+                ),
+                review_state=ReviewState.NEEDS_REVIEW,
+                stage="STRUCTURE",
+                document_id=document_id,
+                location=f"page {left.page_number}->{right.page_number}",
+                evidence_refs=[tail[-1].node_id, head[0].node_id],
+            )
+        )
+    return issues
+
+
+def _bbox_union(left: list[float], right: list[float]) -> list[float]:
+    if not left or not right:
+        return left or right
+    return [
+        min(left[0], right[0]),
+        min(left[1], right[1]),
+        max(left[2], right[2]),
+        max(left[3], right[3]),
+    ]
+
+
 def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[StructuralNode]:
     nodes: list[StructuralNode] = []
     party: str | None = None
     consumed: set[int] = set()
+    texts = [
+        str(line.get("raw_text", line.get("text", "")))
+        for line in lines
+        if isinstance(line, Mapping)
+    ]
+    max_length = max((len(text.strip()) for text in texts), default=0)
+    max_right = max(
+        (
+            _bbox(line.get("bbox"))[2]
+            for line in lines
+            if isinstance(line, Mapping)
+            and _has_geometry(line)
+            and len(_bbox(line.get("bbox"))) == 4
+        ),
+        default=0.0,
+    )
+    # (indices in ``nodes``, last raw line, its bbox, its order): the paragraph a wrapped
+    # line may continue (all nodes of one line, e.g. several labelled facts). Reset by
+    # anything that is not the immediately next text line.
+    open_paragraph: tuple[tuple[int, ...], str, list[float], int] | None = None
     for order, line in enumerate(lines):
         if order in consumed:
             continue
@@ -2434,6 +2584,32 @@ def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[S
             if following[2]:
                 bbox = following[2]
         if not labelled:
+            if (
+                open_paragraph is not None
+                and open_paragraph[3] == order - 1
+                and _continues_previous(
+                    open_paragraph[1],
+                    open_paragraph[2],
+                    raw,
+                    max_length=max_length,
+                    max_right=max_right,
+                )
+            ):
+                # Same clause wrapped onto the next OCR line: one node keeps the whole
+                # sentence. "\n" keeps ``text`` an exact substring of ``page.text``.
+                for index in open_paragraph[0]:
+                    merged = nodes[index]
+                    text = f"{merged.text}\n{raw}"
+                    nodes[index] = merged.model_copy(
+                        update={
+                            "text": text,
+                            "raw_label": text[:160],
+                            "bbox": _bbox_union(merged.bbox, bbox),
+                            "source_line_ids": [*merged.source_line_ids, line_id],
+                        }
+                    )
+                open_paragraph = (open_paragraph[0], raw, bbox, order)
+                continue
             nodes.append(
                 _line_node(
                     page,
@@ -2445,7 +2621,9 @@ def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[S
                     node_type="CLAUSE" if is_clause else "UNNUMBERED_BLOCK",
                 )
             )
+            open_paragraph = ((len(nodes) - 1,), raw, bbox, order)
             continue
+        first_field = len(nodes)
         for index, (key, value) in enumerate(labelled):
             nodes.append(
                 _line_node(
@@ -2461,6 +2639,11 @@ def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[S
                     structured_value=value,
                 )
             )
+        # A labelled clause wraps too ("... đã bao gồm" / "thuế giá trị gia tăng."). A total
+        # pulled from the next line has already rewritten ``raw``, so it opens nothing.
+        open_paragraph = (
+            None if following else (tuple(range(first_field, len(nodes))), raw, bbox, order)
+        )
     return nodes
 
 

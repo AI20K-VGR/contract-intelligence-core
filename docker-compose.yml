@@ -583,6 +583,7 @@ services:
       AI2_LLM_API_KEY: ${AI2_LLM_API_KEY:-}
       AI2_LLM_MODEL: ${AI2_LLM_MODEL:-gpt-5.5}
       AI2_LLM_STRONG_MODEL: ${AI2_LLM_STRONG_MODEL:-gpt-5.5}
+      AI2_LLM_LIGHT_REASONING_EFFORT: ${AI2_LLM_LIGHT_REASONING_EFFORT:-}
       AI2_LLM_PROBE_MAX_TOKENS: ${AI2_LLM_PROBE_MAX_TOKENS:-}
       AI2_LLM_PROBE_TIMEOUT_SECONDS: ${AI2_LLM_PROBE_TIMEOUT_SECONDS:-}
       AI2_CONTRACT_GRAPH_ENABLED: ${AI2_CONTRACT_GRAPH_ENABLED:-true}
@@ -611,6 +612,7 @@ services:
       # IDP jobs run one at a time; the rest wait QUEUED (the backend does not
       # count queue time against the processing budget).
       AI2_MAX_CONCURRENT_JOBS: ${AI2_MAX_CONCURRENT_JOBS:-1}
+      AI2_JOB_ISOLATION: ${AI2_JOB_ISOLATION:-process}
     depends_on:
       backend-db:
         condition: service_healthy

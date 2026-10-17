@@ -350,3 +350,24 @@ async def test_job_id_is_percent_encoded_in_ai2_path(monkeypatch, kind):
     assert "%2E%2E" in parts.path or "..%2Fadmin" in parts.path or "%2F" in parts.path
     assert "/admin" not in parts.path
     assert "?" not in parts.path and "#" not in parts.path
+
+
+def test_trace_accepts_extraction_and_semantic_stages():
+    stage = {
+        "status": "COMPLETED",
+        "started_ms": 1,
+        "duration_ms": 2,
+        "item_count": 3,
+        "reason_code": None,
+    }
+    trace = ai_adapters._validate_ai2_trace(
+        {
+            "schema_version": "ai2.processing-trace.v1",
+            "trace_status": "AVAILABLE",
+            "status": "COMPLETE",
+            "snapshot_digest": "digest-a",
+            "stages": [{"stage_id": "extraction", **stage}, {"stage_id": "semantic", **stage}],
+        },
+        snapshot_digest="digest-a",
+    )
+    assert [s["stage_id"] for s in trace["stages"]] == ["extraction", "semantic"]

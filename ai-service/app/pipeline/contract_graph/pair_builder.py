@@ -114,6 +114,11 @@ def build_pair_relations(
         "excluded_ancestor": 0,
         "excluded_short": 0,
         "excluded_external_ref": 0,
+        "excluded_page_furniture": 0,
+        "excluded_non_clause": 0,
+        "excluded_same_article_unrelated": 0,
+        "near_duplicate_kept": 0,
+        "group_pairs_windowed": 0,
         "value_mismatch_terms": 0,
         "value_mismatch_pair_comparisons": 0,
     }

@@ -29,8 +29,9 @@ def compare_frames(
         raise ValueError("cross-dossier comparison")
 
     def result(disposition: str, reason: str) -> FramePair:
-        return FramePair(left.frame_id, right.frame_id, disposition, reason,
-                         left.evidence, right.evidence)
+        return FramePair(
+            left.frame_id, right.frame_id, disposition, reason, left.evidence, right.evidence
+        )
 
     if left.profile != right.profile:
         return result("NOT_COMPARABLE", "different_contract_profile")
@@ -43,8 +44,12 @@ def compare_frames(
     if scope.state == "PARTIAL":
         return result("GENERAL_VS_SPECIFIC", ";".join(scope.reasons) or "one_scope_absent")
 
-    left_key = normalize_key(left, aliases=aliases, tenant_id=tenant_id, alias_version=alias_version)
-    right_key = normalize_key(right, aliases=aliases, tenant_id=tenant_id, alias_version=alias_version)
+    left_key = normalize_key(
+        left, aliases=aliases, tenant_id=tenant_id, alias_version=alias_version
+    )
+    right_key = normalize_key(
+        right, aliases=aliases, tenant_id=tenant_id, alias_version=alias_version
+    )
     if left_key.certainty != "DEFINITE" or right_key.certainty != "DEFINITE":
         return result("NEEDS_REVIEW_BACKOFF", ";".join((left_key.reason, right_key.reason)))
 
@@ -55,7 +60,9 @@ def compare_frames(
         right, aliases=aliases, tenant_id=tenant_id, alias_version=alias_version
     )
     if left_alignment.key is None or right_alignment.key is None:
-        return result("NEEDS_REVIEW_BACKOFF", ";".join((left_alignment.reason, right_alignment.reason)))
+        return result(
+            "NEEDS_REVIEW_BACKOFF", ";".join((left_alignment.reason, right_alignment.reason))
+        )
     polarity_families = {"OBLIGATION", "RIGHT", "PROHIBITION"}
     same_operation_family = left.family == right.family or (
         left.family in polarity_families and right.family in polarity_families
@@ -76,20 +83,45 @@ def compare_frames(
         return result("NEEDS_REVIEW_UNPARSED", ";".join(context.reasons))
 
     required = {
-        "actor", "action", "modality_negation", "object_scope", "beneficiary",
-        "condition", "exception", "temporal_trigger", "deadline",
+        "actor",
+        "action",
+        "modality_negation",
+        "object_scope",
+        "beneficiary",
+        "condition",
+        "exception",
+        "temporal_trigger",
+        "deadline",
     }
     if left.family == "PARAMETER" and left.get("parameter") is not None:
         required.difference_update({"actor", "action", "modality_negation", "beneficiary"})
         required.add("parameter")
     elif left.family == "DEFINITION":
-        required = {"parameter", "definition", "object_scope", "condition", "exception", "temporal_trigger"}
+        required = {
+            "parameter",
+            "definition",
+            "object_scope",
+            "condition",
+            "exception",
+            "temporal_trigger",
+        }
     if left.family == "REMEDY":
         required.add("qualifier")
-    quantitative = left.family in {"REMEDY", "PARAMETER"} or any(
-        frame.get("action") and frame.get("action").value in {"PAY", "COMPENSATE", "PENALTY"}
-        or frame.get("amount") and frame.get("amount").value is not None
+    timing_only = all(
+        frame.get("amount") is not None and frame.get("amount").state == "ABSENT"
         for frame in (left, right)
+    )
+    # A PAY clause normally needs both amounts; when the extractor established that
+    # neither side states one, it is a timing term and compares on its other slots.
+    quantitative = left.family in {"REMEDY", "PARAMETER"} or (
+        not timing_only
+        and any(
+            frame.get("action")
+            and frame.get("action").value in {"PAY", "COMPENSATE", "PENALTY"}
+            or frame.get("amount")
+            and frame.get("amount").value is not None
+            for frame in (left, right)
+        )
     )
     if quantitative:
         required.update({"amount", "unit", "currency", "base", "period"})
@@ -97,8 +129,7 @@ def compare_frames(
         if any(frame.get(name) is None for frame in (left, right)):
             return result("NEEDS_REVIEW_UNPARSED", f"unassessed_slot:{name}")
         if name in {"currency", "base", "period"} and all(
-            frame.get(name).state == "UNKNOWN"
-            and frame.get(name).reason == "not_assessed"
+            frame.get(name).state == "UNKNOWN" and frame.get(name).reason == "not_assessed"
             for frame in (left, right)
         ):
             # These quantity context fields are optional when neither source
@@ -108,8 +139,10 @@ def compare_frames(
 
     if quantitative:
         for name in ("amount", "unit"):
-            if any(frame.get(name) is None or frame.get(name).state != "GROUNDED"
-                   for frame in (left, right)):
+            if any(
+                frame.get(name) is None or frame.get(name).state != "GROUNDED"
+                for frame in (left, right)
+            ):
                 return result("NEEDS_REVIEW_UNPARSED", f"missing_quantity:{name}")
         if any(not isinstance(frame.get("amount").value, Decimal) for frame in (left, right)):
             return result("NEEDS_REVIEW_UNPARSED", "untyped_quantity:amount")
@@ -120,9 +153,10 @@ def compare_frames(
         a, b = left.get(name), right.get(name)
         if a is not None and b is not None and (a.state, a.value) != (b.state, b.value):
             quantity_context_differences.append(name)
-        if a is not None and b is not None and all(
-            slot.state == "UNKNOWN" and slot.reason == "not_assessed"
-            for slot in (a, b)
+        if (
+            a is not None
+            and b is not None
+            and all(slot.state == "UNKNOWN" and slot.reason == "not_assessed" for slot in (a, b))
         ):
             quantity_context_unknown.append(name)
     if quantity_context_differences:
@@ -132,8 +166,7 @@ def compare_frames(
         )
 
     names = required | {
-        name for name, slot in (*left.slots, *right.slots)
-        if slot.state in {"GROUNDED", "ABSENT"}
+        name for name, slot in (*left.slots, *right.slots) if slot.state in {"GROUNDED", "ABSENT"}
     }
     optional_absent = {
         "beneficiary",
@@ -171,12 +204,16 @@ def compare_frames(
     differing = []
     for name in sorted(names):
         a, b = left.get(name), right.get(name)
-        if (a is None or b is None or a.state in {"UNKNOWN", "UNSUPPORTED"}
-                or b.state in {"UNKNOWN", "UNSUPPORTED"}):
+        if (
+            a is None
+            or b is None
+            or a.state in {"UNKNOWN", "UNSUPPORTED"}
+            or b.state in {"UNKNOWN", "UNSUPPORTED"}
+        ):
             return result("NEEDS_REVIEW_UNPARSED", f"uncertain_slot:{name}")
         if name in key_fields and a.state == b.state == "GROUNDED":
             continue
-        if (a.state, a.value) != (b.state, b.value):
+        if (a.state, _comparable(name, a.value)) != (b.state, _comparable(name, b.value)):
             differing.append(name)
 
     left_modality = left.get("modality_negation")
@@ -186,7 +223,10 @@ def compare_frames(
             if differing:
                 return result("COMPARABLE_DIFFERENCE", "slots_differ:" + ",".join(differing))
             if quantity_context_unknown:
-                return result("NEEDS_REVIEW_UNPARSED", "uncertain_quantity_context:" + ",".join(quantity_context_unknown))
+                return result(
+                    "NEEDS_REVIEW_UNPARSED",
+                    "uncertain_quantity_context:" + ",".join(quantity_context_unknown),
+                )
             return result("DUPLICATE", "all_represented_slots_grounded_and_equal")
         return result("NEEDS_REVIEW_UNPARSED", "unassessed_slot:modality_negation")
     if left_modality.state != "GROUNDED" or right_modality.state != "GROUNDED":
@@ -194,7 +234,10 @@ def compare_frames(
             if differing:
                 return result("COMPARABLE_DIFFERENCE", "slots_differ:" + ",".join(differing))
             if quantity_context_unknown:
-                return result("NEEDS_REVIEW_UNPARSED", "uncertain_quantity_context:" + ",".join(quantity_context_unknown))
+                return result(
+                    "NEEDS_REVIEW_UNPARSED",
+                    "uncertain_quantity_context:" + ",".join(quantity_context_unknown),
+                )
             return result("DUPLICATE", "all_represented_slots_grounded_and_equal")
         return result("NEEDS_REVIEW_UNPARSED", "uncertain_slot:modality_negation")
     polarities = {left_modality.value, right_modality.value}
@@ -205,5 +248,15 @@ def compare_frames(
     if differing:
         return result("COMPARABLE_DIFFERENCE", "slots_differ:" + ",".join(differing))
     if quantity_context_unknown:
-        return result("NEEDS_REVIEW_UNPARSED", "uncertain_quantity_context:" + ",".join(quantity_context_unknown))
+        return result(
+            "NEEDS_REVIEW_UNPARSED",
+            "uncertain_quantity_context:" + ",".join(quantity_context_unknown),
+        )
     return result("DUPLICATE", "all_represented_slots_grounded_and_equal")
+
+
+def _comparable(name: str, value: object) -> object:
+    # "05 ngày" and "5 ngày" state the same deadline; the extractor keeps the source digits.
+    if name == "deadline" and isinstance(value, str) and value.isdigit():
+        return int(value)
+    return value

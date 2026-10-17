@@ -38,16 +38,33 @@ def _is_format_error(error: Exception) -> bool:
         return False
     param = str(detail.get("param") or "")
     message = str(detail.get("message") or "").casefold()
-    return param == "response_format" or param.startswith("response_format.") or (
-        any(token in message for token in ("response_format", "json_object"))
-        and any(token in message for token in ("unsupported", "not supported", "invalid"))
+    return (
+        param == "response_format"
+        or param.startswith("response_format.")
+        or (
+            any(token in message for token in ("response_format", "json_object"))
+            and any(token in message for token in ("unsupported", "not supported", "invalid"))
+        )
     )
+
+
+def _json_mode_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
+    """OpenAI rejects ``response_format=json_object`` with a 400 unless some
+    message contains the word "json"; a prompt that only shows the shape
+    (``{"slots": ...}``) is not enough."""
+    if any("json" in message["content"].casefold() for message in messages):
+        return messages
+    system, *rest = messages
+    return [{**system, "content": system["content"] + "\nReturn a JSON object."}, *rest]
 
 
 def _is_gpt5(model: str) -> bool:
     """GPT-5 family, also behind a provider prefix such as ``openai/gpt-5.5``."""
 
     return model.rsplit("/", 1)[-1].strip().casefold().startswith("gpt-5")
+
+
+_REASONING_EFFORTS = frozenset({"minimal", "low", "medium", "high"})
 
 
 def _sampling_options(model: str) -> dict[str, Any]:
@@ -124,7 +141,12 @@ class NineRouterClient:
         self.strong_model = strong_model or os.getenv("AI2_LLM_STRONG_MODEL", self.model)
         if timeout is None:
             timeout = float(os.getenv("AI2_LLM_TIMEOUT_SECONDS", "45"))
-        self._client = OpenAI(base_url=self.base_url, api_key=self.api_key or "missing", timeout=timeout, max_retries=0)
+        self._client = OpenAI(
+            base_url=self.base_url,
+            api_key=self.api_key or "missing",
+            timeout=timeout,
+            max_retries=0,
+        )
         self.traces: list[dict[str, Any]] = []
 
     def configured(self) -> bool:
@@ -139,6 +161,7 @@ class NineRouterClient:
         timeout: float | None = None,
         before_request: Callable[[], float] | None = None,
         max_output_tokens: int | None = None,
+        reasoning_effort: str | None = None,
     ) -> dict[str, Any]:
         """One logical completion. ``last_http_calls`` reports the HTTP requests it
         made (2 when the provider rejected ``response_format``) so the caller can
@@ -152,13 +175,19 @@ class NineRouterClient:
             if type(max_output_tokens) is not int or max_output_tokens <= 0:
                 raise ValueError("max_output_tokens must be a positive integer")
             request_options.update(_output_limit(model, max_output_tokens))
+        if reasoning_effort is not None and _is_gpt5(model):
+            if reasoning_effort not in _REASONING_EFFORTS:
+                raise ValueError("unknown reasoning_effort")
+            request_options["reasoning_effort"] = reasoning_effort
         self.last_http_calls = 0
         started = time.perf_counter()
         trace: dict[str, Any] = {
             "trace_id": uuid.uuid4().hex,
             "model": model,
             "strong": strong,
-            "request_digest": hashlib.sha256((system + "\n" + user).encode("utf-8")).hexdigest()[:16],
+            "request_digest": hashlib.sha256((system + "\n" + user).encode("utf-8")).hexdigest()[
+                :16
+            ],
             "system_chars": len(system),
             "user_chars": len(user),
             "fallback_without_json_format": False,
@@ -173,7 +202,7 @@ class NineRouterClient:
             self.last_http_calls += 1
             resp = self._client.chat.completions.create(
                 model=model,
-                messages=messages,
+                messages=_json_mode_messages(messages),
                 response_format={"type": "json_object"},
                 **sampling_options,
                 **request_options,
@@ -293,7 +322,9 @@ class DeadlineLLM:
             raise TimeoutError(f"query LLM budget of {self._seconds:g}s is spent")
         try:
             return call_with_timeout(
-                lambda: self._llm.complete_json(system, user, **kwargs), remaining, name="ai2-query-llm"
+                lambda: self._llm.complete_json(system, user, **kwargs),
+                remaining,
+                name="ai2-query-llm",
             )
         except TimeoutError as exc:
             raise TimeoutError(f"query LLM exceeded its {self._seconds:g}s budget") from exc

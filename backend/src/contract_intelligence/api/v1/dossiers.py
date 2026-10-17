@@ -363,7 +363,10 @@ async def _run_dossier_query(
     started = time.monotonic()
     try:
         semantic = await _semantic_result(session, dossier)
-        if semantic["semantic_extension"] is not None or semantic["state"] == "NOT_READY":
+        # AI2 answers against the same pinned snapshot digest. The persisted semantic frames
+        # only matched query tokens and returned their text verbatim, without the LLM (#121);
+        # they still block a question while the current result is not ready.
+        if semantic["state"] == "NOT_READY":
             ai2_raw = _semantic_query(semantic, body.query)
         else:
             ai2_raw = await query_ai2(ai2_payload)
