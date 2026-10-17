@@ -329,7 +329,11 @@ def _run_isolated_job(job_id: str, payload: dict, *, target=_job_process_entry) 
     if timed_out:
         child.kill()
         child.join(5)
-    claim = receiver.recv() if receiver.poll() else None
+    try:
+        # On Linux a killed child leaves the pipe readable at EOF: poll() is True, recv() raises.
+        claim = receiver.recv() if receiver.poll() else None
+    except (EOFError, OSError):
+        claim = None
     receiver.close()
     if child.exitcode == 0:
         WIRE_JOBS.pop(job_id, None)
