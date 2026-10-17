@@ -10,18 +10,29 @@ import { processingTimelineOutcome, stageReasonText } from './timelineOutcome'
 const stageLabels: Record<string, string> = {
   contract_graph_operation: 'Tìm quan hệ điều khoản sửa đổi',
   contract_graph_pairs: 'Tìm quan hệ giữa các điều khoản',
+  extraction: 'Trích xuất dữ kiện',
+  semantic: 'Phân tích ngữ nghĩa',
 }
 
 // Đơn vị kết quả của từng bước, để "0 mục" thành "Không tìm thấy quan hệ nào".
 const stageUnits: Record<string, string> = {
   contract_graph_operation: 'sửa đổi',
   contract_graph_pairs: 'quan hệ',
+  extraction: 'dữ kiện',
 }
 
-// Bước nào thuộc tab nào: mỗi tab chỉ hiện bước tạo ra dữ liệu của nó.
-const stageKinds: Record<string, ContractGraphKind> = {
+// Bước nào thuộc tab nào: mỗi tab chỉ hiện bước tạo ra dữ liệu của nó. null là
+// bước không tạo dữ liệu cho đồ thị (trích xuất, ngữ nghĩa): không hiện ở tab
+// đồ thị nào, chỉ hiện khi xem toàn bộ các bước.
+const stageKinds: Record<string, ContractGraphKind | null> = {
   contract_graph_operation: 'operation',
   contract_graph_pairs: 'pair',
+  extraction: null,
+  semantic: null,
+}
+
+function stageKind(stageId: string, fallback: ContractGraphKind) {
+  return Object.hasOwn(stageKinds, stageId) ? stageKinds[stageId] : fallback
 }
 
 const stageStatusLabels: Record<ProcessingTraceStage['status'], string> = {
@@ -80,12 +91,15 @@ export function ProcessingTimeline({
   graphKind,
 }: {
   trace: ProcessingTrace
-  /** Có thì chỉ hiện bước của loại sơ đồ này (bước lạ vẫn hiện). */
+  /**
+   * Có thì chỉ hiện bước của loại sơ đồ này. Bước lạ vẫn hiện; bước trích
+   * xuất và ngữ nghĩa thì không.
+   */
   graphKind?: ContractGraphKind
 }) {
   const stages = graphKind
     ? trace.stages.filter(
-        (stage) => (stageKinds[stage.stage_id] ?? graphKind) === graphKind,
+        (stage) => stageKind(stage.stage_id, graphKind) === graphKind,
       )
     : trace.stages
   const unavailable =

@@ -7,7 +7,9 @@ import {
 } from '../api/queries'
 import { structureErrorMessage } from '../api/structure'
 import { MaterialIcon } from './icons'
+import { TechnicalDetail } from './TechnicalDetail'
 import {
+  ANSWER_STATE_LABELS,
   answerBlocks,
   citesByBlock,
   norm,
@@ -26,9 +28,28 @@ type QueryHistoryPanelProps = {
 }
 
 function failureText(item: QueryHistoryItem) {
-  if (item.errorCode)
-    return `AI chưa trả lời được câu này (mã ${item.errorCode}).`
+  if (item.errorCode) return 'AI chưa trả lời được câu này.'
   return 'Chưa có câu trả lời được lưu.'
+}
+
+function AnswerStateLabel({ state }: { state: string | null }) {
+  const label = state ? ANSWER_STATE_LABELS[state.trim().toUpperCase()] : null
+  if (!label) return null
+  return (
+    <span
+      className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 font-label-sm text-label-sm font-semibold ${
+        label.tone === 'warn'
+          ? 'bg-amber-50 text-amber-900'
+          : 'bg-surface-container text-on-surface-variant'
+      }`}
+    >
+      <MaterialIcon
+        name={label.tone === 'warn' ? 'warning' : 'block'}
+        className="text-[14px]"
+      />
+      {label.label}
+    </span>
+  )
 }
 
 /** Câu trả lời dài chỉ hiện vài mục đầu, bấm để xem hết. */
@@ -251,6 +272,7 @@ export function QueryHistoryPanel({
                   Hỏi lại
                 </button>
               </div>
+              <AnswerStateLabel state={answered.state} />
               {answered.answer ? (
                 <AnswerView
                   answer={answered.answer}
@@ -260,6 +282,10 @@ export function QueryHistoryPanel({
               ) : (
                 <p className="font-body-sm text-body-sm text-error">
                   {failureText(answered)}
+                  {/* Mã lỗi gốc chỉ ghi Console, không hiện trên màn. */}
+                  <TechnicalDetail
+                    text={answered.errorCode && `Mã ${answered.errorCode}`}
+                  />
                 </p>
               )}
             </li>

@@ -11,6 +11,24 @@ export type AnswerBlock = {
 
 export type NumberedCitation = { citation: QueryHistoryCitation; n: number }
 
+/** Số khoản đầu câu trích: "5.2. ", "3 ". Dòng nối của khoản không có. */
+const CLAUSE_NUMBER = /^\d+(\.\d+)*\.?\s*/
+
+/**
+ * Mức căn cứ của câu trả lời (`state` của AI2, BE-AI2-PROCESSING-CONTRACT):
+ * chỉ gắn nhãn khi không bình thường, để người đọc biết câu nào phải tự kiểm.
+ * `ANSWERED` (có căn cứ) không gắn nhãn; mã lạ cũng không hiện.
+ */
+export const ANSWER_STATE_LABELS: Record<
+  string,
+  { label: string; tone: 'warn' | 'neutral' }
+> = {
+  // Gồm cả khi AI quá 15 giây, chỉ trả đoạn trích chứ không kịp tổng hợp.
+  NEEDS_REVIEW: { label: 'Chưa đủ căn cứ, cần kiểm lại', tone: 'warn' },
+  INSUFFICIENT_EVIDENCE: { label: 'Thiếu căn cứ trong hồ sơ', tone: 'warn' },
+  BLOCKED: { label: 'Không được trả lời', tone: 'neutral' },
+}
+
 export const norm = (text: string) =>
   text.toLowerCase().replace(/\s+/g, ' ').trim()
 
@@ -47,11 +65,12 @@ export function answerBlocks(answer: string) {
  * Trích dẫn không khớp mục nào, hoặc không có câu trích, vào `unplaced`; không
  * gắn vào mục cuối, để người đọc không hiểu nhầm nó chứng minh cho mục đó.
  *
- * AI2 thường trả một trích dẫn cho mỗi dòng chữ, nên một khoản dài hai dòng có
- * hai trích dẫn cùng mở một chỗ. Chỉ gộp các trích dẫn mở cùng một chỗ: cùng
- * mục, cùng tài liệu, cùng trang. Hai điều ở hai trang khác nhau trong cùng một
- * mục vẫn giữ hai số; hợp đồng và phụ lục vẫn tách riêng. Trích dẫn không đặt
- * được vào mục chỉ gộp khi trùng hẳn (cùng tài liệu, trang, câu trích).
+ * AI2 trả một trích dẫn cho mỗi dòng chữ, theo thứ tự, nên một khoản dài hai
+ * dòng có hai trích dẫn cùng mở một chỗ. Chỉ gộp dòng nối của khoản: trích dẫn
+ * ngay sau một trích dẫn cùng mục, cùng tài liệu, cùng trang, và câu trích không
+ * bắt đầu bằng số khoản. Khoản mới ("5.2. …") luôn có số riêng, kể cả khi cùng
+ * trang với khoản trước; hợp đồng và phụ lục vẫn tách riêng. Ngoài ra chỉ bỏ
+ * trích dẫn trùng hẳn (cùng mục hoặc cùng ngoài mục, tài liệu, trang, câu trích).
  * `n` đánh liên tục từ 1 theo thứ tự xuất hiện, sau khi đã gộp.
  */
 export function citesByBlock(
@@ -61,10 +80,12 @@ export function citesByBlock(
   const placed = new Map<number, NumberedCitation[]>()
   const unplaced: NumberedCitation[] = []
   const seen = new Set<string>()
+  // Trích dẫn liền trước (kể cả đã gộp): dòng nối chỉ gộp vào khoản ngay trước nó.
+  let previous: { at: number; source: string; page: number | '' } | null = null
   let n = 0
   for (const citation of citations) {
     const quote = norm(citation.quote)
-    const key = quote.replace(/^\d+(\.\d+)*\.?\s*/, '').slice(0, 40)
+    const key = quote.replace(CLAUSE_NUMBER, '').slice(0, 40)
     const at = key
       ? blocks.findIndex((block) =>
           norm(`${block.no ?? ''} ${block.text}`).includes(key),
@@ -72,13 +93,17 @@ export function citesByBlock(
       : -1
     const source = citation.documentId ?? ''
     const page = citation.pageNo ?? ''
-    const identity =
-      at < 0
-        ? `none|${source}|${page}|${quote}`
-        : source
-          ? `${at}|${source}|${page}`
-          : `${at}|q:${quote}`
-    if (seen.has(identity)) continue
+    const continuation =
+      at >= 0 &&
+      source !== '' &&
+      previous !== null &&
+      previous.at === at &&
+      previous.source === source &&
+      previous.page === page &&
+      !CLAUSE_NUMBER.test(quote)
+    previous = { at, source, page }
+    const identity = `${at}|${source}|${page}|${quote}`
+    if (continuation || seen.has(identity)) continue
     seen.add(identity)
     n += 1
     const entry = { citation, n }

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { AnswerView } from '../src/components/QueryHistoryPanel'
-import { answerBlocks, citesByBlock } from '../src/components/queryAnswer'
+import {
+  ANSWER_STATE_LABELS,
+  answerBlocks,
+  citesByBlock,
+} from '../src/components/queryAnswer'
 
 const ANSWER = [
   'Điều 4. Thanh toán',
@@ -94,6 +98,27 @@ describe('citesByBlock', () => {
     ])
   })
 
+  it('keeps a number for each clause quoted on the same page (PR #122 review)', () => {
+    // Câu trả lời tổng hợp trích liền 5.1, 5.2, 5.3 cùng trang 1: mỗi khoản
+    // mở một chỗ khác nhau nên giữ ba số; dòng nối của 5.2 không thêm số.
+    const answer = [
+      'Điều 5. Nghĩa vụ các bên',
+      '5. Các nghĩa vụ chính: 5.1. Bên A giao hàng đúng hạn; 5.2. Bên B thanh toán đủ trong 30 ngày kể từ ngày nhận hoá đơn; 5.3. Hai bên bảo mật thông tin.',
+    ].join('\n')
+    const doc = { pageNo: 1, documentId: 'doc_contract' }
+    const first = { ...doc, quote: '5.1. Bên A giao hàng đúng hạn' }
+    const second = { ...doc, quote: '5.2. Bên B thanh toán đủ trong 30 ngày' }
+    const secondLine = { ...doc, quote: 'kể từ ngày nhận hoá đơn' }
+    const third = { ...doc, quote: '5.3. Hai bên bảo mật thông tin' }
+    const blocks = answerBlocks(answer)
+    const { placed } = citesByBlock(blocks, [first, second, secondLine, third])
+    expect(placed.get(1)).toEqual([
+      { citation: first, n: 1 },
+      { citation: second, n: 2 },
+      { citation: third, n: 3 },
+    ])
+  })
+
   it('keeps old citations without a document apart unless the quote repeats', () => {
     const blocks = answerBlocks(ANSWER)
     const other = {
@@ -141,5 +166,19 @@ describe('AnswerView', () => {
       <AnswerView answer={ANSWER} citations={[MATCHED]} />,
     )
     expect(html).not.toContain('Trích dẫn khác')
+  })
+})
+
+describe('ANSWER_STATE_LABELS', () => {
+  it('words each unusual state by how much evidence the answer has', () => {
+    expect(ANSWER_STATE_LABELS.NEEDS_REVIEW?.label).toBe(
+      'Chưa đủ căn cứ, cần kiểm lại',
+    )
+    expect(ANSWER_STATE_LABELS.INSUFFICIENT_EVIDENCE?.label).toBe(
+      'Thiếu căn cứ trong hồ sơ',
+    )
+    expect(ANSWER_STATE_LABELS.BLOCKED?.label).toBe('Không được trả lời')
+    // Câu trả lời có căn cứ là trường hợp bình thường: không gắn nhãn.
+    expect(ANSWER_STATE_LABELS.ANSWERED).toBeUndefined()
   })
 })

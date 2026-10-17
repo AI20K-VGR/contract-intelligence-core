@@ -458,15 +458,17 @@ export function ClauseConflictPage() {
   const analysis = detail
     ? analysisState(detail.latestJobStatus, detail.latestJobErrorCode)
     : null
+  // AI2 chạy lại mà lỗi: vẫn hiện xung đột của lần phân tích trước (nếu có).
+  const previousAi2 = Boolean(detail?.ai2JobId)
   const [justFinished, setJustFinished] = useState(false)
-  const { percent: analysisPercent } = useAnalysisWatch(
-    dossierId,
-    analysis === 'running',
-    () => {
-      setJustFinished(true)
-      setReloadKey((key) => key + 1)
-    },
-  )
+  const {
+    percent: analysisPercent,
+    stalled: analysisStalled,
+    recheck: recheckAnalysis,
+  } = useAnalysisWatch(dossierId, analysis === 'running', () => {
+    setJustFinished(true)
+    setReloadKey((key) => key + 1)
+  })
 
   useEffect(() => {
     if (!dossierId) return
@@ -823,16 +825,19 @@ export function ClauseConflictPage() {
                 errorCode={detail?.latestJobErrorCode}
                 justFinished={justFinished}
                 percent={analysisPercent}
+                showingPrevious={previousAi2}
+                stalled={analysisStalled}
                 state={analysis}
                 waitingFor="Các chỗ cần đối soát"
                 onDismiss={() => setJustFinished(false)}
+                onRecheck={recheckAnalysis}
               />
             ) : null}
             {!loading &&
             dossierId &&
             cards.length === 0 &&
             analysis !== 'running' &&
-            analysis !== 'failed' ? (
+            (analysis !== 'failed' || previousAi2) ? (
               <section className="flex flex-col items-start gap-space-sm rounded bg-surface-container-low p-space-md">
                 <h2 className="font-title-sm text-title-sm text-on-surface">
                   Không có mục đối soát

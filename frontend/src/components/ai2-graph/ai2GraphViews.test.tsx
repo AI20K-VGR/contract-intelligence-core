@@ -175,6 +175,34 @@ describe('AI2 graph accessible views', () => {
     expect(operation).not.toContain('Tìm quan hệ giữa các điều khoản')
   })
 
+  it('names the extraction and semantic stages and keeps them off both graph tabs', () => {
+    const withAi2Stages = {
+      ...trace,
+      stages: [
+        { ...trace.stages[0]!, stage_id: 'extraction' },
+        { ...trace.stages[0]!, stage_id: 'semantic' },
+        { ...trace.stages[0]!, stage_id: 'contract_graph_pairs' },
+      ],
+    }
+    const pair = renderToStaticMarkup(
+      <ProcessingTimeline trace={withAi2Stages} graphKind="pair" />,
+    )
+    const operation = renderToStaticMarkup(
+      <ProcessingTimeline trace={withAi2Stages} graphKind="operation" />,
+    )
+    const all = renderToStaticMarkup(
+      <ProcessingTimeline trace={withAi2Stages} />,
+    )
+    for (const html of [pair, operation]) {
+      expect(html).not.toContain('Trích xuất dữ kiện')
+      expect(html).not.toContain('Phân tích ngữ nghĩa')
+    }
+    expect(all).toContain('Trích xuất dữ kiện')
+    expect(all).toContain('Phân tích ngữ nghĩa')
+    expect(all).not.toContain('extraction')
+    expect(all).not.toContain('semantic')
+  })
+
   it('explains stage reason codes in plain words and never shows the code', () => {
     const html = renderToStaticMarkup(
       <ProcessingTimeline

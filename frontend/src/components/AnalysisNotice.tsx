@@ -16,6 +16,9 @@ export function AnalysisNotice({
   onDismiss,
   onRetry,
   retrying = false,
+  stalled = false,
+  onRecheck,
+  showingPrevious = false,
   className = '',
 }: {
   state: AnalysisState | null
@@ -35,6 +38,15 @@ export function AnalysisNotice({
   /** Có quyền chạy lại: banner lỗi hiện nút "Phân tích lại". */
   onRetry?: () => void
   retrying?: boolean
+  /** Quá 10 phút mà AI2 chưa xong (useAnalysisWatch đã ngừng theo dõi). */
+  stalled?: boolean
+  /** Nút "Kiểm tra lại" khi `stalled`: theo dõi lại thêm 10 phút. */
+  onRecheck?: () => void
+  /**
+   * AI2 lỗi nhưng hồ sơ còn kết quả của lần phân tích trước: các phần dùng AI2
+   * vẫn mở, banner chỉ báo lần mới bị lỗi.
+   */
+  showingPrevious?: boolean
   className?: string
 }) {
   if (state === 'done') {
@@ -62,6 +74,31 @@ export function AnalysisNotice({
     )
   }
   if (state !== 'running' && state !== 'failed') return null
+  if (state === 'running' && stalled) {
+    // Job vẫn ở 'extracted' sau 10 phút: /ai2/retry chỉ nhận job đã
+    // 'failed', nên không có nút "Phân tích lại" ở đây.
+    return (
+      <div
+        className={`${className} flex flex-wrap items-center gap-x-space-sm gap-y-1 rounded-lg bg-amber-50 px-space-md py-space-sm font-body-sm text-body-sm text-amber-950`}
+        role="alert"
+      >
+        <MaterialIcon name="schedule" className="text-[18px]" />
+        <span className="min-w-0 flex-1">
+          Phân tích lâu hơn bình thường (quá 10 phút). {waitingFor} chưa mở. Bấm
+          Kiểm tra lại, hoặc báo quản trị viên nếu vẫn chưa xong.
+        </span>
+        {onRecheck ? (
+          <button
+            className="shrink-0 font-semibold text-primary hover:underline"
+            type="button"
+            onClick={onRecheck}
+          >
+            Kiểm tra lại
+          </button>
+        ) : null}
+      </div>
+    )
+  }
   const running = state === 'running'
   const failure = running ? null : jobErrorInfo(errorCode)
   return (
@@ -83,7 +120,9 @@ export function AnalysisNotice({
           ? `Hệ thống đang phân tích hồ sơ${percent !== null ? ` (${percent}%)` : ''}. ${
               nudge ? nudge.label : waitingFor
             } sẽ mở khi phân tích xong.`
-          : `${failure?.message ?? ''} ${nudge ? nudge.label : waitingFor} chưa có.`}
+          : showingPrevious
+            ? `Lần phân tích mới bị lỗi. ${failure?.message ?? ''} Đang hiện kết quả của lần phân tích trước.`
+            : `${failure?.message ?? ''} ${nudge ? nudge.label : waitingFor} chưa có.`}
       </span>
       {running && percent !== null ? (
         <span

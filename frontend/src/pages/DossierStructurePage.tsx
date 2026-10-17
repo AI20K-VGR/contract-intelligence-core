@@ -636,7 +636,11 @@ export function DossierStructurePage() {
     : null
   // Hỏi đáp, lịch sử hỏi đáp, xung đột và đồ thị dùng kết quả AI2: khoá tới khi
   // AI2 xong. Bấm vào thì banner nháy lên, nói rõ phần đó đang chờ.
-  const ai2Locked = analysis === 'running' || analysis === 'failed'
+  // Chạy lại ("Chạy lại toàn bộ", bật consent) mà lỗi thì vẫn mở kết quả của
+  // lần trước: backend chỉ ghi ai2_job_id khi AI2 xong và không xoá khi lỗi.
+  const previousAi2 = Boolean(detail?.ai2JobId)
+  const ai2Locked =
+    analysis === 'running' || (analysis === 'failed' && !previousAi2)
   const [analysisNudge, setAnalysisNudge] = useState<{
     label: string
     at: number
@@ -666,7 +670,11 @@ export function DossierStructurePage() {
   }
   // Cây đã xem được trong lúc AI2 chạy: AI2 xong thì tải lại xung đột.
   const [analysisJustFinished, setAnalysisJustFinished] = useState(false)
-  const { percent: analysisPercent } = useAnalysisWatch(
+  const {
+    percent: analysisPercent,
+    stalled: analysisStalled,
+    recheck: recheckAnalysis,
+  } = useAnalysisWatch(
     dossierId,
     phase === 'ready' && analysis === 'running',
     (next) => {
@@ -1284,9 +1292,12 @@ export function DossierStructurePage() {
               nudge={analysisNudge}
               percent={analysisPercent}
               retrying={retryingAnalysis}
+              showingPrevious={previousAi2}
+              stalled={analysisStalled}
               state={analysis}
               waitingFor="Hỏi đáp, lịch sử hỏi đáp, xung đột và đồ thị quan hệ"
               onDismiss={() => setAnalysisJustFinished(false)}
+              onRecheck={recheckAnalysis}
               onRetry={
                 permissions.canEdit ? () => void retryAnalysis() : undefined
               }
