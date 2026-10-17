@@ -353,7 +353,13 @@ async def test_job_id_is_percent_encoded_in_ai2_path(monkeypatch, kind):
 
 
 def test_trace_accepts_extraction_and_semantic_stages():
-    stage = {"status": "COMPLETED", "started_ms": 1, "duration_ms": 2, "item_count": 3, "reason_code": None}
+    stage = {
+        "status": "COMPLETED",
+        "started_ms": 1,
+        "duration_ms": 2,
+        "item_count": 3,
+        "reason_code": None,
+    }
     trace = ai_adapters._validate_ai2_trace(
         {
             "schema_version": "ai2.processing-trace.v1",

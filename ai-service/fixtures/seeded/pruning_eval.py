@@ -19,8 +19,11 @@ from fixtures.seeded.common import context_caps_env
 
 
 def _candidates(dossier, *, prune: bool):
-    with mock.patch.object(pair_candidates, "_same_article_related",
-                           pair_candidates._same_article_related if prune else (lambda *_a: True)):
+    with mock.patch.object(
+        pair_candidates,
+        "_same_article_related",
+        pair_candidates._same_article_related if prune else (lambda *_a: True),
+    ):
         funnel = seeded_funnel.run(dossier.request())
     gold = {frozenset((funnel.node(a), funnel.node(b))) for a, b in dossier.RELATED}
     pairs = {frozenset((c.node_a, c.node_b)) for c in funnel.candidates}
@@ -40,7 +43,9 @@ def main() -> int:
             calls_before += math.ceil(len(base) / PAIRS_PER_CALL)
             calls_after += math.ceil(len(kept) / PAIRS_PER_CALL)
         failed = failed or bool(lost)
-        print(f"{split}: gold_lost {lost} pairs {before}->{after} calls {calls_before}->{calls_after}")
+        print(
+            f"{split}: gold_lost {lost} pairs {before}->{after} calls {calls_before}->{calls_after}"
+        )
     return int(failed)
 
 

@@ -107,8 +107,11 @@ class L1Retrieval:
                 hits.extend(found)
             # A synthesis question ("mỗi đợt …", "tóm tắt …") needs every matching clause, not
             # only the structured field its words also hit (#121: 2.1 alone, no 5.1-5.3).
-            if (ttype in EXPAND_SEMANTIC or ttype == "unscoped"
-                    or (not hits and ttype in {"lookup_term", "payment_card"})):
+            if (
+                ttype in EXPAND_SEMANTIC
+                or ttype == "unscoped"
+                or (not hits and ttype in {"lookup_term", "payment_card"})
+            ):
                 sem = (
                     self.gateway.call("search_semantic", envelope, query=expand_query(q), k=8) or []
                 )
@@ -246,9 +249,7 @@ class L1Retrieval:
             "resolved": bool(enough_lookup and ttype in {"lookup"}),
             "blocked": False,
             "hits": deduped,
-            "anchor_ids": _anchor_ids(
-                deduped, [*exact_ids, *structured_ids, *topic_ids], outline
-            )
+            "anchor_ids": _anchor_ids(deduped, [*exact_ids, *structured_ids, *topic_ids], outline)
             if ttype in COMPARE_TYPES
             else [],
             "outline_ids": [
@@ -299,7 +300,9 @@ def expand_logical_tables(
         elif source_rows:
             row_limit = 0
         started = time.monotonic()
-        fetched = gateway.call("get_table_rows", envelope, table_id=table_id, start=0, end=row_limit)
+        fetched = gateway.call(
+            "get_table_rows", envelope, table_id=table_id, start=0, end=row_limit
+        )
         rows, pages, time_hit, page_hit = [], set(), False, False
         for source in fetched:
             if time.monotonic() - started > max_seconds:
@@ -307,7 +310,10 @@ def expand_logical_tables(
                 break
             row = {
                 "row_index": int(source.get("row_index", len(rows))),
-                "cells": [str(value) if value is not None else None for value in source.get("cells", [])[:n_cols]],
+                "cells": [
+                    str(value) if value is not None else None
+                    for value in source.get("cells", [])[:n_cols]
+                ],
                 "cell_citations": {},
             }
             for column, citation in (source.get("cell_citations") or {}).items():
@@ -327,25 +333,31 @@ def expand_logical_tables(
             time_hit = True
             rows = []
         reason = (
-            "processing time cap reached" if time_hit else
-            "page cap reached" if page_hit else
-            "row or cell cap reached" if row_limit < source_rows else None
+            "processing time cap reached"
+            if time_hit
+            else "page cap reached"
+            if page_hit
+            else "row or cell cap reached"
+            if row_limit < source_rows
+            else None
         )
         complete = not reason and len(rows) == source_rows
-        results.append({
-            "table_id": table_id,
-            "header": headers,
-            "source_role": meta.get("source_role"),
-            "rows": rows,
-            "coverage": {
-                "complete": complete,
-                "source_rows": source_rows,
-                "processed_rows": len(rows),
-                "source_cells": source_rows * n_cols,
-                "processed_cells": sum(len(row["cells"]) for row in rows),
-                "reason": reason,
-            },
-        })
+        results.append(
+            {
+                "table_id": table_id,
+                "header": headers,
+                "source_role": meta.get("source_role"),
+                "rows": rows,
+                "coverage": {
+                    "complete": complete,
+                    "source_rows": source_rows,
+                    "processed_rows": len(rows),
+                    "source_cells": source_rows * n_cols,
+                    "processed_cells": sum(len(row["cells"]) for row in rows),
+                    "reason": reason,
+                },
+            }
+        )
     return results
 
 
@@ -547,7 +559,9 @@ def _expand_responsibility_groups(
 _HEADING_CHILDREN_CAP = 12
 
 
-def _children_of_headings(gateway, envelope, record: Any, hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _children_of_headings(
+    gateway, envelope, record: Any, hits: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     """Clauses under a matched heading ("Điều 5. Thanh toán" → 5.1-5.3), bounded."""
     seen = {str(h.get("node_id") or "") for h in hits}
     children: dict[str, list[str]] = {}
@@ -581,8 +595,24 @@ def _topic_hits(record: Any, query: str, limit: int = 3) -> list[dict[str, Any]]
 def _scored_lexical_hits(record: Any, query: str) -> list[tuple[float, dict[str, Any]]]:
     folded = _plain_query(expand_query(query))
     stop = {
-        "hop", "dong", "dieu", "nao", "cac", "cua", "trong", "voi", "cho",
-        "the", "and", "are", "what", "when", "this", "that", "with", "for",
+        "hop",
+        "dong",
+        "dieu",
+        "nao",
+        "cac",
+        "cua",
+        "trong",
+        "voi",
+        "cho",
+        "the",
+        "and",
+        "are",
+        "what",
+        "when",
+        "this",
+        "that",
+        "with",
+        "for",
     }
     # Words that name *where* to look (body vs annex) or the compare verb say
     # nothing about the topic; scored as topic terms they rank any clause that
@@ -683,8 +713,7 @@ def _filter_relation_hits(query: str, hits: list[dict[str, Any]]) -> list[dict[s
     if not cues:
         return hits
     named_annexes = {
-        int(number)
-        for number in re.findall(r"(?:phu luc|annex)\s+0*(\d+)", normalized_query)
+        int(number) for number in re.findall(r"(?:phu luc|annex)\s+0*(\d+)", normalized_query)
     }
     kept: list[dict[str, Any]] = []
     for hit in hits:
@@ -700,9 +729,7 @@ def _filter_relation_hits(query: str, hits: list[dict[str, Any]]) -> list[dict[s
                 )
             )
         )
-        mentioned = {
-            int(number) for number in re.findall(r"(?:phu luc|annex)\s+0*(\d+)", evidence)
-        }
+        mentioned = {int(number) for number in re.findall(r"(?:phu luc|annex)\s+0*(\d+)", evidence)}
         if named_annexes and mentioned and mentioned.isdisjoint(named_annexes):
             continue
         if any(left in evidence or right in evidence for left, right in cues):

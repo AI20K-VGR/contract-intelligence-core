@@ -38,9 +38,13 @@ def _is_format_error(error: Exception) -> bool:
         return False
     param = str(detail.get("param") or "")
     message = str(detail.get("message") or "").casefold()
-    return param == "response_format" or param.startswith("response_format.") or (
-        any(token in message for token in ("response_format", "json_object"))
-        and any(token in message for token in ("unsupported", "not supported", "invalid"))
+    return (
+        param == "response_format"
+        or param.startswith("response_format.")
+        or (
+            any(token in message for token in ("response_format", "json_object"))
+            and any(token in message for token in ("unsupported", "not supported", "invalid"))
+        )
     )
 
 
@@ -137,7 +141,12 @@ class NineRouterClient:
         self.strong_model = strong_model or os.getenv("AI2_LLM_STRONG_MODEL", self.model)
         if timeout is None:
             timeout = float(os.getenv("AI2_LLM_TIMEOUT_SECONDS", "45"))
-        self._client = OpenAI(base_url=self.base_url, api_key=self.api_key or "missing", timeout=timeout, max_retries=0)
+        self._client = OpenAI(
+            base_url=self.base_url,
+            api_key=self.api_key or "missing",
+            timeout=timeout,
+            max_retries=0,
+        )
         self.traces: list[dict[str, Any]] = []
 
     def configured(self) -> bool:
@@ -176,7 +185,9 @@ class NineRouterClient:
             "trace_id": uuid.uuid4().hex,
             "model": model,
             "strong": strong,
-            "request_digest": hashlib.sha256((system + "\n" + user).encode("utf-8")).hexdigest()[:16],
+            "request_digest": hashlib.sha256((system + "\n" + user).encode("utf-8")).hexdigest()[
+                :16
+            ],
             "system_chars": len(system),
             "user_chars": len(user),
             "fallback_without_json_format": False,
@@ -311,7 +322,9 @@ class DeadlineLLM:
             raise TimeoutError(f"query LLM budget of {self._seconds:g}s is spent")
         try:
             return call_with_timeout(
-                lambda: self._llm.complete_json(system, user, **kwargs), remaining, name="ai2-query-llm"
+                lambda: self._llm.complete_json(system, user, **kwargs),
+                remaining,
+                name="ai2-query-llm",
             )
         except TimeoutError as exc:
             raise TimeoutError(f"query LLM exceeded its {self._seconds:g}s budget") from exc

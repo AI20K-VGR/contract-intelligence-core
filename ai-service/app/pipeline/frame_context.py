@@ -52,7 +52,9 @@ _HEADING_ONLY = re.compile(
 
 def _is_heading_only(text: str) -> bool:
     stripped = text.strip()
-    return bool(_HEADING_ONLY.fullmatch(stripped)) and not re.search(r"\bbên\s+[ab]\b", stripped, re.I)
+    return bool(_HEADING_ONLY.fullmatch(stripped)) and not re.search(
+        r"\bbên\s+[ab]\b", stripped, re.I
+    )
 
 
 # Frames per slot-context call: one call per frame spent the job budget on ~12 frames.
@@ -173,8 +175,17 @@ def _evidence(record: DossierRecord, evidence: Evidence) -> SemanticEvidence:
     if ":row:" in evidence.source_ref or ":header" in evidence.source_ref:
         table_id = evidence.source_ref.split(":", 1)[0]
         table = next((item for item in record.tables if item.table_id == table_id), None)
-        cell = next((item for item in (table.cells if table else ()) if item.text == evidence.raw), None)
-        page = next((item for item in record.pages if table and item.page_revision_id == table.page_revision_id), None)
+        cell = next(
+            (item for item in (table.cells if table else ()) if item.text == evidence.raw), None
+        )
+        page = next(
+            (
+                item
+                for item in record.pages
+                if table and item.page_revision_id == table.page_revision_id
+            ),
+            None,
+        )
         citation = Citation(
             node_id=table.node_id if table and table.node_id else table_id,
             page_revision_id=table.page_revision_id if table else "missing",
@@ -190,7 +201,9 @@ def _evidence(record: DossierRecord, evidence: Evidence) -> SemanticEvidence:
             bbox=list(cell.bbox) if cell else [],
             geometry_available=bool(cell and cell.bbox),
         )
-        check = CitationResolver(record.pages, record.tables, record.evidence_nodes()).verify(citation)
+        check = CitationResolver(record.pages, record.tables, record.evidence_nodes()).verify(
+            citation
+        )
         citation.validation_status = check.status
         return SemanticEvidence(**asdict(evidence), citation=citation.model_dump())
     base = re.sub(r"#span\d+$", "", evidence.source_ref)
@@ -331,14 +344,21 @@ def _enrich(
         finally:
             runtime.max_llm_calls, runtime.call_timeout_seconds = original_limit, original_timeout
         answers = response.get("frames") if isinstance(response, dict) else None
-        by_id = {a.get("id"): a for a in answers if isinstance(a, dict)} if isinstance(answers, list) else {}
+        by_id = (
+            {a.get("id"): a for a in answers if isinstance(a, dict)}
+            if isinstance(answers, list)
+            else {}
+        )
         for frame, context, item in batch:
             answer = by_id.get(item["id"])
             if response is not None and answer is None:
                 reasons.append("PROPOSAL_FRAME_MISSING")
             output[frame.frame_id] = (
-                _apply_proposals(record, frame, context, {"slots": answer.get("slots")}, aliases, reasons)
-                if answer is not None else frame
+                _apply_proposals(
+                    record, frame, context, {"slots": answer.get("slots")}, aliases, reasons
+                )
+                if answer is not None
+                else frame
             )
 
     for frame in _round_robin_frames(frames):
@@ -372,7 +392,9 @@ def _enrich(
             "missing_slots": [name for name, slot in frame.slots if slot.state == "UNKNOWN"],
             "context": [{"node_id": n.node_id, "text": n.text} for n in context],
         }
-        item_bytes = len(json.dumps(item, ensure_ascii=False).encode()) + (len(system.encode()) if not pending else 0)
+        item_bytes = len(json.dumps(item, ensure_ascii=False).encode()) + (
+            len(system.encode()) if not pending else 0
+        )
         if token_bytes + item_bytes > bounds.max_context_tokens:
             reasons.append("context_token_cap")
             output[frame.frame_id] = frame
@@ -404,13 +426,18 @@ def _groundable(record, frame, context, aliases) -> bool:
         if not snapshot or not (node.text or "").strip():
             continue
         evidence = Evidence(node.source_file_id, snapshot, node.node_id, node.text)
-        for candidate in extract_frames(evidence, profile=frame.profile, dossier_id=record.dossier_id):
+        for candidate in extract_frames(
+            evidence, profile=frame.profile, dossier_id=record.dossier_id
+        ):
             if candidate.family != frame.family:
                 continue
             for name in missing:
                 slot = candidate.get(name)
-                if slot is not None and slot.state == "GROUNDED" and _shared_context_matches(
-                        frame, candidate, excluded=name):
+                if (
+                    slot is not None
+                    and slot.state == "GROUNDED"
+                    and _shared_context_matches(frame, candidate, excluded=name)
+                ):
                     return True
     return False
 
@@ -434,9 +461,7 @@ def _apply_proposals(record, frame, context, response, aliases, reasons):
             if not snapshot:
                 reasons.append("PROPOSAL_SOURCE_NOT_GROUNDED")
                 continue
-            source_evidence = Evidence(
-                target.source_file_id, snapshot, target.node_id, target.text
-            )
+            source_evidence = Evidence(target.source_file_id, snapshot, target.node_id, target.text)
             alternatives = extract_frames(
                 source_evidence, profile=frame.profile, dossier_id=record.dossier_id
             )
@@ -600,7 +625,9 @@ def _semantic_relations(
     return relations, unresolved, reasons
 
 
-def _typed_table_frames(record: DossierRecord, profile: str, reasons: list[str]) -> tuple[ClauseFrame, ...]:
+def _typed_table_frames(
+    record: DossierRecord, profile: str, reasons: list[str]
+) -> tuple[ClauseFrame, ...]:
     """Project typed tables into semantic frames with explicit source identity."""
     nodes = {node.node_id: node for node in record.evidence_nodes()}
     tables = {table.table_id: table for table in record.tables}
@@ -615,10 +642,16 @@ def _typed_table_frames(record: DossierRecord, profile: str, reasons: list[str])
         if not snapshot:
             reasons.append(f"table_frame_snapshot_missing:{schedule.table_id}")
             continue
-        output.extend(payment_schedule_frames(
-            schedule, table=table, profile=profile, dossier_id=record.dossier_id,
-            document_id=node.source_file_id, snapshot_id=snapshot,
-        ))
+        output.extend(
+            payment_schedule_frames(
+                schedule,
+                table=table,
+                profile=profile,
+                dossier_id=record.dossier_id,
+                document_id=node.source_file_id,
+                snapshot_id=snapshot,
+            )
+        )
     for check in record.boq_checks:
         table = tables.get(check.table_id)
         node = nodes.get(table.node_id) if table is not None and table.node_id else None
@@ -629,10 +662,16 @@ def _typed_table_frames(record: DossierRecord, profile: str, reasons: list[str])
         if not snapshot:
             reasons.append(f"boq_frame_snapshot_missing:{check.table_id}")
             continue
-        output.extend(boq_check_frames(
-            check, table=table, profile=profile, dossier_id=record.dossier_id,
-            document_id=node.source_file_id, snapshot_id=snapshot,
-        ))
+        output.extend(
+            boq_check_frames(
+                check,
+                table=table,
+                profile=profile,
+                dossier_id=record.dossier_id,
+                document_id=node.source_file_id,
+                snapshot_id=snapshot,
+            )
+        )
     return tuple(output)
 
 

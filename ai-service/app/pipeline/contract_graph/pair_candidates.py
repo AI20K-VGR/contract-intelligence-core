@@ -47,8 +47,14 @@ class PairSource(str, Enum):
 
 ALL_SOURCES = frozenset(PairSource)
 # VERBATIM is core: a repeated clause is rare and is exactly what the cap must not drop.
-_CORE_SOURCES = frozenset({PairSource.SAME_ARTICLE, PairSource.EXPLICIT_REF, PairSource.STRUCTURED_KEY,
-                           PairSource.VERBATIM})
+_CORE_SOURCES = frozenset(
+    {
+        PairSource.SAME_ARTICLE,
+        PairSource.EXPLICIT_REF,
+        PairSource.STRUCTURED_KEY,
+        PairSource.VERBATIM,
+    }
+)
 _BASE_CORE_SOURCES = frozenset({PairSource.SAME_ARTICLE, PairSource.EXPLICIT_REF})
 _CORE_TOP_K_SHARE = 1.0
 WEIGHTS = {
@@ -85,10 +91,30 @@ _LEADING_NUMBER = re.compile(r"^\s*(\d+(?:\.\d+)*)\.?\s")
 _VALUE_MISMATCH_MIN_SHARED = 4
 _VALUE_MISMATCH_MIN_JACCARD = 0.12
 VALUE_MISMATCH_POSTING_WINDOW = 8
-_VALUE_STOPWORDS = frozenset({
-    "ben", "cac", "cho", "cua", "duoc", "khi", "mot", "nay", "nguoi", "nhan",
-    "sau", "theo", "trong", "tu", "voi", "va", "ve", "tai", "thoi", "han",
-})
+_VALUE_STOPWORDS = frozenset(
+    {
+        "ben",
+        "cac",
+        "cho",
+        "cua",
+        "duoc",
+        "khi",
+        "mot",
+        "nay",
+        "nguoi",
+        "nhan",
+        "sau",
+        "theo",
+        "trong",
+        "tu",
+        "voi",
+        "va",
+        "ve",
+        "tai",
+        "thoi",
+        "han",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -112,7 +138,7 @@ def _window(members: list[str], i: int, stats: Counter[str]) -> list[str]:
     rest = len(members) - i - 1
     if rest > _GROUP_PAIR_WINDOW:
         stats["group_pairs_windowed"] += rest - _GROUP_PAIR_WINDOW
-    return members[i + 1:i + 1 + _GROUP_PAIR_WINDOW]
+    return members[i + 1 : i + 1 + _GROUP_PAIR_WINDOW]
 
 
 def _value_text(text: str) -> str:
@@ -141,16 +167,25 @@ def _jaccard(left: frozenset[str] | None, right: frozenset[str] | None) -> float
 def _cites(text: str, other: str) -> bool:
     """``other`` names ``text``'s own number as "khoản 4.2"."""
     match = _LEADING_NUMBER.match(text)
-    return bool(match) and re.search(
-        r"\bkhoan\s+" + re.escape(match.group(1)) + r"(?![\d.]\d)", _fold(other)) is not None
+    return (
+        bool(match)
+        and re.search(r"\bkhoan\s+" + re.escape(match.group(1)) + r"(?![\d.]\d)", _fold(other))
+        is not None
+    )
 
 
-def _same_article_related(text_a: str, text_b: str, words_a: frozenset[str], words_b: frozenset[str]) -> bool:
-    return (_cites(text_a, text_b) or _cites(text_b, text_a)
-            or text_a.rstrip().endswith(":") or text_b.rstrip().endswith(":")
-            or min(len(text_a.strip()), len(text_b.strip())) <= _SAME_ARTICLE_SHORT_CHARS
-            or (bool(unit_values(text_a)) and bool(unit_values(text_b)))
-            or _jaccard(words_a, words_b) >= _SAME_ARTICLE_MIN_JACCARD)
+def _same_article_related(
+    text_a: str, text_b: str, words_a: frozenset[str], words_b: frozenset[str]
+) -> bool:
+    return (
+        _cites(text_a, text_b)
+        or _cites(text_b, text_a)
+        or text_a.rstrip().endswith(":")
+        or text_b.rstrip().endswith(":")
+        or min(len(text_a.strip()), len(text_b.strip())) <= _SAME_ARTICLE_SHORT_CHARS
+        or (bool(unit_values(text_a)) and bool(unit_values(text_b)))
+        or _jaccard(words_a, words_b) >= _SAME_ARTICLE_MIN_JACCARD
+    )
 
 
 def _page_furniture(nodes: Iterable[StructuralNode]) -> set[str]:
@@ -166,8 +201,10 @@ def _page_furniture(nodes: Iterable[StructuralNode]) -> set[str]:
     for node in nodes:
         if node.page_range:
             by_page.setdefault((node.source_file_id, node.page_range[0]), []).append(node.order)
-    edges = {key: (sorted(orders)[:_FURNITURE_EDGE_LINES], sorted(orders)[-_FURNITURE_EDGE_LINES:])
-             for key, orders in by_page.items()}
+    edges = {
+        key: (sorted(orders)[:_FURNITURE_EDGE_LINES], sorted(orders)[-_FURNITURE_EDGE_LINES:])
+        for key, orders in by_page.items()
+    }
     pages: dict[tuple[str | None, str], set[tuple[str | None, int]]] = {}
     members: dict[tuple[str | None, str], list[str]] = {}
     for node in nodes:
@@ -184,7 +221,12 @@ def _page_furniture(nodes: Iterable[StructuralNode]) -> set[str]:
         page = (node.source_file_id, node.page_range[0])
         pages.setdefault((scope, folded), set()).add(page)
         members.setdefault((scope, folded), []).append(node.node_id)
-    return {nid for key, seen in pages.items() if len(seen) >= _FURNITURE_MIN_PAGES for nid in members[key]}
+    return {
+        nid
+        for key, seen in pages.items()
+        if len(seen) >= _FURNITURE_MIN_PAGES
+        for nid in members[key]
+    }
 
 
 def _all_caps(text: str) -> bool:
@@ -298,7 +340,10 @@ def generate_pair_candidates(
             continue
         node = by_id[nid]
         if node.type == "FIELD" and node.structured_key in {
-            "contract_value", "payment_schedule", "payment_term", "payment_method",
+            "contract_value",
+            "payment_schedule",
+            "payment_term",
+            "payment_method",
         }:
             if len((node.text or "").strip()) >= MIN_CLAUSE_CHARS:
                 structured_fields.append(nid)
@@ -314,7 +359,9 @@ def generate_pair_candidates(
     eligible_set = set(eligible)
     chains = _containers(index, by_id)
     candidate_nodes = list(dict.fromkeys((*eligible, *structured_fields)))
-    topics = {nid: topic_of(_context(chains, by_id, nid), by_id[nid].text) for nid in candidate_nodes}
+    topics = {
+        nid: topic_of(_context(chains, by_id, nid), by_id[nid].text) for nid in candidate_nodes
+    }
     articles = {nid: _article_key(index, chains, nid) for nid in eligible}
     pos = {nid: index.position(nid) for nid in (*eligible, *structured_fields)}
     value_numbers = {}
@@ -325,8 +372,11 @@ def generate_pair_candidates(
     if PairSource.VALUE_MISMATCH in sources:
         value_numbers = {nid: unit_values(by_id[nid].text or "") for nid in value_nodes}
         content_words = {
-            nid: frozenset(w for w in _CONTENT_WORD.findall(_fold(by_id[nid].text or ""))
-                           if w not in _VALUE_STOPWORDS)
+            nid: frozenset(
+                w
+                for w in _CONTENT_WORD.findall(_fold(by_id[nid].text or ""))
+                if w not in _VALUE_STOPWORDS
+            )
             for nid in value_nodes
         }
     found: dict[tuple[str, str], set[PairSource]] = {}
@@ -386,11 +436,13 @@ def generate_pair_candidates(
         shared_counts: Counter[tuple[str, str]] = Counter()
         for members in postings.values():
             for i, x in enumerate(members):
-                for y in members[i + 1:i + 1 + VALUE_MISMATCH_POSTING_WINDOW]:
+                for y in members[i + 1 : i + 1 + VALUE_MISMATCH_POSTING_WINDOW]:
                     shared_counts[_ordered(x, y, pos)] += 1
                     stats["value_mismatch_pair_comparisons"] += 1
         for (x, y), shared in shared_counts.items():
-            if shared < _VALUE_MISMATCH_MIN_SHARED or not values_differ(value_numbers[x], value_numbers[y]):
+            if shared < _VALUE_MISMATCH_MIN_SHARED or not values_differ(
+                value_numbers[x], value_numbers[y]
+            ):
                 continue
             union = len(content_words[x] | content_words[y])
             if union and shared / union >= _VALUE_MISMATCH_MIN_JACCARD and (x, y) not in found:
@@ -416,7 +468,7 @@ def generate_pair_candidates(
                 by_structured_key.setdefault(key, []).append(nid)
         for members in by_structured_key.values():
             for i, x in enumerate(members):
-                for y in members[i + 1:]:
+                for y in members[i + 1 :]:
                     if not _body_annex(index, x, y):
                         continue
                     value_x = str(by_id[x].structured_value or "").strip()
@@ -426,9 +478,13 @@ def generate_pair_candidates(
 
     excluded = {tuple(sorted(p)) for p in excluded_pairs}
     candidates: list[PairCandidate] = []
-    words = {nid: frozenset(_CONTENT_WORD.findall(_fold(by_id[nid].text or ""))) for nid in eligible}
-    topical = {nid: frozenset(w for w in found_words if w not in _VALUE_STOPWORDS)
-               for nid, found_words in words.items()}
+    words = {
+        nid: frozenset(_CONTENT_WORD.findall(_fold(by_id[nid].text or ""))) for nid in eligible
+    }
+    topical = {
+        nid: frozenset(w for w in found_words if w not in _VALUE_STOPWORDS)
+        for nid, found_words in words.items()
+    }
     near_duplicate: set[tuple[str, str]] = set()
     for (a, b), srcs in found.items():
         if tuple(sorted((a, b))) in excluded:
@@ -438,7 +494,8 @@ def generate_pair_candidates(
             stats["excluded_ancestor"] += 1
             continue
         if srcs == {PairSource.SAME_ARTICLE} and not _same_article_related(
-                by_id[a].text or "", by_id[b].text or "", topical[a], topical[b]):
+            by_id[a].text or "", by_id[b].text or "", topical[a], topical[b]
+        ):
             stats["excluded_same_article_unrelated"] += 1
             continue
         if _jaccard(words.get(a), words.get(b)) >= _NEAR_DUPLICATE_JACCARD:
@@ -448,7 +505,9 @@ def generate_pair_candidates(
         score += 1 if PairSource.SAME_ARTICLE in srcs and (a, b) in adjacent else 0
         score += 1 if _body_annex(index, a, b) else 0
         topic = topics[a] if topics[a] == topics[b] else None
-        candidates.append(PairCandidate(a, b, frozenset(srcs), float(score), topic, referrers.get((a, b))))
+        candidates.append(
+            PairCandidate(a, b, frozenset(srcs), float(score), topic, referrers.get((a, b)))
+        )
     candidates.sort(key=lambda c: (-c.score, pos[c.node_a], pos[c.node_b], c.node_a, c.node_b))
     limit = max(0, top_k)
     if _BASE_CORE_SOURCES <= sources and limit:
@@ -456,16 +515,29 @@ def generate_pair_candidates(
         # Preserve the legacy B candidates within the same per-document budget; fill unused
         # slots with pairs found only by exploratory sources.
         core = [candidate for candidate in candidates if candidate.sources & _CORE_SOURCES]
-        exploratory = [candidate for candidate in candidates if not candidate.sources & _CORE_SOURCES]
+        exploratory = [
+            candidate for candidate in candidates if not candidate.sources & _CORE_SOURCES
+        ]
 
         def core_rank(candidate: PairCandidate) -> tuple[float, int, int, str, str]:
             score = sum(WEIGHTS[source] for source in candidate.sources & _CORE_SOURCES)
-            score += int(PairSource.SAME_ARTICLE in candidate.sources
-                         and (candidate.node_a, candidate.node_b) in adjacent)
+            score += int(
+                PairSource.SAME_ARTICLE in candidate.sources
+                and (candidate.node_a, candidate.node_b) in adjacent
+            )
             score += int(_body_annex(index, candidate.node_a, candidate.node_b))
-            score += _NEAR_DUPLICATE_BONUS if (candidate.node_a, candidate.node_b) in near_duplicate else 0
-            return (-score, pos[candidate.node_a], pos[candidate.node_b],
-                    candidate.node_a, candidate.node_b)
+            score += (
+                _NEAR_DUPLICATE_BONUS
+                if (candidate.node_a, candidate.node_b) in near_duplicate
+                else 0
+            )
+            return (
+                -score,
+                pos[candidate.node_a],
+                pos[candidate.node_b],
+                candidate.node_a,
+                candidate.node_b,
+            )
 
         core.sort(key=core_rank)
         # Round-robin equal-priority candidates by their earlier endpoint. Same-article
@@ -473,7 +545,9 @@ def generate_pair_candidates(
         by_priority: dict[float, dict[str, deque[PairCandidate]]] = {}
         for candidate in core:
             priority = -core_rank(candidate)[0]
-            by_priority.setdefault(priority, {}).setdefault(candidate.node_a, deque()).append(candidate)
+            by_priority.setdefault(priority, {}).setdefault(candidate.node_a, deque()).append(
+                candidate
+            )
         diversified_core: list[PairCandidate] = []
         for priority in sorted(by_priority, reverse=True):
             queues = by_priority[priority]
@@ -489,7 +563,7 @@ def generate_pair_candidates(
         core = diversified_core
         core_limit = min(len(core), math.ceil(limit * _CORE_TOP_K_SHARE))
         kept = core[:core_limit]
-        kept.extend(exploratory[:limit - len(kept)])
+        kept.extend(exploratory[: limit - len(kept)])
         kept.sort(key=lambda c: (-c.score, pos[c.node_a], pos[c.node_b], c.node_a, c.node_b))
     else:
         kept = candidates[:limit]
@@ -517,14 +591,16 @@ def generate_pair_candidates(
 # -- sources -----------------------------------------------------------------------------------
 
 
-def _explicit_targets(index: StructureIndex, node: StructuralNode, stats: Counter[str]) -> list[str]:
+def _explicit_targets(
+    index: StructureIndex, node: StructuralNode, stats: Counter[str]
+) -> list[str]:
     targets: list[str] = []
     for m in _SENTENCE.finditer(node.text or ""):
         sentence = m.group(0)
         for addr, end in _addresses_with_end(sentence):
             if addr.self_level:
                 continue
-            tail = _fold(_address.normalize(sentence)[end:end + EXTERNAL_WINDOW])
+            tail = _fold(_address.normalize(sentence)[end : end + EXTERNAL_WINDOW])
             if named_document(sentence) is not None or _EXTERNAL.search(tail):
                 stats["excluded_external_ref"] += 1
                 continue
@@ -627,4 +703,3 @@ def _heading(node: StructuralNode) -> str:
 def _lead(text: str | None) -> str:
     text = (text or "").strip()
     return text[: text.rfind(":")].strip() if ":" in text else ""
-

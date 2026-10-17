@@ -16,6 +16,7 @@ def _finish(job_id, payload, conn):
 
 def _hang(job_id, payload, conn):
     import time
+
     time.sleep(60)
 
 
@@ -48,7 +49,7 @@ def _budget(seconds):
 
 def test_a_killed_job_process_fails_only_that_job(store):
     main._run_isolated_job("job-1", _budget(30), target=_crash_after_claim)
-    (job_id, update), = store.failed
+    ((job_id, update),) = store.failed
     assert job_id == "job-1" and update["worker_token"] == "token-1"
     assert update["wire"]["errors"][0]["code"] == "AI2_WORKER_CRASHED"
 
@@ -61,5 +62,5 @@ def test_a_finished_job_process_leaves_the_result_to_the_child(store):
 def test_a_job_process_past_its_budget_is_killed(store, monkeypatch):
     monkeypatch.setattr(main, "_JOB_KILL_GRACE_SECONDS", 0)
     main._run_isolated_job("job-3", _budget(1), target=_hang)
-    (job_id, update), = store.failed
+    ((job_id, update),) = store.failed
     assert job_id == "job-3" and update["errors"][0]["code"] == "PROCESSING_TIMEOUT"

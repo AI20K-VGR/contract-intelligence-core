@@ -34,12 +34,25 @@ def main() -> int:
     total_calls = total_in = total_out = 0
     for module in [m for modules in DOSSIERS.values() for m in modules]:
         NineRouterClient.all_traces.clear()
-        runtime = ProcessingRuntime(egress_allowed=True, max_processing_seconds=310, max_llm_calls=20)
-        seeded_funnel.run(module.request(egress_allowed=True), llm=NineRouterClient(), runtime=runtime)
+        runtime = ProcessingRuntime(
+            egress_allowed=True, max_processing_seconds=310, max_llm_calls=20
+        )
+        seeded_funnel.run(
+            module.request(egress_allowed=True), llm=NineRouterClient(), runtime=runtime
+        )
         tokens_in = sum(t.get("prompt_tokens") or 0 for t in NineRouterClient.all_traces)
         tokens_out = sum(t.get("completion_tokens") or 0 for t in NineRouterClient.all_traces)
-        print(module.DOSSIER_ID, "calls", runtime.llm_calls_used, "tokens_in", tokens_in, "tokens_out", tokens_out,
-              "issues", sorted({code for code, _ in runtime.issues}))
+        print(
+            module.DOSSIER_ID,
+            "calls",
+            runtime.llm_calls_used,
+            "tokens_in",
+            tokens_in,
+            "tokens_out",
+            tokens_out,
+            "issues",
+            sorted({code for code, _ in runtime.issues}),
+        )
         total_calls += runtime.llm_calls_used
         total_in += tokens_in
         total_out += tokens_out

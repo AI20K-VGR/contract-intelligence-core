@@ -557,7 +557,12 @@ def _place(
         # belongs to the clause right before it in the same article, not to the article.
         previous = sequence[1] or sequence[0]
         levels = entries[previous].levels if previous in entries else None
-        if levels and "khoan" in levels and "diem" not in levels and levels.get("dieu") == context.get("dieu"):
+        if (
+            levels
+            and "khoan" in levels
+            and "diem" not in levels
+            and levels.get("dieu") == context.get("dieu")
+        ):
             return {**levels, **own}, previous
     if context is None and sequence is not None:
         article, clause = sequence

@@ -72,7 +72,9 @@ class TablePipeline:
     def extract(self, envelope: ToolEnvelope, table_id: str) -> list[Fact]:
         return self.extract_with_projection(envelope, table_id).facts
 
-    def extract_with_projection(self, envelope: ToolEnvelope, table_id: str) -> TableExtractionResult:
+    def extract_with_projection(
+        self, envelope: ToolEnvelope, table_id: str
+    ) -> TableExtractionResult:
         meta = self.gateway.call("get_table_meta", envelope, table_id=table_id)
         continuation = bool(meta.get("continuation"))
         n_rows = max(0, int(meta.get("n_rows", 0)))
@@ -85,7 +87,9 @@ class TablePipeline:
         row_limit = min(row_limit, self.limits.max_operations // max(1, n_cols))
         cap_hit = row_limit < n_rows
         started = time.monotonic()
-        all_rows = self.gateway.call("get_table_rows", envelope, table_id=table_id, start=0, end=row_limit)
+        all_rows = self.gateway.call(
+            "get_table_rows", envelope, table_id=table_id, start=0, end=row_limit
+        )
         bounded_rows: list[dict] = []
         page_ids: set[str] = set()
         time_hit = False
@@ -110,37 +114,72 @@ class TablePipeline:
         if time.monotonic() - started > self.limits.max_seconds:
             time_hit = True
             bounded_rows = []
-        reason = "processing time limit reached" if time_hit else "page limit reached" if page_hit else "row, cell, or operation limit reached" if cap_hit else None
+        reason = (
+            "processing time limit reached"
+            if time_hit
+            else "page limit reached"
+            if page_hit
+            else "row, cell, or operation limit reached"
+            if cap_hit
+            else None
+        )
         source_complete = not (time_hit or page_hit or cap_hit) and len(bounded_rows) == n_rows
         column = amount_column(meta["header"])
         used_llm_code = False
         facts: list[Fact] = []
         if column is not None:
-          for item in bounded_rows:
-            idx = item.get("row_index", 0)
-            if idx < 0 or idx >= n_rows or idx in meta.get("header_row_indices", []):
-                continue
-            cells = item["cells"]
-            raw = cells[column] if column < len(cells) else None
-            oversized_value = raw is not None and len(str(raw)) > self.limits.max_numeric_chars
-            row_label = " ".join(str(v or "") for v in cells[:column])
-            if amount_column([str(v or "") for v in cells]) is not None or fold(row_label).startswith(("luu y:", "ghi chu:", "note:")):
-                continue
-            missing = raw is None or str(raw).strip() == ""
-            citation_payload = item.get("cell_citations", {}).get(str(column), {})
-            citation = Citation.model_validate(
-                {
-                    **citation_payload,
-                    "node_id": citation_payload.get("node_id", table_id),
-                    "page_revision_id": citation_payload.get("page_revision_id", ""),
-                    "bbox": citation_payload.get("bbox") or [],
-                    "text_span": str(raw) if raw is not None else str(citation_payload.get("text_span") or ""),
-                }
-            )
-            fact_id = "tbl_" + sha256(f"{table_id}:{idx}:{column}:{citation.page_revision_id}".encode()).hexdigest()[:24]
-            label = fold(row_label)
-            role = _amount_role(label)
-            if missing:
+            for item in bounded_rows:
+                idx = item.get("row_index", 0)
+                if idx < 0 or idx >= n_rows or idx in meta.get("header_row_indices", []):
+                    continue
+                cells = item["cells"]
+                raw = cells[column] if column < len(cells) else None
+                oversized_value = raw is not None and len(str(raw)) > self.limits.max_numeric_chars
+                row_label = " ".join(str(v or "") for v in cells[:column])
+                if amount_column([str(v or "") for v in cells]) is not None or fold(
+                    row_label
+                ).startswith(("luu y:", "ghi chu:", "note:")):
+                    continue
+                missing = raw is None or str(raw).strip() == ""
+                citation_payload = item.get("cell_citations", {}).get(str(column), {})
+                citation = Citation.model_validate(
+                    {
+                        **citation_payload,
+                        "node_id": citation_payload.get("node_id", table_id),
+                        "page_revision_id": citation_payload.get("page_revision_id", ""),
+                        "bbox": citation_payload.get("bbox") or [],
+                        "text_span": str(raw)
+                        if raw is not None
+                        else str(citation_payload.get("text_span") or ""),
+                    }
+                )
+                fact_id = (
+                    "tbl_"
+                    + sha256(
+                        f"{table_id}:{idx}:{column}:{citation.page_revision_id}".encode()
+                    ).hexdigest()[:24]
+                )
+                label = fold(row_label)
+                role = _amount_role(label)
+                if missing:
+                    facts.append(
+                        Fact(
+                            fact_id=fact_id,
+                            role=role,
+                            subject=row_label,
+                            source_role=meta.get("source_role"),
+                            validity=meta.get("section_scope"),
+                            raw_value="MISSING",
+                            normalized_value=None,
+                            citation=citation,
+                            provenance="L0",
+                            review_state=ReviewState.NEEDS_REVIEW,
+                            item_key=_row_item_key(row_label)
+                            if meta.get("source_role") == "annex"
+                            else None,
+                        )
+                    )
+                    continue
                 facts.append(
                     Fact(
                         fact_id=fact_id,
@@ -148,46 +187,48 @@ class TablePipeline:
                         subject=row_label,
                         source_role=meta.get("source_role"),
                         validity=meta.get("section_scope"),
-                        raw_value="MISSING",
-                        normalized_value=None,
+                        raw_value=str(raw),
+                        normalized_value=None if oversized_value else parse_amount(raw),
                         citation=citation,
-                        provenance="L0",
-                        review_state=ReviewState.NEEDS_REVIEW,
-                        item_key=_row_item_key(row_label) if meta.get("source_role") == "annex" else None,
+                        provenance="L2" if used_llm_code else "L0",
+                        review_state=(
+                            ReviewState.NEEDS_REVIEW
+                            if continuation or oversized_value or parse_amount(raw) is None
+                            else ReviewState.PASS
+                        ),
+                        item_key=_row_item_key(row_label)
+                        if meta.get("source_role") == "annex"
+                        else None,
                     )
                 )
-                continue
-            facts.append(
-                Fact(
-                    fact_id=fact_id,
-                    role=role,
-                    subject=row_label,
-                    source_role=meta.get("source_role"),
-                    validity=meta.get("section_scope"),
-                    raw_value=str(raw),
-                    normalized_value=None if oversized_value else parse_amount(raw),
-                    citation=citation,
-                    provenance="L2" if used_llm_code else "L0",
-                    review_state=(
-                        ReviewState.NEEDS_REVIEW
-                        if continuation or oversized_value or parse_amount(raw) is None
-                        else ReviewState.PASS
-                    ),
-                    item_key=_row_item_key(row_label) if meta.get("source_role") == "annex" else None,
-                )
-            )
         schedule = project_payment_schedule(
-            table_id, meta["header"], bounded_rows, source_role=meta.get("source_role"),
-            source_rows=n_rows, complete=source_complete, reason=reason,
-            max_rows=self.limits.max_rows, max_cells=self.limits.max_cells,
+            table_id,
+            meta["header"],
+            bounded_rows,
+            source_role=meta.get("source_role"),
+            source_rows=n_rows,
+            complete=source_complete,
+            reason=reason,
+            max_rows=self.limits.max_rows,
+            max_cells=self.limits.max_cells,
             max_numeric_chars=self.limits.max_numeric_chars,
         )
-        boq = check_boq_table(
-            table_id, meta["header"], bounded_rows, source_role=meta.get("source_role"),
-            source_rows=n_rows, complete=source_complete, reason=reason,
-            max_rows=self.limits.max_rows, max_cells=self.limits.max_cells,
-            max_numeric_chars=self.limits.max_numeric_chars,
-        ) if _looks_like_boq(meta["header"]) else None
+        boq = (
+            check_boq_table(
+                table_id,
+                meta["header"],
+                bounded_rows,
+                source_role=meta.get("source_role"),
+                source_rows=n_rows,
+                complete=source_complete,
+                reason=reason,
+                max_rows=self.limits.max_rows,
+                max_cells=self.limits.max_cells,
+                max_numeric_chars=self.limits.max_numeric_chars,
+            )
+            if _looks_like_boq(meta["header"])
+            else None
+        )
         return TableExtractionResult(facts=facts, payment_schedule=schedule, boq_check=boq)
 
     @staticmethod
@@ -231,15 +272,23 @@ class TablePipeline:
                 operation="table",
             )
         else:
-            data = self.llm.complete_json("You generate sandbox table extraction code only.", prompt, strong=strong)
+            data = self.llm.complete_json(
+                "You generate sandbox table extraction code only.", prompt, strong=strong
+            )
         return (data or {}).get("code") or DEFAULT_CODE
 
 
 def _looks_like_boq(headers: list[str]) -> bool:
     folded = [fold(value) for value in headers]
-    has_quantity = any(any(term in value for term in ("so luong", "quantity", "qty")) for value in folded)
-    has_price = any(any(term in value for term in ("don gia", "unit price", "unit cost")) for value in folded)
-    has_amount = any(any(term in value for term in ("thanh tien", "amount", "gia tri")) for value in folded)
+    has_quantity = any(
+        any(term in value for term in ("so luong", "quantity", "qty")) for value in folded
+    )
+    has_price = any(
+        any(term in value for term in ("don gia", "unit price", "unit cost")) for value in folded
+    )
+    has_amount = any(
+        any(term in value for term in ("thanh tien", "amount", "gia tri")) for value in folded
+    )
     return has_quantity and has_price and has_amount
 
 

@@ -12,6 +12,7 @@ from app.tools.gateway import ToolGateway
 
 class FactExtractor:
     MAX_NORMALIZATION_INPUT_CHARS = 4096
+
     def __init__(
         self,
         gateway: ToolGateway,
@@ -42,9 +43,14 @@ class FactExtractor:
         if mper:
             period = mper.group(1)
         scope = sk.split(":", 1)[1] if sk.startswith("scope:") else None
-        identity_unit = self.contract_unit_scopes.get(node_id) if sk.startswith(("party_", "mst_party_")) else None
+        identity_unit = (
+            self.contract_unit_scopes.get(node_id)
+            if sk.startswith(("party_", "mst_party_"))
+            else None
+        )
         if item_key is None and (
-            sk in {
+            sk
+            in {
                 "contract_value",
                 "contract_value_words",
                 "payment_schedule",
@@ -63,13 +69,18 @@ class FactExtractor:
             if mi:
                 item_key = mi.group(1)
         fact = Fact(
-            fact_id="fact_" + sha256(f"{node_id}:{envelope.pins.source_snapshot_digest}:{envelope.pins.extraction_version}".encode()).hexdigest()[:24],
+            fact_id="fact_"
+            + sha256(
+                f"{node_id}:{envelope.pins.source_snapshot_digest}:{envelope.pins.extraction_version}".encode()
+            ).hexdigest()[:24],
             raw_value=raw,
             normalized_value=normalized,
             subject=_context_subject(anc, payload.get("raw_label")),
             role=sk if identity_unit else None,
             unit=_guess_unit(raw, text),
-            currency="VND" if _guess_unit(raw, text) == "VND" else ("USD" if _guess_unit(raw, text) == "USD" else None),
+            currency="VND"
+            if _guess_unit(raw, text) == "VND"
+            else ("USD" if _guess_unit(raw, text) == "USD" else None),
             citation=citation,
             provenance=provenance,
             review_state=ReviewState.NEEDS_REVIEW,
@@ -127,7 +138,9 @@ class FactExtractor:
             norm = data.get("normalized")
             if not isinstance(norm, str) or not norm.strip():
                 if self.runtime is not None:
-                    self.runtime.add_issue("LLM_INVALID_OUTPUT", "normalization response omitted a string")
+                    self.runtime.add_issue(
+                        "LLM_INVALID_OUTPUT", "normalization response omitted a string"
+                    )
                     self.runtime.fallback_count += 1
                 return None, "L0"
             reason = _ungrounded_normalization(raw, norm)
@@ -145,12 +158,19 @@ _NORMALIZE_SYSTEM = (
     "normalized must be one string in the same language as raw. "
     "Do not translate. Do not return an object or a list. Do not invent values. No legal conclusion. "
     "Use the deterministic rules' conventions: a percentage becomes the bare number without % "
-    "(\"0,1%/ngày\" -> \"0.1\"); a money amount becomes digits only. "
-    "If the raw value is masked, cut off, illegible or states no value, return {\"normalized\": null}."
+    '("0,1%/ngày" -> "0.1"); a money amount becomes digits only. '
+    'If the raw value is masked, cut off, illegible or states no value, return {"normalized": null}.'
 )
 
 _MASK = re.compile(r"[•●■□▯�]|\?{2,}|\*{2,}|\.{4,}|…|x{3,}", re.I)
-_UNREADABLE_PHRASES = ("không rõ", "không đọc được", "khong ro", "khong doc duoc", "illegible", "unreadable")
+_UNREADABLE_PHRASES = (
+    "không rõ",
+    "không đọc được",
+    "khong ro",
+    "khong doc duoc",
+    "illegible",
+    "unreadable",
+)
 
 
 def _unreadable(raw: str) -> bool:

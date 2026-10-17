@@ -30,7 +30,11 @@ def _stage(funnel: seeded_funnel.Funnel, a: str, b: str) -> str:
     if not any({c.node_a, c.node_b} == pair for c in funnel.candidates):
         return "not_candidate_or_capped"
     events = [e for e in funnel.pair_events if {e.get("node_a_id"), e.get("node_b_id")} == pair]
-    return "sent:" + ",".join(sorted({str(e.get("outcome")) for e in events})) if events else "kept_not_sent"
+    return (
+        "sent:" + ",".join(sorted({str(e.get("outcome")) for e in events}))
+        if events
+        else "kept_not_sent"
+    )
 
 
 def main() -> int:
@@ -61,15 +65,30 @@ def main() -> int:
                     else:
                         misses[(label, a, b)][_stage(funnel, a, b)] += 1
                 for label, prefix in gold["forbidden_label_on"]:
-                    forbidden += sum(1 for lbl, ids in produced if lbl == label
-                                     and any(funnel.texts[i].startswith(prefix) for i in ids))
+                    forbidden += sum(
+                        1
+                        for lbl, ids in produced
+                        if lbl == label and any(funnel.texts[i].startswith(prefix) for i in ids)
+                    )
             failed = failed or forbidden or any(hits[m] < args.repeats for m in gold["must"])
-            report.append({
-                "dossier": module.DOSSIER_ID, "split": split, "repeats": args.repeats,
-                "must": [{"label": label, "a": a, "b": b, "hits": hits[(label, a, b)],
-                          "miss_stage": dict(misses[(label, a, b)])} for label, a, b in gold["must"]],
-                "forbidden_hits": forbidden,
-            })
+            report.append(
+                {
+                    "dossier": module.DOSSIER_ID,
+                    "split": split,
+                    "repeats": args.repeats,
+                    "must": [
+                        {
+                            "label": label,
+                            "a": a,
+                            "b": b,
+                            "hits": hits[(label, a, b)],
+                            "miss_stage": dict(misses[(label, a, b)]),
+                        }
+                        for label, a, b in gold["must"]
+                    ],
+                    "forbidden_hits": forbidden,
+                }
+            )
     print(json.dumps(report, ensure_ascii=False, indent=1))
     return 1 if failed else 0
 

@@ -111,15 +111,22 @@ EXPECTED = {
     ],
     # The limitation must reach review as some relation (operation edge or pair candidate).
     "related_any": [("2. Khoản 2 Điều 6", "6.2.")],
-    "issues_must": [("CLAUSE_CONTINUES_ON_NEXT_PAGE", "4.2.", "biên bản nghiệm thu được hai bên ký")],
+    "issues_must": [
+        ("CLAUSE_CONTINUES_ON_NEXT_PAGE", "4.2.", "biên bản nghiệm thu được hai bên ký")
+    ],
     "never_candidate": ["TÀI LIỆU MẪU", "Trang "],
     "never_value_mismatch": [("5.1.", "7.1.")],  # 24 months vs 2 copies: different units
 }
 
 
 def request(*, egress_allowed: bool = False) -> dict:
-    return build_request(dossier_id=DOSSIER_ID, body_pages=BODY_PAGES, annex_pages=ANNEX_PAGES,
-                         egress_allowed=egress_allowed)
+    return build_request(
+        dossier_id=DOSSIER_ID,
+        body_pages=BODY_PAGES,
+        annex_pages=ANNEX_PAGES,
+        egress_allowed=egress_allowed,
+    )
+
 
 # Classifier (LLM) gold, written before the first live run.
 LIVE_EXPECTED = {

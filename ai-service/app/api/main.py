@@ -118,6 +118,7 @@ app.include_router(processing_trace_router)
 if STATIC.exists():
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
+
 def _store_capacity() -> int | None:
     # With Postgres, /query reloads every dossier from ai2.dossier_query_snapshots,
     # so the in-memory store is a cache. Without it the store is the only copy.
@@ -335,7 +336,9 @@ def _run_isolated_job(job_id: str, payload: dict, *, target=_job_process_entry) 
         _refresh_query_store(job_id)
         return
     code = "PROCESSING_TIMEOUT" if timed_out else "AI2_WORKER_CRASHED"
-    logger.warning("ai2.job_process_ended job_id=%s exitcode=%s code=%s", job_id, child.exitcode, code)
+    logger.warning(
+        "ai2.job_process_ended job_id=%s exitcode=%s code=%s", job_id, child.exitcode, code
+    )
     update = {
         "status": "FAILED",
         "review_state": "BLOCKED",
@@ -348,12 +351,20 @@ def _run_isolated_job(job_id: str, payload: dict, *, target=_job_process_entry) 
         JOB_STORE.fail_unclaimed(job_id, update)
     else:
         worker_token, tenant_id, dossier_id = claim
-        JOB_STORE.set_wire(job_id, tenant_id=tenant_id, dossier_id=dossier_id,
-                           worker_token=worker_token, status="FAILED", wire=wire)
+        JOB_STORE.set_wire(
+            job_id,
+            tenant_id=tenant_id,
+            dossier_id=dossier_id,
+            worker_token=worker_token,
+            status="FAILED",
+            wire=wire,
+        )
     try:
         ProcessingTraceStore(JOB_STORE).finalize_stale_job(job_id)
     except Exception as exc:
-        logger.warning("ai2.processing_trace_finalize_failed job_id=%s code=%s", job_id, type(exc).__name__)
+        logger.warning(
+            "ai2.processing_trace_finalize_failed job_id=%s code=%s", job_id, type(exc).__name__
+        )
 
 
 def _refresh_query_store(job_id: str) -> None:
@@ -384,8 +395,14 @@ def _progress_writer(job_id: str, tenant_id: str, dossier_id: str, worker_token:
         last.update(step=progress["step"], at=now)
         wire = {**_known_wire(job_id), "status": "RUNNING", "progress": progress}
         WIRE_JOBS[job_id] = wire
-        JOB_STORE.set_wire(job_id, tenant_id=tenant_id, dossier_id=dossier_id,
-                           worker_token=worker_token, status="RUNNING", wire=wire)
+        JOB_STORE.set_wire(
+            job_id,
+            tenant_id=tenant_id,
+            dossier_id=dossier_id,
+            worker_token=worker_token,
+            status="RUNNING",
+            wire=wire,
+        )
 
     return write
 

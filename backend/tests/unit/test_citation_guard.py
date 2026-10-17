@@ -146,9 +146,16 @@ async def _two_line_page(session: AsyncSession) -> str:
     ):
         session.add(
             OcrLineORM(
-                id=new_ulid("ln_"), tenant_id="ten_test", document_id=doc_id, page_no=1,
-                line_no=line_no, text=text, bbox="[0,0,100,20]", confidence="0.99",
-                doc_char_start=start, doc_char_end=start + len(text),
+                id=new_ulid("ln_"),
+                tenant_id="ten_test",
+                document_id=doc_id,
+                page_no=1,
+                line_no=line_no,
+                text=text,
+                bbox="[0,0,100,20]",
+                confidence="0.99",
+                doc_char_start=start,
+                doc_char_end=start + len(text),
             )
         )
     await session.commit()

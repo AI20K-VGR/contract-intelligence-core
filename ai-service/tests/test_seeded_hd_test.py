@@ -47,11 +47,16 @@ def test_wrapped_clause_is_one_node(funnel, clause, tail):
 def test_planted_value_change_reaches_review(funnel, left, right, slot):
     left_ids = {f.frame_id for f in funnel.frames_of(left)}
     right_ids = {f.frame_id for f in funnel.frames_of(right)}
-    pairs = [p for p in funnel.semantic_pairs
-             if {p.left_id, p.right_id} & left_ids and {p.left_id, p.right_id} & right_ids]
+    pairs = [
+        p
+        for p in funnel.semantic_pairs
+        if {p.left_id, p.right_id} & left_ids and {p.left_id, p.right_id} & right_ids
+    ]
     assert pairs, "the two clauses were never compared"
-    assert any(p.disposition in {"COMPARABLE_DIFFERENCE", "CONFLICT_CANDIDATE"} and slot in p.reason
-               for p in pairs), [(p.disposition, p.reason) for p in pairs]
+    assert any(
+        p.disposition in {"COMPARABLE_DIFFERENCE", "CONFLICT_CANDIDATE"} and slot in p.reason
+        for p in pairs
+    ), [(p.disposition, p.reason) for p in pairs]
 
 
 @pytest.mark.parametrize(("a", "b"), EXPECTED["candidates_must_keep"])
@@ -64,8 +69,10 @@ def test_candidate_survives_top_k(funnel, a, b):
 @pytest.mark.parametrize("furniture", EXPECTED["never_candidate"])
 def test_page_furniture_is_never_a_candidate(funnel, furniture):
     touching = [
-        (funnel.describe(c.node_a), funnel.describe(c.node_b)) for c in funnel.candidates
-        if funnel.texts[c.node_a].startswith(furniture) or funnel.texts[c.node_b].startswith(furniture)
+        (funnel.describe(c.node_a), funnel.describe(c.node_b))
+        for c in funnel.candidates
+        if funnel.texts[c.node_a].startswith(furniture)
+        or funnel.texts[c.node_b].startswith(furniture)
     ]
     assert not touching, touching
 
@@ -80,11 +87,18 @@ def test_clause_numbers_are_not_value_mismatches(monkeypatch, a, b):
 
     payload = hd.request()
     env = payload["service_envelope"]
-    record = adapt_be_ai2_processing_request(payload, tenant_id=env["tenant_id"], actor_id=env["actor_id"])[1].record
+    record = adapt_be_ai2_processing_request(
+        payload, tenant_id=env["tenant_id"], actor_id=env["actor_id"]
+    )[1].record
     nodes = list(record.evidence_nodes())
     texts = {n.node_id: " ".join(n.text.split()) for n in nodes}
-    ids = {prefix: next(nid for nid, t in texts.items() if t.startswith(prefix)) for prefix in (a, b)}
+    ids = {
+        prefix: next(nid for nid, t in texts.items() if t.startswith(prefix)) for prefix in (a, b)
+    }
     index = StructureIndex.build(nodes, {s.file_id: s.role for s in record.source_files})
-    sources = [c.sources for c in generate_pair_candidates(index, nodes, top_k=10_000).candidates
-               if {c.node_a, c.node_b} == set(ids.values())]
+    sources = [
+        c.sources
+        for c in generate_pair_candidates(index, nodes, top_k=10_000).candidates
+        if {c.node_a, c.node_b} == set(ids.values())
+    ]
     assert all(PairSource.VALUE_MISMATCH not in s for s in sources), sources

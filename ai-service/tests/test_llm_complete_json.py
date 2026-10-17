@@ -213,7 +213,9 @@ def test_runtime_logs_provider_rejection_without_payload(caplog: pytest.LogCaptu
         assert runtime.complete_json(client, "Return JSON.", "raw=private") is None
 
     line = next(r.getMessage() for r in caplog.records if "ai2.llm_call_failed" in r.getMessage())
-    assert "error=BadRequestError" in line and "http_status=400" in line and "param=messages" in line
+    assert (
+        "error=BadRequestError" in line and "http_status=400" in line and "param=messages" in line
+    )
     assert "secret-raw-text" not in line and "raw=private" not in line
 
 
@@ -225,7 +227,9 @@ def _quota_client(code: str, calls: list) -> NineRouterClient:
     def create(**_kwargs: object) -> SimpleNamespace:
         calls.append(1)
         response = httpx.Response(429, request=httpx.Request("POST", "http://example.test"))
-        raise RateLimitError("429", response=response, body={"error": {"code": code, "message": "x"}})
+        raise RateLimitError(
+            "429", response=response, body={"error": {"code": code, "message": "x"}}
+        )
 
     client._client.chat.completions.create = create  # type: ignore[method-assign]
     return client
@@ -273,25 +277,40 @@ def test_pipeline_call_sites_label_their_stage() -> None:
     from app.pipeline import fact, frame_context, table, tenant_aliases
     from app.pipeline.contract_graph import pair_classifier
 
-    for module, label in ((pair_classifier, "pairs"), (frame_context, "slot_context"),
-                          (tenant_aliases, "alias"), (fact, "fact_normalize"), (table, "table")):
+    for module, label in (
+        (pair_classifier, "pairs"),
+        (frame_context, "slot_context"),
+        (tenant_aliases, "alias"),
+        (fact, "fact_normalize"),
+        (table, "table"),
+    ):
         assert f'operation="{label}"' in inspect.getsource(module), module.__name__
 
 
-def test_runtime_logs_each_successful_call_with_timing_and_tokens(caplog: pytest.LogCaptureFixture) -> None:
+def test_runtime_logs_each_successful_call_with_timing_and_tokens(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     client = NineRouterClient(api_key="sk-test", model="gpt-5.5")
 
     def create(**_kwargs: object) -> SimpleNamespace:
-        usage = SimpleNamespace(prompt_tokens=120, completion_tokens=30, total_tokens=150,
-                                completion_tokens_details=SimpleNamespace(reasoning_tokens=12))
-        choice = SimpleNamespace(message=SimpleNamespace(content='{"ok": true}'), finish_reason="stop")
+        usage = SimpleNamespace(
+            prompt_tokens=120,
+            completion_tokens=30,
+            total_tokens=150,
+            completion_tokens_details=SimpleNamespace(reasoning_tokens=12),
+        )
+        choice = SimpleNamespace(
+            message=SimpleNamespace(content='{"ok": true}'), finish_reason="stop"
+        )
         return SimpleNamespace(choices=[choice], usage=usage, model="gpt-5.5-2026")
 
     client._client.chat.completions.create = create  # type: ignore[method-assign]
     runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=2)
 
     with caplog.at_level("INFO", logger="app.pipeline.runtime"):
-        assert runtime.complete_json(client, "Return JSON.", "raw=private", operation="slot_context") == {"ok": True}
+        assert runtime.complete_json(
+            client, "Return JSON.", "raw=private", operation="slot_context"
+        ) == {"ok": True}
 
     line = next(r.getMessage() for r in caplog.records if "ai2.llm_call " in r.getMessage())
     assert "operation=slot_context" in line and "served_model=gpt-5.5-2026" in line
@@ -304,20 +323,27 @@ def _capturing_client(model: str, sent: list[dict]) -> NineRouterClient:
 
     def create(**kwargs: object) -> SimpleNamespace:
         sent.append(kwargs)
-        choice = SimpleNamespace(message=SimpleNamespace(content='{"ok": true}'), finish_reason="stop")
+        choice = SimpleNamespace(
+            message=SimpleNamespace(content='{"ok": true}'), finish_reason="stop"
+        )
         return SimpleNamespace(choices=[choice], usage=None, model=model)
 
     client._client.chat.completions.create = create  # type: ignore[method-assign]
     return client
 
 
-@pytest.mark.parametrize(("model", "operation", "expected"), [
-    ("gpt-5.5", "slot_context", "low"),
-    ("openai/gpt-5.5", "alias", "low"),
-    ("gpt-5.5", "pairs", None),          # classifier keeps the default reasoning
-    ("gpt-4o-mini", "slot_context", None),  # not a reasoning model
-])
-def test_light_reasoning_effort_only_for_span_picking_on_gpt5(monkeypatch, model, operation, expected):
+@pytest.mark.parametrize(
+    ("model", "operation", "expected"),
+    [
+        ("gpt-5.5", "slot_context", "low"),
+        ("openai/gpt-5.5", "alias", "low"),
+        ("gpt-5.5", "pairs", None),  # classifier keeps the default reasoning
+        ("gpt-4o-mini", "slot_context", None),  # not a reasoning model
+    ],
+)
+def test_light_reasoning_effort_only_for_span_picking_on_gpt5(
+    monkeypatch, model, operation, expected
+):
     monkeypatch.setenv("AI2_LLM_LIGHT_REASONING_EFFORT", "low")
     sent: list[dict] = []
     runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=2)
@@ -329,5 +355,7 @@ def test_reasoning_effort_is_not_sent_when_unset(monkeypatch):
     monkeypatch.delenv("AI2_LLM_LIGHT_REASONING_EFFORT", raising=False)
     sent: list[dict] = []
     runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=2)
-    runtime.complete_json(_capturing_client("gpt-5.5", sent), "Return JSON.", "u", operation="slot_context")
+    runtime.complete_json(
+        _capturing_client("gpt-5.5", sent), "Return JSON.", "u", operation="slot_context"
+    )
     assert "reasoning_effort" not in sent[0]

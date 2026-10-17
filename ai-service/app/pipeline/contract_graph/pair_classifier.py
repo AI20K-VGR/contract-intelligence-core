@@ -115,13 +115,25 @@ _LINE_LABEL = re.compile(
     r"^\s*(?:(?:Điều|Article|Khoản|Điểm)\s+\d+[a-zđ]?[.:]?\s*"
     # "1.1." / "2.1.3." are clause positions too; reading them as values rejected the
     # model's correct DUPLICATE for two verbatim clauses numbered 1.1 and 1.3.
-    r"|\d+(?:\.\d+)*[a-zđ]?[.)](?!\d)\s*|\(?[a-zđ]\d*\)\s*)", re.IGNORECASE | re.MULTILINE,
+    r"|\d+(?:\.\d+)*[a-zđ]?[.)](?!\d)\s*|\(?[a-zđ]\d*\)\s*)",
+    re.IGNORECASE | re.MULTILINE,
 )
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)*(?:\s*%)?")
 REJECTION_CODES = (
-    "malformed", "unknown_pair", "duplicate_id", "invalid_label", "unrelated", "bad_span",
-    "ungrounded_span", "missing_direction", "no_answer", "duplicate_value_mismatch",
-    "conflict_same_span", "reference_explicit", "citation_invalid", "conflict_no_value_difference",
+    "malformed",
+    "unknown_pair",
+    "duplicate_id",
+    "invalid_label",
+    "unrelated",
+    "bad_span",
+    "ungrounded_span",
+    "missing_direction",
+    "no_answer",
+    "duplicate_value_mismatch",
+    "conflict_same_span",
+    "reference_explicit",
+    "citation_invalid",
+    "conflict_no_value_difference",
 )
 
 
@@ -153,13 +165,20 @@ class ClassifierOutcome:
 
 
 def classifier_stats() -> dict[str, Any]:
-    return {"pairs_sent": 0, "pairs_unclassified": 0, "llm_calls": 0, "prompt_tokens": 0,
-            "completion_tokens": 0, "injection_signals": 0, "abstentions": 0,
-            "rejected": dict.fromkeys(REJECTION_CODES, 0),
-            "rejection_reason_version": REJECTION_REASON_VERSION,
-            "prompt_version": PROMPT_VERSION,
-            "stopped_reason": None,
-            "served_model": None}
+    return {
+        "pairs_sent": 0,
+        "pairs_unclassified": 0,
+        "llm_calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "injection_signals": 0,
+        "abstentions": 0,
+        "rejected": dict.fromkeys(REJECTION_CODES, 0),
+        "rejection_reason_version": REJECTION_REASON_VERSION,
+        "prompt_version": PROMPT_VERSION,
+        "stopped_reason": None,
+        "served_model": None,
+    }
 
 
 def prompt_for_variant(variant: str) -> tuple[str, str]:
@@ -192,7 +211,7 @@ def _grounded_span(text: str, span: str) -> str | None:
     start = normalized.find(query)
     if start < 0 or not query:
         return None
-    raw = text[units[start][1]:units[start + len(query) - 1][2]]
+    raw = text[units[start][1] : units[start + len(query) - 1][2]]
     return raw if _normalize(raw) == query else None
 
 
@@ -209,20 +228,26 @@ def _no_value_difference(text_a: str, text_b: str) -> bool:
     Luna labelled such pairs CONFLICT (same 05-day deadline on another trigger, a percentage
     on one side only); a clause pair without numbers on one side is left to the model.
     """
+
     def values(text: str) -> dict[str, frozenset[str]]:
-        return {unit: frozenset(n.lstrip("0") or "0" for n in numbers)
-                for unit, numbers in unit_values(text).items()}
+        return {
+            unit: frozenset(n.lstrip("0") or "0" for n in numbers)
+            for unit, numbers in unit_values(text).items()
+        }
 
     left, right = values(text_a), values(text_b)
     return bool(left) and bool(right) and not values_differ(left, right)
 
 
 def _numbers(text: str) -> Counter[str]:
-    return Counter(re.sub(r"\s+", "", match.group())
-                   for match in _NUMBER.finditer(_LINE_LABEL.sub("", text)))
+    return Counter(
+        re.sub(r"\s+", "", match.group()) for match in _NUMBER.finditer(_LINE_LABEL.sub("", text))
+    )
 
 
-def _decision(item: dict, pair: ClassifierPair, rejected: dict[str, int], served: str | None) -> PairDecision | None:
+def _decision(
+    item: dict, pair: ClassifierPair, rejected: dict[str, int], served: str | None
+) -> PairDecision | None:
     def reject(code: str) -> None:
         rejected[code] += 1
 
@@ -234,8 +259,10 @@ def _decision(item: dict, pair: ClassifierPair, rejected: dict[str, int], served
         reject("invalid_label")
         return None
     spans = (item.get("span_a"), item.get("span_b"))
-    if any(not isinstance(s, str) or not PAIR_SPAN_MIN <= len(s) <= PAIR_SPAN_MAX
-           or not s.strip() for s in spans):
+    if any(
+        not isinstance(s, str) or not PAIR_SPAN_MIN <= len(s) <= PAIR_SPAN_MAX or not s.strip()
+        for s in spans
+    ):
         reject("bad_span")
         return None
     span_a, span_b = (_grounded_span(pair.text_a, spans[0]), _grounded_span(pair.text_b, spans[1]))
@@ -269,7 +296,7 @@ _REFERENCE_FALLBACK = frozenset({"unrelated", "bad_span", "ungrounded_span", "mi
 
 def _leading_span(text: str) -> str | None:
     start = len(text) - len(text.lstrip())
-    span = text[start:start + PAIR_SPAN_MAX].rstrip()
+    span = text[start : start + PAIR_SPAN_MAX].rstrip()
     return span if len(span) >= PAIR_SPAN_MIN else None
 
 
@@ -286,7 +313,10 @@ def _explicit_reference(pair: ClassifierPair, served: str | None) -> PairDecisio
 
 
 def classify_pairs(
-    pairs: Sequence[ClassifierPair], *, client: Any, runtime: ProcessingRuntime,
+    pairs: Sequence[ClassifierPair],
+    *,
+    client: Any,
+    runtime: ProcessingRuntime,
     max_calls: int = PAIRS_MAX_CALLS,
     event_sink: Callable[[dict[str, Any]], None] | None = None,
     requested_model: str | None = None,
@@ -303,29 +333,44 @@ def classify_pairs(
     stop = None
     request_id = request_id or (uuid4().hex if event_sink is not None else None)
 
-    def emit_pair(pair: ClassifierPair, *, outcome: str, reason: str | None,
-                  batch_id: str, served: str | None = None) -> None:
+    def emit_pair(
+        pair: ClassifierPair,
+        *,
+        outcome: str,
+        reason: str | None,
+        batch_id: str,
+        served: str | None = None,
+    ) -> None:
         if event_sink is None:
             return
-        event_sink({
-            "phase": "classifier",
-            "node_a_id": pair.candidate.node_a,
-            "node_b_id": pair.candidate.node_b,
-            "outcome": outcome,
-            "reason": reason,
-            "batch_id": batch_id,
-            "request_id": request_id,
-            "requested_model": requested_model,
-            "served_model": served,
-            "truncated_a": len(pair.text_a) > CLAUSE_CHARS_MAX,
-            "truncated_b": len(pair.text_b) > CLAUSE_CHARS_MAX,
-        })
+        event_sink(
+            {
+                "phase": "classifier",
+                "node_a_id": pair.candidate.node_a,
+                "node_b_id": pair.candidate.node_b,
+                "outcome": outcome,
+                "reason": reason,
+                "batch_id": batch_id,
+                "request_id": request_id,
+                "requested_model": requested_model,
+                "served_model": served,
+                "truncated_a": len(pair.text_a) > CLAUSE_CHARS_MAX,
+                "truncated_b": len(pair.text_b) > CLAUSE_CHARS_MAX,
+            }
+        )
 
     def emit_batch(*, outcome: str, batch_id: str, served: str | None = None) -> None:
         if event_sink is not None:
-            event_sink({"phase": "batch", "outcome": outcome, "batch_id": batch_id,
-                        "request_id": request_id, "requested_model": requested_model,
-                        "served_model": served})
+            event_sink(
+                {
+                    "phase": "batch",
+                    "outcome": outcome,
+                    "batch_id": batch_id,
+                    "request_id": request_id,
+                    "requested_model": requested_model,
+                    "served_model": served,
+                }
+            )
 
     for offset in range(0, len(pairs), PAIRS_PER_CALL):
         runtime.report_progress("S9", offset, len(pairs), "pair")
@@ -341,22 +386,32 @@ def classify_pairs(
             for pair in pairs[offset:]:
                 emit_pair(pair, outcome="not_sent", reason=stop, batch_id=batch_id)
             break
-        batch = pairs[offset:offset + PAIRS_PER_CALL]
+        batch = pairs[offset : offset + PAIRS_PER_CALL]
         batch_id = f"batch-{batches + 1}"
         by_id = {f"p{offset + n + 1}": pair for n, pair in enumerate(batch)}
         messages = []
         for pid, pair in by_id.items():
-            if any(_INJECTION.search(fold_for_match(value))
-                   for value in (pair.text_a, pair.text_b, pair.context_a, pair.context_b)):
+            if any(
+                _INJECTION.search(fold_for_match(value))
+                for value in (pair.text_a, pair.text_b, pair.context_a, pair.context_b)
+            ):
                 stats["injection_signals"] += 1
-            messages.append({"id": pid, "candidate_sources": sorted(source.value for source in pair.candidate.sources),
-                             "a": {"context": pair.context_a, "text": pair.text_a[:CLAUSE_CHARS_MAX]},
-                             "b": {"context": pair.context_b, "text": pair.text_b[:CLAUSE_CHARS_MAX]}})
+            messages.append(
+                {
+                    "id": pid,
+                    "candidate_sources": sorted(source.value for source in pair.candidate.sources),
+                    "a": {"context": pair.context_a, "text": pair.text_a[:CLAUSE_CHARS_MAX]},
+                    "b": {"context": pair.context_b, "text": pair.text_b[:CLAUSE_CHARS_MAX]},
+                }
+            )
         stats["pairs_sent"] += len(batch)
         batch_trace_start = len(getattr(client, "traces", []))
         try:
             response = runtime.complete_json(
-                client, system_prompt, json.dumps({"pairs": messages}, ensure_ascii=False), operation="pairs"
+                client,
+                system_prompt,
+                json.dumps({"pairs": messages}, ensure_ascii=False),
+                operation="pairs",
             )
         except ProcessingTimeout:
             response, stop = None, "DEADLINE"
@@ -366,7 +421,7 @@ def classify_pairs(
             emit_batch(outcome=stop.lower(), batch_id=batch_id)
             for pair in batch:
                 emit_pair(pair, outcome="no_answer", reason=stop, batch_id=batch_id)
-            for pair in pairs[offset + len(batch):]:
+            for pair in pairs[offset + len(batch) :]:
                 emit_pair(pair, outcome="not_sent", reason=stop, batch_id=batch_id)
             break
         traces = getattr(client, "traces", [])[batch_trace_start:]
@@ -379,9 +434,14 @@ def classify_pairs(
             stats["pairs_unclassified"] += len(pairs) - offset
             emit_batch(outcome="served_model_rejected", batch_id=batch_id, served=served)
             for pair in batch:
-                emit_pair(pair, outcome="no_answer", reason="served_model_rejected",
-                          batch_id=batch_id, served=served)
-            for pair in pairs[offset + len(batch):]:
+                emit_pair(
+                    pair,
+                    outcome="no_answer",
+                    reason="served_model_rejected",
+                    batch_id=batch_id,
+                    served=served,
+                )
+            for pair in pairs[offset + len(batch) :]:
                 emit_pair(pair, outcome="not_sent", reason=stop, batch_id=batch_id, served=served)
             break
         batches += 1
@@ -410,36 +470,61 @@ def classify_pairs(
                 stats["abstentions"] += 1
                 stats["rejected"]["no_answer"] += 1
                 stats["pairs_unclassified"] += 1
-                emit_pair(by_id[pid], outcome="abstained", reason="abstained",
-                          batch_id=batch_id, served=served)
+                emit_pair(
+                    by_id[pid],
+                    outcome="abstained",
+                    reason="abstained",
+                    batch_id=batch_id,
+                    served=served,
+                )
                 continue
             rejected_before = stats["rejected"].copy()
             decision = _decision(item, by_id[pid], stats["rejected"], served)
             if decision:
                 decisions.append(decision)
-                emit_pair(by_id[pid], outcome="accepted", reason=None, batch_id=batch_id, served=served)
+                emit_pair(
+                    by_id[pid], outcome="accepted", reason=None, batch_id=batch_id, served=served
+                )
             else:
-                reason = next(code for code, count in stats["rejected"].items()
-                              if count > rejected_before[code])
-                fallback = _explicit_reference(by_id[pid], served) if reason in _REFERENCE_FALLBACK else None
+                reason = next(
+                    code
+                    for code, count in stats["rejected"].items()
+                    if count > rejected_before[code]
+                )
+                fallback = (
+                    _explicit_reference(by_id[pid], served)
+                    if reason in _REFERENCE_FALLBACK
+                    else None
+                )
                 if fallback is not None:
                     stats["rejected"][reason] -= 1
                     decisions.append(fallback)
-                    emit_pair(by_id[pid], outcome="accepted", reason="explicit_reference",
-                              batch_id=batch_id, served=served)
+                    emit_pair(
+                        by_id[pid],
+                        outcome="accepted",
+                        reason="explicit_reference",
+                        batch_id=batch_id,
+                        served=served,
+                    )
                     continue
                 if reason != "unrelated":
                     stats["pairs_unclassified"] += 1
-                emit_pair(by_id[pid], outcome="model_unrelated" if reason == "unrelated" else "validator_reject",
-                          reason=reason, batch_id=batch_id, served=served)
+                emit_pair(
+                    by_id[pid],
+                    outcome="model_unrelated" if reason == "unrelated" else "validator_reject",
+                    reason=reason,
+                    batch_id=batch_id,
+                    served=served,
+                )
         missing = len(batch) - len(seen)
         stats["rejected"]["no_answer"] += missing
         stats["pairs_unclassified"] += missing
         for pair_index, pair in enumerate(batch, start=offset):
             pid = f"p{pair_index + 1}"
             if pid not in seen:
-                emit_pair(pair, outcome="no_answer", reason="no_answer",
-                          batch_id=batch_id, served=served)
+                emit_pair(
+                    pair, outcome="no_answer", reason="no_answer", batch_id=batch_id, served=served
+                )
     stats["llm_calls"] = runtime.llm_calls_used - initial_calls
     traces = getattr(client, "traces", [])[initial_traces:]
     for key in ("prompt_tokens", "completion_tokens"):

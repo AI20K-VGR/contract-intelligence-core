@@ -111,9 +111,12 @@ def test_alias_prompt_names_json_for_provider_json_mode():
             return super().complete_json(system, user, **kwargs)
 
     propose_aliases(
-        "trả tiền", "source-1", kind="action",
+        "trả tiền",
+        "source-1",
+        kind="action",
         runtime=ProcessingRuntime(egress_allowed=True, max_llm_calls=1),
-        client=Recording(), minimum_length=4,
+        client=Recording(),
+        minimum_length=4,
     )
 
     assert seen and "json" in seen[0].casefold()

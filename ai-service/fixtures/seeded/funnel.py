@@ -49,7 +49,9 @@ class Funnel:
 
     def frames_of(self, prefix: str):
         nid = self.node(prefix)
-        return [f for f in self.frames if any(e.source_ref.split("#")[0] == nid for e in f.evidence)]
+        return [
+            f for f in self.frames if any(e.source_ref.split("#")[0] == nid for e in f.evidence)
+        ]
 
     def has_candidate(self, a: str, b: str) -> bool:
         pair = {self.node(a), self.node(b)}
@@ -65,8 +67,11 @@ def run(payload: dict, *, llm: Any = None, runtime: ProcessingRuntime | None = N
         payload, tenant_id=env["tenant_id"], actor_id=env["actor_id"]
     )
     record = adapted.record
-    funnel = Funnel({n.node_id: " ".join(n.text.split()) for n in record.evidence_nodes()}, record=record,
-                    envelope=adapted.envelope)
+    funnel = Funnel(
+        {n.node_id: " ".join(n.text.split()) for n in record.evidence_nodes()},
+        record=record,
+        envelope=adapted.envelope,
+    )
     real_graph = builder.build_contract_graph
     real_pairs = pair_builder.build_pair_relations
     real_candidates = pair_builder.generate_pair_candidates
@@ -96,12 +101,21 @@ def run(payload: dict, *, llm: Any = None, runtime: ProcessingRuntime | None = N
         mock.patch.object(builder, "build_contract_graph", graph_spy),
         mock.patch.object(pair_builder, "generate_pair_candidates", candidates_spy),
         mock.patch.object(pair_builder, "build_pair_relations", pairs_spy),
-        mock.patch.dict(os.environ, {"AI2_CONTRACT_GRAPH_ENABLED": "true",
-                                     "AI2_CONTRACT_GRAPH_PAIRS_ENABLED": "true",
-                                     "AI2_SEMANTIC_ENABLED": "true"}),
+        mock.patch.dict(
+            os.environ,
+            {
+                "AI2_CONTRACT_GRAPH_ENABLED": "true",
+                "AI2_CONTRACT_GRAPH_PAIRS_ENABLED": "true",
+                "AI2_SEMANTIC_ENABLED": "true",
+            },
+        ),
     ):
         funnel.result = idp.run_idp(
-            record, adapted.envelope, llm=llm, store=InMemorySnapshotStore(),
-            job_id="seeded", runtime=runtime,
+            record,
+            adapted.envelope,
+            llm=llm,
+            store=InMemorySnapshotStore(),
+            job_id="seeded",
+            runtime=runtime,
         )
     return funnel

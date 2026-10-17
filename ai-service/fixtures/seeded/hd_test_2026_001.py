@@ -13,8 +13,16 @@ from fixtures.seeded.common import DISCLAIMER as _DISCLAIMER
 from fixtures.seeded.common import TENANT_ID, build_request, context_caps_env, semantic_profile
 
 DOSSIER_ID = "dossier-seeded-hd-test"
-__all__ = ["ANNEX_PAGES", "BODY_PAGES", "DOSSIER_ID", "EXPECTED", "TENANT_ID", "context_caps_env",
-           "request", "semantic_profile"]
+__all__ = [
+    "ANNEX_PAGES",
+    "BODY_PAGES",
+    "DOSSIER_ID",
+    "EXPECTED",
+    "TENANT_ID",
+    "context_caps_env",
+    "request",
+    "semantic_profile",
+]
 
 BODY_PAGES = [
     [
@@ -87,11 +95,21 @@ ANNEX_PAGES = [
         "Phụ lục này là một phần của Hợp đồng số HD-TEST-2026-001 giữa Công ty TNHH Minh An và Công ty",
         "Cổ phần Bình Minh.",
         "1. Bảng giá hạng mục",
-        "Hạng mục", "Mô tả", "Thành tiền (đồng)",
-        "Thiết bị", "20 máy quét mã vạch", "600.000.000",
-        "Phần mềm", "Cài đặt và bản quyền 01 năm", "450.000.000",
-        "Triển khai", "Cấu hình, tích hợp và đào tạo", "300.000.000",
-        "TỔNG CỘNG", "Đã bao gồm thuế giá trị gia tăng", "1.350.000.000",
+        "Hạng mục",
+        "Mô tả",
+        "Thành tiền (đồng)",
+        "Thiết bị",
+        "20 máy quét mã vạch",
+        "600.000.000",
+        "Phần mềm",
+        "Cài đặt và bản quyền 01 năm",
+        "450.000.000",
+        "Triển khai",
+        "Cấu hình, tích hợp và đào tạo",
+        "300.000.000",
+        "TỔNG CỘNG",
+        "Đã bao gồm thuế giá trị gia tăng",
+        "1.350.000.000",
         "2. Giá trị áp dụng",
         "2.1. Tổng giá trị hợp đồng sau khi đối chiếu bảng giá tại Phụ lục này là 1.350.000.000 đồng (Bằng chữ:",
         "Một tỷ ba trăm năm mươi triệu đồng).",
@@ -185,14 +203,19 @@ EXPECTED = {
 }
 
 
-def request(*, egress_allowed: bool = False, body_pages: list[list[str]] | None = None,
-            annex_pages: list[list[str]] | None = None) -> dict:
+def request(
+    *,
+    egress_allowed: bool = False,
+    body_pages: list[list[str]] | None = None,
+    annex_pages: list[list[str]] | None = None,
+) -> dict:
     return build_request(
         dossier_id=DOSSIER_ID,
         body_pages=BODY_PAGES if body_pages is None else body_pages,
         annex_pages=ANNEX_PAGES if annex_pages is None else annex_pages,
         egress_allowed=egress_allowed,
     )
+
 
 # Classifier (LLM) gold for fixtures.seeded.run_live: (label, a, b) unordered; forbidden labels on a prefix.
 LIVE_EXPECTED = {

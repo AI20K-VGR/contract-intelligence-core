@@ -83,7 +83,10 @@ EXPECTED = {
     ],
     "candidates_must_keep": [
         # same article number in body and annex, rate 0,1% vs 0,2%
-        ("4.1. Bên B chậm khắc phục sự cố thì phải chịu phạt 0,1%", "4.1. Bên B chậm khắc phục sự cố thì phải chịu phạt 0,2%"),
+        (
+            "4.1. Bên B chậm khắc phục sự cố thì phải chịu phạt 0,1%",
+            "4.1. Bên B chậm khắc phục sự cố thì phải chịu phạt 0,2%",
+        ),
     ],
     "issues_must": [("CLAUSE_CONTINUES_ON_NEXT_PAGE", "5.1.", "tháng kể từ ngày ký Hợp đồng")],
     "never_candidate": ["TÀI LIỆU MẪU", "Trang "],
@@ -92,8 +95,11 @@ EXPECTED = {
 
 LIVE_EXPECTED = {
     "must": [
-        ("CONFLICT", "4.1. Bên B chậm khắc phục sự cố thì phải chịu phạt 0,1%",
-         "4.1. Bên B chậm khắc phục sự cố thì phải chịu phạt 0,2%"),
+        (
+            "CONFLICT",
+            "4.1. Bên B chậm khắc phục sự cố thì phải chịu phạt 0,1%",
+            "4.1. Bên B chậm khắc phục sự cố thì phải chịu phạt 0,2%",
+        ),
         ("REFERENCE", "Bên B lập báo cáo sự cố theo khoản 2 Điều 3", "3.2."),
     ],
     "forbidden_label_on": [("DUPLICATE", "TÀI LIỆU MẪU")],
@@ -101,5 +107,9 @@ LIVE_EXPECTED = {
 
 
 def request(*, egress_allowed: bool = False) -> dict:
-    return build_request(dossier_id=DOSSIER_ID, body_pages=BODY_PAGES, annex_pages=ANNEX_PAGES,
-                         egress_allowed=egress_allowed)
+    return build_request(
+        dossier_id=DOSSIER_ID,
+        body_pages=BODY_PAGES,
+        annex_pages=ANNEX_PAGES,
+        egress_allowed=egress_allowed,
+    )

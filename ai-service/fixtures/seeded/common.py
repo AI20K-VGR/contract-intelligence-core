@@ -35,31 +35,39 @@ def _lines(doc: str, page_no: int, texts: list[str]) -> list[dict]:
 def _snapshot(dossier_id: str, doc: str, pages: list[list[str]], digest: str) -> dict:
     base = json.loads(_EXAMPLE.read_text(encoding="utf-8"))
     template = base["pages"][0]
-    base.update({
-        "snapshot_id": f"snap-{doc}",
-        "dossier_id": dossier_id,
-        "document_id": doc,
-        "source_digest": digest,
-        "pages": [
-            {
-                **template,
-                "page_no": number,
-                "page_revision_id": f"{doc}:p{number}",
-                "quality": {"coverage_status": "COMPLETE", "ocr_confidence": 0.97, "signals": []},
-                "lines": _lines(doc, number, texts),
-                "tables": [],
-                "warnings": [],
-                "table_coverage": {"status": "NOT_PRESENT", "method": "test", "version": "1"},
-            }
-            for number, texts in enumerate(pages, start=1)
-        ],
-    })
+    base.update(
+        {
+            "snapshot_id": f"snap-{doc}",
+            "dossier_id": dossier_id,
+            "document_id": doc,
+            "source_digest": digest,
+            "pages": [
+                {
+                    **template,
+                    "page_no": number,
+                    "page_revision_id": f"{doc}:p{number}",
+                    "quality": {
+                        "coverage_status": "COMPLETE",
+                        "ocr_confidence": 0.97,
+                        "signals": [],
+                    },
+                    "lines": _lines(doc, number, texts),
+                    "tables": [],
+                    "warnings": [],
+                    "table_coverage": {"status": "NOT_PRESENT", "method": "test", "version": "1"},
+                }
+                for number, texts in enumerate(pages, start=1)
+            ],
+        }
+    )
     return base
 
 
 def _identity(snapshot: dict) -> dict:
     digest = hashlib.sha256(
-        json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
     ).hexdigest()
     return {
         "snapshot_id": snapshot["snapshot_id"],
@@ -83,8 +91,12 @@ def semantic_profile() -> dict:
         "alias_proposal_minimum_length": None,
         # Production caps (docker-compose AI2_SEMANTIC_CONTEXT_CAPS).
         "context_bounds": {
-            "max_hops": 2, "max_nodes": 256, "max_context_tokens": 32768,
-            "max_output_tokens": 8192, "max_llm_calls": 20, "max_seconds": 300,
+            "max_hops": 2,
+            "max_nodes": 256,
+            "max_context_tokens": 32768,
+            "max_output_tokens": 8192,
+            "max_llm_calls": 20,
+            "max_seconds": 300,
         },
     }
     payload["digest"] = hashlib.sha256(
@@ -97,8 +109,13 @@ def context_caps_env() -> str:
     return json.dumps(semantic_profile()["context_bounds"])
 
 
-def build_request(*, dossier_id: str, body_pages: list[list[str]], annex_pages: list[list[str]],
-                  egress_allowed: bool = False) -> dict:
+def build_request(
+    *,
+    dossier_id: str,
+    body_pages: list[list[str]],
+    annex_pages: list[list[str]],
+    egress_allowed: bool = False,
+) -> dict:
     body = _snapshot(dossier_id, "doc_body", body_pages, "1" * 64)
     annex = _snapshot(dossier_id, "doc_annex", annex_pages, "2" * 64)
     payload = {
@@ -111,23 +128,46 @@ def build_request(*, dossier_id: str, body_pages: list[list[str]], annex_pages: 
         "snapshots": [body, annex],
         "snapshot_identities": [_identity(body), _identity(annex)],
         "dossier_members": [
-            {"member_id": "m-body", "document_id": "doc_body", "snapshot_id": body["snapshot_id"],
-             "role": "body", "source_digest": body["source_digest"]},
-            {"member_id": "m-annex", "document_id": "doc_annex", "snapshot_id": annex["snapshot_id"],
-             "role": "annex", "source_digest": annex["source_digest"]},
+            {
+                "member_id": "m-body",
+                "document_id": "doc_body",
+                "snapshot_id": body["snapshot_id"],
+                "role": "body",
+                "source_digest": body["source_digest"],
+            },
+            {
+                "member_id": "m-annex",
+                "document_id": "doc_annex",
+                "snapshot_id": annex["snapshot_id"],
+                "role": "annex",
+                "source_digest": annex["source_digest"],
+            },
         ],
-        "role_relation_map": [{
-            "relation_id": "rel-1", "relation_type": "ANNEX_OF", "member_id": "m-annex",
-            "related_member_id": "m-body", "dossier_id": dossier_id,
-        }],
+        "role_relation_map": [
+            {
+                "relation_id": "rel-1",
+                "relation_type": "ANNEX_OF",
+                "member_id": "m-annex",
+                "related_member_id": "m-body",
+                "dossier_id": dossier_id,
+            }
+        ],
         "semantic_profile": semantic_profile(),
         "policy_flags": {
             "egress_allowed": egress_allowed,
             "use_vector": False,
-            "budget_limits": {"max_processing_seconds": 310, "max_llm_calls": 20, "max_embedding_tokens": 50000},
+            "budget_limits": {
+                "max_processing_seconds": 310,
+                "max_llm_calls": 20,
+                "max_embedding_tokens": 50000,
+            },
         },
     }
     payload["service_envelope"] = build_service_envelope(
-        payload, secret="seeded-test-secret", tenant_id=TENANT_ID, dossier_id=dossier_id, actor_id="seeded"
+        payload,
+        secret="seeded-test-secret",
+        tenant_id=TENANT_ID,
+        dossier_id=dossier_id,
+        actor_id="seeded",
     )
     return payload

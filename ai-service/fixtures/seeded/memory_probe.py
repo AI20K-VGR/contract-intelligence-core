@@ -36,9 +36,17 @@ def _pages(count: int, articles: int) -> list[list[str]]:
             article += 1
             lines.append(f"Điều {article}. Nội dung thực hiện đợt {article}")
             for index, template in enumerate(_CLAUSES, start=1):
-                lines.append(f"{article}.{index}. " + template.format(
-                    n=10 + article % 40, k=article, d=5 + article % 25, p=10 + article % 50,
-                    m=12 + article % 24, r=round(0.1 + (article % 5) / 10, 1)))
+                lines.append(
+                    f"{article}.{index}. "
+                    + template.format(
+                        n=10 + article % 40,
+                        k=article,
+                        d=5 + article % 25,
+                        p=10 + article % 50,
+                        m=12 + article % 24,
+                        r=round(0.1 + (article % 5) / 10, 1),
+                    )
+                )
         lines.append(f"Trang {page + 1}")
         pages.append(lines)
     return pages
@@ -46,6 +54,7 @@ def _pages(count: int, articles: int) -> list[list[str]]:
 
 def _lines(words: bool):
     """``common._lines`` with every line inside the page and, optionally, word boxes."""
+
     def build(doc: str, page_no: int, texts: list[str]) -> list[dict]:
         height = 0.9 / max(len(texts), 1)
         lines = []
@@ -53,22 +62,40 @@ def _lines(words: bool):
             line_id = f"{doc}:s1:p{page_no:03d}:l{index:03d}"
             y0 = 0.05 + (index - 1) * height
             box = [0.1, y0, 0.9, y0 + height * 0.8]
-            line = {"line_id": line_id, "raw_text": text, "bbox": box, "bbox_source": "native",
-                    "geometry_status": "measured", "words": []}
+            line = {
+                "line_id": line_id,
+                "raw_text": text,
+                "bbox": box,
+                "bbox_source": "native",
+                "geometry_status": "measured",
+                "words": [],
+            }
             if words:
                 tokens, start = text.split(" "), 0
                 step = 0.8 / max(len(tokens), 1)
                 for number, token in enumerate(tokens):
                     if token:
-                        line["words"].append({
-                            "word_id": f"{line_id}:w{number:03d}", "text": token,
-                            "char_start": start, "char_end": start + len(token),
-                            "bbox": [0.1 + number * step, box[1], 0.1 + (number + 1) * step, box[3]],
-                            "bbox_source": "native", "geometry_status": "measured", "engine_confidence": 0.99,
-                        })
+                        line["words"].append(
+                            {
+                                "word_id": f"{line_id}:w{number:03d}",
+                                "text": token,
+                                "char_start": start,
+                                "char_end": start + len(token),
+                                "bbox": [
+                                    0.1 + number * step,
+                                    box[1],
+                                    0.1 + (number + 1) * step,
+                                    box[3],
+                                ],
+                                "bbox_source": "native",
+                                "geometry_status": "measured",
+                                "engine_confidence": 0.99,
+                            }
+                        )
                     start += len(token) + 1
             lines.append(line)
         return lines
+
     return build
 
 
@@ -87,13 +114,24 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--pages", type=int, default=200)
     parser.add_argument("--articles-per-page", type=int, default=8)
-    parser.add_argument("--words", action="store_true", help="add per-word boxes like a real OCR snapshot")
+    parser.add_argument(
+        "--words", action="store_true", help="add per-word boxes like a real OCR snapshot"
+    )
     args = parser.parse_args()
     os.environ.setdefault("AI2_SEMANTIC_CONTEXT_CAPS", context_caps_env())
     with mock.patch.object(common, "_lines", _lines(args.words)):
-        payload = build_request(dossier_id="dossier-memory-probe", body_pages=_pages(args.pages, args.articles_per_page),
-                            annex_pages=[["PHỤ LỤC 01", *DISCLAIMER, "1. Sửa đổi khoản 2 Điều 1 như sau: Bên A thanh "
-                                          "toán 20% giá trị đợt 1 trong vòng 10 ngày kể từ ngày nhận được hóa đơn hợp lệ."]])
+        payload = build_request(
+            dossier_id="dossier-memory-probe",
+            body_pages=_pages(args.pages, args.articles_per_page),
+            annex_pages=[
+                [
+                    "PHỤ LỤC 01",
+                    *DISCLAIMER,
+                    "1. Sửa đổi khoản 2 Điều 1 như sau: Bên A thanh "
+                    "toán 20% giá trị đợt 1 trong vòng 10 ngày kể từ ngày nhận được hóa đơn hợp lệ.",
+                ]
+            ],
+        )
     peaks: dict[str, float] = {}
 
     def staged(name, real):
@@ -105,19 +143,30 @@ def main() -> int:
             finally:
                 peaks[name] = round(tracemalloc.get_traced_memory()[1] / 2**20, 1)
                 peaks[name + "_s"] = round(time.perf_counter() - started, 1)
+
         return wrapper
 
     from app.pipeline import idp
     from app.pipeline.contract_graph import pair_builder
+
     tracemalloc.start()
     started = time.perf_counter()
-    with (mock.patch.object(idp, "build_semantic_extension", staged("semantic", idp.build_semantic_extension)),
-          mock.patch.object(pair_builder, "generate_pair_candidates",
-                            staged("pair_candidates", pair_builder.generate_pair_candidates))):
+    with (
+        mock.patch.object(
+            idp, "build_semantic_extension", staged("semantic", idp.build_semantic_extension)
+        ),
+        mock.patch.object(
+            pair_builder,
+            "generate_pair_candidates",
+            staged("pair_candidates", pair_builder.generate_pair_candidates),
+        ),
+    ):
         funnel = seeded_funnel.run(payload)
     total_peak = tracemalloc.get_traced_memory()[1] / 2**20
-    print(f"pages {args.pages} nodes {len(funnel.texts)} candidates {len(funnel.candidates)} "
-          f"seconds {time.perf_counter() - started:.1f}")
+    print(
+        f"pages {args.pages} nodes {len(funnel.texts)} candidates {len(funnel.candidates)} "
+        f"seconds {time.perf_counter() - started:.1f}"
+    )
     print(f"python_peak_mb {total_peak:.1f} rss_peak_mb {_vm_hwm_mb()} stages {peaks}")
     return 0
 

@@ -26,8 +26,10 @@ from fixtures.seeded import (
 )
 from fixtures.seeded.common import context_caps_env
 
-DOSSIERS = {"dev": [hd_test_2026_001, hd_test_2026_003, hd_test_2026_004, hd_test_2026_005],
-            "heldout": [hd_test_2026_002]}
+DOSSIERS = {
+    "dev": [hd_test_2026_001, hd_test_2026_003, hd_test_2026_004, hd_test_2026_005],
+    "heldout": [hd_test_2026_002],
+}
 
 
 @dataclass
@@ -66,17 +68,31 @@ def _checks(module, split: str) -> list[Check]:
 
     for a, b in gold.get("luong1_must", []):
         ids = _ids(f, a, b)
-        add("luong1_must", f"{a} -> {b}", not isinstance(ids, str) and tuple(ids) in f.luong1,
-            "structure" if isinstance(ids, str) else "luong1", ids if isinstance(ids, str) else "")
+        add(
+            "luong1_must",
+            f"{a} -> {b}",
+            not isinstance(ids, str) and tuple(ids) in f.luong1,
+            "structure" if isinstance(ids, str) else "luong1",
+            ids if isinstance(ids, str) else "",
+        )
     for a, b in gold.get("luong1_forbidden", []):
         ids = _ids(f, a, b)
-        add("luong1_forbidden", f"not {a} -> {b}", not isinstance(ids, str) and tuple(ids) not in f.luong1,
-            "structure" if isinstance(ids, str) else "luong1", ids if isinstance(ids, str) else "")
+        add(
+            "luong1_forbidden",
+            f"not {a} -> {b}",
+            not isinstance(ids, str) and tuple(ids) not in f.luong1,
+            "structure" if isinstance(ids, str) else "luong1",
+            ids if isinstance(ids, str) else "",
+        )
     for clause, tail in gold.get("clause_complete", []):
         ids = _ids(f, clause)
-        add("clause_complete", f"{clause} …{tail}",
-            not isinstance(ids, str) and tail in f.texts[ids[0]], "structure",
-            ids if isinstance(ids, str) else f.texts[ids[0]][-60:])
+        add(
+            "clause_complete",
+            f"{clause} …{tail}",
+            not isinstance(ids, str) and tail in f.texts[ids[0]],
+            "structure",
+            ids if isinstance(ids, str) else f.texts[ids[0]][-60:],
+        )
     for clause, slots in gold.get("frame_slots", []):
         ids = _ids(f, clause)
         frames = [] if isinstance(ids, str) else f.frames_of(clause)
@@ -88,12 +104,22 @@ def _checks(module, split: str) -> list[Check]:
         if not isinstance(ids, str):
             lids = {fr.frame_id for fr in f.frames_of(left)}
             rids = {fr.frame_id for fr in f.frames_of(right)}
-            pairs = [p for p in f.semantic_pairs
-                     if {p.left_id, p.right_id} & lids and {p.left_id, p.right_id} & rids]
-        ok = any(p.disposition in {"COMPARABLE_DIFFERENCE", "CONFLICT_CANDIDATE"} and slot in p.reason for p in pairs)
-        add("semantic_difference", f"{left} <> {right} on {slot}", ok,
+            pairs = [
+                p
+                for p in f.semantic_pairs
+                if {p.left_id, p.right_id} & lids and {p.left_id, p.right_id} & rids
+            ]
+        ok = any(
+            p.disposition in {"COMPARABLE_DIFFERENCE", "CONFLICT_CANDIDATE"} and slot in p.reason
+            for p in pairs
+        )
+        add(
+            "semantic_difference",
+            f"{left} <> {right} on {slot}",
+            ok,
             "semantic_compare" if pairs else "semantic_candidates",
-            str([(p.disposition, p.reason) for p in pairs])[:120])
+            str([(p.disposition, p.reason) for p in pairs])[:120],
+        )
     for left, right, slot in gold.get("semantic_same", []):
         # A false "difference" between the same value written two ways ("05" vs "5").
         ids = _ids(f, left, right)
@@ -101,48 +127,89 @@ def _checks(module, split: str) -> list[Check]:
         if not isinstance(ids, str):
             lids = {fr.frame_id for fr in f.frames_of(left)}
             rids = {fr.frame_id for fr in f.frames_of(right)}
-            pairs = [p for p in f.semantic_pairs
-                     if {p.left_id, p.right_id} & lids and {p.left_id, p.right_id} & rids]
-        bad = [p for p in pairs if p.disposition in {"COMPARABLE_DIFFERENCE", "CONFLICT_CANDIDATE"} and slot in p.reason]
-        add("semantic_same", f"{left} == {right} on {slot}", not isinstance(ids, str) and not bad,
-            "semantic_compare", str([(p.disposition, p.reason) for p in pairs])[:120])
+            pairs = [
+                p
+                for p in f.semantic_pairs
+                if {p.left_id, p.right_id} & lids and {p.left_id, p.right_id} & rids
+            ]
+        bad = [
+            p
+            for p in pairs
+            if p.disposition in {"COMPARABLE_DIFFERENCE", "CONFLICT_CANDIDATE"} and slot in p.reason
+        ]
+        add(
+            "semantic_same",
+            f"{left} == {right} on {slot}",
+            not isinstance(ids, str) and not bad,
+            "semantic_compare",
+            str([(p.disposition, p.reason) for p in pairs])[:120],
+        )
     for prefix in gold.get("clause_starts", []):
         ids = _ids(f, prefix)
-        add("clause_starts", f"node starts with {prefix!r}", not isinstance(ids, str), "structure",
-            ids if isinstance(ids, str) else "")
+        add(
+            "clause_starts",
+            f"node starts with {prefix!r}",
+            not isinstance(ids, str),
+            "structure",
+            ids if isinstance(ids, str) else "",
+        )
     for a, b in gold.get("candidates_must_keep", []):
         ids = _ids(f, a, b)
-        kept = not isinstance(ids, str) and any({c.node_a, c.node_b} == set(ids) for c in f.candidates)
-        found = not isinstance(ids, str) and any({c.node_a, c.node_b} == set(ids) for c in _uncapped(f.record))
-        add("candidates_must_keep", f"{a} <> {b}", kept,
-            "pairs_cap" if found and not kept else "pairs_candidates")
+        kept = not isinstance(ids, str) and any(
+            {c.node_a, c.node_b} == set(ids) for c in f.candidates
+        )
+        found = not isinstance(ids, str) and any(
+            {c.node_a, c.node_b} == set(ids) for c in _uncapped(f.record)
+        )
+        add(
+            "candidates_must_keep",
+            f"{a} <> {b}",
+            kept,
+            "pairs_cap" if found and not kept else "pairs_candidates",
+        )
     for a, b in gold.get("related_any", []):
         ids = _ids(f, a, b)
         ok = not isinstance(ids, str) and (
-            tuple(ids) in f.luong1 or tuple(reversed(ids)) in f.luong1
-            or any({c.node_a, c.node_b} == set(ids) for c in f.candidates))
+            tuple(ids) in f.luong1
+            or tuple(reversed(ids)) in f.luong1
+            or any({c.node_a, c.node_b} == set(ids) for c in f.candidates)
+        )
         add("related_any", f"{a} ~ {b}", ok, "luong1+pairs_candidates")
     for code, a, b in gold.get("issues_must", []):
         ids = _ids(f, a, b)
         ok = not isinstance(ids, str) and any(
-            i.code == code and i.evidence_refs == ids for i in f.record.handoff_issues)
+            i.code == code and i.evidence_refs == ids for i in f.record.handoff_issues
+        )
         add("issues_must", f"{code} {a} | {b}", ok, "structure_issues")
     for prefix in gold.get("never_candidate", []):
-        bad = [c for c in f.candidates if f.texts[c.node_a].startswith(prefix) or f.texts[c.node_b].startswith(prefix)]
-        add("never_candidate", f"no candidate on {prefix!r}", not bad, "pairs_candidates", f"{len(bad)} hits")
+        bad = [
+            c
+            for c in f.candidates
+            if f.texts[c.node_a].startswith(prefix) or f.texts[c.node_b].startswith(prefix)
+        ]
+        add(
+            "never_candidate",
+            f"no candidate on {prefix!r}",
+            not bad,
+            "pairs_candidates",
+            f"{len(bad)} hits",
+        )
     for a, b in gold.get("never_conflict", []):
         # Compared facts of two different terms (installment 1 vs 2) end up as a reported conflict.
         ids = _ids(f, a, b)
         compared = not isinstance(ids, str) and any(
             {e.node_id for e in (*c.evidence_left, *c.evidence_right)} == set(ids)
-            for c in f.result.contribution.candidates)
+            for c in f.result.contribution.candidates
+        )
         add("never_conflict", f"{a} !<> {b}", not isinstance(ids, str) and not compared, "compare")
     from app.pipeline.contract_graph.pair_candidates import PairSource
 
     for a, b in gold.get("never_value_mismatch", []):
         ids = _ids(f, a, b)
         bad = not isinstance(ids, str) and any(
-            {c.node_a, c.node_b} == set(ids) and PairSource.VALUE_MISMATCH in c.sources for c in _uncapped(f.record))
+            {c.node_a, c.node_b} == set(ids) and PairSource.VALUE_MISMATCH in c.sources
+            for c in _uncapped(f.record)
+        )
         add("never_value_mismatch", f"{a} <> {b}", not bad, "pairs_candidates")
     return out
 
@@ -151,7 +218,12 @@ def run() -> list[Check]:
     os.environ.setdefault("AI2_SEMANTIC_CONTEXT_CAPS", context_caps_env())
     for name in ("AI2_CONTRACT_GRAPH_PAIRS_API_KEY", "AI2_CONTRACT_GRAPH_PAIRS_BASE_URL"):
         os.environ.pop(name, None)
-    return [check for split, modules in DOSSIERS.items() for module in modules for check in _checks(module, split)]
+    return [
+        check
+        for split, modules in DOSSIERS.items()
+        for module in modules
+        for check in _checks(module, split)
+    ]
 
 
 def main() -> int:

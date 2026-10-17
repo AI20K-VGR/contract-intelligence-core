@@ -49,7 +49,11 @@ ANNEX_PAGES = [
 
 EXPECTED = {
     # Different installments of one schedule are different terms.
-    "never_conflict": [("5.1. Đợt 1", "5.2. Đợt 2"), ("5.2. Đợt 2", "5.3. Đợt 3"), ("5.1. Đợt 1", "5.3. Đợt 3")],
+    "never_conflict": [
+        ("5.1. Đợt 1", "5.2. Đợt 2"),
+        ("5.2. Đợt 2", "5.3. Đợt 3"),
+        ("5.1. Đợt 1", "5.3. Đợt 3"),
+    ],
     # Annex restates installment 1 at another rate without amendment wording.
     "related_any": [("5.1. Đợt 1", "Đợt 1: Bên A thanh toán 25%")],
 }
@@ -61,5 +65,9 @@ LIVE_EXPECTED = {
 
 
 def request(*, egress_allowed: bool = False) -> dict:
-    return build_request(dossier_id=DOSSIER_ID, body_pages=BODY_PAGES, annex_pages=ANNEX_PAGES,
-                         egress_allowed=egress_allowed)
+    return build_request(
+        dossier_id=DOSSIER_ID,
+        body_pages=BODY_PAGES,
+        annex_pages=ANNEX_PAGES,
+        egress_allowed=egress_allowed,
+    )

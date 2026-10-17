@@ -75,10 +75,17 @@ EXPECTED = {
 
 LIVE_EXPECTED = {
     "must": [("DUPLICATE", "4.2.", "5.1.")],
-    "forbidden_label_on": [("CONFLICT", "3.2."), ("DUPLICATE", "HỢP ĐỒNG HD-TEST-2026-004 - TÀI LIỆU MẪU")],
+    "forbidden_label_on": [
+        ("CONFLICT", "3.2."),
+        ("DUPLICATE", "HỢP ĐỒNG HD-TEST-2026-004 - TÀI LIỆU MẪU"),
+    ],
 }
 
 
 def request(*, egress_allowed: bool = False) -> dict:
-    return build_request(dossier_id=DOSSIER_ID, body_pages=BODY_PAGES, annex_pages=ANNEX_PAGES,
-                         egress_allowed=egress_allowed)
+    return build_request(
+        dossier_id=DOSSIER_ID,
+        body_pages=BODY_PAGES,
+        annex_pages=ANNEX_PAGES,
+        egress_allowed=egress_allowed,
+    )

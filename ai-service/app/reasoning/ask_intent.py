@@ -32,7 +32,9 @@ def _annex_numbers(plain: str) -> list[str]:
 
 def _party_roles(plain: str) -> list[str]:
     """Every role named, in order: "Bên A và bên B là ai?" asks about both."""
-    return list(dict.fromkeys(m.upper() for m in re.findall(r"\b(?:ben|party)\s+([abcy])\b", plain)))
+    return list(
+        dict.fromkeys(m.upper() for m in re.findall(r"\b(?:ben|party)\s+([abcy])\b", plain))
+    )
 
 
 def _party_role(plain: str) -> str | None:
@@ -51,18 +53,23 @@ def _attribute(plain: str, low: str) -> str:
         return "mst"
     if "phat" in plain or "penalty" in plain:
         return "penalty"
-    if any(word in low for word in ("thanh toán", "thanh toan", "trả tiền", "tra tien", "payment")) or any(
-        word in plain for word in ("thanh toan", "tra tien")
-    ):
+    if any(
+        word in low for word in ("thanh toán", "thanh toan", "trả tiền", "tra tien", "payment")
+    ) or any(word in plain for word in ("thanh toan", "tra tien")):
         return "payment"
-    if any(word in low for word in ("giá trị", "gia tri", "giá hợp đồng", "contract value")) or "gia tri" in plain:
+    if (
+        any(word in low for word in ("giá trị", "gia tri", "giá hợp đồng", "contract value"))
+        or "gia tri" in plain
+    ):
         return "contract_value"
     return "none"
 
 
 def _relation_question(plain: str) -> bool:
     mentions_annex = "phu luc" in plain or "annex" in plain
-    mentions_body = any(phrase in plain for phrase in ("hop dong", "dieu khoan", "than hop dong", "than hd"))
+    mentions_body = any(
+        phrase in plain for phrase in ("hop dong", "dieu khoan", "than hop dong", "than hd")
+    )
     if not (mentions_annex and mentions_body):
         return False
     if "lien quan" in plain or "moi quan he" in plain or "quan he" in plain:
@@ -93,8 +100,16 @@ def _compare_cue(plain: str) -> bool:
 
 # Answers that combine several clauses: the reasoning layer (LLM when allowed) composes them;
 # a verbatim lookup only listed passages (#121).
-_SYNTHESIS_CUES = ("tom tat", "tong hop", "khac nhau", "co quy dinh khac", "quy dinh khac khong",
-                   "moi dot", "cac dot", "tung dot")
+_SYNTHESIS_CUES = (
+    "tom tat",
+    "tong hop",
+    "khac nhau",
+    "co quy dinh khac",
+    "quy dinh khac khong",
+    "moi dot",
+    "cac dot",
+    "tung dot",
+)
 # Asking about the annexes themselves, not about what an annex says.
 _ANNEX_INVENTORY = re.compile(
     r"\b(?:bao nhieu|may|nhung|cac|danh sach)\s+phu luc\b|\bphu luc nao\b|\bco phu luc (?:nao|khong)\b"
@@ -162,7 +177,11 @@ def parse_ask(text: str) -> dict[str, Any]:
 
     has_source = bool(clause or annexes or "hop dong" in plain)
     if _compare_cue(plain) and has_source:
-        spec["type"] = "cascade" if any(cue in plain for cue in ("anh huong", "dinh nghia", "cascade")) else "compare"
+        spec["type"] = (
+            "cascade"
+            if any(cue in plain for cue in ("anh huong", "dinh nghia", "cascade"))
+            else "compare"
+        )
         spec["focus_clause_labels"] = [clause] if clause else []
         spec["annex_numbers"] = annexes
         spec["relation_intent"] = plain
@@ -251,7 +270,10 @@ def parse_ask(text: str) -> dict[str, Any]:
             "mục đích hợp đồng",
             "muc dich hop dong",
         )
-    ) or ("hợp đồng" in low and any(word in low for word in ("nội dung", "noi dung", "chính", "chinh"))):
+    ) or (
+        "hợp đồng" in low
+        and any(word in low for word in ("nội dung", "noi dung", "chính", "chinh"))
+    ):
         spec["type"] = "document_overview"
         spec["overview_mode"] = "bounded"
         return spec
@@ -260,7 +282,10 @@ def parse_ask(text: str) -> dict[str, Any]:
         spec["type"] = "count_entity"
         return spec
 
-    if any(word in low for word in ("ngày làm việc", "working day", "nghiệm thu", "định nghĩa", "acceptance")) or any(
+    if any(
+        word in low
+        for word in ("ngày làm việc", "working day", "nghiệm thu", "định nghĩa", "acceptance")
+    ) or any(
         word in plain
         for word in (
             "thoi han",

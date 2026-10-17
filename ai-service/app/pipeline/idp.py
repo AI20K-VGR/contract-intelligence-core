@@ -70,8 +70,16 @@ def run_idp(
     # Past the deadline the job ends here, wherever it was: a run nobody waits for must
     # not keep its memory (#113).
     try:
-        return _run_idp(record, envelope, llm=llm, store=store, index=index, job_id=job_id,
-                        runtime=runtime, trace_writer=trace_writer)
+        return _run_idp(
+            record,
+            envelope,
+            llm=llm,
+            store=store,
+            index=index,
+            job_id=job_id,
+            runtime=runtime,
+            trace_writer=trace_writer,
+        )
     except ProcessingTimeout:
         return _failed_result(
             job_id, [], "PROCESSING_TIMEOUT", ISSUE_MESSAGES_VI["PROCESSING_TIMEOUT"]
@@ -345,7 +353,9 @@ def _run_idp(
     pairs_on = graph_enabled and _contract_graph_pairs_enabled()
     graph_issues: list[EvidenceIssue] = []
     contract_graph_stage_status = "SKIPPED"
-    if graph_enabled and not _past_deadline(runtime, trace_writer, "contract_graph_operation", handoff):
+    if graph_enabled and not _past_deadline(
+        runtime, trace_writer, "contract_graph_operation", handoff
+    ):
         if trace_writer is not None:
             trace_writer.start("contract_graph_operation")
         try:
@@ -490,7 +500,9 @@ def _run_idp(
 
         pairs_status = "SKIPPED_GRAPH_FAILED" if graph is None else "OK"
         conflict_stats = {}
-        pairs_timed_out = graph is not None and _past_deadline(runtime, trace_writer, "contract_graph_pairs", handoff)
+        pairs_timed_out = graph is not None and _past_deadline(
+            runtime, trace_writer, "contract_graph_pairs", handoff
+        )
         if graph is not None and not pairs_timed_out:
             if trace_writer is not None:
                 trace_writer.start("contract_graph_pairs")
@@ -567,7 +579,10 @@ def _run_idp(
                 node_id
                 for source, target in (
                     *((e.source_node_id, e.target_node_id) for e in (graph.edges if graph else ())),
-                    *((r.node_a_id, r.node_b_id) for r in (pair_result.relations if pair_result else ())),
+                    *(
+                        (r.node_a_id, r.node_b_id)
+                        for r in (pair_result.relations if pair_result else ())
+                    ),
                 )
                 for node_id in (source, target)
             ]
@@ -578,8 +593,9 @@ def _run_idp(
                     record, runtime, llm, bounds, priority_nodes=tuple(related)
                 )
                 if trace_writer is not None:
-                    trace_writer.finish("semantic", "COMPLETED",
-                                        item_count=len(record.semantic_extension.frames))
+                    trace_writer.finish(
+                        "semantic", "COMPLETED", item_count=len(record.semantic_extension.frames)
+                    )
             issues.append(
                 EvidenceIssue(
                     issue_id="semantic:review",
@@ -678,10 +694,14 @@ def _past_deadline(runtime: ProcessingRuntime, trace_writer, stage_id: str, hand
     if runtime.remaining() > 0:
         return False
     if not any(issue.code == "PROCESSING_TIMEOUT" for issue in handoff.issues):
-        handoff.issues.append(HandoffIssue(
-            code="PROCESSING_TIMEOUT", message=ISSUE_MESSAGES_VI["PROCESSING_TIMEOUT"],
-            review_state=ReviewState.NEEDS_REVIEW, retryable=True,
-        ))
+        handoff.issues.append(
+            HandoffIssue(
+                code="PROCESSING_TIMEOUT",
+                message=ISSUE_MESSAGES_VI["PROCESSING_TIMEOUT"],
+                review_state=ReviewState.NEEDS_REVIEW,
+                retryable=True,
+            )
+        )
     if trace_writer is not None:
         trace_writer.skip(stage_id, "PROCESSING_TIMEOUT")
     return True
