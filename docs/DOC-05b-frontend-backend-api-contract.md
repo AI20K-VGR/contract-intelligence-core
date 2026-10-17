@@ -294,6 +294,7 @@ Màn hình khởi tạo hồ sơ, tải lên các file PDF (hợp đồng gốc 
   ```
   - `document_counts`: số tài liệu vai trò `CONTRACT` và `ANNEX` của hồ sơ (`0` khi chưa có tài liệu).
   - `contract_ocr`: tình trạng OCR của **hợp đồng đầu tiên** (theo `order_index`, rồi thời điểm tạo); hồ sơ không có hợp đồng thì lấy tài liệu đầu tiên. Đây là tài liệu màn danh sách vẫn kiểm.
+    - `filename`: tên file lúc upload; có thể là `null` khi tài liệu không lưu tên file.
     - `page_count`: số trang **đã có kết quả OCR** (số bản ghi trang AI1 đã trả), không phải số trang của file PDF. OCR chưa chạy xong thì nhỏ hơn số trang thật, có thể là `0`.
     - `failed_pages`: số trang trong đó có `ai1_page_status` là `FAILED` hoặc có lỗi.
     - `first_error`: lỗi của trang lỗi đầu tiên theo số trang, tối đa 500 ký tự; `null` khi không trang nào có lỗi.
@@ -747,7 +748,7 @@ export interface DossierDTO {
   document_counts?: { contracts: number; annexes: number } | null;
   contract_ocr?: {
     document_id: string;
-    filename: string;
+    filename: string | null;
     page_count: number; // số trang đã có kết quả OCR
     failed_pages: number;
     first_error: string | null;
