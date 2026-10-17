@@ -447,3 +447,21 @@ def test_small_article_still_pairs_every_member():
     index = StructureIndex.build(nodes, {"f-body": "body"})
     found = _pairs(generate_pair_candidates(index, nodes, top_k=10**6), PairSource.SAME_ARTICLE)
     assert ("k1", "k6") in found and len(found) == 15
+
+
+def test_non_clause_lines_are_never_paired():
+    # Signature blocks, annex attachment lines and table header rows state no term;
+    # luna labelled every such pair UNRELATED, so sending them only spends calls.
+    nodes, index = _build([
+        _node("d1", "Điều 1", text="Thanh toán"),
+        _node("d1k1", "1.", "d1", text="Bên A thanh toán bằng chuyển khoản" + LONG),
+        _node("sig", "", "d1", text="ĐẠI DIỆN BÊN A ĐẠI DIỆN BÊN B ký và ghi rõ họ tên"),
+        _node("att", "", "d1", text="Kèm theo Hợp đồng số HD-TEST-2026-003 ngày ký"),
+        _node("hdr", "", "d1", text="| STT | Thiết bị | Số lượng | Vị trí |"),
+        _node("row", "", "d1", text="| 1 | Máy điều hòa trung tâm 5HP | 40 | Tầng 1 |"),
+    ])
+    result = generate_pair_candidates(index, nodes)
+    ids = {n for p in _pairs(result) for n in p}
+    assert ids.isdisjoint({"sig", "att", "hdr"})
+    assert "row" in ids
+    assert result.stats["excluded_non_clause"] == 3

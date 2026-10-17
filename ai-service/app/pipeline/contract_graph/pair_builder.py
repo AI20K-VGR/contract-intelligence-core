@@ -115,6 +115,7 @@ def build_pair_relations(
         "excluded_short": 0,
         "excluded_external_ref": 0,
         "excluded_page_furniture": 0,
+        "excluded_non_clause": 0,
         "near_duplicate_kept": 0,
         "group_pairs_windowed": 0,
         "value_mismatch_terms": 0,

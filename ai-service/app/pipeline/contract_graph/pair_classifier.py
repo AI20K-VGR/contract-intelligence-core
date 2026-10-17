@@ -14,7 +14,7 @@ from uuid import uuid4
 from app.contracts.contract_graph import PAIR_SPAN_MAX, PairLabel
 from app.pipeline.ai1_snapshot_adapter import fold_for_match
 from app.pipeline.contract_graph.model_family import classifier_family_ok
-from app.pipeline.contract_graph.pair_candidates import PairCandidate
+from app.pipeline.contract_graph.pair_candidates import PairCandidate, unit_values, values_differ
 from app.pipeline.runtime import ProcessingRuntime, ProcessingTimeout
 
 PROMPT_VERSION = "pairs-v13"
@@ -121,7 +121,7 @@ _NUMBER = re.compile(r"\d+(?:[.,]\d+)*(?:\s*%)?")
 REJECTION_CODES = (
     "malformed", "unknown_pair", "duplicate_id", "invalid_label", "unrelated", "bad_span",
     "ungrounded_span", "missing_direction", "no_answer", "duplicate_value_mismatch",
-    "conflict_same_span", "reference_explicit", "citation_invalid",
+    "conflict_same_span", "reference_explicit", "citation_invalid", "conflict_no_value_difference",
 )
 
 
@@ -196,6 +196,27 @@ def _grounded_span(text: str, span: str) -> str | None:
     return raw if _normalize(raw) == query else None
 
 
+def _restatement_key(text: str) -> str:
+    """Clause text without its numbering label, leading zeros, case or end punctuation."""
+    body = _LINE_LABEL.sub("", unicodedata.normalize("NFC", text))
+    body = re.sub(r"\b0+(?=\d)", "", body)
+    return " ".join(body.casefold().split()).rstrip(" .;:")
+
+
+def _no_value_difference(text_a: str, text_b: str) -> bool:
+    """Both clauses state unit-typed values, yet no unit present on both sides disagrees.
+
+    Luna labelled such pairs CONFLICT (same 05-day deadline on another trigger, a percentage
+    on one side only); a clause pair without numbers on one side is left to the model.
+    """
+    def values(text: str) -> dict[str, frozenset[str]]:
+        return {unit: frozenset(n.lstrip("0") or "0" for n in numbers)
+                for unit, numbers in unit_values(text).items()}
+
+    left, right = values(text_a), values(text_b)
+    return bool(left) and bool(right) and not values_differ(left, right)
+
+
 def _numbers(text: str) -> Counter[str]:
     return Counter(re.sub(r"\s+", "", match.group())
                    for match in _NUMBER.finditer(_LINE_LABEL.sub("", text)))
@@ -233,8 +254,11 @@ def _decision(item: dict, pair: ClassifierPair, rejected: dict[str, int], served
     if label == "DUPLICATE" and _numbers(pair.text_a) != _numbers(pair.text_b):
         reject("duplicate_value_mismatch")
         return None
-    if label == "CONFLICT" and _normalize(span_a) == _normalize(span_b):
+    if label == "CONFLICT" and _restatement_key(span_a) == _restatement_key(span_b):
         reject("conflict_same_span")
+        return None
+    if label == "CONFLICT" and _no_value_difference(pair.text_a, pair.text_b):
+        reject("conflict_no_value_difference")
         return None
     return PairDecision(pair.candidate, PairLabel(label), span_a, span_b, direction, served)
 

@@ -112,7 +112,7 @@ def _value_text(text: str) -> str:
     return _CLAUSE_ADDRESS.sub(" ", _CLAUSE_NUMBERING.sub("", _fold(text)))
 
 
-def _unit_values(text: str) -> dict[str, frozenset[str]]:
+def unit_values(text: str) -> dict[str, frozenset[str]]:
     """Numbers keyed by the unit word after them ("07 ngay" -> {"ngay": {"07"}}, "30 %")."""
     by_unit: dict[str, set[str]] = {}
     for match in _VALUE_WITH_UNIT.finditer(_value_text(text)):
@@ -120,7 +120,7 @@ def _unit_values(text: str) -> dict[str, frozenset[str]]:
     return {unit: frozenset(numbers) for unit, numbers in by_unit.items()}
 
 
-def _values_differ(left: Mapping[str, frozenset[str]], right: Mapping[str, frozenset[str]]) -> bool:
+def values_differ(left: Mapping[str, frozenset[str]], right: Mapping[str, frozenset[str]]) -> bool:
     # "07 ngày" vs "02 bản" measure different things; only a shared unit can disagree.
     return any(left[unit] != right[unit] for unit in left.keys() & right.keys())
 
@@ -168,6 +168,17 @@ def _page_furniture(nodes: Iterable[StructuralNode]) -> set[str]:
 def _all_caps(text: str) -> bool:
     letters = [ch for ch in text if ch.isalpha()]
     return len(letters) >= 4 and all(ch.isupper() for ch in letters)
+
+
+# Lines that state no term: signature blocks, annex "attached to contract no." lines and
+# table header rows (pipe cells without a digit). Matched on folded text.
+_NON_CLAUSE = re.compile(r"^(?:dai dien ben\b|kem theo hop dong so\b)")
+_TABLE_HEADER = re.compile(r"^\|(?:[^|\d]*\|)+\s*$")
+
+
+def _non_clause(text: str) -> bool:
+    folded = _fold(text).strip()
+    return bool(_NON_CLAUSE.match(folded) or _TABLE_HEADER.match(folded))
 
 
 def _fold(text: str) -> str:
@@ -274,6 +285,9 @@ def generate_pair_candidates(
         if len((node.text or "").strip()) < MIN_CLAUSE_CHARS:
             stats["excluded_short"] += 1
             continue
+        if _non_clause(node.text or ""):
+            stats["excluded_non_clause"] += 1
+            continue
         eligible.append(nid)
     eligible_set = set(eligible)
     chains = _containers(index, by_id)
@@ -284,7 +298,7 @@ def generate_pair_candidates(
     value_numbers = {}
     content_words = {}
     if PairSource.VALUE_MISMATCH in sources:
-        value_numbers = {nid: _unit_values(by_id[nid].text or "") for nid in eligible}
+        value_numbers = {nid: unit_values(by_id[nid].text or "") for nid in eligible}
         content_words = {
             nid: frozenset(w for w in _CONTENT_WORD.findall(_fold(by_id[nid].text or ""))
                            if w not in _VALUE_STOPWORDS)
@@ -349,7 +363,7 @@ def generate_pair_candidates(
                     shared_counts[_ordered(x, y, pos)] += 1
                     stats["value_mismatch_pair_comparisons"] += 1
         for (x, y), shared in shared_counts.items():
-            if shared < _VALUE_MISMATCH_MIN_SHARED or not _values_differ(value_numbers[x], value_numbers[y]):
+            if shared < _VALUE_MISMATCH_MIN_SHARED or not values_differ(value_numbers[x], value_numbers[y]):
                 continue
             union = len(content_words[x] | content_words[y])
             if union and shared / union >= _VALUE_MISMATCH_MIN_JACCARD and (x, y) not in found:
@@ -455,6 +469,7 @@ def generate_pair_candidates(
         "excluded_short": stats["excluded_short"],
         "excluded_external_ref": stats["excluded_external_ref"],
         "excluded_page_furniture": stats["excluded_page_furniture"],
+        "excluded_non_clause": stats["excluded_non_clause"],
         "group_pairs_windowed": stats["group_pairs_windowed"],
         "near_duplicate_kept": sum((c.node_a, c.node_b) in near_duplicate for c in kept),
         "candidates_capped": len(candidates) - len(kept),

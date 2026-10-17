@@ -402,3 +402,41 @@ def test_duplicate_decimal_number_is_not_a_line_label(text):
     other = "3. Phạt 1,6% khi giao hàng."
     result = classify([pair(text, other)], {"results": [answer("DUPLICATE", span_a=text, span_b=other)]})
     assert result.stats["rejected"]["duplicate_value_mismatch"] == 1
+
+
+def test_conflict_between_restatements_with_same_values_rejected():
+    # "05 ngày" and "5 ngày" are one value: a restatement under another clause number
+    # is not a conflict (luna's forbidden CONFLICT on HD-TEST-004).
+    a = "3.2. Bên A thanh toán mỗi đợt trong vòng 05 ngày kể từ ngày nhận được hóa đơn hợp lệ của Bên B."
+    b = "2. Bên A thanh toán mỗi đợt trong vòng 5 ngày kể từ ngày nhận được hóa đơn hợp lệ của Bên B."
+    result = classify([pair(a, b)], {"results": [answer(span_a=a, span_b=b)]})
+    assert result.stats["rejected"]["conflict_same_span"] == 1
+    assert not result.decisions
+
+
+def test_conflict_with_different_values_still_accepted():
+    a = "3.2. Bên A thanh toán mỗi đợt trong vòng 05 ngày kể từ ngày nhận được hóa đơn."
+    b = "2. Bên A thanh toán mỗi đợt trong vòng 10 ngày kể từ ngày nhận được hóa đơn."
+    result = classify([pair(a, b)], {"results": [answer(span_a=a, span_b=b)]})
+    assert len(result.decisions) == 1
+
+
+@pytest.mark.parametrize(("a", "b"), [
+    # Same 05-day deadline, different trigger; the percentage exists on one side only.
+    ("a) 40% giá trị hợp đồng trong vòng 05 ngày kể từ ngày ký Hợp đồng;",
+     "3.2. Bên A thanh toán mỗi đợt trong vòng 05 ngày kể từ ngày nhận được hóa đơn hợp lệ."),
+    # No unit stated on both sides: nothing that could disagree.
+    ("2. Bên A thanh toán mỗi đợt trong vòng 5 ngày kể từ ngày nhận được hóa đơn hợp lệ.",
+     "b) 60% giá trị hợp đồng còn lại sau khi nghiệm thu toàn bộ hàng hóa."),
+])
+def test_conflict_without_any_differing_value_rejected(a, b):
+    result = classify([pair(a, b)], {"results": [answer(span_a=a, span_b=b)]})
+    assert result.stats["rejected"]["conflict_no_value_difference"] == 1
+    assert not result.decisions
+
+
+def test_conflict_without_numbers_on_one_side_is_left_to_the_model():
+    a = "5.3. Thanh toán được thực hiện bằng chuyển khoản vào tài khoản của Bên B."
+    b = "2. Bên A thanh toán mỗi đợt bằng tiền mặt trong vòng 5 ngày kể từ ngày nhận hóa đơn."
+    result = classify([pair(a, b)], {"results": [answer(span_a=a, span_b=b)]})
+    assert len(result.decisions) == 1
