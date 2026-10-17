@@ -121,6 +121,25 @@ def _log_provider_failure(client: Any, exc: BaseException, attempt: int, operati
     )
 
 
+def _log_call(client: Any, attempt: int, operation: str | None) -> None:
+    # Timing and token counts only, never the prompt or the answer.
+    traces = getattr(client, "traces", None)
+    trace = traces[-1] if isinstance(traces, list) and traces else {}
+    logger.info(
+        "ai2.llm_call operation=%s model=%s served_model=%s attempt=%s latency_ms=%s http_calls=%s "
+        "prompt_tokens=%s completion_tokens=%s reasoning_tokens=%s",
+        operation or "unlabelled",
+        trace.get("model", getattr(client, "model", None)),
+        trace.get("served_model"),
+        attempt + 1,
+        trace.get("latency_ms"),
+        trace.get("http_calls"),
+        trace.get("prompt_tokens"),
+        trace.get("completion_tokens"),
+        trace.get("reasoning_tokens"),
+    )
+
+
 def _retry_after_seconds(exc: BaseException) -> float | None:
     headers = getattr(getattr(exc, "response", None), "headers", None)
     if not headers:
@@ -296,6 +315,7 @@ class ProcessingRuntime:
             if operation_remaining() <= 0:
                 context_exhausted()
                 return None
+            _log_call(client, attempt, operation)
             if not isinstance(data, dict):
                 self._fall_back("LLM_NON_RETRYABLE", "NineRouter response must be a JSON object")
                 return None

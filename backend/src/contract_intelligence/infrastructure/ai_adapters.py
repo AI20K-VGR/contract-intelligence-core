@@ -452,7 +452,9 @@ _TRACE_STAGE_STATUSES = frozenset(
         "INCOMPLETE_UNKNOWN",
     }
 )
-_TRACE_STAGE_IDS = frozenset({"contract_graph_operation", "contract_graph_pairs"})
+_TRACE_STAGE_IDS = frozenset(
+    {"extraction", "contract_graph_operation", "contract_graph_pairs", "semantic"}
+)
 _SAFE_REASON_CODE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 
 

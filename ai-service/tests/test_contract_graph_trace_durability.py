@@ -376,7 +376,8 @@ def test_run_idp_persists_stage_start_before_operation_and_pairs(monkeypatch, tm
     record = pair_record()
     idp.run_idp(record, envelope(), llm=None, job_id=job_id, trace_writer=writer)
 
-    assert seen[0] == ("operation", [("contract_graph_operation", "STARTED")])
+    assert seen[0] == ("operation", [("extraction", "STARTED"), ("extraction", "COMPLETED"),
+                                     ("contract_graph_operation", "STARTED")])
     assert seen[1][0] == "pairs"
     assert seen[1][1][-1] == ("contract_graph_pairs", "STARTED")
     events = store.read_latest_execution(
@@ -384,6 +385,8 @@ def test_run_idp_persists_stage_start_before_operation_and_pairs(monkeypatch, tm
         snapshot_digest="sha256:abc",
     )
     assert [(event.stage_id, event.status) for event in events] == [
+        ("extraction", "STARTED"),
+        ("extraction", "COMPLETED"),
         ("contract_graph_operation", "STARTED"),
         ("contract_graph_operation", "COMPLETED"),
         ("contract_graph_pairs", "STARTED"),

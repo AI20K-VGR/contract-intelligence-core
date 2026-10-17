@@ -184,6 +184,8 @@ def run_idp(
     source_fact_node_ids = {
         fact.citation.node_id for fact in facts if fact.citation and fact.citation.node_id
     }
+    if trace_writer is not None:
+        trace_writer.start("extraction")
     fact_ex = FactExtractor(
         gateway,
         llm,
@@ -283,8 +285,12 @@ def run_idp(
     )
     if extraction_units and not successful_extractions and unit_failures:
         first = unit_failures[0]
+        if trace_writer is not None:
+            trace_writer.finish("extraction", "FAILED", item_count=0, reason_code=first.code)
         return _failed_result(job_id, handoff.issues, first.code, first.message)
     facts = _dedupe_same_published_key(facts)
+    if trace_writer is not None:
+        trace_writer.finish("extraction", "COMPLETED", item_count=len(facts))
     chunks = ClauseChunker().chunk(handoff)
     events: list[ContractEvent] = extract_contract_events(record)
     _downgrade_unreliable_outputs(facts, chunks, handoff)
@@ -539,9 +545,14 @@ def run_idp(
                 )
                 for node_id in (source, target)
             ]
+            if trace_writer is not None:
+                trace_writer.start("semantic")
             record.semantic_extension = build_semantic_extension(
                 record, runtime, llm, bounds, priority_nodes=tuple(related)
             )
+            if trace_writer is not None:
+                trace_writer.finish("semantic", "COMPLETED",
+                                    item_count=len(record.semantic_extension.frames))
             issues.append(
                 EvidenceIssue(
                     issue_id="semantic:review",
@@ -551,6 +562,8 @@ def run_idp(
                 )
             )
         else:
+            if trace_writer is not None:
+                trace_writer.skip("semantic", "FEATURE_DISABLED")
             issues.append(
                 EvidenceIssue(
                     issue_id="semantic:disabled",

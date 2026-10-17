@@ -276,3 +276,24 @@ def test_pipeline_call_sites_label_their_stage() -> None:
     for module, label in ((pair_classifier, "pairs"), (frame_context, "slot_context"),
                           (tenant_aliases, "alias"), (fact, "fact_normalize"), (table, "table")):
         assert f'operation="{label}"' in inspect.getsource(module), module.__name__
+
+
+def test_runtime_logs_each_successful_call_with_timing_and_tokens(caplog: pytest.LogCaptureFixture) -> None:
+    client = NineRouterClient(api_key="sk-test", model="gpt-5.5")
+
+    def create(**_kwargs: object) -> SimpleNamespace:
+        usage = SimpleNamespace(prompt_tokens=120, completion_tokens=30, total_tokens=150,
+                                completion_tokens_details=SimpleNamespace(reasoning_tokens=12))
+        choice = SimpleNamespace(message=SimpleNamespace(content='{"ok": true}'), finish_reason="stop")
+        return SimpleNamespace(choices=[choice], usage=usage, model="gpt-5.5-2026")
+
+    client._client.chat.completions.create = create  # type: ignore[method-assign]
+    runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=2)
+
+    with caplog.at_level("INFO", logger="app.pipeline.runtime"):
+        assert runtime.complete_json(client, "Return JSON.", "raw=private", operation="slot_context") == {"ok": True}
+
+    line = next(r.getMessage() for r in caplog.records if "ai2.llm_call " in r.getMessage())
+    assert "operation=slot_context" in line and "served_model=gpt-5.5-2026" in line
+    assert "prompt_tokens=120" in line and "reasoning_tokens=12" in line and "latency_ms=" in line
+    assert "raw=private" not in line
