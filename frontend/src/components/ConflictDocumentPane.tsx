@@ -336,7 +336,7 @@ export function ConflictDocumentPane({
               type="button"
               onClick={() => setShowBoxes((current) => !current)}
             >
-              <span className="whitespace-nowrap">Khung OCR</span>
+              <span className="whitespace-nowrap">Khung chữ</span>
               <span
                 className={`relative h-4 w-7 rounded-full transition-colors ${showBoxes ? 'bg-brand-600' : 'bg-tone-300'}`}
               >

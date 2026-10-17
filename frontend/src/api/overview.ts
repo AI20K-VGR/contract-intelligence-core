@@ -41,7 +41,8 @@ export function overviewErrorMessage(error: unknown) {
     if (error.status === 403) return 'Chỉ quản trị viên mới xem được mục này.'
     return error.message
   }
-  if (error instanceof TypeError) return 'Không kết nối được backend.'
+  if (error instanceof TypeError)
+    return 'Không kết nối được máy chủ. Vui lòng kiểm tra mạng rồi thử lại.'
   return 'Không tải được dữ liệu. Thử lại.'
 }
 

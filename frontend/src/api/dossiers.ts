@@ -1,4 +1,5 @@
 import { ApiError, postMultipart, requestJson } from './client'
+import { userErrorMessage } from './errorMessage'
 
 /** OpenAPI `1.1.0+sprint4-ai-integration` — POST /api/v1/dossiers */
 export type CreateDossierMetadata = {
@@ -54,6 +55,8 @@ export type OcrState = 'done' | 'pending' | 'running' | 'error'
 export type OcrInspection = {
   state: OcrState
   detail: string | null
+  /** Nguyên văn lỗi, chỉ hiện cho quản trị viên. */
+  technical?: string | null
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -185,7 +188,8 @@ export function splitErrorMessage(error: unknown) {
     if (error.status === 422) return `Các phần chưa hợp lệ: ${error.message}`
     return error.message
   }
-  if (error instanceof TypeError) return 'Không kết nối được backend.'
+  if (error instanceof TypeError)
+    return 'Không kết nối được máy chủ. Vui lòng kiểm tra mạng rồi thử lại.'
   return 'Không tách được file. Thử lại.'
 }
 
@@ -203,7 +207,10 @@ export type DossierAi2Consent = {
   effective_from: 'next_request'
 }
 
-export async function updateDossierAi2Consent(dossierId: string, enabled: boolean) {
+export async function updateDossierAi2Consent(
+  dossierId: string,
+  enabled: boolean,
+) {
   const { data } = await requestJson<DossierAi2Consent>(
     `${DOSSIERS_PATH}/${encodeURIComponent(dossierId)}/ai2-content-sharing-consent`,
     { method: 'PATCH', json: { enabled } },
@@ -256,7 +263,7 @@ export function createDossierErrorMessage(error: unknown) {
       return 'Chỉ vận hành và quản trị mới tải hồ sơ được.'
     }
     if (error.status === 404 && error.message === 'Not Found') {
-      return 'API tạo hồ sơ chưa có trên backend.'
+      return 'Chức năng tạo hồ sơ chưa sẵn sàng. Vui lòng báo quản trị viên.'
     }
     if (error.status === 404) {
       return 'Không tìm thấy hồ sơ này.'
@@ -265,17 +272,15 @@ export function createDossierErrorMessage(error: unknown) {
       return 'Hồ sơ đang xung đột. Thử lại sau.'
     }
     if (error.status === 422) {
-      return (
-        error.message || 'Metadata không đúng JSON { name, tags?, notes? }.'
-      )
+      return userErrorMessage(error, 'Thông tin hồ sơ không hợp lệ.')
     }
     if (error.status === 400) {
-      return error.message || 'Thiếu tệp PDF hợp đồng.'
+      return userErrorMessage(error, 'Thiếu tệp PDF hợp đồng.')
     }
     return error.message
   }
   if (error instanceof TypeError) {
-    return 'Không kết nối được backend. API tạo hồ sơ chưa sẵn sàng.'
+    return 'Không kết nối được máy chủ nên chưa tạo được hồ sơ. Vui lòng thử lại.'
   }
   return 'Không tải được hồ sơ. Thử lại.'
 }
@@ -295,12 +300,12 @@ export function listDossiersErrorMessage(error: unknown) {
       error.status === 404 &&
       error.message.trim().toLowerCase() === 'not found'
     ) {
-      return 'API danh sách hồ sơ chưa có trên backend.'
+      return 'Chức năng xem danh sách hồ sơ chưa sẵn sàng. Vui lòng báo quản trị viên.'
     }
     return error.message
   }
   if (error instanceof TypeError) {
-    return 'Không kết nối được backend. API danh sách hồ sơ chưa sẵn sàng.'
+    return 'Không kết nối được máy chủ nên chưa tải được danh sách hồ sơ. Vui lòng thử lại.'
   }
   if (error instanceof Error && error.message) return error.message
   return 'Không tải được danh sách hồ sơ. Thử lại.'
@@ -317,11 +322,55 @@ function qualityOf(value: unknown) {
   return asRecord(value)
 }
 
-function shortOcrError(error: string) {
-  const marker = 'RuntimeError:'
-  const index = error.lastIndexOf(marker)
-  const text = index >= 0 ? error.slice(index + marker.length) : error
-  return text.replace(/^SKIPPED:\s*/i, '').trim()
+const OCR_NOT_READY =
+  'Hệ thống chưa sẵn sàng để đọc tài liệu. Vui lòng báo quản trị viên.'
+const OCR_SERVICE_DOWN =
+  'Dịch vụ đọc tài liệu đang gặp sự cố. Vui lòng thử lại sau.'
+
+// Thứ tự quan trọng: lỗi AI1 lồng nhau ("… unavailable: APIConnectionError: …"),
+// nên xét nguyên nhân cụ thể trước, câu chung "unavailable" sau cùng.
+const OCR_ERROR_RULES: [RegExp, string][] = [
+  [
+    /_API_KEY is not set|disabled in configuration|AuthenticationError|PermissionDeniedError|\b40[13]\b/i,
+    OCR_NOT_READY,
+  ],
+  [
+    /APIConnectionError|ConnectionError|Connection error|ConnectError/i,
+    'Mất kết nối khi đọc tài liệu. Vui lòng bấm "Đọc lại".',
+  ],
+  [/Timeout|timed? ?out/i, 'Đọc tài liệu quá lâu. Vui lòng bấm "Đọc lại".'],
+  [
+    /RateLimitError|rate limit|\b429\b/i,
+    'Hệ thống đang quá tải. Vui lòng thử lại sau ít phút.',
+  ],
+  [/InternalServerError|ServiceUnavailable|\b50[023]\b/i, OCR_SERVICE_DOWN],
+  [
+    /not a valid PDF/i,
+    'Tệp không phải PDF hợp lệ. Vui lòng kiểm tra và tải lại tệp.',
+  ],
+  [
+    /empty or exceeds the 50 MB/i,
+    'Tệp rỗng hoặc lớn hơn 50 MB. Vui lòng tải tệp khác.',
+  ],
+  [
+    /source_sha256 does not match|cannot download source/i,
+    'Không lấy được tệp để đọc. Vui lòng bấm "Đọc lại".',
+  ],
+  [/document has no pages/i, 'Tệp không có trang nào để đọc.'],
+  [/unavailable/i, OCR_SERVICE_DOWN],
+]
+
+/** Lỗi AI1 là tiếng Anh, kỹ thuật; đổi sang câu người dùng hiểu và làm theo được. */
+export function ocrErrorMessage(error: string) {
+  const rule = OCR_ERROR_RULES.find(([pattern]) => pattern.test(error))
+  return rule
+    ? rule[1]
+    : 'Không đọc được tài liệu. Vui lòng bấm "Đọc lại"; nếu vẫn lỗi, báo quản trị viên.'
+}
+
+/** Nguyên văn lỗi AI1 (bỏ tiền tố SKIPPED) để quản trị viên tra nguyên nhân. */
+export function ocrErrorDetail(error: string) {
+  return error.replace(/^SKIPPED:\s*/i, '').trim()
 }
 
 export type OcrPageRow = {
@@ -329,6 +378,7 @@ export type OcrPageRow = {
   kind: string
   status: string
   error: string | null
+  errorDetail: string | null
 }
 
 function readOcrPages(data: unknown): OcrPageRow[] {
@@ -340,7 +390,8 @@ function readOcrPages(data: unknown): OcrPageRow[] {
       pageNo: asNumber(row?.page_no),
       kind: asString(row?.kind),
       status: asString(quality?.ai1_page_status).toUpperCase(),
-      error: error ? shortOcrError(error) : null,
+      error: error ? ocrErrorMessage(error) : null,
+      errorDetail: error ? ocrErrorDetail(error) : null,
     }
   })
 }
@@ -392,7 +443,11 @@ function inspectionFromPages(
   }
   const failed = pages.find((page) => page.status === 'FAILED' || page.error)
   if (failed) {
-    return { state: 'error', detail: failed.error }
+    return {
+      state: 'error',
+      detail: failed.error,
+      technical: failed.errorDetail,
+    }
   }
   if (jobStatus === 'processing' || jobStatus === 'uploaded') {
     return { state: 'running', detail: null }
@@ -475,11 +530,12 @@ export async function rerunDossierOcr(dossierId: string) {
 export function restartOcrErrorMessage(error: unknown) {
   if (error instanceof ApiError) {
     if (error.status === 401) return 'Phiên đăng nhập hết hạn. Đăng nhập lại.'
-    if (error.status === 403) return 'Bạn không có quyền chạy lại OCR.'
-    if (error.status === 404) return 'Hồ sơ không có tài liệu để OCR.'
+    if (error.status === 403) return 'Bạn không có quyền đọc lại tài liệu.'
+    if (error.status === 404) return 'Hồ sơ không có tài liệu để đọc.'
     return error.message
   }
-  if (error instanceof TypeError) return 'Không kết nối được backend.'
+  if (error instanceof TypeError)
+    return 'Không kết nối được máy chủ. Vui lòng kiểm tra mạng rồi thử lại.'
   if (error instanceof Error && error.message) return error.message
-  return 'Không chạy lại được OCR. Thử lại.'
+  return 'Không đọc lại được tài liệu. Thử lại.'
 }

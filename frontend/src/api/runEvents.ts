@@ -247,13 +247,13 @@ export const RUN_STEP_GROUPS = [
   },
   {
     id: 'ai1',
-    label: 'AI1 · OCR',
+    label: 'Đọc tài liệu',
     hint: 'Đọc PDF thành chữ và ảnh trang',
     steps: ['S2', 'S3', 'S8'],
   },
   {
     id: 'ai2',
-    label: 'AI2 · Phân tích',
+    label: 'Phân tích',
     hint: 'Cấu trúc, dữ kiện, mâu thuẫn',
     steps: ['S4', 'S5', 'S6', 'S7', 'S9', 'S10'],
   },
@@ -263,6 +263,41 @@ export const RUN_STEP_GROUPS = [
   hint: string
   steps: readonly (typeof RUN_STEP_ORDER)[number][]
 }[]
+
+/** Các bước AI2 chạy ngầm sau OCR; màn tiến trình không hiện các bước này. */
+export const AI2_RUN_STEPS: readonly string[] = RUN_STEP_GROUPS.flatMap(
+  (group) => (group.id === 'ai2' ? group.steps : []),
+)
+
+export function isAi2Step(code: string) {
+  return AI2_RUN_STEPS.includes(code)
+}
+
+/** Các bước BE và AI1, theo thứ tự chạy: phần người dùng chờ trước khi xem cây. */
+export const OCR_RUN_STEP_ORDER = RUN_STEP_ORDER.filter(
+  (code) => !isAi2Step(code),
+)
+
+/**
+ * Tiến độ chung của AI2 từ các bước đã nhận: bước xong tính trọn, bước đang
+ * chạy có `progress` tính phần đã xong. null khi chưa có số liệu nào.
+ */
+export function ai2ProgressPercent(steps: Record<string, RunStep>) {
+  const rows = AI2_RUN_STEPS.flatMap((code) =>
+    steps[code] ? [steps[code]] : [],
+  )
+  if (rows.length === 0) return null
+  const done = rows.reduce(
+    (sum, row) =>
+      row.status === 'succeeded'
+        ? sum + 1
+        : row.status === 'running' && row.progress
+          ? sum + row.progress.done / row.progress.total
+          : sum,
+    0,
+  )
+  return Math.min(99, Math.floor((done / AI2_RUN_STEPS.length) * 100))
+}
 
 /** Đọc payload `step.changed` do BE đẩy xuống; null nếu thiếu mã bước. */
 export function stepFromEvent(event: RunEvent): RunStep | null {

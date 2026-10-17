@@ -19,12 +19,12 @@ function errorMessage(error: unknown) {
       return 'Phiên đăng nhập đã hết hạn. Đăng nhập lại để xem giám sát.'
     }
     if (error.status === 503) {
-      return 'Hệ thống giám sát chưa được cấu hình trên backend.'
+      return 'Hệ thống giám sát chưa được cấu hình. Vui lòng báo quản trị viên.'
     }
     return error.message
   }
   if (error instanceof TypeError) {
-    return 'Không kết nối được backend.'
+    return 'Không kết nối được máy chủ. Vui lòng kiểm tra mạng rồi thử lại.'
   }
   if (error instanceof Error) {
     return error.message
@@ -121,8 +121,8 @@ function MonitoringView({
       <div className="flex items-center justify-between gap-space-md">
         <p className="flex items-center gap-space-xs font-body-sm text-body-sm text-secondary">
           <MaterialIcon name="monitoring" className="text-[18px]" />
-          Hệ thống, Docker, OCR, chi phí và trạng thái dịch vụ — Grafana (chỉ
-          xem). Trace chi tiết từng tài liệu nằm ở Langfuse.
+          Tình trạng máy chủ, việc đọc tài liệu, chi phí và các dịch vụ (chỉ
+          xem). Chi tiết xử lý từng tài liệu xem ở trang Langfuse.
         </p>
         <button
           className="flex items-center gap-space-xs px-space-md py-1 rounded bg-brand-100 text-brand-700 hover:bg-brand-200 font-label-sm text-label-sm transition-colors disabled:text-outline disabled:cursor-not-allowed"

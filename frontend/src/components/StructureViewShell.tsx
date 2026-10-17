@@ -310,7 +310,7 @@ export function EmptyStructure() {
   return (
     <div className="flex h-full min-h-48 items-center rounded-xl bg-surface-container-lowest px-6 shadow-sm">
       <p className="font-body-sm text-body-sm text-on-surface-variant">
-        OCR đã xong, nhưng tài liệu chưa có nút cấu trúc.
+        Đã đọc xong, nhưng tài liệu chưa có nút cấu trúc.
       </p>
     </div>
   )

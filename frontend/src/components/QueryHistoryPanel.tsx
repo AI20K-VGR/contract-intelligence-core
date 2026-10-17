@@ -7,7 +7,9 @@ import {
 } from '../api/queries'
 import { structureErrorMessage } from '../api/structure'
 import { MaterialIcon } from './icons'
+import { TechnicalDetail } from './TechnicalDetail'
 import {
+  ANSWER_STATE_LABELS,
   answerBlocks,
   citesByBlock,
   norm,
@@ -21,32 +23,33 @@ type QueryHistoryPanelProps = {
   onReuse: (question: string) => void
   /** Bấm số trích dẫn trong câu trả lời: mở vùng trích trên hợp đồng. */
   onCite?: (citation: QueryHistoryCitation, citeNo: number) => void
-}
-
-const whenFormat = new Intl.DateTimeFormat('vi-VN', {
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-})
-
-function formatWhen(value: string) {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '' : whenFormat.format(date)
+  /** Có thì tiêu đề có nút đóng, quay về cấu trúc cây. */
+  onClose?: () => void
 }
 
 function failureText(item: QueryHistoryItem) {
-  if (item.errorCode)
-    return `AI chưa trả lời được câu này (mã ${item.errorCode}).`
+  if (item.errorCode) return 'AI chưa trả lời được câu này.'
   return 'Chưa có câu trả lời được lưu.'
 }
 
-const STATE_LABELS: Record<string, string> = {
-  ANSWERED: 'Đã trả lời',
-  PARTIAL: 'Trả lời một phần',
-  NOT_FOUND: 'Không tìm thấy',
-  BLOCKED: 'Bị chặn',
+function AnswerStateLabel({ state }: { state: string | null }) {
+  const label = state ? ANSWER_STATE_LABELS[state.trim().toUpperCase()] : null
+  if (!label) return null
+  return (
+    <span
+      className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 font-label-sm text-label-sm font-semibold ${
+        label.tone === 'warn'
+          ? 'bg-amber-50 text-amber-900'
+          : 'bg-surface-container text-on-surface-variant'
+      }`}
+    >
+      <MaterialIcon
+        name={label.tone === 'warn' ? 'warning' : 'block'}
+        className="text-[14px]"
+      />
+      {label.label}
+    </span>
+  )
 }
 
 /** Câu trả lời dài chỉ hiện vài mục đầu, bấm để xem hết. */
@@ -155,6 +158,7 @@ export function QueryHistoryPanel({
   refreshKey,
   onReuse,
   onCite,
+  onClose,
 }: QueryHistoryPanelProps) {
   const [items, setItems] = useState<QueryHistoryItem[]>([])
   const [total, setTotal] = useState(0)
@@ -212,9 +216,22 @@ export function QueryHistoryPanel({
       aria-label="Lịch sử hỏi đáp"
       className="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm space-y-space-md"
     >
-      <h2 className="font-title-sm text-title-sm text-primary uppercase tracking-wider">
-        Lịch sử hỏi đáp
-      </h2>
+      <div className="flex items-center justify-between gap-space-sm">
+        <h2 className="font-title-sm text-title-sm text-primary uppercase tracking-wider">
+          Lịch sử hỏi đáp
+        </h2>
+        {onClose ? (
+          <button
+            aria-label="Đóng lịch sử hỏi đáp"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container"
+            title="Đóng, về cấu trúc cây"
+            type="button"
+            onClick={onClose}
+          >
+            <MaterialIcon name="close" className="text-[20px]" />
+          </button>
+        ) : null}
+      </div>
 
       {error ? (
         <p className="font-label-sm text-label-sm text-error" role="alert">
@@ -255,6 +272,7 @@ export function QueryHistoryPanel({
                   Hỏi lại
                 </button>
               </div>
+              <AnswerStateLabel state={answered.state} />
               {answered.answer ? (
                 <AnswerView
                   answer={answered.answer}
@@ -264,34 +282,12 @@ export function QueryHistoryPanel({
               ) : (
                 <p className="font-body-sm text-body-sm text-error">
                   {failureText(answered)}
+                  {/* Mã lỗi gốc chỉ ghi Console, không hiện trên màn. */}
+                  <TechnicalDetail
+                    text={answered.errorCode && `Mã ${answered.errorCode}`}
+                  />
                 </p>
               )}
-              <div className="flex flex-wrap items-center gap-space-xs font-label-sm text-label-sm text-secondary">
-                {group.length > 1 ? (
-                  <span className="font-semibold text-on-surface-variant">
-                    Đã hỏi {group.length} lần:
-                  </span>
-                ) : null}
-                {group.map((entry) => (
-                  <span
-                    key={entry.traceId}
-                    className="rounded-full bg-surface-container px-2 py-0.5 tabular-nums"
-                  >
-                    {formatWhen(entry.createdAt)}
-                  </span>
-                ))}
-                {answered.state ? (
-                  <span
-                    className={`rounded-full px-2 py-0.5 font-semibold ${
-                      answered.state === 'ANSWERED'
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : 'bg-surface-container text-on-surface-variant'
-                    }`}
-                  >
-                    {STATE_LABELS[answered.state] ?? answered.state}
-                  </span>
-                ) : null}
-              </div>
             </li>
           )
         })}

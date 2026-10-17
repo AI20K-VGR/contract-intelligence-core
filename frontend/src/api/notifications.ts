@@ -90,7 +90,7 @@ export function notificationLink(notification: AppNotification) {
   const dossierId = notification.dossier_id
   if (!dossierId) return null
   switch (notification.type) {
-    case 'analysis_succeeded':
+    // Màn tiến trình chỉ còn phần đọc tài liệu: lỗi thì xem ở đó, xong thì mở cây.
     case 'analysis_failed':
       return progressPath(dossierId)
     default:

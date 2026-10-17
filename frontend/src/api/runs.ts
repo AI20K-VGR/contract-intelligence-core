@@ -222,7 +222,8 @@ export function runActionErrorMessage(error: unknown) {
     }
     return error.message
   }
-  if (error instanceof TypeError) return 'Không kết nối được backend.'
+  if (error instanceof TypeError)
+    return 'Không kết nối được máy chủ. Vui lòng kiểm tra mạng rồi thử lại.'
   return 'Không thực hiện được. Thử lại.'
 }
 

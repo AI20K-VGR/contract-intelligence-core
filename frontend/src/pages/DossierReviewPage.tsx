@@ -246,7 +246,7 @@ export function DossierReviewPage() {
             subject:
               typeof row.subject_key === 'string'
                 ? row.subject_key
-                : 'Context finding',
+                : 'Phát hiện',
             reviewState:
               typeof row.review_state === 'string'
                 ? row.review_state
@@ -271,7 +271,7 @@ export function DossierReviewPage() {
                 ? row.message
                 : typeof row.reason === 'string'
                   ? row.reason
-                  : 'Backend đánh dấu evidence cần rà soát.',
+                  : 'Căn cứ này cần được rà soát.',
           },
         ]
       },
@@ -360,7 +360,7 @@ export function DossierReviewPage() {
         setReviewError(
           cause instanceof Error
             ? cause.message
-            : 'Không tải được hàng đợi review của hồ sơ.',
+            : 'Không tải được danh sách cần rà soát của hồ sơ.',
         )
       })
       .finally(() => setReviewLoading(false))
@@ -556,14 +556,14 @@ export function DossierReviewPage() {
     } catch (cause: unknown) {
       if (cause instanceof ReviewConflictError) {
         setReviewMessage(
-          'Mục review đã thay đổi bởi người khác. Hàng đợi đã được tải lại; hãy kiểm tra version mới trước khi thao tác lại.',
+          'Mục này vừa được người khác thay đổi. Danh sách đã được tải lại; hãy xem bản mới trước khi thao tác lại.',
         )
         await reloadReviewQueue().catch(() => undefined)
       } else {
         setReviewMessage(
           cause instanceof Error
             ? cause.message
-            : 'Không ghi nhận được thao tác review.',
+            : 'Không ghi nhận được thao tác rà soát.',
         )
       }
     } finally {
@@ -653,8 +653,8 @@ export function DossierReviewPage() {
             }
           />
           {dossierId
-            ? 'Đang giới hạn truy vấn trong dossier đã chọn'
-            : 'Chưa chọn dossier — hãy mở hồ sơ cụ thể để hỏi AI2'}
+            ? 'Chỉ tìm trong hồ sơ đã chọn'
+            : 'Chưa chọn hồ sơ — hãy mở một hồ sơ để hỏi AI'}
         </div>
 
         <div className="flex border-b border-outline-variant/30 overflow-x-auto">
@@ -735,7 +735,7 @@ export function DossierReviewPage() {
                   name="refresh"
                   className="text-[16px] animate-spin"
                 />
-                Đang hỏi AI2 trên snapshot của hồ sơ...
+                AI đang tìm câu trả lời trong hồ sơ...
               </div>
             ) : searchError ? (
               <div
@@ -746,7 +746,7 @@ export function DossierReviewPage() {
               </div>
             ) : searchResult ? (
               <div className="font-label-sm text-label-sm text-secondary pt-1">
-                {searchResult.hits.length} evidence · trạng thái{' '}
+                {searchResult.hits.length} căn cứ · trạng thái{' '}
                 {searchResult.reviewState}
               </div>
             ) : (
@@ -867,7 +867,7 @@ export function DossierReviewPage() {
             ) : null}
             {reviewLoading ? (
               <div className="font-body-sm text-body-sm text-secondary">
-                Đang tải hàng đợi review...
+                Đang tải danh sách cần rà soát...
               </div>
             ) : reviewError ? (
               <div
@@ -878,7 +878,7 @@ export function DossierReviewPage() {
               </div>
             ) : reviewItems.length === 0 ? (
               <div className="rounded border border-outline-variant/30 p-space-md font-body-sm text-body-sm text-secondary">
-                Không còn review item mở cho hồ sơ này.
+                Không còn mục nào cần rà soát cho hồ sơ này.
               </div>
             ) : (
               <div className="space-y-space-sm">
@@ -1039,13 +1039,13 @@ export function DossierReviewPage() {
                 Phân tích hợp đồng có cấu trúc
               </h2>
               <p className="font-body-sm text-body-sm text-secondary mt-space-xs">
-                Facts và findings lấy trực tiếp từ API extraction/conflict; dòng
-                nào thiếu nguồn sẽ giữ trạng thái an toàn.
+                Dữ kiện và phát hiện lấy từ kết quả phân tích; dòng nào thiếu
+                nguồn sẽ giữ trạng thái an toàn.
               </p>
             </div>
             {analysisLoading ? (
               <p className="font-body-sm text-body-sm text-secondary">
-                Đang tải facts và findings...
+                Đang tải dữ kiện và phát hiện...
               </p>
             ) : null}
             {analysisError ? (
@@ -1220,7 +1220,7 @@ export function DossierReviewPage() {
               Đánh giá Rủi ro
             </h2>
             <p className="font-body-sm text-body-sm text-secondary mt-space-xs">
-              Hãy mở một hồ sơ cụ thể để tải facts và findings có nguồn.
+              Hãy mở một hồ sơ cụ thể để xem dữ kiện và phát hiện kèm nguồn.
             </p>
           </div>
         )

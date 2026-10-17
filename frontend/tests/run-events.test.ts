@@ -1,14 +1,62 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ai2ProgressPercent,
   createSseParser,
   formatStepProgress,
+  isAi2Step,
+  OCR_RUN_STEP_ORDER,
   parseStepProgress,
   RUN_STEP_GROUPS,
   RUN_STEP_ORDER,
   stepFromEvent,
   stepProgressPercent,
   type RunEvent,
+  type RunStep,
 } from '../src/api/runEvents'
+
+function runStep(step: string, status: string, progress?: RunStep['progress']) {
+  return {
+    step,
+    status,
+    attempt: 1,
+    pages: null,
+    durationMs: null,
+    progress: progress ?? null,
+  }
+}
+
+describe('OCR and AI2 steps', () => {
+  it('keeps only the backend and AI1 steps for the progress page', () => {
+    expect(OCR_RUN_STEP_ORDER).toEqual(['S0', 'S1', 'S2', 'S3', 'S8'])
+    expect(isAi2Step('S4')).toBe(true)
+    expect(isAi2Step('S8')).toBe(false)
+  })
+
+  it('has no AI2 percent before any AI2 step is recorded', () => {
+    expect(ai2ProgressPercent({ S2: runStep('S2', 'succeeded') })).toBeNull()
+  })
+
+  it('counts finished steps and the done share of the running one', () => {
+    // 2 bước xong + nửa bước S6 trên 6 bước AI2 = 41%.
+    expect(
+      ai2ProgressPercent({
+        S4: runStep('S4', 'succeeded'),
+        S5: runStep('S5', 'succeeded'),
+        S6: runStep('S6', 'running', { done: 5, total: 10, unit: 'clause' }),
+      }),
+    ).toBe(41)
+  })
+
+  it('stays under 100 until the run itself is finished', () => {
+    const all = Object.fromEntries(
+      ['S4', 'S5', 'S6', 'S7', 'S9', 'S10'].map((code) => [
+        code,
+        runStep(code, 'succeeded'),
+      ]),
+    )
+    expect(ai2ProgressPercent(all)).toBe(99)
+  })
+})
 
 function collect() {
   const events: RunEvent[] = []

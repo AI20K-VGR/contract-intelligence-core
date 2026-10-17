@@ -8,7 +8,7 @@ import type {
 } from '../../api/contractGraph'
 import { ContractGraphCanvas } from './ContractGraphCanvas'
 import { ProcessingTimeline } from './ProcessingTimeline'
-import { processingTimelineOutcome } from './timelineOutcome'
+import { processingTimelineOutcome, stageReasonText } from './timelineOutcome'
 import { RelationList } from './RelationList'
 import { ManualGraphFixture } from './ManualGraphFixture'
 import {
@@ -69,12 +69,12 @@ describe('AI2 graph accessible views', () => {
   it('renders the standalone manual fixture without using Backend API reads', () => {
     const html = renderToStaticMarkup(<ManualGraphFixture />)
 
-    expect(html).toContain('Dữ liệu demo tổng hợp')
-    expect(html).toContain('Luồng xử lý AI2')
-    expect(html).toContain('Sơ đồ quan hệ AI2')
-    expect(html).toContain('REFERENCE')
-    expect(html).toContain('CONFLICT')
-    expect(html).toContain('GENERAL_SPECIFIC')
+    expect(html).toContain('Dữ liệu mẫu để minh họa')
+    expect(html).toContain('Các bước phân tích')
+    expect(html).toContain('Sơ đồ quan hệ')
+    expect(html).toContain('Dẫn chiếu')
+    expect(html).toContain('Có thể mâu thuẫn')
+    expect(html).toContain('Quy định chung – riêng')
     expect(html).toContain('Hợp đồng gốc')
     expect(html).toContain('Phụ lục')
     expect(html).toMatch(/<rect[^>]*width="260"[^>]*x="350"/)
@@ -150,9 +150,87 @@ describe('AI2 graph accessible views', () => {
 
   it('keeps an interrupted trace distinct from a successful or unavailable trace', () => {
     const html = renderToStaticMarkup(<ProcessingTimeline trace={trace} />)
-    expect(html).toContain('Chưa rõ kết quả bước xử lý')
-    expect(html).toContain('TERMINAL_WITH_OPEN_STAGE')
+    expect(html).toContain('Chưa rõ kết quả')
+    expect(html).toContain('bước này chưa ghi nhận kết thúc')
     expect(html).not.toContain('Hoàn tất xử lý AI2')
+  })
+
+  it('shows only the stage that feeds the selected graph tab', () => {
+    const both = {
+      ...trace,
+      stages: [
+        { ...trace.stages[0]!, stage_id: 'contract_graph_operation' },
+        { ...trace.stages[0]!, stage_id: 'contract_graph_pairs' },
+      ],
+    }
+    const pair = renderToStaticMarkup(
+      <ProcessingTimeline trace={both} graphKind="pair" />,
+    )
+    const operation = renderToStaticMarkup(
+      <ProcessingTimeline trace={both} graphKind="operation" />,
+    )
+    expect(pair).toContain('Tìm quan hệ giữa các điều khoản')
+    expect(pair).not.toContain('Tìm quan hệ điều khoản sửa đổi')
+    expect(operation).toContain('Tìm quan hệ điều khoản sửa đổi')
+    expect(operation).not.toContain('Tìm quan hệ giữa các điều khoản')
+  })
+
+  it('names the extraction and semantic stages and keeps them off both graph tabs', () => {
+    const withAi2Stages = {
+      ...trace,
+      stages: [
+        { ...trace.stages[0]!, stage_id: 'extraction' },
+        { ...trace.stages[0]!, stage_id: 'semantic' },
+        { ...trace.stages[0]!, stage_id: 'contract_graph_pairs' },
+      ],
+    }
+    const pair = renderToStaticMarkup(
+      <ProcessingTimeline trace={withAi2Stages} graphKind="pair" />,
+    )
+    const operation = renderToStaticMarkup(
+      <ProcessingTimeline trace={withAi2Stages} graphKind="operation" />,
+    )
+    const all = renderToStaticMarkup(
+      <ProcessingTimeline trace={withAi2Stages} />,
+    )
+    for (const html of [pair, operation]) {
+      expect(html).not.toContain('Trích xuất dữ kiện')
+      expect(html).not.toContain('Phân tích ngữ nghĩa')
+    }
+    expect(all).toContain('Trích xuất dữ kiện')
+    expect(all).toContain('Phân tích ngữ nghĩa')
+    expect(all).not.toContain('extraction')
+    expect(all).not.toContain('semantic')
+  })
+
+  it('explains stage reason codes in plain words and never shows the code', () => {
+    const html = renderToStaticMarkup(
+      <ProcessingTimeline
+        trace={{
+          ...trace,
+          status: 'COMPLETE',
+          job_status: 'SUCCEEDED',
+          stages: [
+            {
+              ...trace.stages[0]!,
+              stage_id: 'contract_graph_pairs',
+              status: 'COMPLETED',
+              item_count: 0,
+              reason_code: 'RULE_ONLY_LLM_UNAVAILABLE',
+            },
+          ],
+        }}
+      />,
+    )
+    expect(html).toContain('Dịch vụ AI tạm thời chưa sẵn sàng')
+    expect(html).toContain('Không tìm thấy quan hệ nào')
+    expect(html).not.toContain('RULE_ONLY')
+    expect(html).not.toContain('Mã trạng thái')
+  })
+
+  it('shows nothing for an unknown reason code', () => {
+    expect(stageReasonText('SOMETHING_NEW')).toBeNull()
+    expect(stageReasonText(null)).toBeNull()
   })
 
   it('keeps job outcome separate from a failed enrichment stage', () => {
@@ -201,6 +279,40 @@ describe('AI2 graph accessible views', () => {
     expect(html).toContain('role="status"')
   })
 
+  it('does not call a rule-only run complete, and judges each tab on its own stage', () => {
+    const ruleOnlyPairs = {
+      ...trace,
+      status: 'COMPLETE' as const,
+      job_status: 'SUCCEEDED' as const,
+      stages: [
+        {
+          ...trace.stages[0]!,
+          stage_id: 'contract_graph_operation',
+          status: 'COMPLETED' as const,
+          reason_code: null,
+        },
+        {
+          ...trace.stages[0]!,
+          stage_id: 'contract_graph_pairs',
+          status: 'COMPLETED' as const,
+          reason_code: 'RULE_ONLY_LLM_UNAVAILABLE',
+        },
+      ],
+    }
+    expect(processingTimelineOutcome(ruleOnlyPairs)).toBe(
+      'job-succeeded-limited',
+    )
+    const pair = renderToStaticMarkup(
+      <ProcessingTimeline trace={ruleOnlyPairs} graphKind="pair" />,
+    )
+    const operation = renderToStaticMarkup(
+      <ProcessingTimeline trace={ruleOnlyPairs} graphKind="operation" />,
+    )
+    expect(pair).toContain('Xong, kết quả chưa đầy đủ')
+    expect(pair).not.toContain('Phân tích hoàn tất')
+    expect(operation).toContain('Phân tích hoàn tất')
+  })
+
   it('distinguishes a verified empty graph from failed or unavailable persistence', () => {
     const empty = renderToStaticMarkup(
       <RelationList
@@ -229,7 +341,7 @@ describe('AI2 graph accessible views', () => {
     expect(html).toContain('Danh sách chưa tải hết')
     expect(html).toContain('Tải thêm quan hệ')
     expect(html).toContain('Mở bằng chứng nguồn')
-    expect(html).toContain('cần review')
+    expect(html).toContain('cần rà soát')
   })
 
   it('appends three pages without duplicates and is complete only after the final count matches', () => {
