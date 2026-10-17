@@ -40,20 +40,23 @@ _listening = False
 
 
 def _before(
-    conn: Any, _cursor: Any, _statement: Any, _params: Any, _context: Any, _many: Any
+    _conn: Any, _cursor: Any, _statement: Any, _params: Any, context: Any, _many: Any
 ) -> None:
-    if _current.get() is not None:
-        conn.info.setdefault(_STARTED, []).append(time.perf_counter())
+    # The start time lives on the statement's execution context, not on the pooled
+    # connection: a failed statement never reaches ``_after``, and its context is
+    # dropped with it instead of leaving a stale mark for the next request.
+    if context is not None and _current.get() is not None:
+        setattr(context, _STARTED, time.perf_counter())
 
 
 def _after(
-    conn: Any, _cursor: Any, _statement: Any, _params: Any, _context: Any, _many: Any
+    _conn: Any, _cursor: Any, _statement: Any, _params: Any, context: Any, _many: Any
 ) -> None:
     stats = _current.get()
-    started = conn.info.get(_STARTED)
-    if stats is None or not started:
+    started = getattr(context, _STARTED, None) if context is not None else None
+    if stats is None or started is None:
         return
-    stats.db_seconds += time.perf_counter() - started.pop()
+    stats.db_seconds += time.perf_counter() - started
     stats.db_queries += 1
 
 

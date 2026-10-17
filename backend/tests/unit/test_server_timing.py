@@ -26,6 +26,15 @@ def _app(engine: Any, *, allow_origins: list[str] | None = None) -> Starlette:
             await conn.execute(text("SELECT 2"))
         return JSONResponse({"ok": True})
 
+    async def failing_query(_: Request) -> JSONResponse:
+        async with engine.connect() as conn:
+            try:
+                await conn.execute(text("SELECT * FROM no_such_table"))
+            except Exception:  # noqa: BLE001
+                await conn.rollback()
+            await conn.execute(text("SELECT 1"))
+        return JSONResponse({"ok": True})
+
     async def no_query(_: Request) -> JSONResponse:
         return JSONResponse({"ok": True})
 
@@ -37,7 +46,12 @@ def _app(engine: Any, *, allow_origins: list[str] | None = None) -> Starlette:
         return StreamingResponse(body(), media_type="text/event-stream")
 
     app = Starlette(
-        routes=[Route("/q", two_queries), Route("/none", no_query), Route("/sse", stream)]
+        routes=[
+            Route("/q", two_queries),
+            Route("/fail", failing_query),
+            Route("/none", no_query),
+            Route("/sse", stream),
+        ]
     )
     app.add_middleware(ServerTimingMiddleware, allow_origins=allow_origins)
     return app
@@ -83,6 +97,21 @@ async def test_sql_outside_a_request_is_not_counted(engine: Any) -> None:
     response = await _get(app, "/none")
     assert response.headers["server-timing"].endswith('desc="0 queries"')
     assert response.headers["timing-allow-origin"] == "*"
+
+
+@pytest.mark.asyncio
+async def test_a_failed_statement_leaves_no_mark_on_the_pooled_connection(engine: Any) -> None:
+    # A failed statement never reaches after_cursor_execute: it is not counted, and
+    # nothing it started is left on the pooled connection for later requests.
+    app = _app(engine)
+    for _ in range(3):
+        response = await _get(app, "/fail")
+        assert response.headers["server-timing"].endswith('desc="1 queries"')
+    async with engine.connect() as conn:
+        raw = await conn.get_raw_connection()
+        assert "_server_timing_started" not in raw.info
+    response = await _get(app, "/q")
+    assert response.headers["server-timing"].endswith('desc="2 queries"')
 
 
 @pytest.mark.asyncio

@@ -920,7 +920,7 @@ class JobRepositoryImpl(JobRepository):
             stmt = stmt.where(JobORM.status == status.value)
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total = int((await self._session.execute(count_stmt)).scalar() or 0)
-        stmt = stmt.order_by(JobORM.created_at.desc()).limit(limit).offset(offset)
+        stmt = stmt.order_by(JobORM.created_at.desc(), JobORM.id.desc()).limit(limit).offset(offset)
         result = await self._session.execute(stmt)
         return Page(
             items=[_job_to_domain(o) for o in result.scalars().all()],
@@ -935,7 +935,10 @@ class JobRepositoryImpl(JobRepository):
             return {}
         rank = (
             func.row_number()
-            .over(partition_by=JobORM.dossier_id, order_by=JobORM.created_at.desc())
+            .over(
+                partition_by=JobORM.dossier_id,
+                order_by=(JobORM.created_at.desc(), JobORM.id.desc()),
+            )
             .label("rank")
         )
         ranked = (
@@ -987,7 +990,7 @@ class JobRepositoryImpl(JobRepository):
         stmt = (
             select(JobORM)
             .where(JobORM.tenant_id == self._tenant_id, JobORM.dossier_id == dossier_id)
-            .order_by(JobORM.created_at.desc())
+            .order_by(JobORM.created_at.desc(), JobORM.id.desc())
             .limit(1)
         )
         orm = (await self._session.execute(stmt)).scalar_one_or_none()

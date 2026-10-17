@@ -58,7 +58,7 @@
 | `Accept` | Có | `application/json` hoặc `application/pdf` (khi tải file gốc) |
 | `X-Request-Id` | Tùy chọn | Client sinh UUIDv4 để truy vết log từ Frontend sang Backend |
 
-Header backend trả về để đo hiệu năng (tắt bằng `SERVER_TIMING_ENABLED=false` trong `deploy/.env.prod`):
+Header backend trả về để đo hiệu năng. Bật mặc định khi chạy local; production tắt mặc định, chỉ bật bằng `SERVER_TIMING_ENABLED=true` trong `deploy/.env.prod` trong lúc cần đo, vì header lộ thời gian xử lý cho mọi người gọi API:
 
 | Header | Mô tả |
 |---|---|
