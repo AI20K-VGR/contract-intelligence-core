@@ -3,13 +3,16 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import {
   findLatestRunId,
+  formatStepProgress,
   listRunSteps,
   RUN_STEP_GROUPS,
   RUN_STEP_LABELS,
   RUN_STEP_ORDER,
   stepFromEvent,
+  stepProgressPercent,
   watchRun,
   type RunStep,
+  type StepProgress,
 } from '../api/runEvents'
 import {
   deleteDossier,
@@ -48,6 +51,9 @@ import { parseStructureMode, type StructureMode } from '../structure'
 const POLL_INTERVAL_MS = 2000
 // Job đứng ở 'extracted' chờ người dùng xác nhận manifest có thể mất hàng giờ.
 const WAITING_POLL_INTERVAL_MS = 5000
+// BE phát lại step.changed khi chỉ `progress` đổi (khoảng 20 lần mỗi bước):
+// tin đó tự cập nhật vòng tiến độ, chỉ tải lại hồ sơ cách nhau ít nhất chừng này.
+const PROGRESS_RELOAD_INTERVAL_MS = 10000
 
 // Job đã dừng hẳn: lỗi, hoặc bị hủy (hủy run đưa job về failed/RUN_CANCELLED).
 function isStoppedJob(status: string | null | undefined) {
@@ -209,6 +215,9 @@ export function AnalysisProgressPage() {
     // Trang OCR, điều khoản và manifest không đổi khi job đã 'extracted': tải một lần.
     let settled = false
     let slowPoll = false
+    // Trạng thái đã nhận của từng bước: tin chỉ đổi tiến độ không thêm dòng nhật ký.
+    const seenStatus: Record<string, string> = {}
+    let lastProgressReload = 0
     setSteps({})
     setLiveLog([])
 
@@ -285,6 +294,18 @@ export function AnalysisProgressPage() {
               const step = stepFromEvent(event)
               if (step) {
                 setSteps((current) => ({ ...current, [step.step]: step }))
+                const statusChanged = seenStatus[step.step] !== step.status
+                seenStatus[step.step] = step.status
+                if (!statusChanged) {
+                  // Chỉ đổi tiến độ: vòng tiến độ đã cập nhật ở trên. Vẫn tải lại
+                  // thưa thớt để danh sách tệp thấy tài liệu vừa đọc xong.
+                  const now = Date.now()
+                  if (now - lastProgressReload >= PROGRESS_RELOAD_INTERVAL_MS) {
+                    lastProgressReload = now
+                    requestReload()
+                  }
+                  return
+                }
                 const label = RUN_STEP_LABELS[step.step] ?? step.step
                 const text =
                   step.status === 'succeeded'
@@ -486,9 +507,29 @@ export function AnalysisProgressPage() {
     steps[code] ? [steps[code]] : [],
   )
   const stepsDone = stepList.filter((row) => row.status === 'succeeded').length
+  // Bước đang chạy có `progress` thì góp phần đã xong vào thanh tổng.
+  const runningShare = stepList.reduce(
+    (sum, row) =>
+      row.status === 'running' && row.progress
+        ? sum + row.progress.done / row.progress.total
+        : sum,
+    0,
+  )
+  // Trang đã OCR chỉ được lưu khi cả tài liệu xong; S2 `progress` (đơn vị trang)
+  // đếm theo từng trang AI1 báo về (DOC-05d `ai1.ocr.progress`).
+  const ocrProgress = steps.S2?.progress
+  const pagesRead =
+    ocrProgress?.unit === 'page'
+      ? Math.max(pageTotals.done, ocrProgress.done)
+      : pageTotals.done
+  const pagesTotal =
+    pageTotals.total || (ocrProgress?.unit === 'page' ? ocrProgress.total : 0)
   const hasSteps = stepList.length > 0
   const percent = hasSteps
-    ? Math.round((stepsDone / RUN_STEP_ORDER.length) * 100)
+    ? Math.min(
+        99,
+        Math.round(((stepsDone + runningShare) / RUN_STEP_ORDER.length) * 100),
+      )
     : pageTotals.total > 0
       ? // Đọc xong mọi trang mới là phần OCR: chưa tới 100 khi AI2 chưa xong.
         Math.min(99, Math.round((pageTotals.done / pageTotals.total) * 100))
@@ -714,7 +755,7 @@ export function AnalysisProgressPage() {
             <Stat label="Tài liệu" value={String(documents.length)} />
             <Stat
               label="Trang đã đọc"
-              value={`${pageTotals.done}/${pageTotals.total || '—'}`}
+              value={`${pagesRead}/${pagesTotal || '—'}`}
             />
             <Stat label="Điều khoản" value={String(clauseCount ?? '—')} />
           </div>
@@ -758,7 +799,10 @@ export function AnalysisProgressPage() {
                     return (
                       <li key={code} className="flex gap-space-md">
                         <div className="flex flex-col items-center">
-                          <StepDot status={status} />
+                          <StepDot
+                            status={status}
+                            progress={row?.progress ?? null}
+                          />
                           {last ? null : (
                             <div
                               className={`w-px flex-1 min-h-4 ${
@@ -803,7 +847,9 @@ export function AnalysisProgressPage() {
                                 ? `Xong · ${(row.durationMs / 1000).toFixed(1)}s`
                                 : 'Xong'
                               : status === 'running'
-                                ? 'Đang chạy…'
+                                ? row?.progress
+                                  ? `${formatStepProgress(row.progress)} · ${stepProgressPercent(row.progress)}%`
+                                  : 'Đang chạy…'
                                 : status === 'failed'
                                   ? 'Lỗi'
                                   : status === 'unrecorded'
@@ -936,7 +982,53 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
-function StepDot({ status }: { status: string }) {
+// Vòng tiến độ 24px cho bước đang chạy có `progress`; không có thì vòng quay.
+const RING_RADIUS = 10
+const RING_LENGTH = 2 * Math.PI * RING_RADIUS
+
+function StepDot({
+  status,
+  progress,
+}: {
+  status: string
+  progress: StepProgress | null
+}) {
+  if (status === 'running' && progress) {
+    const percent = stepProgressPercent(progress)
+    return (
+      <div
+        className="relative w-6 h-6 shrink-0 text-brand-700"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={progress.total}
+        aria-valuenow={progress.done}
+        aria-valuetext={formatStepProgress(progress)}
+      >
+        <svg viewBox="0 0 24 24" className="w-6 h-6 -rotate-90">
+          <circle
+            cx="12"
+            cy="12"
+            r={RING_RADIUS}
+            fill="none"
+            strokeWidth="3"
+            className="stroke-brand-100"
+          />
+          <circle
+            cx="12"
+            cy="12"
+            r={RING_RADIUS}
+            fill="none"
+            strokeWidth="3"
+            strokeLinecap="round"
+            stroke="currentColor"
+            strokeDasharray={RING_LENGTH}
+            strokeDashoffset={RING_LENGTH * (1 - percent / 100)}
+            className="transition-[stroke-dashoffset] duration-500"
+          />
+        </svg>
+      </div>
+    )
+  }
   if (status === 'succeeded') {
     return (
       <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">

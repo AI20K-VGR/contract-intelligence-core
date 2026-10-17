@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu | **DOC-05b** / Contract Intelligence (PROD-01) |
-| Phiên bản / SemVer | **`v3.1.0`** — bật consent AI2 tự reindex hồ sơ, response thêm `ai2_reindex_queued`. **`v3.0.0`** — siết quyền trước pentest (#96): token không có role ứng dụng trả `403` thay vì thành `OPERATOR`; `/ai/jobs/{id}` chỉ `ADMINISTRATOR`; batch cancel/resume chỉ người tạo hoặc `ADMINISTRATOR`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
+| Phiên bản / SemVer | **`v3.2.0`** — tiến độ trong bước: `progress` trên `GET /runs/{id}/steps` và SSE `step.changed`; mã lỗi `AI1_NO_READABLE_PAGE`. **`v3.1.0`** — bật consent AI2 tự reindex hồ sơ, response thêm `ai2_reindex_queued`. **`v3.0.0`** — siết quyền trước pentest (#96): token không có role ứng dụng trả `403` thay vì thành `OPERATOR`; `/ai/jobs/{id}` chỉ `ADMINISTRATOR`; batch cancel/resume chỉ người tạo hoặc `ADMINISTRATOR`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
 | Trạng thái | Đã chốt — Sẵn sàng triển khai Frontend & Backend |
 | Owner | Tech Lead / Frontend Lead / Backend Lead |
 | Ngày hiệu lực | 17/09/2026 |
@@ -319,7 +319,7 @@ Theo dõi hành trình chạy của Pipeline AI qua 11 bước (S0..S10), xem lo
 | `POST` | `/dossiers/{id}/runs` | `OPERATOR`, `ADMINISTRATOR` | Kích hoạt lần chạy phân tích mới (Pipeline Run) |
 | `GET` | `/runs` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Danh sách các lần chạy trong tenant |
 | `GET` | `/runs/{id}` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Trạng thái run, git sha, cấu hình snapshot, thời gian hoàn thành |
-| `GET` | `/runs/{id}/steps` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Chi tiết tiến độ 11 bước (S0..S10) kèm số trang và thời gian ms |
+| `GET` | `/runs/{id}/steps` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Chi tiết tiến độ 11 bước (S0..S10) kèm số trang, thời gian ms và **v3.2.0** tiến độ trong bước (`progress`) |
 | `POST` | `/runs/{id}/cancel` | `OPERATOR`, `ADMINISTRATOR` | Hủy run đang trong trạng thái `running` |
 | `POST` | `/dossiers/{id}/ocr/retry-failed` | `OPERATOR`, `ADMINISTRATOR` | **v1.1.0.** Hồ sơ lỗi ở bước OCR: mở run mới, giữ kết quả OCR đã có, chỉ OCR lại tài liệu còn thiếu |
 | `POST` | `/dossiers/{id}/ai2/reindex` | `OPERATOR`, `ADMINISTRATOR` | **v1.4.0.** Hồ sơ đã phân tích xong: gửi lại kết quả OCR đã lưu cho AI2 dựng lại dữ liệu hỏi đáp. Không OCR lại |
@@ -328,6 +328,26 @@ Theo dõi hành trình chạy của Pipeline AI qua 11 bước (S0..S10), xem lo
 | `GET` | `/dossiers/{id}/ai2/processing-trace` | `CITATION_READ` | **v2.1.0.** Vết xử lý của AI2 cho một lần chạy. Query bắt buộc `job_id`, `snapshot_digest`. Trả `{job_id, ...trace}` |
 | `PATCH` | `/dossiers/{id}/ai2-content-sharing-consent` | chủ hồ sơ hoặc `ADMINISTRATOR` (`DOSSIER_MANAGE`) | **v2.1.0.** Bật/tắt việc gửi nội dung hồ sơ ra LLM bên ngoài. Body `{"enabled": true\|false}` (`StrictBool`, chuỗi `"true"` bị `422`). Trả `{dossier_id, enabled, effective_from: "next_request", ai2_reindex_queued}`. Có audit `ai2.content_sharing_consent_changed`. **v3.1.0:** bật consent (từ chưa bật sang `true`) khi lượt chạy cuối đã qua AI2 (`pending_review`/`reviewed`/`approved`) thì backend tự cho AI2 dựng lại hồ sơ, như `POST /dossiers/{id}/ai2/reindex`; `ai2_reindex_queued: true` |
 
+- **Tiến độ trong bước (v3.2.0):** mỗi phần tử của `GET /runs/{id}/steps` và payload SSE `step.changed` (`GET /runs/{id}/events`) có thêm `progress`:
+  ```json
+  { "step": "S2", "status": "running", "attempt": 1, "pages": null, "duration_ms": null,
+    "progress": { "done": 37, "total": 202, "unit": "page" } }
+  ```
+  - `unit`: `page` (trang), `document` (tài liệu), `chunk` (đoạn), `clause` (điều khoản), `pair` (cặp). Frontend ghi "37/202 trang" theo `unit`; giá trị lạ thì hiện như `null`.
+  - `progress: null` khi bước không đo được tiến độ: frontend hiện vòng quay. Luôn có `0 <= done <= total`, `total >= 1`.
+  - Bước `succeeded` có `done = total`. Bước quay lại `queued` (chạy lại) có `progress: null`. `done` không giảm trong một lần chạy của bước.
+  - Trong lúc bước `running`, backend phát lại `step.changed` khi `progress` đổi đủ nhiều: không quá 1 lần mỗi giây, và chỉ khi `done` đã tăng: tăng ít nhất 5% (tối đa khoảng 20 lần), hoặc tăng bất kỳ sau 15 giây kể từ lần trước (bước chậm). Bước đứng yên (`done` không đổi) thì không có sự kiện mới. Frontend không cần tự giới hạn.
+  - Nguồn số liệu hiện có:
+
+    | Bước | `unit` | Nguồn | Có từ |
+    |---|---|---|---|
+    | S2 | `page` (`document` khi một tài liệu chưa biết số trang) | Số trang đã OCR trên tổng số trang cả hồ sơ. Từng tài liệu xong cộng đủ số trang của nó; giữa chừng cần AI1 gửi `ai1.ocr.progress` (DOC-05d) | Ngay (theo tài liệu); theo trang khi AI1 gửi `ai1.ocr.progress` |
+    | S3, S8 | như S2 | Đánh dấu khi AI1 xong cả hồ sơ, nên chỉ thấy `done = total` | Ngay |
+    | S4–S7, S9, S10 | `chunk`, `clause`, `pair`… | Trường `progress` trong `GET /jobs/{id}` của AI2 (`contracts/BE-AI2-PROCESSING-CONTRACT.vi.md` §3). AI2 báo bước nào thì các bước AI2 trước nó thành `succeeded`, bước đó `running` | Khi AI2 gửi `progress`; trước đó `null` |
+    | S0, S1 | — | Không đo | `null` |
+
+  Ghi chú: tên bước S4 trên frontend ("Nhận diện chữ, bố cục, bảng") chưa khớp backend. Backend dùng S4 cho bước AI2 bắt đầu xử lý; OCR, bố cục và bảng nằm trong S2 của AI1.
+- **Không đọc được trang nào (v3.2.0):** khi mọi trang của một tài liệu bị AI1 trả trạng thái khác `SUCCESS`/`PARTIAL` (ví dụ `FAILED` với lỗi `SKIPPED: OpenAI vision unavailable` khi thiếu khoá vision), job thành `failed` với `error_code: "AI1_NO_READABLE_PAGE"`, `error_detail` nêu số trang và lỗi của trang đầu; S2, S3, S8 thành `failed`, hồ sơ không được gửi sang AI2. Trước đây các bước này `succeeded` và AI2 nhận một hồ sơ rỗng. Chạy lại bằng `POST /dossiers/{id}/ocr/retry-failed` sau khi sửa cấu hình AI1.
 - **Chạy lại OCR lỗi (v1.1.0):** response `202`:
   ```json
   { "data": { "dossier_id": "dos_…", "status": "queued" }, "meta": { "trace_id": null, "request_id": null, "page": null, "page_size": null, "total": null } }
@@ -916,6 +936,7 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
+| `v3.2.0` | 16/10/2026 | Tiến độ trong bước: `progress` (`{done, total, unit}` hoặc `null`) trên mỗi phần tử `GET /runs/{id}/steps` và payload SSE `step.changed`, phát lại có giới hạn tần suất khi bước đang chạy (mục "Tiến độ trong bước" ở Màn hình 4). Mã lỗi job mới `AI1_NO_READABLE_PAGE`: AI1 không đọc được trang nào thì OCR thất bại thay vì `succeeded`. Chỉ thêm trường và mã lỗi, nên là MINOR |
 | `v3.1.0` | 15/10/2026 | `PATCH /dossiers/{id}/ai2-content-sharing-consent`: bật consent khi lượt chạy cuối đã qua AI2 thì backend tự reindex AI2 (như `POST /dossiers/{id}/ai2/reindex`); response thêm `ai2_reindex_queued` (boolean). Trước đây bật consent chỉ lưu giá trị và kết quả cũ (`RULE_ONLY_NO_CONSENT`) vẫn hiển thị. Thêm trường và hành vi, không bỏ gì, nên là MINOR |
 | `v3.0.0` | 15/10/2026 | Siết quyền trước đợt pentest bản online (#96). **Breaking** theo §8 vì thu hẹp quyền đã công bố: (1) token không có role ứng dụng nào trả `403 FORBIDDEN` thay vì được coi là `OPERATOR` (§2.1); (2) `GET`/`DELETE /ai/jobs/{id}` chỉ `ADMINISTRATOR`, trước đây `OPERATOR`/`REVIEWER` cũng gọi được; (3) `POST /batches/{id}/cancel` và `/resume`: OPERATOR chỉ với batch do mình tạo, batch của người khác trả `404`. Không đổi payload hay mã lỗi: `401` chỉ còn `message` `Token has expired`/`Invalid token`; `502 AI2_QUERY_FAILED` của `/query`, `/ask` không còn kèm URL và nội dung lỗi của AI2. Staging/prod không phục vụ `/docs`, `/redoc`, `/openapi.json` và không gửi `X-Backend-Version`; `/health` chỉ trả `{"status":"ok"}` ở **mọi** môi trường (dev/test cũng không còn phiên bản). Frontend không dùng các endpoint và header này nên không phải sửa |
 | `v2.1.0` | 15/10/2026 | Thêm `GET /dossiers/{id}/ai2/contract-graph/{graph_kind}` (+ `/evidence`), `GET /dossiers/{id}/ai2/processing-trace` và `PATCH /dossiers/{id}/ai2-content-sharing-consent` (mục "Đồ thị hợp đồng, vết xử lý và consent AI2" ở §5), kèm các mã lỗi `AI2_SNAPSHOT_CHANGED`, `AI2_GRAPH_STALE`, `GRAPH_CURSOR_INVALID`, `GRAPH_CURSOR_STALE`, `CITATION_READ_REVOKED`, `AI2_GRAPH_UNAVAILABLE`, `AI2_GRAPH_EVIDENCE_UNAVAILABLE`, `AI2_TRACE_UNAVAILABLE`. `PATCH /dossiers/{id}` bỏ qua `metadata.ai2_content_sharing_consent`. Chỉ thêm endpoint và mã lỗi, nên là MINOR |

@@ -145,12 +145,62 @@ export async function watchRun(
   }
 }
 
+export type StepProgressUnit = 'page' | 'document' | 'chunk' | 'clause' | 'pair'
+
+/** Tiến độ trong một bước (DOC-05b v3.2.0), ví dụ 37/202 trang. */
+export type StepProgress = {
+  done: number
+  total: number
+  unit: StepProgressUnit
+}
+
+const STEP_PROGRESS_UNITS: Record<StepProgressUnit, string> = {
+  page: 'trang',
+  document: 'tài liệu',
+  chunk: 'đoạn',
+  clause: 'điều khoản',
+  pair: 'cặp',
+}
+
 export type RunStep = {
   step: string
   status: string
   attempt: number
   pages: number | null
   durationMs: number | null
+  /** null: BE không đo được tiến độ bước này, giao diện hiện vòng quay. */
+  progress: StepProgress | null
+}
+
+/** Đọc `progress` của một bước; thiếu, sai kiểu hay `unit` lạ đều coi như null. */
+export function parseStepProgress(raw: unknown): StepProgress | null {
+  if (!raw || typeof raw !== 'object') return null
+  const { done, total, unit } = raw as Record<string, unknown>
+  if (
+    !Number.isInteger(done) ||
+    !Number.isInteger(total) ||
+    (total as number) < 1 ||
+    typeof unit !== 'string' ||
+    !Object.hasOwn(STEP_PROGRESS_UNITS, unit)
+  ) {
+    return null
+  }
+  const count = total as number
+  return {
+    done: Math.min(Math.max(done as number, 0), count),
+    total: count,
+    unit: unit as StepProgressUnit,
+  }
+}
+
+/** "37/202 trang" */
+export function formatStepProgress(progress: StepProgress) {
+  return `${progress.done}/${progress.total} ${STEP_PROGRESS_UNITS[progress.unit]}`
+}
+
+/** Phần trăm đã xong của bước, làm tròn xuống để chưa xong thì chưa tới 100. */
+export function stepProgressPercent(progress: StepProgress) {
+  return Math.floor((progress.done / progress.total) * 100)
 }
 
 export const RUN_STEP_ORDER = [
@@ -167,12 +217,14 @@ export const RUN_STEP_ORDER = [
   'S10',
 ] as const
 
+// Theo việc BE ghi vào từng bước (DOC-05b v3.2.0, "Tiến độ trong bước"): S2 là
+// cả lượt OCR của AI1 (chữ, bố cục, bảng), S4 là lúc AI2 bắt đầu xử lý hồ sơ.
 export const RUN_STEP_LABELS: Record<string, string> = {
   S0: 'Kiểm tra tệp tải lên',
   S1: 'Kiểm tra PDF và số trang',
-  S2: 'Dựng ảnh từng trang',
+  S2: 'Đọc trang: chữ, bố cục, bảng',
   S3: 'Phân loại trang (chữ sẵn có / scan)',
-  S4: 'Nhận diện chữ, bố cục, bảng',
+  S4: 'AI2 nhận hồ sơ, bắt đầu phân tích',
   S5: 'Kiểm tra chất lượng kết quả',
   S6: 'Dựng cấu trúc điều khoản, bảng',
   S7: 'Trích xuất dữ kiện và trích dẫn',
@@ -223,6 +275,7 @@ export function stepFromEvent(event: RunEvent): RunStep | null {
     attempt: typeof data.attempt === 'number' ? data.attempt : 1,
     pages: typeof data.pages === 'number' ? data.pages : null,
     durationMs: typeof data.duration_ms === 'number' ? data.duration_ms : null,
+    progress: parseStepProgress(data.progress),
   }
 }
 
@@ -247,6 +300,7 @@ export async function listRunSteps(
         pages: typeof row.pages === 'number' ? row.pages : null,
         durationMs:
           typeof row.duration_ms === 'number' ? row.duration_ms : null,
+        progress: parseStepProgress(row.progress),
       },
     ]
   })

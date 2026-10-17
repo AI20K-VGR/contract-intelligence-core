@@ -43,6 +43,17 @@ else
   fail "https://$APP_HOST/ unreachable"
 fi
 
+# Cloudflare injects its Web Analytics beacon only into pages a browser asks
+# for; the CSP blocks it (deploy/frontend.caddy). Cache-Control: no-transform
+# on HTML (deploy/frontend.Dockerfile) must keep it out.
+browser_ua='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36'
+if page=$(curl -fsS --max-time 10 -A "$browser_ua" -H 'Accept: text/html' "https://$APP_HOST/"); then
+  case "$page" in
+    *cloudflareinsights*) fail "https://$APP_HOST/ carries Cloudflare's beacon script, which the CSP blocks" ;;
+    *) ok "https://$APP_HOST/ has no injected third-party script" ;;
+  esac
+fi
+
 if body=$(curl -fsS --max-time 10 "https://$API_HOST/health"); then
   ok "https://$API_HOST/health → $body"
 else

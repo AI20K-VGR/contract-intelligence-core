@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 from urllib.error import URLError
@@ -44,6 +45,12 @@ SCHEMA_VERSION = "ci.kafka.v1"
 EVENT_COMMAND = "ai1.ocr.command"
 EVENT_COMPLETED = "ai1.ocr.completed"
 EVENT_FAILED = "ai1.ocr.failed"
+# Advisory pages-done report while a document is read (DOC-05d, issue #115).
+EVENT_PROGRESS = "ai1.ocr.progress"
+# At most one progress report a second per document; the last page always goes.
+PROGRESS_MIN_INTERVAL_SECONDS = 1.0
+# A snapshot is usable when at least one page was read (DOC-05d §5).
+READABLE_PAGE_STATUSES = frozenset({"SUCCESS", "PARTIAL"})
 
 # The producer's cap, and the largest result still sent inline when the upload to
 # the backend's result_target fails (an inline OCR result costs ~71 KiB per page).
@@ -70,6 +77,105 @@ def _remember_processed(event_id: str, envelope: dict[str, Any]) -> None:
     excess = len(_processed) - _processed_kept()
     for oldest in list(_processed)[: max(0, excess)]:
         del _processed[oldest]
+
+
+# Set by run_worker: hands an encoded progress envelope to the producer from the
+# OCR thread without waiting for Kafka. None (tests, HTTP API) = no reports.
+_progress_sink: Callable[[bytes, bytes | None], None] | None = None
+
+
+def _message_key(message: dict[str, Any]) -> bytes | None:
+    """Partition key of a command's results: its document, so a document's
+    progress reports and its result share a partition and keep their order."""
+    document_id = None
+    correlation = message.get("correlation")
+    if isinstance(correlation, dict):
+        document_id = correlation.get("document_id")
+    if not document_id and isinstance(message.get("payload"), dict):
+        document_id = message["payload"].get("document_id")
+    return str(document_id or "").encode("utf-8") or None
+
+
+def _progress_reporter(
+    message: dict[str, Any],
+    job_id: str,
+    *,
+    clock: Callable[[], float] = time.monotonic,
+) -> Callable[[int, int], None] | None:
+    """``on_progress`` for one command: ``ai1.ocr.progress`` at most once a
+    second, plus the last page, each with an ``event_id`` of its own.
+
+    The backend skips any results-topic message whose ``event_id`` it has already
+    handled, and ``ai1.ocr.completed`` carries the command's ``event_id``: a
+    progress report must never reuse it, or the result itself would be dropped.
+    """
+    sink = _progress_sink
+    if sink is None:
+        return None
+    key = _message_key(message)
+    base_event_id = str(message.get("event_id") or f"evt_{job_id}")
+    last = {"done": 0, "at": float("-inf")}
+
+    def report(done: int, total: int) -> None:
+        now = clock()
+        if done <= last["done"]:
+            return
+        if done < total and now - last["at"] < PROGRESS_MIN_INTERVAL_SECONDS:
+            return
+        last["done"], last["at"] = done, now
+        envelope = _build_result_envelope(
+            event_type=EVENT_PROGRESS,
+            command=message,
+            payload={
+                "job_id": job_id,
+                "kind": "ocr",
+                "status": "processing",
+                "progress": {"done": done, "total": total, "unit": "page"},
+            },
+        )
+        envelope["event_id"] = f"{base_event_id}:progress:{done}"
+        sink(_encode(envelope), key)
+
+    return report
+
+
+def _no_readable_page(result: Any) -> str | None:
+    """``error.message`` for AI1_NO_READABLE_PAGE, or None when the snapshot is usable.
+
+    The backend's rule and wording (``worker._no_readable_page``, #117), so both
+    sides fail exactly the same documents: every page has a status and none is
+    SUCCESS/PARTIAL. A page without a status is not judged, and then nothing is
+    concluded. The message names the page count and the first page error, cut to
+    200 characters, as the run's ``error_detail`` shows it.
+    """
+    snapshot = result.get("snapshot") if isinstance(result, dict) else None
+    raw_pages = snapshot.get("pages") if isinstance(snapshot, dict) else None
+    pages = [p if isinstance(p, dict) else {} for p in raw_pages or []]
+    statuses = {str(p.get("status") or "").upper() for p in pages}
+    if not pages or "" in statuses or READABLE_PAGE_STATUSES & statuses:
+        return None
+    first_error = next((str(p["error"]) for p in pages if p.get("error")), "")
+    detail = f"AI1 không đọc được trang nào ({len(pages)}/{len(pages)} trang lỗi)"
+    return f"{detail}: {first_error[:200]}" if first_error else detail
+
+
+def _make_progress_sink(
+    producer: Any, topic: str, loop: asyncio.AbstractEventLoop
+) -> Callable[[bytes, bytes | None], None]:
+    """A sink the OCR thread calls: it queues the send on the worker's event
+    loop and returns at once, so OCR never waits on Kafka for a progress report."""
+
+    def send(value: bytes, key: bytes | None) -> None:
+        future = asyncio.run_coroutine_threadsafe(producer.send(topic, value, key=key), loop)
+        future.add_done_callback(_log_progress_failure)
+
+    return send
+
+
+def _log_progress_failure(future: Any) -> None:
+    if not future.cancelled() and future.exception() is not None:
+        # Advisory: a lost progress report only leaves the ring where it was.
+        logger.warning("ai1.kafka.progress_send_failed error=%r", future.exception())
 
 
 def _env(name: str, default: str) -> str:
@@ -199,6 +305,7 @@ def _process_command(message: dict[str, Any]) -> tuple[dict[str, Any], Any]:
         job_id,
         request,
         trace_seed=str(message.get("trace_id") or message.get("event_id") or job_id),
+        on_progress=_progress_reporter(message, job_id),
     )
     job = get_backend_job(job_id)
     # The worker is this job's only reader: drop it from the registry, which
@@ -211,6 +318,13 @@ def _process_command(message: dict[str, Any]) -> tuple[dict[str, Any], Any]:
     engine = str(request.options.get("engine", "pymupdf"))
     pages = len(request.pages_to_process)
     result, result_ref, error = job.get("result"), None, job.get("error")
+    unreadable = _no_readable_page(result) if status == "completed" else None
+    if unreadable is not None:
+        # Every page FAILED (e.g. "SKIPPED: OpenAI vision unavailable" when a key is
+        # missing): an empty dossier must not reach AI2. The message is built from
+        # the snapshot above, before it is dropped here and never uploaded.
+        status, result = "failed", None
+        error = {"code": "AI1_NO_READABLE_PAGE", "message": unreadable}
     if status == "completed" and isinstance(result, dict):
         result, result_ref, upload_error = _deliver_result(
             result, request.options.get("result_target")
@@ -264,6 +378,8 @@ async def run_worker() -> None:
     start_metrics_server()
     await consumer.start()
     await producer.start()
+    global _progress_sink  # noqa: PLW0603
+    _progress_sink = _make_progress_sink(producer, results_topic, asyncio.get_running_loop())
     logger.info(
         "ai1.kafka.worker.started bootstrap=%s commands=%s results=%s group=%s",
         bootstrap,
@@ -278,13 +394,7 @@ async def run_worker() -> None:
                 logger.warning("ai1.kafka.invalid_message raw=%r", message)
                 await consumer.commit()
                 continue
-            document_id = None
-            correlation = message.get("correlation")
-            if isinstance(correlation, dict):
-                document_id = correlation.get("document_id")
-            if not document_id and isinstance(message.get("payload"), dict):
-                document_id = message["payload"].get("document_id")
-            key = str(document_id or "").encode("utf-8") or None
+            key = _message_key(message)
             try:
                 envelope = await asyncio.to_thread(_handle_command, message)
                 await producer.send_and_wait(
@@ -335,6 +445,7 @@ async def run_worker() -> None:
                 except Exception:
                     logger.exception("ai1.kafka.failed_publish_also_failed")
     finally:
+        _progress_sink = None
         await consumer.stop()
         await producer.stop()
         flush_langfuse()

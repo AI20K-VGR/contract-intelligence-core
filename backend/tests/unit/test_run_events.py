@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest_asyncio
@@ -34,6 +35,10 @@ from contract_intelligence.extraction.interfaces.api.routers.events_router impor
     _stream_run_events,
 )
 from contract_intelligence.review.infrastructure.persistence.orm import ReviewItemORM
+from contract_intelligence.shared.ai.persistence import (
+    update_pipeline_step,
+    update_pipeline_step_progress,
+)
 from contract_intelligence.shared.audit import AuditEventORM
 from contract_intelligence.shared.persistence import Base
 from contract_intelligence.shared.persistence.orm_registry import import_all_models
@@ -478,3 +483,104 @@ async def test_record_run_event_serialises_payload(
     last = (await _events(factory))[-1]
     assert last.type == "pages.progress"
     assert json.loads(last.payload) == {"pages_done": 3, "total_pages": 10}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# In-step progress (DOC-05b: step.changed.progress, GET /runs/{id}/steps)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+async def _step_events(factory: async_sessionmaker[AsyncSession]) -> list[dict[str, Any]]:
+    return [json.loads(e.payload) for e in await _events(factory) if e.type == "step.changed"]
+
+
+async def _progress(
+    factory: async_sessionmaker[AsyncSession], done: int, total: int, at: datetime
+) -> bool:
+    async with factory() as session:
+        written = await update_pipeline_step_progress(
+            session,
+            tenant_id=TENANT,
+            run_id=RUN,
+            step="S2",
+            done=done,
+            total=total,
+            unit="page",
+            now=at,
+        )
+        await session.commit()
+    return written
+
+
+async def test_step_progress_is_throttled_and_sent_in_step_changed(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with factory() as session:
+        session.add(PipelineStepORM(tenant_id=TENANT, run_id=RUN, step="S2", status="running"))
+        await session.commit()
+    t0 = datetime(2026, 10, 16, 8, 0, tzinfo=UTC)
+
+    assert await _progress(factory, 10, 202, t0)
+    assert not await _progress(factory, 50, 202, t0 + timedelta(milliseconds=300))
+    assert await _progress(factory, 50, 202, t0 + timedelta(seconds=2))
+    assert not await _progress(factory, 40, 202, t0 + timedelta(seconds=30))  # backwards
+    assert await _progress(factory, 300, 202, t0 + timedelta(seconds=31))  # clamped to total
+
+    steps = await _step_events(factory)
+    assert [s["status"] for s in steps] == ["running"] * 4
+    assert steps[0]["progress"] is None
+    assert [s["progress"] for s in steps[1:]] == [
+        {"done": 10, "total": 202, "unit": "page"},
+        {"done": 50, "total": 202, "unit": "page"},
+        {"done": 202, "total": 202, "unit": "page"},
+    ]
+
+
+async def test_progress_is_not_written_on_a_step_that_is_not_running(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with factory() as session:
+        session.add(PipelineStepORM(tenant_id=TENANT, run_id=RUN, step="S2", status="succeeded"))
+        await session.commit()
+    assert not await _progress(factory, 10, 202, datetime(2026, 10, 16, tzinfo=UTC))
+    assert not await _progress(factory, 1, 0, datetime(2026, 10, 16, tzinfo=UTC))  # invalid
+
+
+async def test_succeeded_step_shows_done_equal_total_and_retry_clears_it(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with factory() as session:
+        session.add(PipelineStepORM(tenant_id=TENANT, run_id=RUN, step="S2", status="running"))
+        await session.commit()
+    await _progress(factory, 37, 202, datetime(2026, 10, 16, tzinfo=UTC))
+    async with factory() as session:
+        await update_pipeline_step(
+            session, tenant_id=TENANT, run_id=RUN, step="S2", status="succeeded"
+        )
+        await session.commit()
+    assert (await _step_events(factory))[-1]["progress"] == {
+        "done": 202,
+        "total": 202,
+        "unit": "page",
+    }
+    async with factory() as session:
+        await update_pipeline_step(
+            session, tenant_id=TENANT, run_id=RUN, step="S2", status="queued"
+        )
+        await session.commit()
+    assert (await _step_events(factory))[-1]["progress"] is None
+
+
+async def test_steps_api_rows_carry_progress_or_null(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with factory() as session:
+        session.add(PipelineStepORM(tenant_id=TENANT, run_id=RUN, step="S2", status="running"))
+        session.add(PipelineStepORM(tenant_id=TENANT, run_id=RUN, step="S4", status="queued"))
+        await session.commit()
+    await _progress(factory, 37, 202, datetime(2026, 10, 16, tzinfo=UTC))
+    async with factory() as session:
+        steps = await PipelineRunRepositoryImpl(session, TENANT).list_steps(RUN)
+    by_step = {s["step"]: s for s in steps}
+    assert by_step["S2"]["progress"] == {"done": 37, "total": 202, "unit": "page"}
+    assert "progress" in by_step["S4"] and by_step["S4"]["progress"] is None
