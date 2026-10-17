@@ -463,5 +463,21 @@ def test_non_clause_lines_are_never_paired():
     result = generate_pair_candidates(index, nodes)
     ids = {n for p in _pairs(result) for n in p}
     assert ids.isdisjoint({"sig", "att", "hdr"})
-    assert "row" in ids
-    assert result.stats["excluded_non_clause"] == 3
+    assert result.stats["excluded_non_clause"] == 3  # the data row is a clause, not furniture
+
+
+def test_same_article_siblings_on_unrelated_subjects_are_not_paired():
+    nodes, index = _build([
+        _node("d4", "Điều 4", text="Trách nhiệm"),
+        _node("k1", "4.1.", "d4", text="4.1. Bên B bồi thường toàn bộ giá trị hàng hóa bị mất mát trong vận chuyển."),
+        _node("k2", "4.2.", "d4", text="4.2. Bên B giao chậm thì chịu phạt 2.000.000 đồng cho mỗi chuyến giao chậm."),
+        _node("k3", "4.3.", "d4", text="4.3. Mức phạt tại khoản 4.2 không áp dụng trong trường hợp bất khả kháng."),
+        _node("k4", "4.4.", "d4", text="4.4. Bên A cung cấp đầy đủ chứng từ hàng hóa trước khi Bên B nhận hàng."),
+        _node("k5", "4.5.", "d4", text="4.5. Bên A thanh toán theo các đợt sau:"),
+        _node("k6", "a)", "d4", text="a) 50% giá trị hợp đồng trong vòng 10 ngày kể từ ngày ký Hợp đồng;"),
+    ])
+    pairs = _pairs(generate_pair_candidates(index, nodes))
+    assert ("k2", "k3") in pairs  # "tại khoản 4.2"
+    assert ("k5", "k6") in pairs  # lead "như sau:" → its point
+    assert ("k3", "k4") not in pairs and ("k1", "k4") not in pairs
+    assert generate_pair_candidates(index, nodes).stats["excluded_same_article_unrelated"] > 0

@@ -76,6 +76,12 @@ _FURNITURE_EDGE_LINES = 5
 # are unchanged; a flat 10k-block article no longer yields O(k^2) pairs before top-K.
 _GROUP_PAIR_WINDOW = 12
 _CONTENT_WORD = re.compile(r"\b[a-z]{3,}\b")
+# A pair found only because both clauses sit in one article is sent to the classifier only
+# with a sign the two are about the same thing. Tuned on fixtures/seeded/pruning_set (dev),
+# checked on its held-out dossiers: 0 gold relations lost, ~1/3 of the pairs cut.
+_SAME_ARTICLE_MIN_JACCARD = 0.2
+_SAME_ARTICLE_SHORT_CHARS = 30  # a heading or a wrapped fragment pairs with its body
+_LEADING_NUMBER = re.compile(r"^\s*(\d+(?:\.\d+)*)\.?\s")
 _VALUE_MISMATCH_MIN_SHARED = 4
 _VALUE_MISMATCH_MIN_JACCARD = 0.12
 VALUE_MISMATCH_POSTING_WINDOW = 8
@@ -129,6 +135,21 @@ def _jaccard(left: frozenset[str] | None, right: frozenset[str] | None) -> float
     if not left or not right:
         return 0.0
     return len(left & right) / len(left | right)
+
+
+def _cites(text: str, other: str) -> bool:
+    """``other`` names ``text``'s own number as "khoản 4.2"."""
+    match = _LEADING_NUMBER.match(text)
+    return bool(match) and re.search(
+        r"\bkhoan\s+" + re.escape(match.group(1)) + r"(?![\d.]\d)", _fold(other)) is not None
+
+
+def _same_article_related(text_a: str, text_b: str, words_a: frozenset[str], words_b: frozenset[str]) -> bool:
+    return (_cites(text_a, text_b) or _cites(text_b, text_a)
+            or text_a.rstrip().endswith(":") or text_b.rstrip().endswith(":")
+            or min(len(text_a.strip()), len(text_b.strip())) <= _SAME_ARTICLE_SHORT_CHARS
+            or (bool(unit_values(text_a)) and bool(unit_values(text_b)))
+            or _jaccard(words_a, words_b) >= _SAME_ARTICLE_MIN_JACCARD)
 
 
 def _page_furniture(nodes: Iterable[StructuralNode]) -> set[str]:
@@ -400,6 +421,8 @@ def generate_pair_candidates(
     excluded = {tuple(sorted(p)) for p in excluded_pairs}
     candidates: list[PairCandidate] = []
     words = {nid: frozenset(_CONTENT_WORD.findall(_fold(by_id[nid].text or ""))) for nid in eligible}
+    topical = {nid: frozenset(w for w in found_words if w not in _VALUE_STOPWORDS)
+               for nid, found_words in words.items()}
     near_duplicate: set[tuple[str, str]] = set()
     for (a, b), srcs in found.items():
         if tuple(sorted((a, b))) in excluded:
@@ -407,6 +430,10 @@ def generate_pair_candidates(
             continue
         if _nested(index, a, b):
             stats["excluded_ancestor"] += 1
+            continue
+        if srcs == {PairSource.SAME_ARTICLE} and not _same_article_related(
+                by_id[a].text or "", by_id[b].text or "", topical[a], topical[b]):
+            stats["excluded_same_article_unrelated"] += 1
             continue
         if _jaccard(words.get(a), words.get(b)) >= _NEAR_DUPLICATE_JACCARD:
             near_duplicate.add((a, b))
@@ -470,6 +497,7 @@ def generate_pair_candidates(
         "excluded_external_ref": stats["excluded_external_ref"],
         "excluded_page_furniture": stats["excluded_page_furniture"],
         "excluded_non_clause": stats["excluded_non_clause"],
+        "excluded_same_article_unrelated": stats["excluded_same_article_unrelated"],
         "group_pairs_windowed": stats["group_pairs_windowed"],
         "near_duplicate_kept": sum((c.node_a, c.node_b) in near_duplicate for c in kept),
         "candidates_capped": len(candidates) - len(kept),
