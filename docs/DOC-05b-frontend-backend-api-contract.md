@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu | **DOC-05b** / Contract Intelligence (PROD-01) |
-| Phiên bản / SemVer | **`v3.2.0`** — tiến độ trong bước: `progress` trên `GET /runs/{id}/steps` và SSE `step.changed`; mã lỗi `AI1_NO_READABLE_PAGE`. **`v3.1.0`** — bật consent AI2 tự reindex hồ sơ, response thêm `ai2_reindex_queued`. **`v3.0.0`** — siết quyền trước pentest (#96): token không có role ứng dụng trả `403` thay vì thành `OPERATOR`; `/ai/jobs/{id}` chỉ `ADMINISTRATOR`; batch cancel/resume chỉ người tạo hoặc `ADMINISTRATOR`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
+| Phiên bản / SemVer | **`v3.3.0`** — `GET /dossiers` thêm `document_counts`, `contract_ocr` cho mỗi hồ sơ (bỏ 3 lần gọi mỗi dòng); header `Server-Timing`. **`v3.2.0`** — tiến độ trong bước: `progress` trên `GET /runs/{id}/steps` và SSE `step.changed`; mã lỗi `AI1_NO_READABLE_PAGE`. **`v3.1.0`** — bật consent AI2 tự reindex hồ sơ, response thêm `ai2_reindex_queued`. **`v3.0.0`** — siết quyền trước pentest (#96): token không có role ứng dụng trả `403` thay vì thành `OPERATOR`; `/ai/jobs/{id}` chỉ `ADMINISTRATOR`; batch cancel/resume chỉ người tạo hoặc `ADMINISTRATOR`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
 | Trạng thái | Đã chốt — Sẵn sàng triển khai Frontend & Backend |
 | Owner | Tech Lead / Frontend Lead / Backend Lead |
 | Ngày hiệu lực | 17/09/2026 |
@@ -58,7 +58,7 @@
 | `Accept` | Có | `application/json` hoặc `application/pdf` (khi tải file gốc) |
 | `X-Request-Id` | Tùy chọn | Client sinh UUIDv4 để truy vết log từ Frontend sang Backend |
 
-Header backend trả về để đo hiệu năng. Bật mặc định khi chạy local; production tắt mặc định, chỉ bật bằng `SERVER_TIMING_ENABLED=true` trong `deploy/.env.prod` trong lúc cần đo, vì header lộ thời gian xử lý cho mọi người gọi API:
+Header backend trả về để đo hiệu năng (**v3.3.0**). Bật mặc định khi chạy local; production tắt mặc định, chỉ bật bằng `SERVER_TIMING_ENABLED=true` trong `deploy/.env.prod` trong lúc cần đo, vì header lộ thời gian xử lý cho mọi người gọi API:
 
 | Header | Mô tả |
 |---|---|
@@ -270,7 +270,7 @@ Màn hình khởi tạo hồ sơ, tải lên các file PDF (hợp đồng gốc 
 | Phương thức | Endpoint | Phân quyền `x-rbac` | Chức năng |
 |:---:|---|:---:|---|
 | `POST` | `/dossiers` | `OPERATOR`, `ADMINISTRATOR` | Tạo mới hồ sơ hợp đồng (Dossier) |
-| `GET` | `/dossiers` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Danh sách hồ sơ có lọc theo `status`, `has_conflicts` |
+| `GET` | `/dossiers` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Danh sách hồ sơ có lọc theo `status`, `has_conflicts`. **v3.3.0:** mỗi hồ sơ có thêm `document_counts`, `contract_ocr` (xem dưới bảng) |
 | `GET` | `/dossiers/{id}` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Xem chi tiết hồ sơ |
 | `PATCH` | `/dossiers/{id}` | `OPERATOR`, `ADMINISTRATOR` | Đổi tên hoặc cập nhật metadata của hồ sơ |
 | `POST` | `/dossiers/{id}/documents` | `OPERATOR`, `ADMINISTRATOR` | Upload file PDF vào hồ sơ (`multipart/form-data`) |
@@ -278,6 +278,29 @@ Màn hình khởi tạo hồ sơ, tải lên các file PDF (hợp đồng gốc 
 | `GET` | `/dossiers/{id}/manifest` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Xem Manifest dự thảo phân loại tài liệu sau bước tiền xử lý |
 | `POST` | `/dossiers/{id}/manifest/confirm` | `OPERATOR`, `ADMINISTRATOR` | Xác nhận phân loại tài liệu để kích hoạt bước phân tích sâu |
 | `POST` | `/dossiers/{id}/split` | `OPERATOR`, `ADMINISTRATOR` | **v1.1.0.** Tách một PDF trộn (hợp đồng + phụ lục) thành từng tài liệu theo khoảng trang người dùng xác nhận |
+
+- **Số tài liệu và trạng thái OCR trong danh sách (v3.3.0):** mỗi phần tử của `GET /dossiers` có thêm hai trường, để màn danh sách không phải gọi `GET /dossiers/{id}/documents` và `GET /documents/{id}/pages` cho từng dòng:
+  ```json
+  {
+    "document_counts": { "contracts": 1, "annexes": 2 },
+    "contract_ocr": {
+      "document_id": "doc_…",
+      "filename": "hop-dong.pdf",
+      "page_count": 4,
+      "failed_pages": 1,
+      "first_error": "SKIPPED: OpenAI vision unavailable"
+    }
+  }
+  ```
+  - `document_counts`: số tài liệu vai trò `CONTRACT` và `ANNEX` của hồ sơ (`0` khi chưa có tài liệu).
+  - `contract_ocr`: tình trạng OCR của **hợp đồng đầu tiên** (theo `order_index`, rồi thời điểm tạo); hồ sơ không có hợp đồng thì lấy tài liệu đầu tiên. Đây là tài liệu màn danh sách vẫn kiểm.
+    - `page_count`: số trang **đã có kết quả OCR** (số bản ghi trang AI1 đã trả), không phải số trang của file PDF. OCR chưa chạy xong thì nhỏ hơn số trang thật, có thể là `0`.
+    - `failed_pages`: số trang trong đó có `ai1_page_status` là `FAILED` hoặc có lỗi.
+    - `first_error`: lỗi của trang lỗi đầu tiên theo số trang, tối đa 500 ký tự; `null` khi không trang nào có lỗi.
+  - **Khi nào là `null`:**
+    - Cả hai trường là `null` khi người gọi không có quyền xem tài liệu của hồ sơ (cùng quyền `CITATION_READ` với `GET /dossiers/{id}/documents`, cùng lý do `403`). Với quyền hiện nay, hồ sơ nào hiện trong danh sách thì người gọi cũng xem được tài liệu, nhưng frontend vẫn phải xử lý `null`: khi đó dùng cách cũ, hoặc không hiện số tài liệu.
+    - `contract_ocr` là `null` (còn `document_counts` là `{0, 0}`) khi hồ sơ chưa có tài liệu nào.
+    - Backend cũ (trước v3.3.0) không gửi hai trường này: frontend coi thiếu trường như `null` và gọi theo cách cũ.
 
 - **Request Upload Document (`multipart/form-data`):**
   - `file`: Binary file PDF
@@ -720,6 +743,15 @@ export interface DossierDTO {
   total_documents?: number;
   created_at: string;
   updated_at: string;
+  // v3.3.0, chỉ có trong GET /dossiers; null khi không có quyền xem tài liệu
+  document_counts?: { contracts: number; annexes: number } | null;
+  contract_ocr?: {
+    document_id: string;
+    filename: string;
+    page_count: number; // số trang đã có kết quả OCR
+    failed_pages: number;
+    first_error: string | null;
+  } | null;
 }
 
 // Document
@@ -943,6 +975,7 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
+| `v3.3.0` | 17/10/2026 | `GET /dossiers`: mỗi hồ sơ thêm `document_counts` (`{contracts, annexes}`) và `contract_ocr` (`{document_id, filename, page_count, failed_pages, first_error}`), `null` khi người gọi không có quyền xem tài liệu (mục "Số tài liệu và trạng thái OCR trong danh sách" ở Màn hình 3). Màn danh sách bỏ được 3 lần gọi cho mỗi dòng. Header `Server-Timing` và `Timing-Allow-Origin` (§1.2), production tắt mặc định. Chỉ thêm trường và header, nên là MINOR |
 | `v3.2.0` | 16/10/2026 | Tiến độ trong bước: `progress` (`{done, total, unit}` hoặc `null`) trên mỗi phần tử `GET /runs/{id}/steps` và payload SSE `step.changed`, phát lại có giới hạn tần suất khi bước đang chạy (mục "Tiến độ trong bước" ở Màn hình 4). Mã lỗi job mới `AI1_NO_READABLE_PAGE`: AI1 không đọc được trang nào thì OCR thất bại thay vì `succeeded`. Chỉ thêm trường và mã lỗi, nên là MINOR |
 | `v3.1.0` | 15/10/2026 | `PATCH /dossiers/{id}/ai2-content-sharing-consent`: bật consent khi lượt chạy cuối đã qua AI2 thì backend tự reindex AI2 (như `POST /dossiers/{id}/ai2/reindex`); response thêm `ai2_reindex_queued` (boolean). Trước đây bật consent chỉ lưu giá trị và kết quả cũ (`RULE_ONLY_NO_CONSENT`) vẫn hiển thị. Thêm trường và hành vi, không bỏ gì, nên là MINOR |
 | `v3.0.0` | 15/10/2026 | Siết quyền trước đợt pentest bản online (#96). **Breaking** theo §8 vì thu hẹp quyền đã công bố: (1) token không có role ứng dụng nào trả `403 FORBIDDEN` thay vì được coi là `OPERATOR` (§2.1); (2) `GET`/`DELETE /ai/jobs/{id}` chỉ `ADMINISTRATOR`, trước đây `OPERATOR`/`REVIEWER` cũng gọi được; (3) `POST /batches/{id}/cancel` và `/resume`: OPERATOR chỉ với batch do mình tạo, batch của người khác trả `404`. Không đổi payload hay mã lỗi: `401` chỉ còn `message` `Token has expired`/`Invalid token`; `502 AI2_QUERY_FAILED` của `/query`, `/ask` không còn kèm URL và nội dung lỗi của AI2. Staging/prod không phục vụ `/docs`, `/redoc`, `/openapi.json` và không gửi `X-Backend-Version`; `/health` chỉ trả `{"status":"ok"}` ở **mọi** môi trường (dev/test cũng không còn phiên bản). Frontend không dùng các endpoint và header này nên không phải sửa |
@@ -971,4 +1004,4 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 
 ---
 
-**Hết DOC-05b · Frontend-Backend API Contract v3.1.0 (SemVer)**
+**Hết DOC-05b · Frontend-Backend API Contract v3.3.0 (SemVer)**
