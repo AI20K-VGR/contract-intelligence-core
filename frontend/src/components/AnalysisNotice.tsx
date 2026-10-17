@@ -38,13 +38,13 @@ export function AnalysisNotice({
   /** Có quyền chạy lại: banner lỗi hiện nút "Phân tích lại". */
   onRetry?: () => void
   retrying?: boolean
-  /** Quá 10 phút mà AI2 chưa xong (useAnalysisWatch đã ngừng theo dõi). */
+  /** Quá 10 phút mà AI2 chưa xong (useAnalysisWatch chỉ còn hỏi thưa). */
   stalled?: boolean
-  /** Nút "Kiểm tra lại" khi `stalled`: theo dõi lại thêm 10 phút. */
+  /** Nút "Kiểm tra lại" khi `stalled`: hỏi lại ngay và theo dõi thêm 10 phút. */
   onRecheck?: () => void
   /**
-   * AI2 lỗi nhưng hồ sơ còn kết quả của lần phân tích trước: các phần dùng AI2
-   * vẫn mở, banner chỉ báo lần mới bị lỗi.
+   * AI2 lỗi nhưng hồ sơ còn kết quả của lần phân tích trước: đồ thị và hỏi đáp
+   * vẫn mở theo kết quả đó; xung đột thì không (backend chỉ trả của run hiện tại).
    */
   showingPrevious?: boolean
   className?: string
@@ -84,8 +84,9 @@ export function AnalysisNotice({
       >
         <MaterialIcon name="schedule" className="text-[18px]" />
         <span className="min-w-0 flex-1">
-          Phân tích lâu hơn bình thường (quá 10 phút). {waitingFor} chưa mở. Bấm
-          Kiểm tra lại, hoặc báo quản trị viên nếu vẫn chưa xong.
+          Phân tích lâu hơn bình thường (quá 10 phút). {waitingFor} sẽ tự mở khi
+          phân tích xong. Bấm Kiểm tra lại để xem ngay, hoặc báo quản trị viên
+          nếu vẫn chưa xong.
         </span>
         {onRecheck ? (
           <button
@@ -121,7 +122,7 @@ export function AnalysisNotice({
               nudge ? nudge.label : waitingFor
             } sẽ mở khi phân tích xong.`
           : showingPrevious
-            ? `Lần phân tích mới bị lỗi. ${failure?.message ?? ''} Đang hiện kết quả của lần phân tích trước.`
+            ? `Lần phân tích mới bị lỗi. ${failure?.message ?? ''} Đồ thị và hỏi đáp đang dùng kết quả của lần phân tích trước; xung đột cần phân tích lại mới xem được.`
             : `${failure?.message ?? ''} ${nudge ? nudge.label : waitingFor} chưa có.`}
       </span>
       {running && percent !== null ? (

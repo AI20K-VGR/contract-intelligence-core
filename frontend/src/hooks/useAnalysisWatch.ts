@@ -11,13 +11,16 @@ import { getDossierStructure, type DossierStructure } from '../api/structure'
 
 /**
  * Hồ sơ phân tích xong dưới 10 phút. Quá mốc này mà job vẫn ở 'extracted' thì
- * coi như kẹt (ví dụ worker dừng giữa chừng): ngừng theo dõi và báo người dùng.
- * Backend tự đánh 'failed' khi AI2 quá hạn, nên đây chỉ là lưới an toàn.
+ * báo người dùng (có thể kẹt, ví dụ worker dừng giữa chừng), đóng SSE và chỉ
+ * hỏi lại thưa, để AI2 xong muộn thì trang vẫn tự mở. Backend tự đánh 'failed'
+ * khi AI2 quá hạn, nên đây chỉ là lưới an toàn.
  */
 export const ANALYSIS_STALL_MS = 10 * 60 * 1000
 
 // SSE bị từ chối, hoặc stream đã đóng mà job chưa rời 'extracted': hỏi thưa.
 const FALLBACK_POLL_MS = 15000
+// Đã quá 10 phút: hỏi thưa hơn nữa, tới khi job rời 'extracted'.
+const STALLED_POLL_MS = 60000
 
 /**
  * Hồ sơ đang phân tích (job 'extracted'): nghe SSE `step.changed` của run để
@@ -45,17 +48,21 @@ export function useAnalysisWatch(
       return
     }
     setStalled(false)
+    // controller: cả lần theo dõi (rời trang thì huỷ). stream: riêng SSE, đóng
+    // khi quá 10 phút; việc hỏi thưa vẫn chạy tiếp.
     const controller = new AbortController()
+    const stream = new AbortController()
     let finished = false
     let pollTimer: number | undefined
+    let pollMs = FALLBACK_POLL_MS
     const steps: Record<string, RunStep> = {}
 
     const stallTimer = window.setTimeout(() => {
       if (finished) return
-      finished = true
-      window.clearTimeout(pollTimer)
-      controller.abort()
+      pollMs = STALLED_POLL_MS
+      stream.abort()
       setStalled(true)
+      schedulePoll()
     }, ANALYSIS_STALL_MS)
 
     function finish(next: DossierStructure) {
@@ -63,11 +70,12 @@ export function useAnalysisWatch(
       finished = true
       window.clearTimeout(stallTimer)
       window.clearTimeout(pollTimer)
+      stream.abort()
       controller.abort()
       latest.current(next)
     }
 
-    /** true khi đã ngừng theo dõi (job rời 'extracted', quá hạn, hoặc rời trang). */
+    /** true khi đã ngừng theo dõi (job rời 'extracted', hoặc rời trang). */
     async function checkDone() {
       if (finished) return true
       try {
@@ -86,7 +94,7 @@ export function useAnalysisWatch(
         void checkDone().then((done) => {
           if (!done) schedulePoll()
         })
-      }, FALLBACK_POLL_MS)
+      }, pollMs)
     }
 
     async function start() {
@@ -134,15 +142,17 @@ export function useAnalysisWatch(
           },
           onRejected: () => schedulePoll(),
         },
-        controller.signal,
+        stream.signal,
       )
-      // Stream đóng mà job chưa rời 'extracted': hỏi thưa tới khi rời.
+      // Stream đóng (run xong, bị từ chối, hoặc quá 10 phút) mà job chưa rời
+      // 'extracted': hỏi thưa tới khi rời.
       if (!(await checkDone())) schedulePoll()
     }
 
     void start()
     return () => {
       finished = true
+      stream.abort()
       controller.abort()
       window.clearTimeout(stallTimer)
       window.clearTimeout(pollTimer)
@@ -151,9 +161,9 @@ export function useAnalysisWatch(
 
   return {
     percent,
-    /** Quá 10 phút mà AI2 chưa xong: đã ngừng theo dõi. */
+    /** Quá 10 phút mà AI2 chưa xong: SSE đã đóng, vẫn hỏi lại 60 giây một lần. */
     stalled,
-    /** Theo dõi lại từ đầu (nút "Kiểm tra lại"), thêm 10 phút nữa. */
+    /** Hỏi lại ngay và nối lại SSE (nút "Kiểm tra lại"), thêm 10 phút nữa. */
     recheck: () => setWatchKey((key) => key + 1),
   }
 }

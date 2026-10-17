@@ -14,6 +14,7 @@ describe('AnalysisNotice', () => {
       />,
     )
     expect(html).toContain('quá 10 phút')
+    expect(html).toContain('sẽ tự mở khi')
     expect(html).toContain('Kiểm tra lại')
     expect(html).not.toContain('Phân tích lại')
   })
@@ -29,7 +30,10 @@ describe('AnalysisNotice', () => {
       />,
     )
     expect(html).toContain('Lần phân tích mới bị lỗi')
-    expect(html).toContain('Đang hiện kết quả của lần phân tích trước')
+    expect(html).toContain(
+      'Đồ thị và hỏi đáp đang dùng kết quả của lần phân tích trước',
+    )
+    expect(html).toContain('xung đột cần phân tích lại')
     expect(html).toContain('Phân tích lại')
     expect(html).not.toContain('chưa có')
   })

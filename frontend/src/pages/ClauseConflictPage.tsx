@@ -458,8 +458,8 @@ export function ClauseConflictPage() {
   const analysis = detail
     ? analysisState(detail.latestJobStatus, detail.latestJobErrorCode)
     : null
-  // AI2 chạy lại mà lỗi: vẫn hiện xung đột của lần phân tích trước (nếu có).
-  const previousAi2 = Boolean(detail?.ai2JobId)
+  // Không có "kết quả lần trước" ở đây: backend chỉ trả xung đột của run hiện
+  // tại, nên AI2 của run đó lỗi thì trang báo lỗi, không báo "không có mục".
   const [justFinished, setJustFinished] = useState(false)
   const {
     percent: analysisPercent,
@@ -825,7 +825,6 @@ export function ClauseConflictPage() {
                 errorCode={detail?.latestJobErrorCode}
                 justFinished={justFinished}
                 percent={analysisPercent}
-                showingPrevious={previousAi2}
                 stalled={analysisStalled}
                 state={analysis}
                 waitingFor="Các chỗ cần đối soát"
@@ -837,7 +836,7 @@ export function ClauseConflictPage() {
             dossierId &&
             cards.length === 0 &&
             analysis !== 'running' &&
-            (analysis !== 'failed' || previousAi2) ? (
+            analysis !== 'failed' ? (
               <section className="flex flex-col items-start gap-space-sm rounded bg-surface-container-low p-space-md">
                 <h2 className="font-title-sm text-title-sm text-on-surface">
                   Không có mục đối soát

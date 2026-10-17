@@ -636,11 +636,15 @@ export function DossierStructurePage() {
     : null
   // Hỏi đáp, lịch sử hỏi đáp, xung đột và đồ thị dùng kết quả AI2: khoá tới khi
   // AI2 xong. Bấm vào thì banner nháy lên, nói rõ phần đó đang chờ.
-  // Chạy lại ("Chạy lại toàn bộ", bật consent) mà lỗi thì vẫn mở kết quả của
-  // lần trước: backend chỉ ghi ai2_job_id khi AI2 xong và không xoá khi lỗi.
+  // "Chạy lại toàn bộ" tạo run mới; AI2 lỗi ở run đó thì đồ thị và hỏi đáp vẫn
+  // dùng được kết quả lần trước (backend giữ ai2_job_id và snapshot của lần
+  // thành công). Xung đột thì không: backend chỉ trả xung đột của run hiện tại,
+  // nên trang đối soát sẽ rỗng và dễ hiểu nhầm là không có mâu thuẫn.
+  // (Bật consent chạy lại AI2 mà lỗi không đổi job sang 'failed', #105.)
   const previousAi2 = Boolean(detail?.ai2JobId)
   const ai2Locked =
     analysis === 'running' || (analysis === 'failed' && !previousAi2)
+  const conflictsLocked = analysis === 'running' || analysis === 'failed'
   const [analysisNudge, setAnalysisNudge] = useState<{
     label: string
     at: number
@@ -1241,11 +1245,15 @@ export function DossierStructurePage() {
                       {qaMode ? 'Cấu trúc cây' : 'Lịch sử hỏi đáp'}
                     </span>
                   </button>
-                  {ai2Locked ? (
+                  {conflictsLocked ? (
                     <button
                       aria-disabled
                       className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-outline-variant/30 bg-surface-container-lowest text-on-surface opacity-50 shadow-[0_1px_2px_rgba(15,23,42,0.06)]"
-                      title="Xem xung đột · đang phân tích"
+                      title={
+                        analysis === 'failed'
+                          ? 'Xem xung đột · cần phân tích lại'
+                          : 'Xem xung đột · đang phân tích'
+                      }
                       type="button"
                       onClick={() => remindAnalysis('Xung đột')}
                     >

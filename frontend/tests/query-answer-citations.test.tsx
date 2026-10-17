@@ -119,6 +119,36 @@ describe('citesByBlock', () => {
     ])
   })
 
+  it('keeps a number for each point a), b), c) of the same clause', () => {
+    // Các điểm a), b), c) là ba nút riêng trên cây: mỗi điểm một số.
+    const answer = [
+      'Điều 7. Nghĩa vụ của Bên B',
+      '7.1. Bên B có nghĩa vụ: a) giao hàng đúng hạn; b) bảo hành 12 tháng; c) bảo mật thông tin.',
+    ].join('\n')
+    const doc = { pageNo: 4, documentId: 'doc_contract' }
+    const lead = { ...doc, quote: '7.1. Bên B có nghĩa vụ:' }
+    const a = { ...doc, quote: 'a) giao hàng đúng hạn' }
+    const b = { ...doc, quote: 'b) bảo hành 12 tháng' }
+    const c = { ...doc, quote: 'c) bảo mật thông tin' }
+    const blocks = answerBlocks(answer)
+    const { placed } = citesByBlock(blocks, [lead, a, b, c])
+    expect(placed.get(1)?.map((entry) => entry.n)).toEqual([1, 2, 3, 4])
+  })
+
+  it('merges a wrapped line that starts with a number into its clause', () => {
+    // "30 ngày …" là dòng 2 của khoản 5.2, không phải khoản mới: cùng một số.
+    const answer = [
+      'Điều 5. Thanh toán',
+      '5.2. Bên B thanh toán đủ trong vòng 30 ngày kể từ ngày nhận hoá đơn.',
+    ].join('\n')
+    const doc = { pageNo: 2, documentId: 'doc_contract' }
+    const first = { ...doc, quote: '5.2. Bên B thanh toán đủ trong vòng' }
+    const wrapped = { ...doc, quote: '30 ngày kể từ ngày nhận hoá đơn' }
+    const blocks = answerBlocks(answer)
+    const { placed } = citesByBlock(blocks, [first, wrapped])
+    expect(placed.get(1)).toEqual([{ citation: first, n: 1 }])
+  })
+
   it('keeps old citations without a document apart unless the quote repeats', () => {
     const blocks = answerBlocks(ANSWER)
     const other = {

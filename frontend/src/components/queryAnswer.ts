@@ -11,8 +11,16 @@ export type AnswerBlock = {
 
 export type NumberedCitation = { citation: QueryHistoryCitation; n: number }
 
-/** Số khoản đầu câu trích: "5.2. ", "3 ". Dòng nối của khoản không có. */
+/** Số khoản đầu câu trích, bỏ đi trước khi so với nội dung mục. */
 const CLAUSE_NUMBER = /^\d+(\.\d+)*\.?\s*/
+
+/**
+ * Câu trích mở đầu một khoản hay điểm mới, chứ không phải dòng nối: "5.1",
+ * "5.1.", "5.", "5)", "a)", "đ)", hoặc gạch đầu dòng. Dòng nối bắt đầu bằng con
+ * số ("30 ngày kể từ…") không khớp, vì sau số không có dấu chấm, ngoặc hay số
+ * khoản con. Câu trích đã qua `norm` nên chữ cái là chữ thường.
+ */
+const QUOTE_ITEM_START = /^(\d+(\.\d+)+\.?|\d+[.)]|[a-zđ]\)|[-–•*])\s/
 
 /**
  * Mức căn cứ của câu trả lời (`state` của AI2, BE-AI2-PROCESSING-CONTRACT):
@@ -68,8 +76,9 @@ export function answerBlocks(answer: string) {
  * AI2 trả một trích dẫn cho mỗi dòng chữ, theo thứ tự, nên một khoản dài hai
  * dòng có hai trích dẫn cùng mở một chỗ. Chỉ gộp dòng nối của khoản: trích dẫn
  * ngay sau một trích dẫn cùng mục, cùng tài liệu, cùng trang, và câu trích không
- * bắt đầu bằng số khoản. Khoản mới ("5.2. …") luôn có số riêng, kể cả khi cùng
- * trang với khoản trước; hợp đồng và phụ lục vẫn tách riêng. Ngoài ra chỉ bỏ
+ * mở đầu một khoản hay điểm (`QUOTE_ITEM_START`). Khoản hay điểm mới ("5.2. …",
+ * "b) …", "- …") luôn có số riêng, kể cả khi cùng trang với dòng trước; hợp đồng
+ * và phụ lục vẫn tách riêng. Ngoài ra chỉ bỏ
  * trích dẫn trùng hẳn (cùng mục hoặc cùng ngoài mục, tài liệu, trang, câu trích).
  * `n` đánh liên tục từ 1 theo thứ tự xuất hiện, sau khi đã gộp.
  */
@@ -100,7 +109,7 @@ export function citesByBlock(
       previous.at === at &&
       previous.source === source &&
       previous.page === page &&
-      !CLAUSE_NUMBER.test(quote)
+      !QUOTE_ITEM_START.test(quote)
     previous = { at, source, page }
     const identity = `${at}|${source}|${page}|${quote}`
     if (continuation || seen.has(identity)) continue
