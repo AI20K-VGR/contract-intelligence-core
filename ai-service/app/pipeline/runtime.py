@@ -121,8 +121,8 @@ def _log_provider_failure(client: Any, exc: BaseException, attempt: int, operati
     )
 
 
-# Span-picking calls need no long reasoning (#124). Off unless set; production turns it on
-# only with Lead approval (D6). Sent to GPT-5 models only.
+# Span-picking calls need no long reasoning (#124). Off unless set; production compose
+# defaults it to "low". Sent to GPT-5 models only.
 LIGHT_REASONING_ENV = "AI2_LLM_LIGHT_REASONING_EFFORT"
 LIGHT_REASONING_OPERATIONS = frozenset({"slot_context", "alias"})
 
