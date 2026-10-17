@@ -5,6 +5,7 @@ import copy
 import hashlib
 import json
 import logging
+import multiprocessing
 import os
 import threading
 import time
@@ -282,7 +283,10 @@ def _run_wire_job(job_id: str, payload: dict) -> None:
     try:
         with _JOB_SLOTS:
             try:
-                _execute_wire_job(job_id, payload)
+                if JOB_ISOLATION == "process":
+                    _run_isolated_job(job_id, payload)
+                else:
+                    _execute_wire_job(job_id, payload)
             finally:
                 # The job's records are garbage now; give their pages back
                 # before the next job, not at the end of the process.
@@ -290,6 +294,80 @@ def _run_wire_job(job_id: str, payload: dict) -> None:
     finally:
         with _HELD_LOCK:
             _HELD_JOB_IDS.discard(job_id)
+
+
+# "process" runs each job in a spawned child: an OOM-kill or a hung job then takes the
+# child, not the API answering GET /jobs and /query (#113). Job state lives in JOB_STORE,
+# which both processes share. "thread" (default) keeps the in-process worker for tests.
+JOB_ISOLATION = os.getenv("AI2_JOB_ISOLATION", "thread").strip().casefold()
+_JOB_KILL_GRACE_SECONDS = 60
+_CLAIM_REPORT = None  # child side of the pipe: (worker_token, tenant_id, dossier_id)
+
+
+def _job_process_entry(job_id: str, payload: dict, conn) -> None:
+    global _CLAIM_REPORT
+    _CLAIM_REPORT = conn
+    _execute_wire_job(job_id, payload)
+
+
+def _payload_budget_seconds(payload: dict) -> float:
+    try:
+        return float(payload["policy_flags"]["budget_limits"]["max_processing_seconds"])
+    except (KeyError, TypeError, ValueError):
+        return 900.0
+
+
+def _run_isolated_job(job_id: str, payload: dict, *, target=_job_process_entry) -> None:
+    ctx = multiprocessing.get_context("spawn")
+    receiver, sender = ctx.Pipe(duplex=False)
+    child = ctx.Process(target=target, args=(job_id, payload, sender), daemon=True)
+    child.start()
+    sender.close()
+    child.join(_payload_budget_seconds(payload) + _JOB_KILL_GRACE_SECONDS)
+    timed_out = child.is_alive()
+    if timed_out:
+        child.kill()
+        child.join(5)
+    claim = receiver.recv() if receiver.poll() else None
+    receiver.close()
+    if child.exitcode == 0:
+        WIRE_JOBS.pop(job_id, None)
+        _refresh_query_store(job_id)
+        return
+    code = "PROCESSING_TIMEOUT" if timed_out else "AI2_WORKER_CRASHED"
+    logger.warning("ai2.job_process_ended job_id=%s exitcode=%s code=%s", job_id, child.exitcode, code)
+    update = {
+        "status": "FAILED",
+        "review_state": "BLOCKED",
+        "result": None,
+        "errors": [{"code": code, "message": ISSUE_MESSAGES_VI[code], "retryable": True}],
+    }
+    wire = {**_known_wire(job_id), **update}
+    WIRE_JOBS.pop(job_id, None)
+    if claim is None:
+        JOB_STORE.fail_unclaimed(job_id, update)
+    else:
+        worker_token, tenant_id, dossier_id = claim
+        JOB_STORE.set_wire(job_id, tenant_id=tenant_id, dossier_id=dossier_id,
+                           worker_token=worker_token, status="FAILED", wire=wire)
+    try:
+        ProcessingTraceStore(JOB_STORE).finalize_stale_job(job_id)
+    except Exception as exc:
+        logger.warning("ai2.processing_trace_finalize_failed job_id=%s code=%s", job_id, type(exc).__name__)
+
+
+def _refresh_query_store(job_id: str) -> None:
+    """The child wrote the query snapshot; this process drops or reloads its cached copy."""
+    stored = JOB_STORE.get(job_id) or {}
+    tenant_id, dossier_id = stored.get("tenant_id"), stored.get("dossier_id")
+    if not tenant_id or not dossier_id:
+        return
+    if database_url():
+        STORE.discard(tenant_id, dossier_id)
+        return
+    persisted = load_query_snapshot(dossier_id, tenant_id=tenant_id)
+    if persisted is not None:
+        STORE.put(persisted[0])
 
 
 def _execute_wire_job(job_id: str, payload: dict) -> None:
@@ -318,6 +396,8 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
         )
         if worker_token is None:
             return
+        if _CLAIM_REPORT is not None:
+            _CLAIM_REPORT.send((worker_token, tenant_id, request.dossier_id))
         queued = _known_wire(job_id)
         if queued:
             wire = dict(queued)

@@ -47,6 +47,7 @@ ISSUE_MESSAGES_VI: dict[str, str] = {
     "EGRESS_DENIED": (
         "Chưa cho phép gửi dữ liệu ra mô hình bên ngoài; hồ sơ chỉ được trích xuất cục bộ, cần người xem lại."
     ),
+    "AI2_WORKER_CRASHED": "Tiến trình xử lý hồ sơ này bị dừng (thường do hết bộ nhớ); có thể gửi lại hồ sơ.",
     "AI2_WORKER_RESTARTED": "Tiến trình xử lý AI2 bị dừng giữa chừng (khởi động lại); có thể gửi lại hồ sơ.",
 }
 
