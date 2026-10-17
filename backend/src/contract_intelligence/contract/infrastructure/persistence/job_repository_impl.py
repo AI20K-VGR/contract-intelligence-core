@@ -40,5 +40,8 @@ class SqlJobRepository:
     async def delete(self, job_id: str) -> None:
         raise NotImplementedError
 
+    async def latest_for_dossier(self, dossier_id: str) -> Job | None:
+        raise NotImplementedError
+
 
 _: type[JobRepository] = SqlJobRepository

@@ -326,7 +326,7 @@ def _for_viewer(dto: _DossierDTO, user: AuthenticatedUser) -> _DossierDTO:
 
 async def _dossier_detail(svc: Any, dossier: Any, user: AuthenticatedUser) -> DossierDetailDTO:
     """Detail DTO with documents, latest job and open review / conflict counts."""
-    documents = await svc.list_documents(dossier.id)
+    documents = await svc.list_documents(dossier.id, dossier_loaded=True)
     open_review_items, pending_conflicts = await svc.review_counts(dossier.id)
     locked, approved_at = (await svc.lifecycle([dossier.id])).get(dossier.id, (False, None))
     latest = dossier.latest_job()
@@ -766,7 +766,7 @@ async def restart_dossier_ocr(
     của nó bị bỏ và các trang bị OCR (và trả tiền) lần nữa.
     """
     dossier = await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_EDIT)
-    documents = await svc.list_documents(dossier_id)
+    documents = await svc.list_documents(dossier_id, dossier_loaded=True)
     if not documents:
         raise HTTPException(status_code=404, detail="Dossier has no document to OCR")
     job = dossier.latest_job()
@@ -896,7 +896,9 @@ async def split_dossier_document(
     if source.dossier_id != dossier_id or not source.blob_uri:
         raise HTTPException(status_code=404, detail="Document not found in this dossier")
     problem = _check_split_parts(body.parts, int(source.page_count or 0))
-    others = [d for d in await svc.list_documents(dossier_id) if d.id != source.id]
+    others = [
+        d for d in await svc.list_documents(dossier_id, dossier_loaded=True) if d.id != source.id
+    ]
     if problem is not None:
         raise HTTPException(status_code=422, detail=problem)
     document_count = len(others) + len(body.parts)
@@ -1988,7 +1990,7 @@ async def list_dossier_documents(
     """Danh sách toàn bộ văn bản trong dossier (contract + annexes)."""
     # Verify dossier exists for proper 404 semantics
     await _require_readable(svc, dossier_id, _user, action=AclAction.CITATION_READ)
-    documents = await svc.list_documents(dossier_id)
+    documents = await svc.list_documents(dossier_id, dossier_loaded=True)
     return ApiResponse(data=[DocumentListItemDTO.from_domain(d) for d in documents])
 
 

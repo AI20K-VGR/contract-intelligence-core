@@ -228,6 +228,10 @@ class FakeJobRepository(JobRepository):
                 latest[dossier_id] = page.items[0]
         return latest
 
+    async def latest_for_dossier(self, dossier_id: str) -> Any | None:
+        page = await self.list(dossier_id=dossier_id, limit=1)
+        return page.items[0] if page.items else None
+
 
 class FakeManifestRepository:
     """In-memory Manifest repository — minimal impl."""

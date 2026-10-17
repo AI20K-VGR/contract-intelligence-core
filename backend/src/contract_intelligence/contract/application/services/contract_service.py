@@ -357,6 +357,13 @@ class ContractService:
         """Load latest Job onto dossier.jobs for navigation / DTO mapping."""
         if dossier.jobs:
             return
+        latest_for_dossier = getattr(self._job_repo, "latest_for_dossier", None)
+        if latest_for_dossier is not None:
+            job = await latest_for_dossier(dossier.id)
+            if job is not None:
+                dossier.jobs = [cast(Job, job)]
+            return
+        # Test doubles without the single-row read.
         page = await self._job_repo.list(dossier_id=dossier.id, limit=1, offset=0)
         if page.items:
             dossier.jobs = [cast(Job, page.items[0])]
@@ -371,8 +378,16 @@ class ContractService:
         """Return each dossier's lock and approval timestamp."""
         return await self._dossier_repo.lifecycle(dossier_ids)
 
-    async def list_documents(self, dossier_id: str) -> list[Document]:
-        await self.get_dossier(dossier_id)
+    async def list_documents(
+        self, dossier_id: str, *, dossier_loaded: bool = False
+    ) -> list[Document]:
+        """Documents of the dossier.
+
+        ``dossier_loaded=True`` skips loading the dossier again (404 check)
+        when the caller has just loaded it, e.g. for an ACL check.
+        """
+        if not dossier_loaded:
+            await self.get_dossier(dossier_id)
         return await self._document_repo.list_by_dossier(dossier_id)
 
     async def get_document(self, document_id: str) -> Document:

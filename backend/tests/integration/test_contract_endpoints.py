@@ -361,6 +361,49 @@ class TestDossierEndpoints:
         assert not _may_read_documents(other_tenant, user("owner", "OPERATOR"))
 
     @pytest.mark.asyncio
+    async def test_dossier_detail_reads_the_dossier_once(
+        self,
+        client: AsyncClient,
+        db_engine: Any,
+        make_keycloak_token: Any,
+    ) -> None:
+        """GET /dossiers/{id}: dossier, latest job, documents, review counts, lifecycle.
+
+        It used to load the dossier and its latest job twice (with a job count
+        each time) and check the deletion_ledger table on every read: 11
+        statements, each a round trip to the database.
+        """
+        from sqlalchemy import event
+
+        token = make_keycloak_token(role="OPERATOR")
+        r = await client.post(
+            "/api/v1/dossiers",
+            files=[("contract", ("m.pdf", make_pdf(marker="m"), "application/pdf"))],
+            data={"metadata": _json.dumps({"name": "Queries"})},
+            headers=_auth_headers(token),
+        )
+        dossier_id = r.json()["data"]["dossier_id"]
+
+        statements: list[str] = []
+
+        def record(_conn: Any, _cursor: Any, statement: str, *_: Any) -> None:
+            statements.append(statement)
+
+        event.listen(db_engine.sync_engine, "before_cursor_execute", record)
+        try:
+            response = await client.get(
+                f"/api/v1/dossiers/{dossier_id}", headers=_auth_headers(token)
+            )
+        finally:
+            event.remove(db_engine.sync_engine, "before_cursor_execute", record)
+
+        assert response.status_code == 200, response.text
+        assert response.json()["data"]["latest_job_status"] is not None
+        assert len(response.json()["data"]["documents"]) == 1
+        assert len(statements) == 5, statements
+        assert not any("count(*)" in s.lower() and "job" in s.lower() for s in statements)
+
+    @pytest.mark.asyncio
     async def test_get_dossier_detail(
         self,
         client: AsyncClient,

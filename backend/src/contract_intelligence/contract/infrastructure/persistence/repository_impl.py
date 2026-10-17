@@ -6,11 +6,12 @@ Layer: infrastructure (persistence) — concrete impl cho Dossier/Document/Job/M
 from __future__ import annotations
 
 import json
+import weakref
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import and_, bindparam, delete, exists, func, or_, select, text
+from sqlalchemy import Engine, and_, bindparam, delete, exists, func, inspect, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.sql.schema import Table
@@ -89,6 +90,9 @@ def _page_ocr_status(features: object) -> tuple[str, str | None]:
 # Dossier
 # ============================================================================
 
+# Engines whose database already has ``deletion_ledger`` (see ``_ensure_ledger``).
+_LEDGER_PRESENT: weakref.WeakSet[Engine] = weakref.WeakSet()
+
 
 def _dossier_to_domain(orm: DossierORM) -> Dossier:
     return Dossier(
@@ -122,10 +126,27 @@ class DossierRepositoryImpl(DossierRepository):
         self._tenant_id = tenant_id
 
     async def _ensure_ledger(self) -> None:
+        """Create ``deletion_ledger`` when missing (migration v8 creates it in production).
+
+        Checked once per engine: the catalog lookup used to run before every
+        dossier read. Only a table that already existed is remembered, so one
+        created inside a transaction that later rolls back is checked again.
+        """
         connection = await self._session.connection()
+        engine = connection.sync_engine
+        if engine in _LEDGER_PRESENT:
+            return
         table = DeletionLedgerORM.__table__
         assert isinstance(table, Table)
-        await connection.run_sync(table.create, checkfirst=True)
+
+        def ensure(sync_connection: Any) -> bool:
+            if inspect(sync_connection).has_table(table.name, schema=table.schema):
+                return True
+            table.create(sync_connection)
+            return False
+
+        if await connection.run_sync(ensure):
+            _LEDGER_PRESENT.add(engine)
 
     def _visible(self) -> ColumnElement[bool]:
         return ~exists(
@@ -960,6 +981,17 @@ class JobRepositoryImpl(JobRepository):
         if orm:
             await self._session.delete(orm)
             await self._session.flush()
+
+    async def latest_for_dossier(self, dossier_id: str) -> Job | None:
+        """Newest job of the dossier (same order as ``list``), without counting."""
+        stmt = (
+            select(JobORM)
+            .where(JobORM.tenant_id == self._tenant_id, JobORM.dossier_id == dossier_id)
+            .order_by(JobORM.created_at.desc())
+            .limit(1)
+        )
+        orm = (await self._session.execute(stmt)).scalar_one_or_none()
+        return _job_to_domain(orm) if orm else None
 
 
 # ============================================================================
