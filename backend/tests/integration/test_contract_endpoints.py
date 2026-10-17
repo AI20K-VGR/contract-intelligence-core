@@ -166,9 +166,9 @@ class TestDossierEndpoints:
             data={"metadata": '{"name": "Test Contract"}'},
             headers=_auth_headers(token),
         )
-        assert (
-            response.status_code == 202
-        ), f"Expected 202, got {response.status_code}: {response.text}"
+        assert response.status_code == 202, (
+            f"Expected 202, got {response.status_code}: {response.text}"
+        )
         body = response.json()
         assert "data" in body
         assert "dossier_id" in body["data"]
