@@ -98,6 +98,7 @@ class PairCandidate:
     sources: frozenset[PairSource]
     score: float
     topic: str | None
+    referrer: str | None = None  # the node whose "khoản X Điều Y" resolved to the other one
 
 
 @dataclass(frozen=True)
@@ -318,14 +319,18 @@ def generate_pair_candidates(
     pos = {nid: index.position(nid) for nid in (*eligible, *structured_fields)}
     value_numbers = {}
     content_words = {}
+    # Payment-schedule fields carry values too: an annex restating installment 1 at another
+    # rate must meet the body's field, not only its plain clauses (#121).
+    value_nodes = candidate_nodes
     if PairSource.VALUE_MISMATCH in sources:
-        value_numbers = {nid: unit_values(by_id[nid].text or "") for nid in eligible}
+        value_numbers = {nid: unit_values(by_id[nid].text or "") for nid in value_nodes}
         content_words = {
             nid: frozenset(w for w in _CONTENT_WORD.findall(_fold(by_id[nid].text or ""))
                            if w not in _VALUE_STOPWORDS)
-            for nid in eligible
+            for nid in value_nodes
         }
     found: dict[tuple[str, str], set[PairSource]] = {}
+    referrers: dict[tuple[str, str], str] = {}
     adjacent: set[tuple[str, str]] = set()
 
     def add(x: str, y: str, source: PairSource) -> None:
@@ -348,6 +353,7 @@ def generate_pair_candidates(
             for target in _explicit_targets(index, by_id[nid], stats):
                 if target in eligible_set:
                     add(nid, target, PairSource.EXPLICIT_REF)
+                    referrers.setdefault(_ordered(nid, target, pos), nid)
     if PairSource.SAME_KEY in sources:
         by_topic: dict[str, list[str]] = {}
         for nid in eligible:
@@ -370,7 +376,7 @@ def generate_pair_candidates(
         # Invert content terms and compare only a bounded neighborhood per posting. Expanding
         # every posting into all combinations is quadratic for common terms before top-K applies.
         postings: dict[str, list[str]] = {}
-        for nid in eligible:
+        for nid in value_nodes:
             if not value_numbers[nid]:
                 continue
             for word in content_words[nid]:
@@ -442,7 +448,7 @@ def generate_pair_candidates(
         score += 1 if PairSource.SAME_ARTICLE in srcs and (a, b) in adjacent else 0
         score += 1 if _body_annex(index, a, b) else 0
         topic = topics[a] if topics[a] == topics[b] else None
-        candidates.append(PairCandidate(a, b, frozenset(srcs), float(score), topic))
+        candidates.append(PairCandidate(a, b, frozenset(srcs), float(score), topic, referrers.get((a, b))))
     candidates.sort(key=lambda c: (-c.score, pos[c.node_a], pos[c.node_b], c.node_a, c.node_b))
     limit = max(0, top_k)
     if _BASE_CORE_SOURCES <= sources and limit:

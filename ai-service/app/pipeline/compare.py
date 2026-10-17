@@ -16,6 +16,7 @@ from app.contracts.models import (
     ModelDisposition,
     ReviewState,
 )
+from app.pipeline.ai1_snapshot_adapter import fold_for_match
 from app.pipeline.relation_markers import annex_amendment_title_targets
 
 AMEND_RE = re.compile(r"sửa|sua|thay thế|thay the|điều chỉnh|dieu chinh|amends?", re.I)
@@ -47,6 +48,7 @@ def compare_facts(
     annex_labels_present: set[str] | None = None,
     relation_pairs: set[tuple[str, str]] | None = None,
     require_relation_for_cross_document: bool = False,
+    split_installments: bool = False,
 ) -> tuple[list[Candidate], list[EvidenceIssue]]:
     """One finding = two sources in the same contract context. No legal winner."""
     annex_labels_present = annex_labels_present or set()
@@ -56,7 +58,7 @@ def compare_facts(
     for f in facts:
         if _is_identity_fact(f):
             continue
-        ck = _context_key(f)
+        ck = _context_key(f, split_installments)
         if ck[0] is None or ck[0] == "mst_seller":
             continue
         keyed[ck].append(f)
@@ -166,8 +168,21 @@ def _compare_contract_identities(facts: list[Fact]) -> list[Candidate]:
     return output
 
 
-def _context_key(f: Fact) -> tuple:
-    return (f.item_key or f.scope,)
+# "Đợt 1"/"lần 2"/"giai đoạn 3": one schedule's installments are different terms, so they are
+# compared only with the same installment (30% for đợt 1 vs 40% for đợt 2 is not a conflict, #121).
+_INSTALLMENT = re.compile(r"\b(?:dot|lan|giai doan)\s+(\d{1,2})\b")
+_INSTALLMENT_KEYS = frozenset({"payment_schedule", "payment_term"})
+
+
+def _installment(f: Fact) -> str | None:
+    match = _INSTALLMENT.search(fold_for_match(f.citation.text_span or f.raw_value or ""))
+    return match.group(1).lstrip("0") or "0" if match else None
+
+
+def _context_key(f: Fact, split_installments: bool = False) -> tuple:
+    # Split only with the contract graph pairs on: the flag-off output is pinned byte-for-byte.
+    split = split_installments and f.item_key in _INSTALLMENT_KEYS
+    return (f.item_key or f.scope, _installment(f) if split else None)
 
 
 def _pair_two_sources(

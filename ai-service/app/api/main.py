@@ -370,6 +370,26 @@ def _refresh_query_store(job_id: str) -> None:
         STORE.put(persisted[0])
 
 
+_PROGRESS_MIN_INTERVAL_SECONDS = 1.0
+
+
+def _progress_writer(job_id: str, tenant_id: str, dossier_id: str, worker_token: str):
+    """Persist in-step progress on the RUNNING wire (#116): every step change, else at most once a second."""
+    last = {"step": None, "at": 0.0}
+
+    def write(progress: dict) -> None:
+        now = time.monotonic()
+        if progress["step"] == last["step"] and now - last["at"] < _PROGRESS_MIN_INTERVAL_SECONDS:
+            return
+        last.update(step=progress["step"], at=now)
+        wire = {**_known_wire(job_id), "status": "RUNNING", "progress": progress}
+        WIRE_JOBS[job_id] = wire
+        JOB_STORE.set_wire(job_id, tenant_id=tenant_id, dossier_id=dossier_id,
+                           worker_token=worker_token, status="RUNNING", wire=wire)
+
+    return write
+
+
 def _execute_wire_job(job_id: str, payload: dict) -> None:
     """Execute one accepted wire request and retain its public result."""
 
@@ -423,6 +443,7 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
             max_processing_seconds=request.policy_flags.budget_limits.max_processing_seconds,
             max_llm_calls=request.policy_flags.budget_limits.max_llm_calls,
             max_embedding_tokens=request.policy_flags.budget_limits.max_embedding_tokens,
+            on_progress=_progress_writer(job_id, tenant_id, request.dossier_id, worker_token),
         )
         query_snapshot_digest = adapted.record.pins.source_snapshot_digest
         trace_writer = ProcessingTraceWriter(

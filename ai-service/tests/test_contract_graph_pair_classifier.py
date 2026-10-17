@@ -47,6 +47,9 @@ class Runtime:
     def remaining(self):
         return self.left
 
+    def report_progress(self, *_args):
+        pass
+
     def complete_json(self, client, system, user, **_kwargs):
         self.calls.append((system, json.loads(user)))
         self.llm_calls_used += 1
@@ -440,3 +443,31 @@ def test_conflict_without_numbers_on_one_side_is_left_to_the_model():
     b = "2. Bên A thanh toán mỗi đợt bằng tiền mặt trong vòng 5 ngày kể từ ngày nhận hóa đơn."
     result = classify([pair(a, b)], {"results": [answer(span_a=a, span_b=b)]})
     assert len(result.decisions) == 1
+
+
+def test_unrelated_answer_on_a_resolved_explicit_reference_still_yields_reference():
+    # "theo khoản 2 Điều 3" resolved to clause 3.2 is a reference whatever the model says;
+    # luna labelled it UNRELATED in 2 of 3 runs on HD-TEST-003.
+    referrer = "Bên B lập báo cáo sự cố theo khoản 2 Điều 3 của Hợp đồng trong vòng 24 giờ."
+    target = "3.2. Bên B phải khắc phục sự cố trong vòng 04 giờ kể từ khi nhận thông báo."
+    candidate = PairCandidate("b", "a", frozenset({PairSource.EXPLICIT_REF}), 4, None, referrer="a")
+    result = classify([ClassifierPair(candidate, target, referrer, "Điều 3", "Điều 6")], "unrelated")
+    (decision,) = result.decisions
+    assert decision.label.value == "REFERENCE" and decision.direction == "B"
+    assert decision.span_b in referrer and decision.span_a in target
+
+
+def test_unrelated_answer_without_explicit_reference_stays_unrelated():
+    result = classify([pair()], "unrelated")
+    assert result.decisions == ()
+
+
+def test_ungrounded_answer_on_a_resolved_explicit_reference_falls_back_to_reference():
+    referrer = "Bên B lập báo cáo sự cố theo khoản 2 Điều 3 của Hợp đồng trong vòng 24 giờ."
+    target = "3.2. Bên B phải khắc phục sự cố trong vòng 04 giờ kể từ khi nhận thông báo."
+    candidate = PairCandidate("b", "a", frozenset({PairSource.EXPLICIT_REF}), 4, None, referrer="a")
+    bad = {"results": [{"id": "p1", "label": "REFERENCE", "referrer": "B",
+                        "span_a": "không có trong văn bản", "span_b": "cũng không có"}]}
+    result = classify([ClassifierPair(candidate, target, referrer, "Điều 3", "Điều 6")], bad)
+    assert [d.label.value for d in result.decisions] == ["REFERENCE"]
+    assert result.stats["rejected"]["ungrounded_span"] == 0

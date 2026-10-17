@@ -263,6 +263,28 @@ def _decision(item: dict, pair: ClassifierPair, rejected: dict[str, int], served
     return PairDecision(pair.candidate, PairLabel(label), span_a, span_b, direction, served)
 
 
+# Answers that leave a resolved explicit reference unproven by the model alone.
+_REFERENCE_FALLBACK = frozenset({"unrelated", "bad_span", "ungrounded_span", "missing_direction"})
+
+
+def _leading_span(text: str) -> str | None:
+    start = len(text) - len(text.lstrip())
+    span = text[start:start + PAIR_SPAN_MAX].rstrip()
+    return span if len(span) >= PAIR_SPAN_MIN else None
+
+
+def _explicit_reference(pair: ClassifierPair, served: str | None) -> PairDecision | None:
+    """A resolved "khoản X Điều Y" is a REFERENCE even when the model answers UNRELATED."""
+    referrer = pair.candidate.referrer
+    if referrer not in {pair.candidate.node_a, pair.candidate.node_b}:
+        return None
+    span_a, span_b = _leading_span(pair.text_a), _leading_span(pair.text_b)
+    if span_a is None or span_b is None:
+        return None
+    direction = "A" if referrer == pair.candidate.node_a else "B"
+    return PairDecision(pair.candidate, PairLabel.REFERENCE, span_a, span_b, direction, served)
+
+
 def classify_pairs(
     pairs: Sequence[ClassifierPair], *, client: Any, runtime: ProcessingRuntime,
     max_calls: int = PAIRS_MAX_CALLS,
@@ -306,6 +328,7 @@ def classify_pairs(
                         "served_model": served})
 
     for offset in range(0, len(pairs), PAIRS_PER_CALL):
+        runtime.report_progress("S9", offset, len(pairs), "pair")
         if runtime.llm_calls_used >= runtime.max_llm_calls:
             stop = "BUDGET_EXHAUSTED"
         elif batches >= max_calls:
@@ -398,6 +421,13 @@ def classify_pairs(
             else:
                 reason = next(code for code, count in stats["rejected"].items()
                               if count > rejected_before[code])
+                fallback = _explicit_reference(by_id[pid], served) if reason in _REFERENCE_FALLBACK else None
+                if fallback is not None:
+                    stats["rejected"][reason] -= 1
+                    decisions.append(fallback)
+                    emit_pair(by_id[pid], outcome="accepted", reason="explicit_reference",
+                              batch_id=batch_id, served=served)
+                    continue
                 if reason != "unrelated":
                     stats["pairs_unclassified"] += 1
                 emit_pair(by_id[pid], outcome="model_unrelated" if reason == "unrelated" else "validator_reject",

@@ -206,6 +206,7 @@ def _run_idp(
     source_fact_node_ids = {
         fact.citation.node_id for fact in facts if fact.citation and fact.citation.node_id
     }
+    runtime.report_progress("S6", 1, 1, "document")
     if trace_writer is not None:
         trace_writer.start("extraction")
     fact_ex = FactExtractor(
@@ -224,7 +225,8 @@ def _run_idp(
     unit_failures: list[HandoffIssue] = []
     extraction_units = 0
     successful_extractions = 0
-    for node in outline:
+    for done, node in enumerate(outline):
+        runtime.report_progress("S7", done, len(outline), "clause")
         try:
             runtime.checkpoint()
             route = router.route_node(node)
@@ -392,6 +394,7 @@ def _run_idp(
         annex_labels=annex_labels,
         relation_pairs=relation_pairs if pairs_on else set(),
         require_relation_for_cross_document=not pairs_on,
+        split_installments=pairs_on,
     )
     if graph is not None and pairs_on:
         amendment_pairs = {
@@ -596,6 +599,7 @@ def _run_idp(
                     review_state=ReviewState.NEEDS_REVIEW,
                 )
             )
+    runtime.report_progress("S10", 0, 1, "document")
     contrib = store_idx.propose(
         facts=facts,
         chunks=chunks,

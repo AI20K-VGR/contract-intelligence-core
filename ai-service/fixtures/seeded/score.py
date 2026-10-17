@@ -17,10 +17,17 @@ from dataclasses import dataclass
 from typing import Any
 
 from fixtures.seeded import funnel as seeded_funnel
-from fixtures.seeded import hd_test_2026_001, hd_test_2026_002, hd_test_2026_003, hd_test_2026_004
+from fixtures.seeded import (
+    hd_test_2026_001,
+    hd_test_2026_002,
+    hd_test_2026_003,
+    hd_test_2026_004,
+    hd_test_2026_005,
+)
 from fixtures.seeded.common import context_caps_env
 
-DOSSIERS = {"dev": [hd_test_2026_001, hd_test_2026_003, hd_test_2026_004], "heldout": [hd_test_2026_002]}
+DOSSIERS = {"dev": [hd_test_2026_001, hd_test_2026_003, hd_test_2026_004, hd_test_2026_005],
+            "heldout": [hd_test_2026_002]}
 
 
 @dataclass
@@ -123,6 +130,13 @@ def _checks(module, split: str) -> list[Check]:
     for prefix in gold.get("never_candidate", []):
         bad = [c for c in f.candidates if f.texts[c.node_a].startswith(prefix) or f.texts[c.node_b].startswith(prefix)]
         add("never_candidate", f"no candidate on {prefix!r}", not bad, "pairs_candidates", f"{len(bad)} hits")
+    for a, b in gold.get("never_conflict", []):
+        # Compared facts of two different terms (installment 1 vs 2) end up as a reported conflict.
+        ids = _ids(f, a, b)
+        compared = not isinstance(ids, str) and any(
+            {e.node_id for e in (*c.evidence_left, *c.evidence_right)} == set(ids)
+            for c in f.result.contribution.candidates)
+        add("never_conflict", f"{a} !<> {b}", not isinstance(ids, str) and not compared, "compare")
     from app.pipeline.contract_graph.pair_candidates import PairSource
 
     for a, b in gold.get("never_value_mismatch", []):

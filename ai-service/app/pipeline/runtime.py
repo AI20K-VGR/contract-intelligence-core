@@ -200,6 +200,8 @@ class ProcessingRuntime:
     default_max_output_tokens: int | None = None
     default_operation_deadline: float | None = None
     issues: list[tuple[str, str]] = field(default_factory=list)
+    # Receives {step, done, total, unit} for GET /jobs while RUNNING; advisory, never fails a job.
+    on_progress: Callable[[dict[str, Any]], None] | None = field(default=None, repr=False)
     _request_lock: Any = field(default_factory=threading.Lock, repr=False)
 
     def __post_init__(self) -> None:
@@ -212,6 +214,14 @@ class ProcessingRuntime:
 
     def remaining(self) -> float:
         return self.deadline - self.clock()
+
+    def report_progress(self, step: str, done: int, total: int, unit: str) -> None:
+        if self.on_progress is None:
+            return
+        try:
+            self.on_progress({"step": step, "done": max(0, min(done, total)), "total": max(total, 1), "unit": unit})
+        except Exception:
+            logger.warning("ai2.progress_report_failed step=%s", step, exc_info=True)
 
     def checkpoint(self) -> None:
         if self.remaining() < 0:
