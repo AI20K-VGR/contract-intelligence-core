@@ -616,6 +616,8 @@ def _run_idp(
                 )
             )
     runtime.report_progress("S10", 0, 1, "document")
+    # Only jobs that sent a request carry llm_timing, so LLM-free goldens stay byte-identical.
+    llm_timing = runtime.llm_timing()
     contrib = store_idx.propose(
         facts=facts,
         chunks=chunks,
@@ -624,7 +626,11 @@ def _run_idp(
         contract_context=contract_context,
         events=events,
         semantic_extension=record.semantic_extension,
-        coverage={**coverage, **({"semantic_requested": True} if record.semantic_profile else {})},
+        coverage={
+            **coverage,
+            **({"semantic_requested": True} if record.semantic_profile else {}),
+            **({"llm_timing": llm_timing} if llm_timing else {}),
+        },
         extraction_version=record.pins.extraction_version,
         proposed_index_version=f"idx_{record.pins.extraction_version}",
     )

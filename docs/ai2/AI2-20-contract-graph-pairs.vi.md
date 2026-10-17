@@ -16,6 +16,8 @@ Mọi quan hệ đều `NEEDS_REVIEW`; AI2 không chọn khoản thắng hoặc 
 | `AI2_CONTRACT_GRAPH_PAIRS_MODEL` | Model phân loại; model thực phục vụ phải thuộc họ classifier được nhận diện và khác model cụ thể labeler |
 | `AI2_CONTRACT_GRAPH_PAIRS_BASE_URL` | Endpoint dành riêng cho phân loại |
 | `AI2_CONTRACT_GRAPH_PAIRS_API_KEY` | Khóa tại môi trường chạy; không ghi giá trị vào git |
+| `AI2_PAIRS_CONCURRENCY` | Số lô phân loại gửi song song trong một job; mặc định `5`, `1` = tuần tự (công tắc quay về); giá trị không hợp lệ hoặc `< 1` dùng `5` kèm warning |
+| `AI2_PAIRS_REASONING_EFFORT` | Reasoning effort cho lời gọi pairs (`minimal`/`low`/`medium`/`high`, chỉ gửi tới model GPT-5 qua `NineRouterClient`); rỗng hoặc `provider_default` = không gửi (mặc định cả local lẫn prod); giá trị sai bị bỏ qua kèm một warning |
 
 Adapter HTTP và Kafka gán `record.content_sharing_consent` từ
 `request.policy_flags.egress_allowed`. Field record mặc định `False` và được lưu trong
@@ -169,6 +171,72 @@ Ngân sách chung đếm mỗi HTTP request, kể cả retry; tối đa 8 cặp/
 context tối đa 300 ký tự, text tối đa 1200 ký tự/khoản, giữ top 40 ứng viên/hồ sơ.
 Dự phòng thời gian là 30 giây cộng thời gian timeout × số attempts.
 Cặp không phân loại và lý do dừng nằm trong coverage, không được coi là quan hệ âm tính.
+
+## Song song hoá phân loại cặp
+
+Từ P2 (plan `261017-1821-ai2-processing-time-optimization`), `classify_pairs` lập kế hoạch các lô
+bằng đúng predicate của vòng tuần tự (`BUDGET_EXHAUSTED` → `MAX_CALLS` → `DEADLINE`, bộ đếm dự
+phóng một request/lô), rồi gửi tối đa `AI2_PAIRS_CONCURRENCY` lô cùng lúc trên pool
+`ai2-pairs`. Mỗi lô dùng bản sao nông của client (trace riêng, chung pool HTTP). Thread điều
+phối thu kết quả **theo chỉ số lô** và chạy cùng phần hậu xử lý với đường tuần tự; tiến độ
+chỉ báo từ thread này. `AI2_PAIRS_CONCURRENCY=1` hoặc không có lô nào được lập kế hoạch thì chạy
+đúng vòng tuần tự cũ, không tạo executor.
+
+Khi một lô lỗi (chính sách prefix, mặc định): lô lỗi đầu tiên `k` được xử lý như bản tuần tự;
+gate theo chỉ số chặn retry/request mới của các lô sau `k`, các lô sau `k` bị bỏ, và mọi worker
+được join trước khi trả về. Issue của từng lô được gom riêng và chỉ commit cho các lô đã nhận.
+
+**Bất biến**
+
+- INV-1: happy path, bất kể thứ tự hoàn tất, giống tuần tự ở decisions, chuỗi event, stats,
+  `stopped_reason`, `batches_completed`, issues, `fallback_count`, thứ tự trace.
+- INV-2: failure không phụ thuộc thời điểm (lỗi provider cố định, `None`, cổng họ model K-a,
+  timeout ném trong lô, quota khi các lô nhỏ hơn thành công ngay lần đầu) cho cùng kết quả mức
+  cặp và issue; chỉ bộ đếm chi tiêu (`llm_calls`, token, `llm_calls_used`) được phép cao hơn.
+- INV-3: sau khi trả về không còn thread `ai2-pairs*` và runtime không đổi nữa.
+- INV-4: `served_model` và log `ai2.llm_call` của lô `i` chỉ đến từ lời gọi của lô `i`.
+- INV-5: `llm_calls_used ≤ max_llm_calls`.
+
+**Sai khác đã biết so với tuần tự**
+
+| ID | Sai khác | Tất định? |
+|---|---|---|
+| KD1 | Bộ đếm chi tiêu (`llm_calls`, token, `llm_timing`) gồm cả HTTP đã chi cho lô bị bỏ | có |
+| KD2 | Tranh chấp slot budget cuối khi có retry: lô thức dậy sau nhận `LLM_BUDGET_EXCEEDED` → `LLM_FALLBACK`, trong khi tuần tự dừng `BUDGET_EXHAUSTED` không issue. Lô nào thua phụ thuộc thứ tự thức dậy có jitter | **không** |
+| KD3 | `DEADLINE` chỉ kiểm lúc submit, nên song song có thể hoàn tất các lô mà tuần tự đã cắt | có (theo đồng hồ) |
+| KD4 | HTTP đang bay khi abort vẫn chạy xong và tính phí; join chờ tối đa một latency | có |
+| KD5 | Lô bị bỏ vẫn mang event `not_sent` dù đã gửi, để event giống tuần tự | có |
+| KD6 | Quota cạn giữa chừng: lô `j < k` retry sau thời điểm cạn có thể nhận quota và thành `k` mới, mất relation `j..k-1` mà tuần tự giữ được; issue `LLM_QUOTA_EXHAUSTED` vẫn có | **không** |
+
+Backoff retry có jitter: `delay = base + jitter × min(1, 0.5 × base)`, `Retry-After` là mức
+tối thiểu. `_reserve_http_request` không chặn theo cờ `provider_exhausted` toàn cục; chỉ gate
+của lô chặn retry (cờ toàn cục vẫn chặn lời gọi mới, ví dụ stage semantic sau pairs).
+
+**Quay về tuần tự**
+
+- Prod: đặt `AI2_PAIRS_CONCURRENCY=1` trong `deploy/.env.prod`, chạy lại `deploy/deploy.sh`.
+  ai2-service ở prod chỉ nhận key trong `environment:` của `deploy/compose.prod.yml`
+  (`env_file` bị reset), và key này có ở đó.
+- Local: recreate ai2-service với shell env `AI2_PAIRS_CONCURRENCY=1 docker compose … up -d
+  ai2-service`, rồi kiểm `docker exec <container> printenv AI2_PAIRS_CONCURRENCY` ra `1`.
+- `deploy/tests/test_ai2_pairs_env_passthrough.py` khoá việc key tới được container ở cả hai
+  cấu hình.
+
+## Tinh chỉnh lời gọi phân loại (P3)
+
+- Knob `AI2_PAIRS_REASONING_EFFORT` (`app/pipeline/runtime.py`, `pairs_reasoning_effort()`): chỉ áp cho
+  `operation="pairs"`, đường LIGHT (`AI2_LLM_LIGHT_REASONING_EFFORT`) giữ nguyên. Default trong code là `None`;
+  default theo môi trường nằm trong compose, hiện rỗng ở cả `docker-compose.yml` và `deploy/compose.prod.yml`.
+- Provenance: `effective_prompt_version()` (`pair_classifier.py`) ghép `+effort-<x>` rồi `+batch-<n>` (khi
+  `PAIRS_PER_CALL != 8`) vào `PROMPT_VERSION`. Cấu hình mặc định vẫn là `pairs-v13`. Giá trị đi vào
+  `coverage.contract_graph.pairs.prompt_version`, `PairResult.prompt_version` và cột
+  `contract_pair_relations.prompt_version`; đường rule-only giữ `pairs-v13`. Lọc dòng của cấu hình tinh chỉnh:
+  `prompt_version like 'pairs-v13+%'`.
+- Đổi default prod của effort hoặc batch chỉ sau lần xác nhận trên OpenAI `gpt-5.5` được user cho phép
+  (`fixtures/perf/pairs_bakeoff.py confirm-openai`); C3 (model nhỏ hơn) không bao giờ thành default.
+- Bake-off router 2026-10-18 (plan 261017-1821, `reports/phase-3-bakeoff.md`): C1 `low` hoà C0 trong nhiễu
+  (p90 21.47s vs 21.29s, CI Δ [-5.44, 2.94]) → không đổi default nào.
+- Quay về: đặt `AI2_PAIRS_REASONING_EFFORT=provider_default` (hoặc rỗng) rồi recreate/redeploy ai2-service.
 
 ## Runbook rollback
 

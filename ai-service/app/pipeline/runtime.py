@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import math
 import os
+import random
 import threading
 import time
 from dataclasses import dataclass, field
@@ -96,6 +97,10 @@ class ProcessingTimeout(RuntimeError):
     """The request exceeded its Backend-provided processing deadline."""
 
 
+class LLMRequestCancelled(RuntimeError):
+    """The caller's abort predicate stopped this call before another request was sent."""
+
+
 def classify_provider_error(exc: BaseException) -> str | None:
     """Termination code for a transient provider failure, ``None`` if not retryable.
 
@@ -147,16 +152,51 @@ LIGHT_REASONING_ENV = "AI2_LLM_LIGHT_REASONING_EFFORT"
 LIGHT_REASONING_OPERATIONS = frozenset({"slot_context", "alias"})
 
 
+# Pairs classifier effort (P3). The code default stays None (no effort sent, provider
+# default); environments choose theirs in compose. "provider_default" is the explicit way
+# back to that behaviour when compose sets something else.
+PAIRS_REASONING_ENV = "AI2_PAIRS_REASONING_EFFORT"
+PAIRS_REASONING_PROVIDER_DEFAULT = "provider_default"
+PAIRS_REASONING_EFFORTS = frozenset({"minimal", "low", "medium", "high"})
+_warned_pairs_efforts: set[str] = set()
+_warned_pairs_lock = threading.Lock()
+
+
+def pairs_reasoning_effort() -> str | None:
+    """Effort sent with pairs calls, or None to send nothing; warns once per invalid value."""
+
+    raw = os.getenv(PAIRS_REASONING_ENV, "").strip().casefold()
+    if not raw or raw == PAIRS_REASONING_PROVIDER_DEFAULT:
+        return None
+    if raw in PAIRS_REASONING_EFFORTS:
+        return raw
+    with _warned_pairs_lock:
+        first = raw not in _warned_pairs_efforts
+        _warned_pairs_efforts.add(raw)
+    if first:
+        logger.warning(
+            "ai2.config_invalid env=%s ignored; allowed=%s or %s",
+            PAIRS_REASONING_ENV,
+            ",".join(sorted(PAIRS_REASONING_EFFORTS)),
+            PAIRS_REASONING_PROVIDER_DEFAULT,
+        )
+    return None
+
+
 def _reasoning_effort(operation: str | None) -> str | None:
+    if operation == "pairs":
+        return pairs_reasoning_effort()
     if operation not in LIGHT_REASONING_OPERATIONS:
         return None
     return os.getenv(LIGHT_REASONING_ENV, "").strip().casefold() or None
 
 
-def _log_call(client: Any, attempt: int, operation: str | None) -> None:
-    # Timing and token counts only, never the prompt or the answer.
-    traces = getattr(client, "traces", None)
-    trace = traces[-1] if isinstance(traces, list) and traces else {}
+def _log_call(
+    client: Any, attempt: int, operation: str | None, trace: dict[str, Any] | None
+) -> None:
+    # Timing and token counts only, never the prompt or the answer. ``trace`` is the one
+    # this attempt appended (or None): traces[-1] may belong to an earlier call.
+    trace = trace or {}
     logger.info(
         "ai2.llm_call operation=%s model=%s served_model=%s attempt=%s latency_ms=%s http_calls=%s "
         "prompt_tokens=%s completion_tokens=%s reasoning_tokens=%s",
@@ -212,6 +252,8 @@ class ProcessingRuntime:
     )
     clock: Callable[[], float] = time.monotonic
     sleep: Callable[[float], None] = time.sleep
+    # Spreads retries of parallel callers that were throttled at the same moment.
+    jitter: Callable[[], float] = random.random
     started_at: float | None = None
     llm_calls_used: int = 0
     embedding_tokens_used: int = 0
@@ -224,6 +266,10 @@ class ProcessingRuntime:
     # Receives {step, done, total, unit} for GET /jobs while RUNNING; advisory, never fails a job.
     on_progress: Callable[[dict[str, Any]], None] | None = field(default=None, repr=False)
     _request_lock: Any = field(default_factory=threading.Lock, repr=False)
+    # Per-operation LLM attempt timing for coverage.llm_timing; kept out of snapshot(),
+    # which the flag-off golden hashes.
+    _state_lock: Any = field(default_factory=threading.Lock, repr=False)
+    _llm_timing: dict[str, dict[str, Any]] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
         if self.started_at is None:
@@ -256,12 +302,25 @@ class ProcessingRuntime:
             raise ProcessingTimeout("processing time budget exceeded")
 
     def add_issue(self, code: str, message: str) -> None:
+        with self._state_lock:
+            self._add_issue_locked(code, message)
+
+    def _add_issue_locked(self, code: str, message: str) -> None:
         if (code, message) not in self.issues:
             self.issues.append((code, message))
 
     def _fall_back(self, code: str, message: str | None = None) -> None:
-        self.add_issue(code, message or ISSUE_MESSAGES_VI.get(code, code))
-        self.fallback_count += 1
+        with self._state_lock:
+            self._add_issue_locked(code, message or ISSUE_MESSAGES_VI.get(code, code))
+            self.fallback_count += 1
+
+    def commit_issues(self, sink: list[tuple[str, str]]) -> None:
+        """Apply fallbacks a call collected in its ``issue_sink``, in order."""
+
+        with self._state_lock:
+            for code, message in sink:
+                self._add_issue_locked(code, message)
+                self.fallback_count += 1
 
     def account_embedding_tokens(self, tokens: int) -> bool:
         """Account embedding work without allowing a provider call past quota."""
@@ -287,12 +346,27 @@ class ProcessingRuntime:
         max_output_tokens: int | None = None,
         operation_deadline: float | None = None,
         operation: str | None = None,
+        abort: Callable[[], bool] | None = None,
+        issue_sink: list[tuple[str, str]] | None = None,
     ) -> dict[str, Any] | None:
         """Call the LLM within budget and deadline; ``None`` means use the local fallback.
 
         Raises ``ProcessingTimeout`` when the job deadline passes, so the caller
-        can stop and keep what it already extracted.
+        can stop and keep what it already extracted. ``abort`` returning True stops
+        the call before its next request or retry (``None``, no issue). With
+        ``issue_sink`` the call's fallbacks are collected there instead of on the
+        runtime; the caller decides whether to ``commit_issues`` them.
         """
+
+        if issue_sink is None:
+            fall_back = self._fall_back
+        else:
+
+            def fall_back(code: str, message: str | None = None) -> None:
+                issue_sink.append((code, message or ISSUE_MESSAGES_VI.get(code, code)))
+
+        def aborted() -> bool:
+            return abort is not None and abort()
 
         max_output_tokens = (
             max_output_tokens if max_output_tokens is not None else self.default_max_output_tokens
@@ -315,7 +389,7 @@ class ProcessingRuntime:
             )
 
         def context_exhausted():
-            self._fall_back(
+            fall_back(
                 "CONTEXT_TIME_CAP", "Context operation deadline exceeded; job remains reviewable"
             )
 
@@ -324,29 +398,41 @@ class ProcessingRuntime:
         ):
             raise ValueError("max_output_tokens must be a positive integer")
         if not self.egress_allowed:
-            self._fall_back("EGRESS_DENIED")
+            fall_back("EGRESS_DENIED")
             return None
         if client is None or not client.configured():
-            self._fall_back("LLM_UNAVAILABLE", "NineRouter is not configured")
+            fall_back("LLM_UNAVAILABLE", "NineRouter is not configured")
             return None
         if self.provider_exhausted:
+            # A sink may be the only carrier left: the batch that set the flag can be
+            # dropped behind this one. Without a sink the runtime already holds it.
+            if issue_sink is not None:
+                fall_back("LLM_QUOTA_EXHAUSTED")
             return None
 
         last_code: str | None = None
         for attempt in range(max(self.max_attempts, 1)):
             if self.remaining() <= 0:
                 raise ProcessingTimeout("processing time budget exceeded")
+            if aborted():
+                return None
             remaining = operation_remaining()
             if remaining <= 0:
                 context_exhausted()
                 return None
             if self.llm_calls_used >= self.max_llm_calls:
-                self._fall_back(last_code or "LLM_BUDGET_EXCEEDED")
+                fall_back(last_code or "LLM_BUDGET_EXCEEDED")
                 return None
             call_timeout = min(self.call_timeout_seconds, remaining)
             call_deadline = self.clock() + call_timeout
             cancelled = threading.Event()
-            reserve = partial(self._reserve_http_request, call_deadline, cancelled)
+            # Thread-local count of HTTP requests this attempt sent; llm_calls_used is
+            # shared with any concurrent caller.
+            reserved: list[int] = []
+            reserve = partial(self._reserve_http_request, call_deadline, cancelled, reserved, abort)
+            traces = getattr(client, "traces", None)
+            before = len(traces) if isinstance(traces, list) else 0
+            started = time.perf_counter()
             try:
                 data = call_with_timeout(
                     partial(
@@ -363,13 +449,17 @@ class ProcessingRuntime:
                     call_timeout,
                 )
             except LLMRequestBudgetExceeded:
-                self._fall_back("LLM_BUDGET_EXCEEDED")
+                fall_back("LLM_BUDGET_EXCEEDED")
+                return None
+            except LLMRequestCancelled:
+                self._time_attempt(operation, started, reserved, traces, before)
                 return None
             except Exception as exc:
+                self._time_attempt(operation, started, reserved, traces, before)
                 _log_provider_failure(client, exc, attempt, operation)
                 if _quota_exhausted(exc):
                     self.provider_exhausted = True
-                    self._fall_back("LLM_QUOTA_EXHAUSTED")
+                    fall_back("LLM_QUOTA_EXHAUSTED")
                     return None
                 if self.remaining() <= 0:
                     raise ProcessingTimeout("processing time budget exceeded") from exc
@@ -378,46 +468,122 @@ class ProcessingRuntime:
                     return None
                 code = classify_provider_error(exc)
                 if code is None:
-                    self._fall_back(
+                    fall_back(
                         "LLM_NON_RETRYABLE", f"NineRouter rejected request: {type(exc).__name__}"
                     )
                     return None
                 last_code = code
                 if attempt + 1 >= self.max_attempts or self.llm_calls_used >= self.max_llm_calls:
                     break
-                delay = _retry_after_seconds(exc)
-                if delay is None:
-                    delay = min(_BACKOFF_CAP_SECONDS, _BACKOFF_BASE_SECONDS * 2**attempt)
+                base = _retry_after_seconds(exc)
+                if base is None:
+                    base = min(_BACKOFF_CAP_SECONDS, _BACKOFF_BASE_SECONDS * 2**attempt)
+                # Retry-After is a floor; the jitter only ever adds to it.
+                delay = base + self.jitter() * min(1.0, 0.5 * base)
                 if delay >= operation_remaining():
                     if operation_deadline is not None and operation_deadline < self.deadline:
                         context_exhausted()
                         return None
                     break  # waiting would run past the deadline
                 self.sleep(delay)
+                if aborted():
+                    return None
                 continue
             finally:
                 cancelled.set()
+            trace = self._time_attempt(operation, started, reserved, traces, before)
             if operation_remaining() <= 0:
                 context_exhausted()
                 return None
-            _log_call(client, attempt, operation)
+            _log_call(client, attempt, operation, trace)
             if not isinstance(data, dict):
-                self._fall_back("LLM_NON_RETRYABLE", "NineRouter response must be a JSON object")
+                fall_back("LLM_NON_RETRYABLE", "NineRouter response must be a JSON object")
                 return None
             return data
-        self._fall_back(last_code or "LLM_BUDGET_EXCEEDED")
+        fall_back(last_code or "LLM_BUDGET_EXCEEDED")
         return None
 
-    def _reserve_http_request(self, call_deadline: float, cancelled: threading.Event) -> float:
+    def _time_attempt(
+        self,
+        operation: str | None,
+        started: float,
+        reserved: list[int],
+        traces: Any,
+        before: int,
+    ) -> dict[str, Any] | None:
+        """Record one attempt that sent at least one request; return the trace it appended."""
+
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        new = traces[before:] if isinstance(traces, list) else []
+        trace = new[-1] if new and isinstance(new[-1], dict) else None
+        if reserved:
+            self._record_llm_attempt(operation or "unlabelled", elapsed_ms, len(reserved), trace)
+        return trace
+
+    def _record_llm_attempt(
+        self, operation: str, elapsed_ms: float, http_calls: int, trace: dict[str, Any] | None
+    ) -> None:
+        cached = (trace or {}).get("cached_tokens")
+        with self._state_lock:
+            entry = self._llm_timing.setdefault(
+                operation,
+                {"llm_calls": 0, "llm_ms_total": 0.0, "llm_ms_max": 0.0, "cached_tokens": None},
+            )
+            entry["llm_calls"] += http_calls
+            entry["llm_ms_total"] += elapsed_ms
+            entry["llm_ms_max"] = max(entry["llm_ms_max"], elapsed_ms)
+            if isinstance(cached, int):
+                entry["cached_tokens"] = (entry["cached_tokens"] or 0) + cached
+
+    def llm_timing(self) -> dict[str, Any] | None:
+        """Per-operation attempt timing, or None when no request was sent."""
+
+        with self._state_lock:
+            ops = {op: dict(entry) for op, entry in self._llm_timing.items()}
+        by_operation = {
+            op: {
+                "llm_calls": entry["llm_calls"],
+                "llm_ms_total": round(entry["llm_ms_total"]),
+                "llm_ms_max": round(entry["llm_ms_max"]),
+                "cached_tokens": entry["cached_tokens"],
+            }
+            for op, entry in sorted(ops.items())
+        }
+        calls = sum(entry["llm_calls"] for entry in by_operation.values())
+        if calls == 0:
+            return None
+        cached = [
+            e["cached_tokens"] for e in by_operation.values() if e["cached_tokens"] is not None
+        ]
+        return {
+            "llm_calls": calls,
+            "llm_ms_total": round(sum(entry["llm_ms_total"] for entry in ops.values())),
+            "cached_tokens": sum(cached) if cached else None,
+            "by_operation": by_operation,
+        }
+
+    def _reserve_http_request(
+        self,
+        call_deadline: float,
+        cancelled: threading.Event,
+        reserved: list[int] | None = None,
+        abort: Callable[[], bool] | None = None,
+    ) -> float:
+        # provider_exhausted is deliberately not checked here: a call already retrying
+        # still reaches the provider and records its own quota answer (P2, F2).
         with self._request_lock:
             remaining = self.remaining()
             if remaining <= 0:
                 raise ProcessingTimeout("processing time budget exceeded")
             if cancelled.is_set() or self.clock() >= call_deadline:
                 raise TimeoutError("LLM call deadline exceeded")
+            if abort is not None and abort():
+                raise LLMRequestCancelled("call aborted by its caller")
             if self.llm_calls_used >= self.max_llm_calls:
                 raise LLMRequestBudgetExceeded("maximum LLM HTTP requests reached")
             self.llm_calls_used += 1
+            if reserved is not None:
+                reserved.append(1)
             return min(self.call_timeout_seconds, remaining, call_deadline - self.clock())
 
     def _invoke(

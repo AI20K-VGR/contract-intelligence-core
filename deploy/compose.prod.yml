@@ -166,6 +166,10 @@ services:
       # Both or neither: empty skips pairs with RULE_ONLY_LLM_UNAVAILABLE.
       AI2_CONTRACT_GRAPH_PAIRS_BASE_URL: ${AI2_CONTRACT_GRAPH_PAIRS_BASE_URL:-}
       AI2_CONTRACT_GRAPH_PAIRS_API_KEY: ${AI2_CONTRACT_GRAPH_PAIRS_API_KEY:-}
+      # Parallel pair batches; 1 = sequential (rollback: set it in deploy/.env.prod, redeploy).
+      AI2_PAIRS_CONCURRENCY: ${AI2_PAIRS_CONCURRENCY:-5}
+      # Pairs reasoning effort; stays empty (provider default) until an OpenAI confirmation run.
+      AI2_PAIRS_REASONING_EFFORT: ${AI2_PAIRS_REASONING_EFFORT:-}
       AI2_EMBEDDING_BASE_URL: ${AI2_EMBEDDING_BASE_URL:?set the embedding provider in deploy/.env.prod}
       AI2_EMBEDDING_API_KEY: ${AI2_EMBEDDING_API_KEY:?set the embedding key in deploy/.env.prod}
       AI2_EMBEDDING_MODEL: ${AI2_EMBEDDING_MODEL:-text-embedding-3-small}

@@ -589,6 +589,10 @@ services:
       AI2_CONTRACT_GRAPH_ENABLED: ${AI2_CONTRACT_GRAPH_ENABLED:-true}
       AI2_CONTRACT_GRAPH_PAIRS_ENABLED: ${AI2_CONTRACT_GRAPH_PAIRS_ENABLED:-true}
       AI2_CONTRACT_GRAPH_PAIRS_MODEL: ${AI2_CONTRACT_GRAPH_PAIRS_MODEL:-gpt-5.5}
+      # Parallel pair batches; 1 = sequential (rollback switch, set in the shell on recreate).
+      AI2_PAIRS_CONCURRENCY: ${AI2_PAIRS_CONCURRENCY:-5}
+      # Pairs reasoning effort (minimal|low|medium|high); empty/provider_default = send none.
+      AI2_PAIRS_REASONING_EFFORT: ${AI2_PAIRS_REASONING_EFFORT:-}
       AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-ci_ai2_hmac_secret_dev}
       AI2_SERVICE_ISSUER: ${AI2_SERVICE_ISSUER:-backend-service}
       AI2_SERVICE_AUDIENCE: ${AI2_SERVICE_AUDIENCE:-vsf-ai2}

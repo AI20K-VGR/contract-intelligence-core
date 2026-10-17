@@ -179,7 +179,8 @@ class NineRouterClient:
             if reasoning_effort not in _REASONING_EFFORTS:
                 raise ValueError("unknown reasoning_effort")
             request_options["reasoning_effort"] = reasoning_effort
-        self.last_http_calls = 0
+        # Local per call: a concurrent call on the same client must not reset this count.
+        http_calls = 0
         started = time.perf_counter()
         trace: dict[str, Any] = {
             "trace_id": uuid.uuid4().hex,
@@ -199,7 +200,7 @@ class NineRouterClient:
         try:
             if before_request is not None:
                 request_options["timeout"] = before_request()
-            self.last_http_calls += 1
+            http_calls += 1
             resp = self._client.chat.completions.create(
                 model=model,
                 messages=_json_mode_messages(messages),
@@ -213,7 +214,7 @@ class NineRouterClient:
             # JSON mode; 429/5xx/timeouts go back to the caller's retry policy.
             if not _is_format_error(first_error):
                 trace["error_type"] = type(first_error).__name__
-                trace["http_calls"] = self.last_http_calls
+                trace["http_calls"] = self.last_http_calls = http_calls
                 trace["latency_ms"] = round((time.perf_counter() - started) * 1000, 1)
                 self.traces.append(trace)
                 NineRouterClient.all_traces.append(dict(trace))
@@ -223,7 +224,7 @@ class NineRouterClient:
             try:
                 if before_request is not None:
                     request_options["timeout"] = before_request()
-                self.last_http_calls += 1
+                http_calls += 1
                 resp = self._client.chat.completions.create(
                     model=model,
                     messages=messages,
@@ -233,14 +234,14 @@ class NineRouterClient:
                 text = resp.choices[0].message.content or ""
             except Exception as second_error:
                 trace["error_type"] = type(second_error).__name__
-                trace["http_calls"] = self.last_http_calls
+                trace["http_calls"] = self.last_http_calls = http_calls
                 trace["latency_ms"] = round((time.perf_counter() - started) * 1000, 1)
                 self.traces.append(trace)
                 NineRouterClient.all_traces.append(dict(trace))
                 raise
         trace["served_model"] = getattr(resp, "model", None)
         trace["latency_ms"] = round((time.perf_counter() - started) * 1000, 1)
-        trace["http_calls"] = self.last_http_calls
+        trace["http_calls"] = self.last_http_calls = http_calls
         trace["response_chars"] = len(text)
         trace["finish_reason"] = getattr(resp.choices[0], "finish_reason", None)
         trace["truncated"] = trace["finish_reason"] == "length"
@@ -254,6 +255,10 @@ class NineRouterClient:
             reasoning_tokens = getattr(details, "reasoning_tokens", None)
             if reasoning_tokens is not None:
                 trace["reasoning_tokens"] = reasoning_tokens
+            prompt_details = getattr(usage, "prompt_tokens_details", None)
+            cached_tokens = getattr(prompt_details, "cached_tokens", None)
+            if cached_tokens is not None:
+                trace["cached_tokens"] = cached_tokens
         if not isinstance(text, str) or not text.strip():
             trace["error_type"] = "EmptyResponseError"
             trace["response_empty"] = True

@@ -179,6 +179,7 @@ def build_pair_relations(
         request_id=request_id,
     )
     stats.update(outcome.stats)
+    prompt_version = stats.get("prompt_version") or PROMPT_VERSION
     verifier = CitationResolver(record.pages, record.tables, nodes)
     relations: dict[str, PairRelation] = {}
     digest = record.pins.source_snapshot_digest
@@ -228,7 +229,7 @@ def build_pair_relations(
             citation_a=ca,
             citation_b=cb,
             classifier_model=decision.served_model or model,
-            prompt_version=PROMPT_VERSION,
+            prompt_version=prompt_version,
             source_snapshot_digest=digest,
         )
         stats["relations_by_label"][decision.label.value] += 1
@@ -243,7 +244,7 @@ def build_pair_relations(
         relations=list(relations.values()),
         mode="llm",
         classifier_model=stats["served_model"] or model,
-        prompt_version=PROMPT_VERSION,
+        prompt_version=prompt_version,
         stats=stats,
         node_parts=parts,
         batches_completed=outcome.batches_completed,

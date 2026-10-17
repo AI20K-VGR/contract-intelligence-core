@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 import unicodedata
 from types import SimpleNamespace
 
@@ -46,6 +47,9 @@ class Runtime:
         self.left = remaining
         self.calls = []
         self.error = error
+        # classify_pairs calls complete_json from pool threads at the default concurrency.
+        self.lock = threading.Lock()
+        self.issues = []
 
     def remaining(self):
         return self.left
@@ -53,9 +57,13 @@ class Runtime:
     def report_progress(self, *_args):
         pass
 
+    def commit_issues(self, sink):
+        self.issues.extend(sink)
+
     def complete_json(self, client, system, user, **_kwargs):
-        self.calls.append((system, json.loads(user)))
-        self.llm_calls_used += 1
+        with self.lock:
+            self.calls.append((system, json.loads(user)))
+            self.llm_calls_used += 1
         if self.error:
             raise self.error
         if client is not None:
@@ -383,7 +391,12 @@ def test_pair_events_keep_unknown_and_duplicate_ids_at_batch_scope():
 def test_runtime_none_marks_batch_unclassified_and_stops():
     runtime = Runtime()
     runtime.response = None
-    result = classify_pairs([pair()] * 10, client=SimpleNamespace(traces=[]), runtime=runtime)
+    # Pinned: the call count assumes batch 2 is only sent after batch 1 answered, which the
+    # parallel path does not do by design (KD1/KD4). Parallel counterpart:
+    # test_contract_graph_pairs_parallel.py::test_parallel_equals_sequential_with_failure[0-provider].
+    result = classify_pairs(
+        [pair()] * 10, client=SimpleNamespace(traces=[]), runtime=runtime, concurrency=1
+    )
     assert len(runtime.calls) == 1
     assert result.stats["pairs_unclassified"] == 10
     assert result.stopped_reason == "LLM_FALLBACK"
@@ -428,8 +441,13 @@ def test_no_text_in_logs(caplog):
 @pytest.mark.parametrize("served", ["not-a-model", "unknown-model", None, ""])
 def test_runtime_rejects_non_anthropic_served_model(served):
     runtime = Runtime({"results": [answer()]})
+    # Pinned: asserts one call, i.e. sequential dispatch (KD1/KD4). Parallel counterpart:
+    # test_contract_graph_pairs_parallel.py::test_parallel_equals_sequential_with_failure[0-served].
     result = classify_pairs(
-        [pair()] * 10, client=SimpleNamespace(traces=[], served=served), runtime=runtime
+        [pair()] * 10,
+        client=SimpleNamespace(traces=[], served=served),
+        runtime=runtime,
+        concurrency=1,
     )
     assert not result.decisions
     assert result.stopped_reason == "LLM_FALLBACK"
@@ -452,7 +470,12 @@ def test_missing_current_trace_cannot_reuse_prior_claude_trace():
             }
 
     rt = MissingTrace()
-    result = classify_pairs([pair()] * 10, client=SimpleNamespace(traces=[]), runtime=rt)
+    # Pinned: the fake gives a trace to whichever call arrives first, so the outcome depends
+    # on call order by the test's own design. Parallel counterpart:
+    # test_contract_graph_pairs_parallel.py::test_missing_current_trace_cannot_borrow_another_batch_trace.
+    result = classify_pairs(
+        [pair()] * 10, client=SimpleNamespace(traces=[]), runtime=rt, concurrency=1
+    )
     assert result.batches_completed == 1
     assert result.stats["pairs_unclassified"] == 2
     assert result.stopped_reason == "LLM_FALLBACK"
