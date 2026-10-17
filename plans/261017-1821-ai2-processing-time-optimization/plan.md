@@ -2,7 +2,7 @@
 id: 261017-1821-ai2-processing-time-optimization
 title: "Tối ưu thời gian xử lý AI2"
 description: "Đưa wall p90 của job AI2 hồ sơ lớn từ ~100s xuống <40s bằng đo đạc đủ, song song hoá batch pairs và tinh chỉnh lời gọi pairs, không giảm chất lượng phân loại."
-status: in_progress
+status: completed
 priority: P1
 effort: "~5 ngày công + thời gian chạy LLM qua router local"
 mode: hard
