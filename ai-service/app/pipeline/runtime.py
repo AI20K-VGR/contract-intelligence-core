@@ -121,6 +121,18 @@ def _log_provider_failure(client: Any, exc: BaseException, attempt: int, operati
     )
 
 
+# Span-picking calls need no long reasoning (#124). Off unless set; production turns it on
+# only with Lead approval (D6). Sent to GPT-5 models only.
+LIGHT_REASONING_ENV = "AI2_LLM_LIGHT_REASONING_EFFORT"
+LIGHT_REASONING_OPERATIONS = frozenset({"slot_context", "alias"})
+
+
+def _reasoning_effort(operation: str | None) -> str | None:
+    if operation not in LIGHT_REASONING_OPERATIONS:
+        return None
+    return os.getenv(LIGHT_REASONING_ENV, "").strip().casefold() or None
+
+
 def _log_call(client: Any, attempt: int, operation: str | None) -> None:
     # Timing and token counts only, never the prompt or the answer.
     traces = getattr(client, "traces", None)
@@ -277,7 +289,8 @@ class ProcessingRuntime:
             reserve = partial(self._reserve_http_request, call_deadline, cancelled)
             try:
                 data = call_with_timeout(
-                    partial(self._invoke, client, system, user, strong, call_timeout, reserve, max_output_tokens), call_timeout,
+                    partial(self._invoke, client, system, user, strong, call_timeout, reserve, max_output_tokens,
+                            _reasoning_effort(operation)), call_timeout,
                 )
             except LLMRequestBudgetExceeded:
                 self._fall_back("LLM_BUDGET_EXCEEDED")
@@ -339,11 +352,14 @@ class ProcessingRuntime:
         self, client: Any, system: str, user: str, strong: bool, timeout: float,
         reserve: Callable[[], float],
         max_output_tokens: int | None = None,
+        reasoning_effort: str | None = None,
     ) -> Any:
         # Only the real client takes a per-request timeout; test doubles keep
         # the plain signature and are bounded by ``call_with_timeout``.
         if isinstance(client, NineRouterClient):
             token_options = {} if max_output_tokens is None else {"max_output_tokens": max_output_tokens}
+            if reasoning_effort is not None:
+                token_options["reasoning_effort"] = reasoning_effort
             return client.complete_json(
                 system, user, strong=strong, timeout=timeout,
                 before_request=reserve,

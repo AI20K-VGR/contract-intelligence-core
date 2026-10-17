@@ -297,3 +297,37 @@ def test_runtime_logs_each_successful_call_with_timing_and_tokens(caplog: pytest
     assert "operation=slot_context" in line and "served_model=gpt-5.5-2026" in line
     assert "prompt_tokens=120" in line and "reasoning_tokens=12" in line and "latency_ms=" in line
     assert "raw=private" not in line
+
+
+def _capturing_client(model: str, sent: list[dict]) -> NineRouterClient:
+    client = NineRouterClient(api_key="sk-test", model=model)
+
+    def create(**kwargs: object) -> SimpleNamespace:
+        sent.append(kwargs)
+        choice = SimpleNamespace(message=SimpleNamespace(content='{"ok": true}'), finish_reason="stop")
+        return SimpleNamespace(choices=[choice], usage=None, model=model)
+
+    client._client.chat.completions.create = create  # type: ignore[method-assign]
+    return client
+
+
+@pytest.mark.parametrize(("model", "operation", "expected"), [
+    ("gpt-5.5", "slot_context", "low"),
+    ("openai/gpt-5.5", "alias", "low"),
+    ("gpt-5.5", "pairs", None),          # classifier keeps the default reasoning
+    ("gpt-4o-mini", "slot_context", None),  # not a reasoning model
+])
+def test_light_reasoning_effort_only_for_span_picking_on_gpt5(monkeypatch, model, operation, expected):
+    monkeypatch.setenv("AI2_LLM_LIGHT_REASONING_EFFORT", "low")
+    sent: list[dict] = []
+    runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=2)
+    runtime.complete_json(_capturing_client(model, sent), "Return JSON.", "u", operation=operation)
+    assert sent[0].get("reasoning_effort") == expected
+
+
+def test_reasoning_effort_is_not_sent_when_unset(monkeypatch):
+    monkeypatch.delenv("AI2_LLM_LIGHT_REASONING_EFFORT", raising=False)
+    sent: list[dict] = []
+    runtime = ProcessingRuntime(egress_allowed=True, max_llm_calls=2)
+    runtime.complete_json(_capturing_client("gpt-5.5", sent), "Return JSON.", "u", operation="slot_context")
+    assert "reasoning_effort" not in sent[0]

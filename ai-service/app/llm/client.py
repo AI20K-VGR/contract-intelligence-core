@@ -60,6 +60,9 @@ def _is_gpt5(model: str) -> bool:
     return model.rsplit("/", 1)[-1].strip().casefold().startswith("gpt-5")
 
 
+_REASONING_EFFORTS = frozenset({"minimal", "low", "medium", "high"})
+
+
 def _sampling_options(model: str) -> dict[str, Any]:
     """Keep deterministic sampling where supported; reasoning GPT-5 rejects temperature."""
     if _is_gpt5(model):
@@ -149,6 +152,7 @@ class NineRouterClient:
         timeout: float | None = None,
         before_request: Callable[[], float] | None = None,
         max_output_tokens: int | None = None,
+        reasoning_effort: str | None = None,
     ) -> dict[str, Any]:
         """One logical completion. ``last_http_calls`` reports the HTTP requests it
         made (2 when the provider rejected ``response_format``) so the caller can
@@ -162,6 +166,10 @@ class NineRouterClient:
             if type(max_output_tokens) is not int or max_output_tokens <= 0:
                 raise ValueError("max_output_tokens must be a positive integer")
             request_options.update(_output_limit(model, max_output_tokens))
+        if reasoning_effort is not None and _is_gpt5(model):
+            if reasoning_effort not in _REASONING_EFFORTS:
+                raise ValueError("unknown reasoning_effort")
+            request_options["reasoning_effort"] = reasoning_effort
         self.last_http_calls = 0
         started = time.perf_counter()
         trace: dict[str, Any] = {
