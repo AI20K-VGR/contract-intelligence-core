@@ -1,0 +1,64 @@
+# Phase DAG for 261017-1821-ai2-processing-time-optimization.
+# {from: A, to: B} = A finishes before B starts. Strict chain P1 -> P2 -> P3:
+# the shared files (runtime.py, client.py, pair_classifier.py, compose files,
+# deploy test, docs) are only modified along these edges, so there is no
+# parallel batch.
+edges:
+  - {from: P1, to: P2}
+  - {from: P2, to: P3}
+subtasks:
+  P1:
+    files_to_create:
+      - ai-service/fixtures/perf/__init__.py
+      - ai-service/fixtures/perf/replay_job.py
+      - ai-service/tests/test_llm_timing_coverage.py
+      - ai-service/tests/test_job_timing_log.py
+      - ai-service/tests/test_perf_replay_job.py
+      - plans/261017-1821-ai2-processing-time-optimization/reports/phase-1-measurement.md
+    files_to_modify:
+      - ai-service/app/pipeline/runtime.py
+      - ai-service/app/llm/client.py
+      - ai-service/app/pipeline/idp.py
+      - ai-service/app/api/main.py
+    post: [verification-P1.json]
+  P2:
+    files_to_create:
+      - ai-service/tests/test_contract_graph_pairs_parallel.py
+      - ai-service/tests/test_runtime_concurrency.py
+      - ai-service/fixtures/perf/pairs_replay.py
+      - deploy/tests/test_ai2_pairs_env_passthrough.py
+      - plans/261017-1821-ai2-processing-time-optimization/reports/phase-2-measurement.md
+      - plans/261017-1821-ai2-processing-time-optimization/reports/phase-2-failure-policy-experiment.md
+    files_to_modify:
+      - ai-service/app/pipeline/contract_graph/pair_classifier.py
+      - ai-service/app/pipeline/runtime.py
+      - ai-service/app/llm/client.py
+      - ai-service/tests/test_contract_graph_pair_classifier.py
+      - ai-service/tests/test_st067_bounded_jobs.py
+      - ai-service/tests/test_contract_graph_pairs_idp_integration.py
+      - ai-service/.env.example
+      - docs/ai2/AI2-20-contract-graph-pairs.vi.md
+      - docker-compose.yml
+      - deploy/compose.prod.yml
+      - deploy/.env.prod.example
+    post: [verification-P2.json]
+  P3:
+    files_to_create:
+      - ai-service/fixtures/perf/pairs_bakeoff.py
+      - ai-service/tests/test_pairs_call_config.py
+      - ai-service/tests/test_pairs_bakeoff_harness.py
+      - plans/261017-1821-ai2-processing-time-optimization/reports/phase-3-bakeoff.md
+      - plans/261017-1821-ai2-processing-time-optimization/reports/phase-3-measurement.md
+    files_to_modify:
+      - ai-service/app/pipeline/runtime.py
+      - ai-service/app/pipeline/contract_graph/pair_classifier.py
+      - ai-service/app/pipeline/contract_graph/pair_builder.py
+      - docker-compose.yml
+      - deploy/compose.prod.yml
+      - deploy/.env.prod.example
+      - deploy/tests/test_ai2_pairs_env_passthrough.py
+      - ai-service/.env.example
+      - docs/ai2/AI2-20-contract-graph-pairs.vi.md
+      # touched only if candidate C2 (batch 10) ships after OpenAI confirmation
+      - ai-service/tests/test_contract_graph_pair_classifier.py
+    post: [verification-P3.json, review-decision.json]
