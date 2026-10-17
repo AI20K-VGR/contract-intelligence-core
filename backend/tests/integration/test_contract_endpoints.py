@@ -340,6 +340,57 @@ class TestDossierEndpoints:
         }
         assert item["latest_job_status"] is not None
 
+    @pytest.mark.asyncio
+    async def test_list_first_error_is_the_first_failed_pages_error(
+        self,
+        client: AsyncClient,
+        db_engine: Any,
+        make_keycloak_token: Any,
+    ) -> None:
+        """A first failed page without a message gives first_error null, as the list screen did."""
+        from contract_intelligence.extraction.infrastructure.persistence.orm import PageORM
+
+        token = make_keycloak_token(role="OPERATOR")
+        r = await client.post(
+            "/api/v1/dossiers",
+            files=[("contract", ("main.pdf", make_pdf(marker="first-error"), "application/pdf"))],
+            data={"metadata": _json.dumps({"name": "First error"})},
+            headers=_auth_headers(token),
+        )
+        assert r.status_code == 202, r.text
+        dossier_id = r.json()["data"]["dossier_id"]
+        docs = (
+            await client.get(
+                f"/api/v1/dossiers/{dossier_id}/documents", headers=_auth_headers(token)
+            )
+        ).json()["data"]
+        contract_id = docs[0]["id"]
+
+        factory = async_sessionmaker(bind=db_engine, expire_on_commit=False, class_=AsyncSession)
+        async with factory() as session:
+            rows = [
+                (1, {"ai1_page_status": "failed"}),
+                (2, {"ai1_page_status": "failed", "error": "RuntimeError: later page"}),
+            ]
+            for page_no, features in rows:
+                session.add(
+                    PageORM(
+                        id=f"page-{contract_id}-{page_no}",
+                        tenant_id="tenant_vgr_01",
+                        document_id=contract_id,
+                        page_no=page_no,
+                        width_pt="595",
+                        height_pt="842",
+                        features=_json.dumps(features),
+                    )
+                )
+            await session.commit()
+
+        body = (await client.get("/api/v1/dossiers", headers=_auth_headers(token))).json()
+        ocr = next(d for d in body["data"] if d["id"] == dossier_id)["contract_ocr"]
+        assert ocr["failed_pages"] == 2
+        assert ocr["first_error"] is None
+
     def test_list_document_fields_follow_the_documents_acl(self) -> None:
         """List items carry documents only when /documents would allow the caller."""
         from types import SimpleNamespace
@@ -359,6 +410,37 @@ class TestDossierEndpoints:
         assert not _may_read_documents(dossier, user("admin", "ADMINISTRATOR"))
         other_tenant = SimpleNamespace(id="dos_1", tenant_id="t2", metadata={"created_by": "owner"})
         assert not _may_read_documents(other_tenant, user("owner", "OPERATOR"))
+
+    def test_list_contract_ocr_follows_the_pages_acl(self) -> None:
+        """A citation_read-only grant sees the counts, not contract_ocr (/pages needs QUERY)."""
+        from types import SimpleNamespace
+
+        from contract_intelligence.contract.interfaces.api.routers.contract_router import (
+            _may_read_documents,
+            _may_read_pages,
+        )
+        from contract_intelligence.shared.auth.schemas import AuthenticatedUser
+
+        reader = AuthenticatedUser(
+            user_id="reader", tenant_id="t1", email="", display_name="", role="OPERATOR"
+        )
+
+        def shared(actions: list[str] | None) -> SimpleNamespace:
+            grant: dict[str, Any] = {"id": "reader", "permission": "read"}
+            if actions is not None:
+                grant["actions"] = actions
+            return SimpleNamespace(
+                id="dos_1",
+                tenant_id="t1",
+                metadata={"created_by": "owner", "shared_with": [grant]},
+            )
+
+        limited = shared(["citation_read"])
+        assert _may_read_documents(limited, reader)
+        assert not _may_read_pages(limited, reader)
+        full = shared(None)
+        assert _may_read_documents(full, reader)
+        assert _may_read_pages(full, reader)
 
     @pytest.mark.asyncio
     async def test_dossier_detail_reads_the_dossier_once(

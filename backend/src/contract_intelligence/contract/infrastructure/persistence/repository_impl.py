@@ -5,7 +5,6 @@ Layer: infrastructure (persistence) — concrete impl cho Dossier/Document/Job/M
 
 from __future__ import annotations
 
-import json
 import weakref
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -48,6 +47,7 @@ from contract_intelligence.contract.infrastructure.persistence.orm import (
     ManifestRelationORM,
 )
 from contract_intelligence.shared.base import Page, new_ulid, utcnow
+from contract_intelligence.shared.page_features import page_ocr_status
 from contract_intelligence.shared.run_events import record_run_event
 
 
@@ -68,22 +68,6 @@ def _coerce_int(value: object, default: int = 0) -> int:
 
 
 _PAGE_ERROR_MAX = 500
-
-
-def _page_ocr_status(features: object) -> tuple[str, str | None]:
-    """``(ai1_page_status upper-cased, error)`` from a ``page.features`` value.
-
-    Raw SQL gives JSON text on SQLite and may give a dict on Postgres.
-    """
-    if isinstance(features, str):
-        try:
-            features = json.loads(features)
-        except ValueError:
-            return "", None
-    if not isinstance(features, dict):
-        return "", None
-    error = features.get("error")
-    return str(features.get("ai1_page_status") or "").upper(), (str(error) if error else None)
 
 
 # ============================================================================
@@ -730,11 +714,13 @@ class DossierRepositoryImpl(DossierRepository):
             for doc_id, features in pages:
                 ocr = result[contract_of[str(doc_id)]]["contract_ocr"]
                 ocr["page_count"] += 1
-                status, error = _page_ocr_status(features)
+                status, error = page_ocr_status(features)
                 if status == "FAILED" or error:
-                    ocr["failed_pages"] += 1
-                    if ocr["first_error"] is None and error:
+                    # The first failed page's error, as the list screen showed it;
+                    # null when that page failed without a message.
+                    if ocr["failed_pages"] == 0 and error:
                         ocr["first_error"] = error[:_PAGE_ERROR_MAX]
+                    ocr["failed_pages"] += 1
         for entry in result.values():
             if entry["contract_ocr"] is not None:
                 entry["contract_ocr"].pop("_is_contract")

@@ -289,17 +289,26 @@ async def _require_readable(
     return dossier
 
 
-def _may_read_documents(dossier: Any, user: AuthenticatedUser) -> bool:
-    """Whether ``user`` may list this dossier's documents (see ``list_dossier_documents``)."""
+def _may(dossier: Any, user: AuthenticatedUser, action: AclAction) -> bool:
     return bool(
         dossier_access_decision(
-            action=AclAction.CITATION_READ,
+            action=action,
             principal=user,
             dossier_id=dossier.id,
             dossier_tenant_id=getattr(dossier, "tenant_id", user.tenant_id),
             metadata=dossier.metadata,
         )
     )
+
+
+def _may_read_documents(dossier: Any, user: AuthenticatedUser) -> bool:
+    """Whether ``user`` may list this dossier's documents (see ``list_dossier_documents``)."""
+    return _may(dossier, user, AclAction.CITATION_READ)
+
+
+def _may_read_pages(dossier: Any, user: AuthenticatedUser) -> bool:
+    """Whether ``user`` may read the pages behind ``contract_ocr`` (``acl_document``: QUERY)."""
+    return _may(dossier, user, AclAction.QUERY)
 
 
 _DossierDTO = TypeVar("_DossierDTO", DossierSummaryDTO, DossierDetailDTO)
@@ -1137,9 +1146,12 @@ async def list_dossiers(
     )
     lifecycle = await svc.lifecycle([d.id for d in items])
     # Documents and contract OCR state for the whole page, so the list screen
-    # needs no per-dossier /documents and /pages calls. Same ACL as /documents.
-    document_readable = [d.id for d in items if _may_read_documents(d, user)]
-    documents = await svc.document_summaries(document_readable)
+    # needs no per-dossier /documents and /pages calls. Counts use the ACL of
+    # /documents (CITATION_READ), contract_ocr the ACL of /pages (QUERY): a
+    # grant can name its actions, so one may be allowed without the other.
+    document_readable = {d.id for d in items if _may_read_documents(d, user)}
+    pages_readable = {d.id for d in items if _may_read_pages(d, user)}
+    documents = await svc.document_summaries([d.id for d in items if d.id in document_readable])
     summaries: list[DossierSummaryDTO] = []
     for d in items:
         latest = d.latest_job()
@@ -1152,7 +1164,7 @@ async def list_dossiers(
         )
         if d.id in document_readable:
             doc = documents.get(d.id) or {}
-            ocr = doc.get("contract_ocr")
+            ocr = doc.get("contract_ocr") if d.id in pages_readable else None
             dto = dto.model_copy(
                 update={
                     "document_counts": DocumentCountsDTO(

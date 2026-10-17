@@ -87,9 +87,10 @@ class DossierRepository(Protocol):
         """Per dossier: document counts by role and the contract's OCR page status.
 
         One round trip for a whole list page, so the list screen does not
-        fetch documents and pages once per dossier.
+        fetch documents and pages once per dossier. The default returns
+        nothing, so the list leaves both fields null.
         """
-        ...
+        return {}
 
     async def is_tombstoned(self, dossier_id: str) -> bool:
         """True when the dossier exists but has been soft-deleted (tombstoned)."""

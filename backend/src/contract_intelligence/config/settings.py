@@ -315,7 +315,9 @@ class Settings(BaseSettings):
     cors_allow_credentials: bool = Field(default=True)
     # Server-Timing header (app and SQL time per request) for DevTools and the
     # frontend's Resource Timing; Timing-Allow-Origin follows cors_allow_origins.
-    server_timing_enabled: bool = Field(default=True)
+    # Unset: on in dev/test, off in staging/prod, since every caller (signed in
+    # or not) sees the API and SQL time. SERVER_TIMING_ENABLED=true while measuring.
+    server_timing_enabled: bool | None = Field(default=None)
 
     @field_validator("cors_allow_origins", mode="before")
     @classmethod
@@ -582,6 +584,12 @@ class Settings(BaseSettings):
     def exposed(self) -> bool:
         """Staging or prod: reachable from outside a developer machine."""
         return self.env in _GUARDED_ENVS
+
+    @model_validator(mode="after")
+    def _default_server_timing(self) -> Settings:
+        if self.server_timing_enabled is None:
+            self.server_timing_enabled = not self.exposed
+        return self
 
     @model_validator(mode="after")
     def _refuse_dev_secrets_outside_dev(self) -> Settings:

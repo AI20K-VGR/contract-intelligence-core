@@ -58,7 +58,7 @@
 | `Accept` | Có | `application/json` hoặc `application/pdf` (khi tải file gốc) |
 | `X-Request-Id` | Tùy chọn | Client sinh UUIDv4 để truy vết log từ Frontend sang Backend |
 
-Header backend trả về để đo hiệu năng (**v3.3.0**). Bật mặc định khi chạy local; production tắt mặc định, chỉ bật bằng `SERVER_TIMING_ENABLED=true` trong `deploy/.env.prod` trong lúc cần đo, vì header lộ thời gian xử lý cho mọi người gọi API:
+Header backend trả về để đo hiệu năng (**v3.3.0**). Bật mặc định khi chạy local (`ENV` là `dev`, `test`); staging và production (`ENV` là `staging`, `prod`) tắt mặc định, chỉ bật bằng `SERVER_TIMING_ENABLED=true` (production: trong `deploy/.env.prod`) trong lúc cần đo, vì header lộ thời gian xử lý cho mọi người gọi API:
 
 | Header | Mô tả |
 |---|---|
@@ -297,9 +297,12 @@ Màn hình khởi tạo hồ sơ, tải lên các file PDF (hợp đồng gốc 
     - `filename`: tên file lúc upload; có thể là `null` khi tài liệu không lưu tên file.
     - `page_count`: số trang **đã có kết quả OCR** (số bản ghi trang AI1 đã trả), không phải số trang của file PDF. OCR chưa chạy xong thì nhỏ hơn số trang thật, có thể là `0`.
     - `failed_pages`: số trang trong đó có `ai1_page_status` là `FAILED` hoặc có lỗi.
-    - `first_error`: lỗi của trang lỗi đầu tiên theo số trang, tối đa 500 ký tự; `null` khi không trang nào có lỗi.
+    - `first_error`: lỗi của trang lỗi đầu tiên theo số trang, tối đa 500 ký tự; `null` khi không có trang lỗi, hoặc khi trang lỗi đầu tiên không kèm thông báo lỗi (giống cách màn danh sách vẫn đọc từ `/pages`).
   - **Khi nào là `null`:**
-    - Cả hai trường là `null` khi người gọi không có quyền xem tài liệu của hồ sơ (cùng quyền `CITATION_READ` với `GET /dossiers/{id}/documents`, cùng lý do `403`). Với quyền hiện nay, hồ sơ nào hiện trong danh sách thì người gọi cũng xem được tài liệu, nhưng frontend vẫn phải xử lý `null`: khi đó dùng cách cũ, hoặc không hiện số tài liệu.
+    - Mỗi trường theo quyền của endpoint mà nó thay thế:
+      - `document_counts` là `null` khi người gọi không có quyền `CITATION_READ`, như `GET /dossiers/{id}/documents` trả `403`.
+      - `contract_ocr` là `null` khi người gọi không có quyền `QUERY`, như `GET /documents/{id}/pages` trả `403`. Lượt chia sẻ có thể chỉ cho một số `actions`, nên người được chia sẻ có thể thấy số tài liệu mà không thấy `contract_ocr`.
+      - Frontend phải xử lý `null`: khi đó không hiện phần tương ứng (gọi `/documents` hay `/pages` cũng sẽ bị `403`).
     - `contract_ocr` là `null` (còn `document_counts` là `{0, 0}`) khi hồ sơ chưa có tài liệu nào.
     - Backend cũ (trước v3.3.0) không gửi hai trường này: frontend coi thiếu trường như `null` và gọi theo cách cũ.
 
@@ -976,7 +979,7 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
-| `v3.3.0` | 17/10/2026 | `GET /dossiers`: mỗi hồ sơ thêm `document_counts` (`{contracts, annexes}`) và `contract_ocr` (`{document_id, filename, page_count, failed_pages, first_error}`), `null` khi người gọi không có quyền xem tài liệu (mục "Số tài liệu và trạng thái OCR trong danh sách" ở Màn hình 3). Màn danh sách bỏ được 3 lần gọi cho mỗi dòng. Header `Server-Timing` và `Timing-Allow-Origin` (§1.2), production tắt mặc định. Chỉ thêm trường và header, nên là MINOR |
+| `v3.3.0` | 17/10/2026 | `GET /dossiers`: mỗi hồ sơ thêm `document_counts` (`{contracts, annexes}`) và `contract_ocr` (`{document_id, filename, page_count, failed_pages, first_error}`), `null` khi người gọi không có quyền tương ứng: `CITATION_READ` cho `document_counts`, `QUERY` cho `contract_ocr` (mục "Số tài liệu và trạng thái OCR trong danh sách" ở Màn hình 3). Màn danh sách bỏ được 3 lần gọi cho mỗi dòng. Header `Server-Timing` và `Timing-Allow-Origin` (§1.2), staging và production tắt mặc định. Chỉ thêm trường và header, nên là MINOR |
 | `v3.2.0` | 16/10/2026 | Tiến độ trong bước: `progress` (`{done, total, unit}` hoặc `null`) trên mỗi phần tử `GET /runs/{id}/steps` và payload SSE `step.changed`, phát lại có giới hạn tần suất khi bước đang chạy (mục "Tiến độ trong bước" ở Màn hình 4). Mã lỗi job mới `AI1_NO_READABLE_PAGE`: AI1 không đọc được trang nào thì OCR thất bại thay vì `succeeded`. Chỉ thêm trường và mã lỗi, nên là MINOR |
 | `v3.1.0` | 15/10/2026 | `PATCH /dossiers/{id}/ai2-content-sharing-consent`: bật consent khi lượt chạy cuối đã qua AI2 thì backend tự reindex AI2 (như `POST /dossiers/{id}/ai2/reindex`); response thêm `ai2_reindex_queued` (boolean). Trước đây bật consent chỉ lưu giá trị và kết quả cũ (`RULE_ONLY_NO_CONSENT`) vẫn hiển thị. Thêm trường và hành vi, không bỏ gì, nên là MINOR |
 | `v3.0.0` | 15/10/2026 | Siết quyền trước đợt pentest bản online (#96). **Breaking** theo §8 vì thu hẹp quyền đã công bố: (1) token không có role ứng dụng nào trả `403 FORBIDDEN` thay vì được coi là `OPERATOR` (§2.1); (2) `GET`/`DELETE /ai/jobs/{id}` chỉ `ADMINISTRATOR`, trước đây `OPERATOR`/`REVIEWER` cũng gọi được; (3) `POST /batches/{id}/cancel` và `/resume`: OPERATOR chỉ với batch do mình tạo, batch của người khác trả `404`. Không đổi payload hay mã lỗi: `401` chỉ còn `message` `Token has expired`/`Invalid token`; `502 AI2_QUERY_FAILED` của `/query`, `/ask` không còn kèm URL và nội dung lỗi của AI2. Staging/prod không phục vụ `/docs`, `/redoc`, `/openapi.json` và không gửi `X-Backend-Version`; `/health` chỉ trả `{"status":"ok"}` ở **mọi** môi trường (dev/test cũng không còn phiên bản). Frontend không dùng các endpoint và header này nên không phải sửa |

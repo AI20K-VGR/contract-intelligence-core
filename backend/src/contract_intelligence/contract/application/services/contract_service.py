@@ -216,7 +216,6 @@ class ContractService:
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[Dossier], int]:
-        from typing import cast
 
         list_kwargs: dict[str, Any] = {
             "status": status,
@@ -237,26 +236,19 @@ class ContractService:
             await self._dossier_repo.list(**list_kwargs),
         )
         items = list(page.items)
-        # Hydrate latest job onto each dossier for DossierSummary.latest_job_status,
-        # in one query when the repository supports it (test doubles may not).
-        latest_by_dossiers = getattr(self._job_repo, "latest_by_dossiers", None)
-        if latest_by_dossiers is not None:
-            # ``or {}``: a repository subclassing the Protocol inherits its empty body.
-            latest = await latest_by_dossiers([d.id for d in items if not d.jobs]) or {}
-            for dossier in items:
-                if not dossier.jobs and dossier.id in latest:
-                    dossier.jobs = [latest[dossier.id]]
-        else:
-            for dossier in items:
-                await self._hydrate_latest_job(dossier)
+        # Latest job of every dossier on the page in one query, for
+        # DossierSummary.latest_job_status.
+        latest = await self._job_repo.latest_by_dossiers([d.id for d in items if not d.jobs])
+        for dossier in items:
+            if not dossier.jobs and dossier.id in latest:
+                dossier.jobs = [latest[dossier.id]]
         return items, page.total
 
     async def document_summaries(self, dossier_ids: Sequence[str]) -> dict[str, dict[str, Any]]:
         """Document counts and contract OCR status per dossier, for list screens."""
-        summaries = getattr(self._dossier_repo, "document_summaries", None)
-        if summaries is None or not dossier_ids:
+        if not dossier_ids:
             return {}
-        return cast(dict[str, dict[str, Any]], await summaries(dossier_ids) or {})
+        return await self._dossier_repo.document_summaries(dossier_ids)
 
     async def get_dossier(self, dossier_id: str) -> Dossier:
         dossier = await self._dossier_repo.get(dossier_id)
@@ -357,16 +349,9 @@ class ContractService:
         """Load latest Job onto dossier.jobs for navigation / DTO mapping."""
         if dossier.jobs:
             return
-        latest_for_dossier = getattr(self._job_repo, "latest_for_dossier", None)
-        if latest_for_dossier is not None:
-            job = await latest_for_dossier(dossier.id)
-            if job is not None:
-                dossier.jobs = [cast(Job, job)]
-            return
-        # Test doubles without the single-row read.
-        page = await self._job_repo.list(dossier_id=dossier.id, limit=1, offset=0)
-        if page.items:
-            dossier.jobs = [cast(Job, page.items[0])]
+        job = await self._job_repo.latest_for_dossier(dossier.id)
+        if job is not None:
+            dossier.jobs = [job]
 
     async def review_counts(self, dossier_id: str) -> tuple[int, int]:
         """``(open_review_items, pending_conflicts)`` of the dossier."""
