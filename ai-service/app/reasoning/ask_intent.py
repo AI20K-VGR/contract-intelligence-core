@@ -91,6 +91,24 @@ def _compare_cue(plain: str) -> bool:
     return False
 
 
+# Answers that combine several clauses: the reasoning layer (LLM when allowed) composes them;
+# a verbatim lookup only listed passages (#121).
+_SYNTHESIS_CUES = ("tom tat", "tong hop", "khac nhau", "co quy dinh khac", "quy dinh khac khong",
+                   "moi dot", "cac dot", "tung dot")
+# Asking about the annexes themselves, not about what an annex says.
+_ANNEX_INVENTORY = re.compile(
+    r"\b(?:bao nhieu|may|nhung|cac|danh sach)\s+phu luc\b|\bphu luc nao\b|\bco phu luc (?:nao|khong)\b"
+)
+
+
+def _synthesis_question(plain: str) -> bool:
+    return any(cue in plain for cue in _SYNTHESIS_CUES)
+
+
+def _annex_inventory_question(plain: str) -> bool:
+    return _ANNEX_INVENTORY.search(plain) is not None
+
+
 def parse_ask(text: str) -> dict[str, Any]:
     """Return the ask task. Scope never replaces the attribute the user asked for."""
 
@@ -122,6 +140,10 @@ def parse_ask(text: str) -> dict[str, Any]:
         spec["type"] = "relation_ask"
         spec["focus_clause_labels"] = [clause] if clause else []
         spec["annex_numbers"] = annexes
+        return spec
+
+    if _synthesis_question(plain) and not query_too_broad(query):
+        spec["type"] = "unscoped"
         return spec
 
     if attribute == "fx":
@@ -209,7 +231,7 @@ def parse_ask(text: str) -> dict[str, Any]:
         spec["annex_n"] = annexes[0]
         return spec
 
-    if "phu luc" in plain and any(cue in plain for cue in ("co ", "nao", "danh sach", "bao nhieu", "may")):
+    if _annex_inventory_question(plain):
         spec["type"] = "annex_list"
         return spec
 

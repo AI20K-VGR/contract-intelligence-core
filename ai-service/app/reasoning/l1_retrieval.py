@@ -105,7 +105,10 @@ class L1Retrieval:
                 found = self.gateway.call("search_structured", envelope, key=key) or []
                 structured_ids.extend(str(h.get("node_id")) for h in found if h.get("node_id"))
                 hits.extend(found)
-            if ttype in EXPAND_SEMANTIC or (not hits and ttype in {"lookup_term", "payment_card"}):
+            # A synthesis question ("mỗi đợt …", "tóm tắt …") needs every matching clause, not
+            # only the structured field its words also hit (#121: 2.1 alone, no 5.1-5.3).
+            if (ttype in EXPAND_SEMANTIC or ttype == "unscoped"
+                    or (not hits and ttype in {"lookup_term", "payment_card"})):
                 sem = (
                     self.gateway.call("search_semantic", envelope, query=expand_query(q), k=8) or []
                 )
@@ -167,6 +170,8 @@ class L1Retrieval:
                         hits.append(_hit_from_node(node))
             if not hits and record is not None:
                 hits.extend(_lexical_hits(record, q))
+            if ttype == "unscoped" and record is not None:
+                hits.extend(_children_of_headings(self.gateway, envelope, record, hits))
             policy_flags = task.get("policy_flags") or {}
             vector_result = (
                 self.vector_recall.recall(
@@ -537,6 +542,26 @@ def _expand_responsibility_groups(
                 coverage.append(child_id)
             grouped.append(by_id.get(child_id) or _hit_from_node(child.model_dump()))
     return _merge_hits(grouped, hits), coverage
+
+
+_HEADING_CHILDREN_CAP = 12
+
+
+def _children_of_headings(gateway, envelope, record: Any, hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Clauses under a matched heading ("Điều 5. Thanh toán" → 5.1-5.3), bounded."""
+    seen = {str(h.get("node_id") or "") for h in hits}
+    children: dict[str, list[str]] = {}
+    for node in record.evidence_nodes():
+        if node.parent_id:
+            children.setdefault(node.parent_id, []).append(node.node_id)
+    extra: list[dict[str, Any]] = []
+    for hit in hits:
+        for child in children.get(str(hit.get("node_id") or ""), []):
+            if child in seen or len(extra) >= _HEADING_CHILDREN_CAP:
+                continue
+            seen.add(child)
+            extra.append(_hit_from_node(gateway.call("get_node", envelope, node_id=child)))
+    return extra
 
 
 def _lexical_hits(record: Any, query: str) -> list[dict[str, Any]]:

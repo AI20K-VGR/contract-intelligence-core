@@ -28,6 +28,7 @@ class Funnel:
     pair_result: Any = None
     result: Any = None
     record: Any = None
+    envelope: Any = None
 
     def node(self, prefix: str) -> str:
         """The single node whose normalized text starts with ``prefix``."""
@@ -64,7 +65,8 @@ def run(payload: dict, *, llm: Any = None, runtime: ProcessingRuntime | None = N
         payload, tenant_id=env["tenant_id"], actor_id=env["actor_id"]
     )
     record = adapted.record
-    funnel = Funnel({n.node_id: " ".join(n.text.split()) for n in record.evidence_nodes()}, record=record)
+    funnel = Funnel({n.node_id: " ".join(n.text.split()) for n in record.evidence_nodes()}, record=record,
+                    envelope=adapted.envelope)
     real_graph = builder.build_contract_graph
     real_pairs = pair_builder.build_pair_relations
     real_candidates = pair_builder.generate_pair_candidates
