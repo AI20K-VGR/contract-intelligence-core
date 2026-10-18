@@ -425,6 +425,20 @@ class Settings(BaseSettings):
         le=86400,
         description="TTL cache cho JWKS public keys (giây). Default 1 giờ.",
     )
+    # Back-channel logout: Keycloak signs the logout token for the client the
+    # user signed in with (the frontend), so its `aud` is that client's id.
+    keycloak_logout_audience: str = Field(
+        default="contract-intel-frontend",
+        description="Expected `aud` of a Keycloak back-channel logout token.",
+    )
+    # How long a logged-out session stays refused. Must outlive every access
+    # token of that session: the realm's accessTokenLifespan (15 min) plus skew.
+    auth_revoked_session_ttl_seconds: int = Field(
+        default=3600,
+        ge=60,
+        le=86400,
+        description="Seconds a session ended in Keycloak stays refused by the API.",
+    )
 
     # -------------------------------------------------------------------------
     # Keycloak Admin REST API — dùng để fetch full user profile khi nhận

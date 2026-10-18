@@ -58,6 +58,9 @@ class _FakeAdmin:
     def disable_user(self, user_id: str) -> None:
         return None
 
+    def user_logout(self, user_id: str) -> dict[str, Any]:
+        return {}
+
     def get_events(self, query: dict[str, Any]) -> list[dict[str, Any]]:
         self.event_queries.append(query)
         if isinstance(self._events, Exception):

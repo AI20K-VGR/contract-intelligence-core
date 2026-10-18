@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu | **DOC-05b** / Contract Intelligence (PROD-01) |
-| Phiên bản / SemVer | **`v3.3.0`** — `GET /dossiers` thêm `document_counts`, `contract_ocr` cho mỗi hồ sơ (bỏ 3 lần gọi mỗi dòng); header `Server-Timing`. **`v3.2.0`** — tiến độ trong bước: `progress` trên `GET /runs/{id}/steps` và SSE `step.changed`; mã lỗi `AI1_NO_READABLE_PAGE`. **`v3.1.0`** — bật consent AI2 tự reindex hồ sơ, response thêm `ai2_reindex_queued`. **`v3.0.0`** — siết quyền trước pentest (#96): token không có role ứng dụng trả `403` thay vì thành `OPERATOR`; `/ai/jobs/{id}` chỉ `ADMINISTRATOR`; batch cancel/resume chỉ người tạo hoặc `ADMINISTRATOR`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
+| Phiên bản / SemVer | **`v3.4.0`** — đăng xuất có hiệu lực ngay: token của phiên Keycloak đã kết thúc nhận `401` `Session has ended`. **`v3.3.0`** — `GET /dossiers` thêm `document_counts`, `contract_ocr` cho mỗi hồ sơ (bỏ 3 lần gọi mỗi dòng); header `Server-Timing`. **`v3.2.0`** — tiến độ trong bước: `progress` trên `GET /runs/{id}/steps` và SSE `step.changed`; mã lỗi `AI1_NO_READABLE_PAGE`. **`v3.1.0`** — bật consent AI2 tự reindex hồ sơ, response thêm `ai2_reindex_queued`. **`v3.0.0`** — siết quyền trước pentest (#96): token không có role ứng dụng trả `403` thay vì thành `OPERATOR`; `/ai/jobs/{id}` chỉ `ADMINISTRATOR`; batch cancel/resume chỉ người tạo hoặc `ADMINISTRATOR`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
 | Trạng thái | Đã chốt — Sẵn sàng triển khai Frontend & Backend |
 | Owner | Tech Lead / Frontend Lead / Backend Lead |
 | Ngày hiệu lực | 17/09/2026 |
@@ -173,7 +173,7 @@ Mọi phản hồi lỗi (HTTP status >= 400) đều tuân theo chuẩn RFC 7807
 ### 3.3 Mã Lỗi Doanh nghiệp Thường Gặp
 | HTTP Status | Code Doanh nghiệp | Khi nào xảy ra? | Hành động của Frontend |
 |:---:|---|---|---|
-| `401` | `UNAUTHORIZED` | Token hết hạn hoặc không hợp lệ. **v3.0.0:** `error.message` chỉ là `Token has expired` hoặc `Invalid token`, không nói kiểm tra nào hỏng (issuer, audience, kid); lý do ghi ở log backend | Điều hướng người dùng về màn hình Login hoặc gọi refresh token. Không dựa vào nội dung `message` |
+| `401` | `UNAUTHORIZED` | Token hết hạn hoặc không hợp lệ. **v3.0.0:** `error.message` chỉ là `Token has expired` hoặc `Invalid token`, không nói kiểm tra nào hỏng (issuer, audience, kid); lý do ghi ở log backend. **v3.4.0:** thêm `Session has ended` khi phiên Keycloak của token đã kết thúc (người dùng đăng xuất, quản trị khoá tài khoản), dù token chưa hết hạn | Điều hướng người dùng về màn hình Login hoặc gọi refresh token. Không dựa vào nội dung `message` |
 | `403` | `FORBIDDEN` | Sai `X-Tenant-Id` hoặc không đủ quyền `x-rbac` | Hiển thị thông báo "Không có quyền thực hiện chức năng này" |
 | `404` | `NOT_FOUND` | Không tìm thấy ID hồ sơ / tài liệu / run | Hiển thị màn hình 404 hoặc thông báo mục đã bị xóa |
 | `409` | `VERSION_CONFLICT` | Phiên bản `base_version` gửi lên cũ hơn DB | **Refetch item mới nhất**, cảnh báo reviewer có xung đột chỉnh sửa |
@@ -219,14 +219,16 @@ Màn hình hiển thị thông tin user hiện tại (từ Keycloak JWT). Fronte
 **Luồng Frontend:**
 1. User click "Đăng nhập" → redirect đến Keycloak login page.
 2. Keycloak trả `access_token` + `refresh_token` về frontend (OIDC callback).
-3. Frontend lưu `access_token` trong Memory hoặc Secure Cookie.
+3. Frontend lưu phiên (`access_token`, `refresh_token`, `id_token`) trong `localStorage` (`oidc-client-ts`, `frontend/src/auth/oidc.ts`).
 4. Khi `access_token` hết hạn, frontend gọi Keycloak refresh endpoint trực tiếp.
 5. Khi user click "Đăng xuất", frontend gọi Keycloak logout endpoint trực tiếp.
+6. **v3.4.0:** khi một phiên kết thúc (đăng xuất, quản trị đăng xuất hộ hoặc khoá tài khoản), Keycloak gọi `POST /auth/backchannel-logout` của backend trong mạng nội bộ (OIDC Back-Channel Logout). Từ đó mọi access token của phiên (`sid`) nhận `401` với `error.message` `Session has ended`, thay vì còn dùng được tới khi hết hạn (tối đa 15 phút). Frontend không phải gọi gì thêm; `401` vẫn xử lý như hiện tại (về màn đăng nhập). Phiên kết thúc vì hết thời gian chờ không gửi thông báo này: token còn dùng được tới `exp`.
 
 | Phương thức | Endpoint | Phân quyền | Chức năng |
 |:---:|---|:---:|---|
 | `GET` | `/auth/me` | Mọi role | Lấy thông tin user hiện tại (từ Keycloak JWT claims) |
 | `POST` | `/auth/webhooks/keycloak` | Webhook (Keycloak) | Sync user từ Keycloak event vào local DB |
+| `POST` | `/auth/backchannel-logout` | Chỉ Keycloak (mạng nội bộ; Caddy trả `404` từ Internet) | **v3.4.0.** Nhận `logout_token` (form) khi một phiên kết thúc; backend ghi `sid` để từ chối token của phiên đó. `200` khi hợp lệ, `400` `{"error": "invalid_request"}` khi token không hợp lệ. Không có trong OpenAPI |
 
 **GET /auth/me Response:**
 ```json
@@ -981,6 +983,7 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
+| `v3.4.0` | 18/10/2026 | Đăng xuất có hiệu lực ngay (Màn hình 1). Keycloak báo phiên kết thúc qua back-channel logout (`POST /auth/backchannel-logout`, chỉ trong mạng nội bộ), backend lưu `sid` (bảng `revoked_session`, giữ 1 giờ) và trả `401` `Session has ended` cho mọi access token của phiên đó thay vì chờ hết hạn (15 phút). Quản trị khoá tài khoản cũng kết thúc mọi phiên của người đó. Thêm một `message` cho `401` và một endpoint nội bộ, frontend không phải sửa, nên là MINOR |
 | `v3.3.0` | 17/10/2026 | `GET /dossiers`: mỗi hồ sơ thêm `document_counts` (`{contracts, annexes}`) và `contract_ocr` (`{document_id, filename, page_count, failed_pages, first_error}`), `null` khi người gọi không có quyền tương ứng: `CITATION_READ` cho `document_counts`, `QUERY` cho `contract_ocr` (mục "Số tài liệu và trạng thái OCR trong danh sách" ở Màn hình 3). Màn danh sách bỏ được 3 lần gọi cho mỗi dòng. Header `Server-Timing` và `Timing-Allow-Origin` (§1.2), staging và production tắt mặc định. Chỉ thêm trường và header, nên là MINOR |
 | `v3.2.0` | 16/10/2026 | Tiến độ trong bước: `progress` (`{done, total, unit}` hoặc `null`) trên mỗi phần tử `GET /runs/{id}/steps` và payload SSE `step.changed`, phát lại có giới hạn tần suất khi bước đang chạy (mục "Tiến độ trong bước" ở Màn hình 4). Mã lỗi job mới `AI1_NO_READABLE_PAGE`: AI1 không đọc được trang nào thì OCR thất bại thay vì `succeeded`. Chỉ thêm trường và mã lỗi, nên là MINOR |
 | `v3.1.0` | 15/10/2026 | `PATCH /dossiers/{id}/ai2-content-sharing-consent`: bật consent khi lượt chạy cuối đã qua AI2 thì backend tự reindex AI2 (như `POST /dossiers/{id}/ai2/reindex`); response thêm `ai2_reindex_queued` (boolean). Trước đây bật consent chỉ lưu giá trị và kết quả cũ (`RULE_ONLY_NO_CONSENT`) vẫn hiển thị. Thêm trường và hành vi, không bỏ gì, nên là MINOR |

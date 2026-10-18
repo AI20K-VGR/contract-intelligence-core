@@ -60,7 +60,9 @@ __version__ = "2.0.0"
 # v3.2.0: progress {done,total,unit} trên /runs/{id}/steps và SSE step.changed;
 #         mã lỗi AI1_NO_READABLE_PAGE khi AI1 không đọc được trang nào.
 # v3.3.0: GET /dossiers thêm document_counts, contract_ocr; header Server-Timing.
-__api_contract__ = "v3.3.0"
+# v3.4.0: phiên Keycloak đã kết thúc (back-channel logout) → token của phiên đó
+#         nhận 401 "Session has ended" ngay, không chờ hết hạn.
+__api_contract__ = "v3.4.0"
 
 # AI service contract version (DOC-05c) — wrap khi AI service sẵn sàng
 __ai_contract__ = "v1.0.0"
