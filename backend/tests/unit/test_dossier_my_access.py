@@ -248,6 +248,7 @@ async def mock_svc() -> AsyncMock:
     svc = AsyncMock(spec=ContractService)
     svc.review_counts.return_value = (0, 0)
     svc.lifecycle.return_value = {}
+    svc.document_summaries.return_value = {}
     return svc
 
 

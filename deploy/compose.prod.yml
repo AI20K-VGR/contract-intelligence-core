@@ -125,6 +125,10 @@ services:
       MONITORING_SESSION_SECRET: ${MONITORING_SESSION_SECRET:?set in deploy/.env.prod}
       MONITORING_COOKIE_SAMESITE: ${MONITORING_COOKIE_SAMESITE:-none}
       MONITORING_COOKIE_SECURE: "true"
+      # Server-Timing header (API + SQL time per request). Off by default: it shows
+      # every caller, signed in or not, how long the API and its SQL took. Set it
+      # true in deploy/.env.prod only while measuring.
+      SERVER_TIMING_ENABLED: ${SERVER_TIMING_ENABLED:-false}
     ports: !reset []
     volumes: !reset []
 
