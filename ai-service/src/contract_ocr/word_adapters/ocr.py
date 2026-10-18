@@ -121,8 +121,10 @@ class _VietOCRRecognizer:
                 from vietocr.tool.config import Cfg
                 from vietocr.tool.predictor import Predictor
             except ImportError as exc:
+                # Not a project extra: vietocr pins gdown/imgaug versions with open CVEs.
                 raise EngineUnavailable(
-                    "vietocr is not installed (pip install 'contract-ocr-lab[vietocr]')"
+                    "vietocr is not installed (pip install vietocr); it is not a project "
+                    "extra because its gdown/imgaug dependencies have open CVEs"
                 ) from exc
             config = Cfg.load_config_from_name("vgg_transformer")
             config["device"] = "cpu"
