@@ -17,7 +17,13 @@ describe('normalizeQueryHistoryItem', () => {
     })
     expect(item?.answer).toBe('1.286.400.000 đồng')
     expect(item?.citations).toEqual([
-      { quote: 'Giá trị: 1.286.400.000', pageNo: 3 },
+      {
+        quote: 'Giá trị: 1.286.400.000',
+        pageNo: 3,
+        documentId: null,
+        lineId: null,
+        bbox: null,
+      },
     ])
   })
 
@@ -67,8 +73,49 @@ describe('normalizeQueryHistoryItem', () => {
       created_at: '2026-10-08T05:03:00+00:00',
     })
     expect(item?.citations).toEqual([
-      { quote: 'ĐIỀU 6. QUYỀN VÀ NGHĨA VỤ CỦA BÊN A', pageNo: 4 },
+      {
+        quote: 'ĐIỀU 6. QUYỀN VÀ NGHĨA VỤ CỦA BÊN A',
+        pageNo: 4,
+        documentId: null,
+        lineId: null,
+        bbox: null,
+      },
     ])
+  })
+
+  it('keeps the source document of an annex citation so it opens on the annex', () => {
+    const item = normalizeQueryHistoryItem({
+      trace_id: 'qtr_5',
+      endpoint: 'search',
+      actor_id: 'usr_1',
+      question: 'điều 1',
+      answer: 'Hệ thống là nền tảng quản lý tài liệu',
+      citations: [
+        {
+          text_span: '“Hệ thống” là nền tảng quản lý tài liệu',
+          page_no: 1,
+          source_file_id: 'doc_annex',
+          line_id: 'doc_annex:p1:l7',
+          bbox: [0.1, 0.2, 0.9, 0.25],
+        },
+        {
+          citation: {
+            text_span: 'Ngày làm việc',
+            page_no: 2,
+            document_id: 'doc_contract',
+          },
+        },
+      ],
+      created_at: '2026-10-16T09:30:00+00:00',
+    })
+    expect(item?.citations[0]).toEqual({
+      quote: '“Hệ thống” là nền tảng quản lý tài liệu',
+      pageNo: 1,
+      documentId: 'doc_annex',
+      lineId: 'doc_annex:p1:l7',
+      bbox: [0.1, 0.2, 0.9, 0.25],
+    })
+    expect(item?.citations[1]?.documentId).toBe('doc_contract')
   })
 
   it('drops rows without a trace id', () => {

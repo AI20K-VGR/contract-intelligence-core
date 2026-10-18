@@ -59,7 +59,7 @@ function resultNotes(result: DossierSearchResult) {
 }
 
 /**
- * Câu trả lời AI2 cho câu hỏi trên thanh search của trang cấu trúc cây.
+ * Câu trả lời của AI cho câu hỏi trên thanh search của trang cấu trúc cây.
  * Bấm một trích dẫn để mở đúng chỗ trong cây / trang PDF.
  */
 export function StructureSearchResult({
@@ -94,7 +94,7 @@ export function StructureSearchResult({
           </div>
           <div className="min-w-0">
             <p className="font-title-sm text-title-sm font-semibold text-primary">
-              Câu trả lời AI2
+              Câu trả lời của AI
             </p>
             {result ? (
               <p className="truncate font-label-sm text-label-sm text-on-surface-variant">
@@ -116,7 +116,7 @@ export function StructureSearchResult({
           {result?.usedLlm ? (
             <span
               className="rounded-full bg-surface-container px-2 py-0.5 font-label-sm text-label-sm text-secondary"
-              title="AI2 đã dùng mô hình ngôn ngữ để tổng hợp câu trả lời"
+              title="AI đã tổng hợp câu trả lời từ nội dung hồ sơ"
             >
               LLM
             </span>
@@ -134,7 +134,7 @@ export function StructureSearchResult({
 
       {searching ? (
         <p className="font-body-sm text-body-sm text-on-surface-variant">
-          Đang hỏi AI2 qua backend…
+          AI đang tìm câu trả lời…
         </p>
       ) : null}
 
@@ -213,7 +213,7 @@ export function StructureSearchResult({
                         {hit.citation.status === 'LOCATABLE' ? (
                           <span
                             className="mt-0.5 inline-flex shrink-0 items-center gap-0.5 rounded bg-emerald-50 px-1.5 py-0.5 font-label-sm text-[11px] font-semibold text-emerald-800"
-                            title="AI2 đã đối chiếu câu trích khớp nguồn OCR"
+                            title="Câu trích đã được đối chiếu khớp với tài liệu gốc"
                           >
                             <MaterialIcon
                               name="verified"

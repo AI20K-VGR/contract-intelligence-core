@@ -12,6 +12,6 @@ Nghiệm thu bảy task frontend Sprint 2. Mỗi task một bằng chứng trên
 | ST-048 | SSO. Chưa có test tự động | https://github.com/AI20K-VGR/contract-intelligence-core/commit/2b6312a |
 | ST-049 | Gửi PDF, mở màn tiến độ. Chưa có test tự động | https://github.com/AI20K-VGR/contract-intelligence-core/commit/7eb29e24efad6cc218b697c8e68f237d9a5914eb |
 
-Màn tương ứng: `/tao-ho-so`, `/xac-nhan-manifest/:dossierId`, `/tien-trinh-phan-tich/:dossierId`, `/cau-truc/:dossierId`, `/ho-so-hop-dong`, `/`.
+Màn tương ứng: `/tao-ho-so`, `/xac-nhan-manifest/:dossierId`, `/tien-trinh-phan-tich/:dossierId`, `/cau-truc/:dossierId`, `/ho-so-hop-dong`, `/`. Từ PR #122, `/xac-nhan-manifest/:dossierId` đã bỏ: backend tự xác nhận vai trò tài liệu lúc tải lên và lúc tách tệp.
 
 Kết luận: bảy task có bằng chứng commit trên develop. Mới ST-034 có test tự động. ST-030, ST-031, ST-032, ST-033, ST-048 và ST-049 chưa có test tự động.

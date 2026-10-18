@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
+import { LOGIN_NETWORK_MESSAGE, userErrorMessage } from '../api/errorMessage'
 import { homePath, validateWorkEmail } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
@@ -26,7 +27,11 @@ export function LoginPage() {
       await loginWithSso(workEmail)
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : 'SSO chưa xác thực được.',
+        userErrorMessage(
+          cause,
+          'Chưa đăng nhập được. Vui lòng thử lại.',
+          LOGIN_NETWORK_MESSAGE,
+        ),
       )
       setBusy(false)
     }
@@ -136,9 +141,8 @@ export function LoginPage() {
 
                 {!configured ? (
                   <p className="font-body-sm text-body-sm text-error bg-error-container/40 px-space-sm py-space-xs rounded">
-                    Chưa cấu hình Keycloak. Thêm VITE_KEYCLOAK_URL,
-                    VITE_KEYCLOAK_REALM, VITE_KEYCLOAK_CLIENT_ID vào file
-                    .env.local (xem .env.example).
+                    Hệ thống đăng nhập chưa được cấu hình. Vui lòng báo quản trị
+                    viên.
                   </p>
                 ) : null}
 

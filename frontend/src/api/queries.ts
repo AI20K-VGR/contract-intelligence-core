@@ -5,6 +5,14 @@ export type QueryScope = 'mine'
 export type QueryHistoryCitation = {
   quote: string
   pageNo: number | null
+  /**
+   * Tài liệu chứa đoạn trích (source_file_id của AI2). Trích dẫn phụ lục phải
+   * mở đúng phụ lục, không tìm trên cây của hợp đồng chính.
+   */
+  documentId?: string | null
+  lineId?: string | null
+  /** Vùng khoanh 0..1 theo trang, nếu AI2 có trả. */
+  bbox?: [number, number, number, number] | null
 }
 
 export type QueryHistoryItem = {
@@ -43,9 +51,23 @@ function citationOf(value: unknown): QueryHistoryCitation | null {
     asText(row.text) ||
     asText(nested.quote)
   const page = row.page_no ?? row.page ?? nested.page_no ?? nested.page
+  const bbox = row.bbox ?? nested.bbox
   return {
     quote,
     pageNo: typeof page === 'number' && Number.isFinite(page) ? page : null,
+    documentId:
+      asText(row.source_file_id) ||
+      asText(nested.source_file_id) ||
+      asText(row.document_id) ||
+      asText(nested.document_id) ||
+      null,
+    lineId: asText(row.line_id) || asText(nested.line_id) || null,
+    bbox:
+      Array.isArray(bbox) &&
+      bbox.length === 4 &&
+      bbox.every((value) => typeof value === 'number' && Number.isFinite(value))
+        ? [bbox[0], bbox[1], bbox[2], bbox[3]]
+        : null,
   }
 }
 

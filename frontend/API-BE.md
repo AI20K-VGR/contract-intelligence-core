@@ -33,7 +33,6 @@ Prefix mọi path JSON: `/api/v1`. Base URL: `VITE_API_BASE_URL` (mặc định 
 | `/nguoi-dung-phan-quyen`                                            | `UsersPage`                      | [18. Quản lý người dùng](#18-quản-lý-người-dùng)                                                                                          |
 | `/ho-so` · `/ho-so-cua-toi`                                         | `MyDossiersPage`                 | [2. List dossier](#2-list-dossier)                                                                                                        |
 | `/tao-ho-so`                                                        | `CreateDossierPage`              | [3. Upload dossier](#3-upload-dossier)                                                                                                    |
-| `/xac-nhan-manifest/:dossierId`                                     | `ManifestConfirmPage`            | [19. Xác nhận manifest](#19-xác-nhận-manifest)                                                                                            |
 | `/tien-trinh-phan-tich`                                             | `AnalysisProgressPage`           | [4. Pipeline run](#4-pipeline-run)                                                                                                        |
 | `/doi-soat-xung-dot`                                                | `ClauseConflictPage`             | [9. Conflict / finding](#9-conflict--finding)                                                                                             |
 | `/ho-so-hop-dong`                                                   | `DossierReviewPage`              | [5](#5-chi-tiết-dossier--document) · [7](#7-clause-tree) · [8](#8-fact--citation) · [15](#15-fe-có--be-chưa-có-endpoint) (search + audit) |
@@ -315,7 +314,7 @@ type DossierCreatedDTO = {
 
 Muốn chạy pipeline: `POST /dossiers/{id}/runs` ([4](#4-pipeline-run)).
 
-Sau khi có `dossier_id`, màn `/tao-ho-so` mở `/xac-nhan-manifest/:dossierId` để xác nhận thành viên, vai trò tài liệu và quan hệ. Contract: [19](#19-xác-nhận-manifest). Bước này chưa chạy pipeline.
+Vai trò hợp đồng/phụ lục chọn lúc tải lên được backend tự xác nhận (`confirm_uploaded_manifest`, cũng chạy sau `POST /dossiers/{id}/split`), nên không có màn xác nhận manifest. Sau khi có `dossier_id`, màn `/tao-ho-so` mở `/tien-trinh-phan-tich/:dossierId` (hoặc `/tach-file/:dossierId` khi tệp gồm cả hợp đồng và phụ lục). Xem [19](#19-xác-nhận-manifest).
 
 ### Sửa metadata sau: `PATCH /api/v1/dossiers/{dossier_id}`
 
@@ -1172,10 +1171,9 @@ RBAC: **ADMINISTRATOR** only. `OPERATOR` và `REVIEWER` vẫn vào cùng giao di
 
 ## 19. Xác nhận manifest
 
-**FE:** `ManifestConfirmPage` (`/xac-nhan-manifest/:dossierId`), `src/api/manifest.ts`  
-**BE:** đã có trên OpenAPI: `GET /dossiers/{id}/manifest`, `POST .../manifest/confirm`. Chi tiết UI: [`BE-MANIFEST-CONFIRM.md`](./BE-MANIFEST-CONFIRM.md).
+**FE:** không có màn xác nhận manifest và không gọi hai endpoint dưới đây. Backend tự xác nhận vai trò đã chọn lúc tải lên (`POST /dossiers`) và lúc tách tệp (`POST /dossiers/{id}/split`) bằng `confirm_uploaded_manifest` (`contract_router.py`), trước khi trả `202`. Worker chỉ gửi hồ sơ sang AI2 khi manifest đã `confirmed`, nên OCR xong là AI2 chạy ngầm, không chờ người dùng.
 
-Sau upload, operator hoặc administrator xác nhận tài liệu thuộc hồ sơ, vai trò từng tệp và quan hệ. Quan hệ `confirmation: "unconfirmed"` phải được đánh dấu trên UI cho đến khi xác nhận hoặc bác bỏ. Nút gửi không hoàn tất khi còn quan hệ chưa xác nhận.
+**BE:** hai endpoint vẫn có trên OpenAPI, dùng được cho công cụ hoặc client khác:
 
 | Method | Path                                             | Việc                                  |
 | ------ | ------------------------------------------------ | ------------------------------------- |

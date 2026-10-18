@@ -97,12 +97,12 @@ describe('AI2 review-fixes composition', () => {
     }
     const html = renderToStaticMarkup(<ContextFindingsPanel model={model} />)
 
-    expect(html).toContain('BLOCKED')
-    expect(html).toContain('0 facts')
-    expect(html).toContain('0 findings')
-    expect(html).toContain('CONTEXT_RETAINED')
-    expect(html).toContain('evidence-gap-001')
-    expect(html).toContain('EVIDENCE_GAP')
+    expect(html).toContain('Bị chặn')
+    expect(html).toContain('0 dữ kiện')
+    expect(html).toContain('0 phát hiện')
+    expect(html).toContain('Phát hiện cần xem lại')
+    expect(html).toContain('Có điểm cần kiểm tra khi phân tích hồ sơ')
+    expect(html).toContain('AI đã thực hiện 1 bước')
   })
 
   it('renders dynamic citation scope and finding evidence with review version', () => {

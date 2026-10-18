@@ -16,6 +16,7 @@ import { useAuth } from '../auth/useAuth'
 import { useDossierPermissions } from '../auth/dossierPermissions'
 import { MaterialIcon } from '../components/icons'
 import { ReOcrPanel } from '../components/ReOcrPanel'
+import { TechnicalDetail } from '../components/TechnicalDetail'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 
 const kindLabels: Record<string, string> = {
@@ -37,16 +38,16 @@ function describeActivity(jobStatus: string | null, pages: OcrPageRow[]) {
     if (jobStatus === 'processing') {
       return 'Đang gửi tệp sang bộ nhận diện chữ. Chưa có trang nào trả kết quả.'
     }
-    return 'Chưa chạy OCR. Bấm Tiếp tục OCR để bắt đầu.'
+    return 'Chưa đọc tài liệu. Bấm Tiếp tục đọc để bắt đầu.'
   }
   const failed = pages.filter(pageFailed)
   const done = pages.filter(pageDone)
   if (failed.length === pages.length) {
-    return `OCR dừng ở bước nhận diện chữ, trên cả ${pages.length} trang.`
+    return `Đọc tài liệu dừng ở bước nhận diện chữ, trên cả ${pages.length} trang.`
   }
   if (failed.length > 0) {
     const numbers = failed.map((page) => page.pageNo).join(', ')
-    return `OCR lỗi ở trang ${numbers}. Các trang còn lại ${done.length > 0 ? 'đã có chữ' : 'chưa xong'}.`
+    return `Đọc lỗi ở trang ${numbers}. Các trang còn lại ${done.length > 0 ? 'đã có chữ' : 'chưa xong'}.`
   }
   if (jobStatus === 'processing') {
     return `Đang nhận diện chữ. ${done.length}/${pages.length} trang đã xong.`
@@ -70,7 +71,7 @@ export function OcrProgressPage() {
   const { user } = useAuth()
   const backTo = user ? dossiersPath(user.role) : '/ho-so'
   const backLabel = user ? dossiersLabel(user.role, user.backendRole) : 'Hồ sơ'
-  const [name, setName] = useState('Tiến trình OCR')
+  const [name, setName] = useState('Tiến trình đọc tài liệu')
   const [filename, setFilename] = useState<string | null>(null)
   const [jobStatus, setJobStatus] = useState<string | null>(null)
   const [pages, setPages] = useState<OcrPageRow[]>([])
@@ -149,7 +150,7 @@ export function OcrProgressPage() {
         setError(
           cause instanceof Error
             ? cause.message
-            : 'Không tải được tiến trình OCR.',
+            : 'Không tải được tiến trình đọc tài liệu.',
         )
       }
     }
@@ -171,7 +172,7 @@ export function OcrProgressPage() {
   const state = overallState(jobStatus, pages)
   const activity =
     watching && state !== 'done'
-      ? 'Đang chạy lại OCR. Kết quả từng trang bên dưới còn là lần trước, cho đến khi lần mới ghi xong.'
+      ? 'Đang đọc lại tài liệu. Kết quả từng trang bên dưới còn là lần trước, cho đến khi lần mới ghi xong.'
       : describeActivity(jobStatus, pages)
   const failedPages = pages.filter(pageFailed)
 
@@ -208,7 +209,9 @@ export function OcrProgressPage() {
             {backLabel}
           </Link>
           <MaterialIcon name="chevron_right" className="text-[14px]" />
-          <span className="text-on-surface font-semibold">Tiến trình OCR</span>
+          <span className="text-on-surface font-semibold">
+            Tiến trình đọc tài liệu
+          </span>
         </nav>
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
           <div className="flex flex-col gap-space-xs max-w-3xl">
@@ -233,10 +236,10 @@ export function OcrProgressPage() {
               {busy
                 ? 'Đang gửi…'
                 : state === 'pending'
-                  ? 'Tiếp tục OCR'
+                  ? 'Tiếp tục đọc'
                   : failedPages.length > 0 && failedPages.length < pages.length
                     ? 'Chạy lại trang lỗi'
-                    : 'OCR lại'}
+                    : 'Đọc lại'}
             </button>
           ) : null}
         </div>
@@ -294,7 +297,7 @@ export function OcrProgressPage() {
               />
               <Step
                 detail={
-                  state === 'done' ? 'Đã ghi dòng OCR' : 'Chờ nhận diện xong'
+                  state === 'done' ? 'Đã ghi dòng chữ' : 'Chờ nhận diện xong'
                 }
                 status={state === 'done' ? 'done' : 'waiting'}
                 title="3. Ghi kết quả"
@@ -321,7 +324,7 @@ export function OcrProgressPage() {
             ) : null}
             {pages.length === 0 ? (
               <p className="px-space-lg py-space-lg font-body-sm text-body-sm text-on-surface-variant">
-                Chưa có trang nào. OCR chưa trả kết quả.
+                Chưa có trang nào. Hệ thống chưa đọc xong.
               </p>
             ) : (
               <ul className="divide-y divide-surface-container-low">
@@ -336,7 +339,7 @@ export function OcrProgressPage() {
                       page.pageNo > 0 &&
                       state !== 'running' ? (
                         <input
-                          aria-label={`Chọn trang ${page.pageNo} để OCR lại`}
+                          aria-label={`Chọn trang ${page.pageNo} để đọc lại`}
                           checked={selectedPages.includes(page.pageNo)}
                           className="h-4 w-4 accent-primary"
                           type="checkbox"
@@ -364,6 +367,7 @@ export function OcrProgressPage() {
                         {page.error}
                       </p>
                     ) : null}
+                    <TechnicalDetail text={page.errorDetail} />
                   </li>
                 ))}
               </ul>
