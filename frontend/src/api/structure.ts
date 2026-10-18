@@ -6,7 +6,7 @@ import {
 } from '../structure/types'
 import { ApiError, apiFetch, getJson, requestJson } from './client'
 import { patchDossier } from './dossiers'
-import { isAi2Failure } from './jobErrors'
+import { isAi2Failure, isCancelledJob, type StepStatuses } from './jobErrors'
 import {
   normalizeAi2SearchResult,
   type Ai2SearchHit,
@@ -139,17 +139,31 @@ export function isRunFinished(status: string | null | undefined) {
 /**
  * Phần phân tích (AI2) của hồ sơ sau khi OCR xong. Worker giữ job ở
  * 'extracted' suốt lúc AI2 chạy; null khi OCR chưa xong hoặc OCR lỗi.
+ *
+ * Trang tiến trình và trang cây dùng chung hàm này, kèm trạng thái các bước
+ * của run (`loadStepStatuses`): S8 xong nghĩa là OCR đã xong, nên một job lỗi
+ * khi đó là lỗi AI2 dù AI2 trả mã lạ (errors[0].code), và một run bị huỷ khi
+ * đó là huỷ phần phân tích ('cancelled'), không phải huỷ OCR.
  */
-export type AnalysisState = 'running' | 'done' | 'failed'
+export type AnalysisState = 'running' | 'done' | 'failed' | 'cancelled'
 
 export function analysisState(
   status: string | null | undefined,
   errorCode: string | null | undefined,
+  steps: StepStatuses = {},
 ): AnalysisState | null {
   if (status === 'extracted') return 'running'
   if (isRunFinished(status)) return 'done'
-  if (status === 'failed' && isAi2Failure(errorCode)) return 'failed'
-  return null
+  if (status !== 'failed' && status !== 'cancelled') return null
+  if (isCancelledJob(status, errorCode)) {
+    return steps.S8?.status === 'succeeded' ? 'cancelled' : null
+  }
+  return isAi2Failure(errorCode, steps) ? 'failed' : null
+}
+
+/** Job đã dừng (lỗi hoặc huỷ): cần trạng thái các bước để biết dừng ở OCR hay AI2. */
+export function needsStepStatuses(status: string | null | undefined) {
+  return status === 'failed' || status === 'cancelled'
 }
 
 export function countClauses(nodes: ClauseNode[]): number {

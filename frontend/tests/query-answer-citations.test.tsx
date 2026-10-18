@@ -135,6 +135,24 @@ describe('citesByBlock', () => {
     expect(placed.get(1)?.map((entry) => entry.n)).toEqual([1, 2, 3, 4])
   })
 
+  it('merges a wrapped line that starts with an amount or a date (PR #122 review)', () => {
+    // "1.000.000.000 đồng" và "17.10.2026" không phải số khoản: dòng nối.
+    const answer = [
+      'Điều 6. Giá trị hợp đồng',
+      '6.1. Tổng giá trị là 1.000.000.000 đồng, thanh toán trước ngày 17.10.2026 hai bên ký biên bản.',
+    ].join('\n')
+    const doc = { pageNo: 3, documentId: 'doc_contract' }
+    const first = { ...doc, quote: '6.1. Tổng giá trị là' }
+    const amount = {
+      ...doc,
+      quote: '1.000.000.000 đồng, thanh toán trước ngày',
+    }
+    const date = { ...doc, quote: '17.10.2026 hai bên ký biên bản' }
+    const blocks = answerBlocks(answer)
+    const { placed } = citesByBlock(blocks, [first, amount, date])
+    expect(placed.get(1)).toEqual([{ citation: first, n: 1 }])
+  })
+
   it('merges a wrapped line that starts with a number into its clause', () => {
     // "30 ngày …" là dòng 2 của khoản 5.2, không phải khoản mới: cùng một số.
     const answer = [

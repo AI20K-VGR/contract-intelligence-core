@@ -278,6 +278,34 @@ export const OCR_RUN_STEP_ORDER = RUN_STEP_ORDER.filter(
   (code) => !isAi2Step(code),
 )
 
+const AI1_RUN_STEPS: readonly string[] = RUN_STEP_GROUPS.flatMap((group) =>
+  group.id === 'ai1' ? group.steps : [],
+)
+
+/** Các bước của màn tiến trình, kèm cờ bước nào là OCR của AI1. */
+export const OCR_RUN_STEPS = OCR_RUN_STEP_ORDER.map((code) => ({
+  code,
+  ocr: AI1_RUN_STEPS.includes(code),
+}))
+
+/**
+ * Trạng thái các bước của run mới nhất ({} khi chưa có run hoặc lỗi mạng),
+ * để `analysisState` biết job dừng ở OCR hay ở AI2.
+ */
+export async function loadStepStatuses(
+  dossierId: string,
+  signal?: AbortSignal,
+): Promise<Record<string, RunStep>> {
+  try {
+    const runId = await findLatestRunId(dossierId, signal)
+    if (!runId) return {}
+    const rows = await listRunSteps(runId, signal)
+    return Object.fromEntries(rows.map((row) => [row.step, row]))
+  } catch {
+    return {}
+  }
+}
+
 /**
  * Tiến độ chung của AI2 từ các bước đã nhận: bước xong tính trọn, bước đang
  * chạy có `progress` tính phần đã xong. null khi chưa có số liệu nào.

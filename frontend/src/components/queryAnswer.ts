@@ -18,9 +18,12 @@ const CLAUSE_NUMBER = /^\d+(\.\d+)*\.?\s*/
  * Câu trích mở đầu một khoản hay điểm mới, chứ không phải dòng nối: "5.1",
  * "5.1.", "5.", "5)", "a)", "đ)", hoặc gạch đầu dòng. Dòng nối bắt đầu bằng con
  * số ("30 ngày kể từ…") không khớp, vì sau số không có dấu chấm, ngoặc hay số
- * khoản con. Câu trích đã qua `norm` nên chữ cái là chữ thường.
+ * khoản con. Mỗi phần số khoản chỉ 1–2 chữ số, nên số tiền ("1.000.000 đồng")
+ * hay ngày ("17.10.2026") ở đầu dòng nối cũng không khớp. Câu trích đã qua
+ * `norm` nên chữ cái là chữ thường.
  */
-const QUOTE_ITEM_START = /^(\d+(\.\d+)+\.?|\d+[.)]|[a-zđ]\)|[-–•*])\s/
+const QUOTE_ITEM_START =
+  /^(\d{1,2}(\.\d{1,2})+\.?|\d{1,2}[.)]|[a-zđ]\)|[-–•*])\s/
 
 /**
  * Mức căn cứ của câu trả lời (`state` của AI2, BE-AI2-PROCESSING-CONTRACT):

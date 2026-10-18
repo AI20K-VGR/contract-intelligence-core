@@ -1,4 +1,4 @@
-import { jobErrorInfo } from '../api/jobErrors'
+import { analysisRetryKind, jobErrorInfo } from '../api/jobErrors'
 import type { AnalysisState } from '../api/structure'
 import { MaterialIcon } from './icons'
 
@@ -35,7 +35,11 @@ export function AnalysisNotice({
   /** AI2 vừa xong khi người dùng đang ở trang: báo đã mở khoá. */
   justFinished?: boolean
   onDismiss?: () => void
-  /** Có quyền chạy lại: banner lỗi hiện nút "Phân tích lại". */
+  /**
+   * Có quyền chạy lại: banner lỗi hoặc đã huỷ hiện một nút "Chạy lại". Trang tự
+   * chọn cách theo `analysisRetryKind`; hồ sơ sai cấu trúc (DOSSIER_*) không có
+   * nút, vì chạy lại vẫn lỗi như cũ.
+   */
   onRetry?: () => void
   retrying?: boolean
   /** Quá 10 phút mà AI2 chưa xong (useAnalysisWatch chỉ còn hỏi thưa). */
@@ -73,10 +77,12 @@ export function AnalysisNotice({
       </div>
     )
   }
-  if (state !== 'running' && state !== 'failed') return null
+  if (state !== 'running' && state !== 'failed' && state !== 'cancelled') {
+    return null
+  }
   if (state === 'running' && stalled) {
     // Job vẫn ở 'extracted' sau 10 phút: /ai2/retry chỉ nhận job đã
-    // 'failed', nên không có nút "Phân tích lại" ở đây.
+    // 'failed', nên không có nút "Chạy lại" ở đây.
     return (
       <div
         className={`${className} flex flex-wrap items-center gap-x-space-sm gap-y-1 rounded-lg bg-amber-50 px-space-md py-space-sm font-body-sm text-body-sm text-amber-950`}
@@ -101,19 +107,30 @@ export function AnalysisNotice({
     )
   }
   const running = state === 'running'
+  const cancelled = state === 'cancelled'
   const failure = running ? null : jobErrorInfo(errorCode)
+  // Câu đầu của banner khi dừng: huỷ hay lỗi.
+  const stoppedHead = cancelled
+    ? 'Đã huỷ lần phân tích.'
+    : showingPrevious
+      ? `Lần phân tích mới bị lỗi. ${failure?.message ?? ''}`
+      : (failure?.message ?? '')
+  const canRetry =
+    !running && onRetry && analysisRetryKind(state, errorCode) !== 'none'
   return (
     <div
       key={nudge?.at ?? 'notice'}
       className={`${className} flex flex-wrap items-center gap-x-space-sm gap-y-1 rounded-lg px-space-md py-space-sm font-body-sm text-body-sm ${
         running
           ? 'bg-brand-50 text-on-surface'
-          : 'bg-error-container text-on-error-container'
+          : cancelled
+            ? 'bg-surface-container-high text-on-surface'
+            : 'bg-error-container text-on-error-container'
       } ${nudge ? 'animate-[pulse_0.6s_ease-in-out_2] ring-2 ring-primary/40' : ''}`}
       role={running ? 'status' : 'alert'}
     >
       <MaterialIcon
-        name={running ? 'progress_activity' : 'error'}
+        name={running ? 'progress_activity' : cancelled ? 'block' : 'error'}
         className={`text-[18px] ${running ? 'animate-spin text-primary' : ''}`}
       />
       <span className="min-w-0 flex-1">
@@ -122,8 +139,8 @@ export function AnalysisNotice({
               nudge ? nudge.label : waitingFor
             } sẽ mở khi phân tích xong.`
           : showingPrevious
-            ? `Lần phân tích mới bị lỗi. ${failure?.message ?? ''} Đồ thị và hỏi đáp đang dùng kết quả của lần phân tích trước; xung đột cần phân tích lại mới xem được.`
-            : `${failure?.message ?? ''} ${nudge ? nudge.label : waitingFor} chưa có.`}
+            ? `${stoppedHead} Đồ thị và hỏi đáp đang dùng kết quả của lần phân tích trước; xung đột cần phân tích lại mới xem được.`
+            : `${stoppedHead} ${nudge ? nudge.label : waitingFor} chưa có.`}
       </span>
       {running && percent !== null ? (
         <span
@@ -136,14 +153,14 @@ export function AnalysisNotice({
           />
         </span>
       ) : null}
-      {!running && onRetry && failure?.retry === 'ai2' ? (
+      {canRetry ? (
         <button
           className="shrink-0 font-semibold text-primary hover:underline disabled:opacity-60"
           disabled={retrying}
           type="button"
           onClick={onRetry}
         >
-          {retrying ? 'Đang gửi…' : 'Phân tích lại'}
+          {retrying ? 'Đang gửi…' : 'Chạy lại'}
         </button>
       ) : null}
     </div>

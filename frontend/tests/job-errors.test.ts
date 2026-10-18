@@ -1,10 +1,45 @@
 import { describe, expect, it } from 'vitest'
 import { normalizeAi2SearchResult } from '../src/api/ai2'
 import {
+  analysisRetryKind,
   isAi2Failure,
   isCancelledJob,
   jobErrorInfo,
 } from '../src/api/jobErrors'
+
+describe('analysisRetryKind (một nút "Chạy lại")', () => {
+  it('chỉ phân tích lại với lỗi tạm của AI2', () => {
+    expect(analysisRetryKind('failed', 'AI2_PROCESSING_FAILED')).toBe('ai2')
+    expect(analysisRetryKind('failed', 'AI2_TIMEOUT')).toBe('ai2')
+  })
+
+  it('chạy tiếp, giữ phần OCR đã đọc, khi phân tích bị huỷ', () => {
+    expect(analysisRetryKind('cancelled', 'RUN_CANCELLED')).toBe('resume')
+  })
+
+  it('chạy lại toàn bộ với lỗi AI2 khác', () => {
+    expect(analysisRetryKind('failed', 'AI2_BLOCKED')).toBe('reprocess')
+    expect(analysisRetryKind('failed', 'AI2_UNAVAILABLE')).toBe('reprocess')
+    expect(analysisRetryKind('failed', 'INSUFFICIENT_PAGES')).toBe('reprocess')
+  })
+
+  it('không có nút với hồ sơ sai cấu trúc, hay khi chưa dừng', () => {
+    expect(analysisRetryKind('failed', 'DOSSIER_CONTRACT_REQUIRED')).toBe(
+      'none',
+    )
+    expect(analysisRetryKind('failed', 'DOSSIER_TOO_MANY_DOCUMENTS')).toBe(
+      'none',
+    )
+    expect(analysisRetryKind('running', null)).toBe('none')
+    expect(analysisRetryKind('done', null)).toBe('none')
+  })
+
+  it('giải thích hồ sơ sai cấu trúc bằng câu tiếng Việt, không hiện mã', () => {
+    const info = jobErrorInfo('DOSSIER_SOMETHING_NEW')
+    expect(info.retry).toBe('none')
+    expect(info.message).toContain('không đúng cấu trúc')
+  })
+})
 
 describe('jobErrorInfo', () => {
   it('routes AI2 retryable codes to the AI2 retry', () => {

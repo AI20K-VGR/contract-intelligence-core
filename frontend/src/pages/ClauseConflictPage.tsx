@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { clauseOrdinal } from '../api/clauseReview'
 import {
   analysisState,
+  needsStepStatuses,
   conflictName,
   contractDocument,
   getDossierStructure,
@@ -35,6 +36,8 @@ import { MaterialIcon } from '../components/icons'
 import { clauseConflicts } from '../data/clauseConflicts'
 import { structurePath } from '../data/dossiers'
 import { useAnalysisWatch } from '../hooks/useAnalysisWatch'
+import type { StepStatuses } from '../api/jobErrors'
+import { loadStepStatuses } from '../api/runEvents'
 import { useGoBack } from '../hooks/useGoBack'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { findClause, findClauseByQuote } from '../structure/citations'
@@ -455,9 +458,27 @@ export function ClauseConflictPage() {
 
   // Hồ sơ đang phân tích: AI2 xong thì tải lại danh sách xung đột.
   const [reloadKey, setReloadKey] = useState(0)
+  // Job dừng: các bước cho biết dừng ở OCR hay AI2 (cùng hàm với trang cây và
+  // trang tiến trình). null là chưa tải xong, khi đó chưa kết luận gì.
+  const [stepStatuses, setStepStatuses] = useState<StepStatuses | null>(null)
+  const jobStopped = needsStepStatuses(detail?.latestJobStatus)
+  useEffect(() => {
+    setStepStatuses(null)
+    if (!dossierId || !jobStopped) return
+    const controller = new AbortController()
+    void loadStepStatuses(dossierId, controller.signal).then((steps) => {
+      if (!controller.signal.aborted) setStepStatuses(steps)
+    })
+    return () => controller.abort()
+  }, [dossierId, jobStopped, detail?.latestJobId])
   const analysis = detail
-    ? analysisState(detail.latestJobStatus, detail.latestJobErrorCode)
+    ? analysisState(
+        detail.latestJobStatus,
+        detail.latestJobErrorCode,
+        stepStatuses ?? {},
+      )
     : null
+  const analysisKnown = !jobStopped || stepStatuses !== null
   // Không có "kết quả lần trước" ở đây: backend chỉ trả xung đột của run hiện
   // tại, nên AI2 của run đó lỗi thì trang báo lỗi, không báo "không có mục".
   const [justFinished, setJustFinished] = useState(false)
@@ -835,8 +856,10 @@ export function ClauseConflictPage() {
             {!loading &&
             dossierId &&
             cards.length === 0 &&
+            analysisKnown &&
             analysis !== 'running' &&
-            analysis !== 'failed' ? (
+            analysis !== 'failed' &&
+            analysis !== 'cancelled' ? (
               <section className="flex flex-col items-start gap-space-sm rounded bg-surface-container-low p-space-md">
                 <h2 className="font-title-sm text-title-sm text-on-surface">
                   Không có mục đối soát

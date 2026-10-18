@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { AnalysisNotice } from '../src/components/AnalysisNotice'
 
+const RETRY_BUTTON = '>Chạy lại</button>'
+
 describe('AnalysisNotice', () => {
-  it('offers "Kiểm tra lại", not "Phân tích lại", when the analysis is stalled', () => {
+  it('offers "Kiểm tra lại", not "Chạy lại", when the analysis is stalled', () => {
     const html = renderToStaticMarkup(
       <AnalysisNotice
         stalled
@@ -16,7 +18,7 @@ describe('AnalysisNotice', () => {
     expect(html).toContain('quá 10 phút')
     expect(html).toContain('sẽ tự mở khi')
     expect(html).toContain('Kiểm tra lại')
-    expect(html).not.toContain('Phân tích lại')
+    expect(html).not.toContain(RETRY_BUTTON)
   })
 
   it('says the previous result is shown when a re-run failed', () => {
@@ -34,7 +36,7 @@ describe('AnalysisNotice', () => {
       'Đồ thị và hỏi đáp đang dùng kết quả của lần phân tích trước',
     )
     expect(html).toContain('xung đột cần phân tích lại')
-    expect(html).toContain('Phân tích lại')
+    expect(html).toContain(RETRY_BUTTON)
     expect(html).not.toContain('chưa có')
   })
 
@@ -47,5 +49,56 @@ describe('AnalysisNotice', () => {
       />,
     )
     expect(html).toContain('Hỏi đáp chưa có')
+  })
+
+  it('says a cancelled analysis was cancelled and offers one "Chạy lại"', () => {
+    const html = renderToStaticMarkup(
+      <AnalysisNotice
+        errorCode="RUN_CANCELLED"
+        state="cancelled"
+        waitingFor="Hỏi đáp"
+        onRetry={() => {}}
+      />,
+    )
+    expect(html).toContain('Đã huỷ lần phân tích.')
+    expect(html).toContain('Hỏi đáp chưa có')
+    expect(html).toContain(RETRY_BUTTON)
+  })
+
+  it('offers "Chạy lại" for an AI2 code it does not know', () => {
+    const html = renderToStaticMarkup(
+      <AnalysisNotice
+        errorCode="INSUFFICIENT_PAGES"
+        state="failed"
+        waitingFor="Hỏi đáp"
+        onRetry={() => {}}
+      />,
+    )
+    expect(html).toContain(RETRY_BUTTON)
+    expect(html).not.toContain('INSUFFICIENT_PAGES')
+  })
+
+  it('has no "Chạy lại" for a dossier of the wrong shape (DOSSIER_*)', () => {
+    const html = renderToStaticMarkup(
+      <AnalysisNotice
+        errorCode="DOSSIER_CONTRACT_REQUIRED"
+        state="failed"
+        waitingFor="Hỏi đáp"
+        onRetry={() => {}}
+      />,
+    )
+    expect(html).toContain('Hồ sơ cần đúng một hợp đồng')
+    expect(html).not.toContain(RETRY_BUTTON)
+  })
+
+  it('shows no button to someone who may not run it again', () => {
+    const html = renderToStaticMarkup(
+      <AnalysisNotice
+        errorCode="AI2_TIMEOUT"
+        state="failed"
+        waitingFor="Hỏi đáp"
+      />,
+    )
+    expect(html).not.toContain(RETRY_BUTTON)
   })
 })

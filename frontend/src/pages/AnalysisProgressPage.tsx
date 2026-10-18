@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import {
   findLatestRunId,
@@ -7,7 +7,7 @@ import {
   isAi2Step,
   listRunSteps,
   OCR_RUN_STEP_ORDER,
-  RUN_STEP_GROUPS,
+  OCR_RUN_STEPS,
   RUN_STEP_LABELS,
   stepFromEvent,
   stepProgressPercent,
@@ -23,6 +23,7 @@ import {
   type OcrPageRow,
 } from '../api/dossiers'
 import {
+  analysisState,
   countClauses,
   getDossierStructure,
   isOcrComplete,
@@ -32,7 +33,7 @@ import {
   type DossierStructure,
   type StructureDocument,
 } from '../api/structure'
-import { isAi2Failure, isCancelledJob, jobErrorInfo } from '../api/jobErrors'
+import { isCancelledJob, jobErrorInfo } from '../api/jobErrors'
 import {
   cancelRun,
   isCancellableRun,
@@ -74,14 +75,6 @@ type LogRowModel = {
   status: 'done' | 'active' | 'failed'
   step?: string
 }
-
-// Một danh sách liền, theo thứ tự chạy thật. Chỉ phần đọc tài liệu: AI2 chạy
-// ngầm sau OCR, tiến độ của nó hiện trên trang cấu trúc.
-const RUN_STEPS = RUN_STEP_GROUPS.flatMap((group) =>
-  group.id === 'ai2'
-    ? []
-    : group.steps.map((code) => ({ code, ocr: group.id === 'ai1' })),
-)
 
 function pageDone(page: OcrPageRow) {
   return page.status === 'SUCCESS' || page.status === 'PARTIAL'
@@ -208,6 +201,8 @@ export function AnalysisProgressPage() {
   useEffect(() => {
     if (!dossierId) return
     const controller = new AbortController()
+    // SSE riêng: OCR xong thì đóng, vì trang này không theo dõi AI2.
+    const stream = new AbortController()
     let timer: number | undefined
     let stopped = false
     let notFoundTries = 0
@@ -346,9 +341,10 @@ export function AnalysisProgressPage() {
               startPolling()
             },
           },
-          controller.signal,
+          stream.signal,
         )
-        if (stopped) return
+        // OCR xong (stream bị đóng) hoặc rời trang: không theo dõi tiếp.
+        if (stopped || stream.signal.aborted) return
         // Bị từ chối thì không có run.completed: không đánh dấu run đã xong.
         if (!polling) finishedRunId = runId
         await syncSteps(runId)
@@ -405,6 +401,7 @@ export function AnalysisProgressPage() {
             }
           }
           // OCR xong là trang này xong: AI2 chạy ngầm, không theo dõi tiếp.
+          stream.abort()
           return
         }
         if (isStoppedJob(next.latestJobStatus)) {
@@ -443,6 +440,7 @@ export function AnalysisProgressPage() {
     void load()
     return () => {
       stopped = true
+      stream.abort()
       controller.abort()
       if (timer !== undefined) window.clearTimeout(timer)
     }
@@ -455,16 +453,17 @@ export function AnalysisProgressPage() {
     () => jobErrorInfo(detail?.latestJobErrorCode),
     [detail?.latestJobErrorCode],
   )
-  // Job dừng sau khi OCR đã xong (AI2 lỗi) hoặc do người dùng hủy thì không phải lỗi OCR.
+  // Cùng hàm phân loại với trang cây: job dừng sau khi OCR đã xong (AI2 lỗi
+  // hoặc bị huỷ lúc AI2 chạy) thì phần đọc tài liệu vẫn là xong.
+  const analysis = analysisState(jobStatus, detail?.latestJobErrorCode, steps)
+  const afterOcr = analysis === 'failed' || analysis === 'cancelled'
   const cancelled = isCancelledJob(jobStatus, detail?.latestJobErrorCode)
-  const ai2Failed =
-    stopped && !cancelled && isAi2Failure(detail?.latestJobErrorCode, steps)
-  const ocrFailed = stopped && !cancelled && !ai2Failed
-  // Trang này chỉ theo dõi phần đọc tài liệu: AI2 lỗi vẫn là OCR đã xong,
-  // lỗi đó hiện trên trang cấu trúc.
-  const ready = isOcrComplete(jobStatus) || ai2Failed
-  const failed = stopped && !ai2Failed
-  const fileJobStatus = ai2Failed ? 'extracted' : jobStatus
+  const ocrFailed = stopped && !cancelled && !afterOcr
+  // Trang này chỉ theo dõi phần đọc tài liệu: lỗi hoặc huỷ ở AI2 hiện thêm một
+  // dòng báo và dẫn sang trang cấu trúc, nơi có nút chạy lại.
+  const ready = isOcrComplete(jobStatus) || afterOcr
+  const failed = stopped && !afterOcr
+  const fileJobStatus = afterOcr ? 'extracted' : jobStatus
   const files = useMemo(() => {
     const current = documents.find((document) => {
       const pages = pagesByDoc[document.id] ?? []
@@ -528,9 +527,8 @@ export function AnalysisProgressPage() {
           ((stepsDone + runningShare) / OCR_RUN_STEP_ORDER.length) * 100,
         ),
       )
-    : pageTotals.total > 0
-      ? // Đọc xong mọi trang mới là phần OCR: chưa tới 100 khi AI2 chưa xong.
-        Math.min(99, Math.round((pageTotals.done / pageTotals.total) * 100))
+    : ocrPercent !== null
+      ? ocrPercent
       : ready
         ? 100
         : 0
@@ -685,6 +683,24 @@ export function AnalysisProgressPage() {
         </p>
       ) : null}
 
+      {afterOcr && dossierId ? (
+        <p
+          className="mb-gutter rounded-lg bg-surface-container-high px-space-md py-space-sm font-body-sm text-body-sm text-on-surface"
+          role="status"
+        >
+          {analysis === 'cancelled'
+            ? 'Đọc tài liệu xong. Lần phân tích hồ sơ đã bị huỷ.'
+            : 'Đọc tài liệu xong. Phân tích hồ sơ bị lỗi.'}{' '}
+          <Link
+            className="font-semibold text-primary hover:underline"
+            to={structurePath(dossierId)}
+          >
+            Xem hồ sơ để chạy lại
+          </Link>
+          <TechnicalDetail text={failure.code && `Mã ${failure.code}`} />
+        </p>
+      ) : null}
+
       <section className="bg-surface-container-lowest rounded-lg p-space-lg shadow-sm mb-gutter">
         <div className="flex flex-col lg:flex-row lg:items-center gap-space-lg">
           <div className="flex-1 min-w-0">
@@ -738,7 +754,7 @@ export function AnalysisProgressPage() {
             </span>
           </div>
           <ol className="flex flex-col">
-            {RUN_STEPS.map(({ code, ocr }, index) => {
+            {OCR_RUN_STEPS.map(({ code, ocr }, index) => {
               const row = steps[code]
               const rawStatus = row?.status ?? 'queued'
               // Run đã kết thúc mà BE không ghi nhận bước này thì không để xoay/chờ mãi.
@@ -746,7 +762,7 @@ export function AnalysisProgressPage() {
                 finished && rawStatus !== 'succeeded' && rawStatus !== 'failed'
                   ? 'unrecorded'
                   : rawStatus
-              const last = index === RUN_STEPS.length - 1
+              const last = index === OCR_RUN_STEPS.length - 1
               return (
                 <li key={code} className="flex gap-space-md">
                   <div className="flex flex-col items-center">

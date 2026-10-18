@@ -23,6 +23,7 @@ import {
 } from '../api/contractGraph'
 import {
   analysisState,
+  needsStepStatuses,
   contractDocument,
   getDossierStructure,
   listDocumentTables,
@@ -39,6 +40,9 @@ import {
   type ReviewSpot,
 } from '../api/structure'
 import { restartOcrErrorMessage, retryDossierFailed } from '../api/dossiers'
+import { analysisRetryKind, type StepStatuses } from '../api/jobErrors'
+import { loadStepStatuses } from '../api/runEvents'
+import { reprocessDossier } from '../api/runs'
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { useDossierPermissions } from '../auth/dossierPermissions'
@@ -151,7 +155,7 @@ import {
   conflictMarkers,
   openConflictCount,
 } from '../structure/conflictAnchors'
-import { conflictPagePath } from '../data/dossiers'
+import { conflictPagePath, progressPath } from '../data/dossiers'
 
 type Phase = 'loading' | 'ocr' | 'ready' | 'failed' | 'error'
 
@@ -231,6 +235,13 @@ export function DossierStructurePage() {
   const [attempt, setAttempt] = useState(0)
   const [phase, setPhase] = useState<Phase>('loading')
   const [detail, setDetail] = useState<DossierStructure | null>(null)
+  // Trạng thái các bước của run, chỉ tải khi job đã dừng: để biết dừng ở OCR hay AI2.
+  const [stepStatuses, setStepStatuses] = useState<StepStatuses>({})
+  // Hồ sơ đang mở: kết quả về muộn của hồ sơ cũ (đã chuyển trang) bị bỏ.
+  const currentDossier = useRef(dossierId)
+  useEffect(() => {
+    currentDossier.current = dossierId
+  }, [dossierId])
   const [filename, setFilename] = useState<string | null>(null)
   const [documentId, setDocumentId] = useState<string | null>(null)
   const [citeId, setCiteId] = useState<string | null>(null)
@@ -278,8 +289,6 @@ export function DossierStructurePage() {
     documentId: string
   } | null>(null)
   const [searchError, setSearchError] = useState<string | null>(null)
-  // Hỏi lúc AI2 chưa xong: báo đang phân tích thay vì gửi câu hỏi.
-  const [searchNotice, setSearchNotice] = useState<string | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   // Tăng mỗi lần hỏi hoặc đóng câu trả lời: kết quả về muộn của lượt cũ bị bỏ.
   const searchRun = useRef(0)
@@ -354,7 +363,6 @@ export function DossierStructurePage() {
     setSearchResult(null)
     setSearchCite(null)
     setSearchError(null)
-    setSearchNotice(null)
     setReviewCiteId(null)
     setShowAi2Graph(false)
     setGraphClauses({})
@@ -375,11 +383,7 @@ export function DossierStructurePage() {
     searchInputRef.current?.focus()
   }, [location.key, location.state])
 
-  const answerOpen =
-    searching ||
-    Boolean(searchError) ||
-    Boolean(searchNotice) ||
-    Boolean(searchResult)
+  const answerOpen = searching || Boolean(searchError) || Boolean(searchResult)
   // Bấm Lịch sử khi chưa hỏi: xem lịch sử hỏi đáp thay cho cấu trúc cây.
   const [historyOpen, setHistoryOpen] = useState(false)
   const qaMode = answerOpen || historyOpen
@@ -437,7 +441,6 @@ export function DossierStructurePage() {
       return
     }
     const run = ++searchRun.current
-    setSearchNotice(null)
     setSearching(true)
     setSearchError(null)
     try {
@@ -461,7 +464,6 @@ export function DossierStructurePage() {
     setSearching(false)
     setSearchResult(null)
     setSearchError(null)
-    setSearchNotice(null)
     setSearchCite(null)
     setReviewCiteId(null)
     setHistoryOpen(true)
@@ -473,7 +475,6 @@ export function DossierStructurePage() {
     setSearching(false)
     setSearchResult(null)
     setSearchError(null)
-    setSearchNotice(null)
     setSearchCite(null)
     setReviewCiteId(null)
     setHistoryOpen(false)
@@ -523,18 +524,28 @@ export function DossierStructurePage() {
       try {
         const next = await getDossierStructure(dossierId, controller.signal)
         if (stopped) return
+        // Job dừng: cần các bước để biết dừng ở OCR hay ở AI2 (analysisState).
+        const steps = needsStepStatuses(next.latestJobStatus)
+          ? await loadStepStatuses(dossierId, controller.signal)
+          : {}
+        if (stopped) return
         setDetail(next)
+        setStepStatuses(steps)
         setMode((current) => current ?? next.structureMode)
         setError(null)
-        // AI2 lỗi sau khi OCR xong: cây vẫn có, chỉ phần phân tích bị lỗi.
-        const ai2Failed =
-          analysisState(next.latestJobStatus, next.latestJobErrorCode) ===
-          'failed'
-        if (next.latestJobStatus === 'failed' && !ai2Failed) {
+        // AI2 lỗi hoặc bị huỷ sau khi OCR xong: cây vẫn có, chỉ phần phân tích dừng.
+        const nextAnalysis = analysisState(
+          next.latestJobStatus,
+          next.latestJobErrorCode,
+          steps,
+        )
+        const afterOcr =
+          nextAnalysis === 'failed' || nextAnalysis === 'cancelled'
+        if (needsStepStatuses(next.latestJobStatus) && !afterOcr) {
           setPhase('failed')
           return
         }
-        if (!isOcrComplete(next.latestJobStatus) && !ai2Failed) {
+        if (!isOcrComplete(next.latestJobStatus) && !afterOcr) {
           setPhase('ocr')
           timer = window.setTimeout(() => {
             void tick()
@@ -632,8 +643,13 @@ export function DossierStructurePage() {
   }, [attempt, backTo, dossierId, navigate])
 
   const analysis = detail
-    ? analysisState(detail.latestJobStatus, detail.latestJobErrorCode)
+    ? analysisState(
+        detail.latestJobStatus,
+        detail.latestJobErrorCode,
+        stepStatuses,
+      )
     : null
+  const analysisStopped = analysis === 'failed' || analysis === 'cancelled'
   // Hỏi đáp, lịch sử hỏi đáp, xung đột và đồ thị dùng kết quả AI2: khoá tới khi
   // AI2 xong. Bấm vào thì banner nháy lên, nói rõ phần đó đang chờ.
   // "Chạy lại toàn bộ" tạo run mới; AI2 lỗi ở run đó thì đồ thị và hỏi đáp vẫn
@@ -641,10 +657,10 @@ export function DossierStructurePage() {
   // thành công). Xung đột thì không: backend chỉ trả xung đột của run hiện tại,
   // nên trang đối soát sẽ rỗng và dễ hiểu nhầm là không có mâu thuẫn.
   // (Bật consent chạy lại AI2 mà lỗi không đổi job sang 'failed', #105.)
+  // Huỷ trong lúc AI2 chạy ('cancelled') khoá giống như lỗi.
   const previousAi2 = Boolean(detail?.ai2JobId)
-  const ai2Locked =
-    analysis === 'running' || (analysis === 'failed' && !previousAi2)
-  const conflictsLocked = analysis === 'running' || analysis === 'failed'
+  const ai2Locked = analysis === 'running' || (analysisStopped && !previousAi2)
+  const conflictsLocked = analysis === 'running' || analysisStopped
   const [analysisNudge, setAnalysisNudge] = useState<{
     label: string
     at: number
@@ -656,20 +672,44 @@ export function DossierStructurePage() {
   const [retryAnalysisError, setRetryAnalysisError] = useState<string | null>(
     null,
   )
+  // Một nút "Chạy lại": lỗi tạm của AI2 chỉ phân tích lại; huỷ thì chạy tiếp,
+  // giữ phần OCR đã đọc; lỗi AI2 khác thì chạy lại toàn bộ (đọc lại tài liệu).
   async function retryAnalysis() {
     if (retryingAnalysis) return
+    const kind = analysisRetryKind(analysis, detail?.latestJobErrorCode)
+    if (kind === 'none') return
+    if (
+      kind === 'reprocess' &&
+      !window.confirm(
+        'Chạy lại sẽ đọc lại tài liệu từ đầu và phân tích lại, mất vài phút. Tiếp tục?',
+      )
+    ) {
+      return
+    }
+    const id = dossierId
     setRetryingAnalysis(true)
     setRetryAnalysisError(null)
     try {
-      await retryDossierFailed(dossierId, 'ai2')
-      setDetail(await getDossierStructure(dossierId))
-      setAnalysisNudge(null)
+      if (kind === 'ai2') {
+        await retryDossierFailed(id, 'ai2')
+        const next = await getDossierStructure(id)
+        if (currentDossier.current !== id) return
+        setStepStatuses({})
+        setDetail(next)
+        setAnalysisNudge(null)
+        return
+      }
+      if (kind === 'resume') await retryDossierFailed(id, 'ocr')
+      else await reprocessDossier(id)
+      // OCR chạy lại (hoặc chạy tiếp): theo dõi ở màn tiến trình.
+      if (currentDossier.current === id) navigate(progressPath(id))
     } catch (cause: unknown) {
+      if (currentDossier.current !== id) return
       setRetryAnalysisError(
         restartOcrErrorMessage(cause) ?? 'Không chạy lại được phân tích.',
       )
     } finally {
-      setRetryingAnalysis(false)
+      if (currentDossier.current === id) setRetryingAnalysis(false)
     }
   }
   // Cây đã xem được trong lúc AI2 chạy: AI2 xong thì tải lại xung đột.
@@ -682,15 +722,25 @@ export function DossierStructurePage() {
     dossierId,
     phase === 'ready' && analysis === 'running',
     (next) => {
+      const id = dossierId
       setDetail(next)
-      setSearchNotice(null)
       setAnalysisNudge(null)
       setAnalysisJustFinished(
         analysisState(next.latestJobStatus, next.latestJobErrorCode) === 'done',
       )
-      listReviewSpots(dossierId)
-        .then(setSpots)
-        .catch(() => setSpots([]))
+      // Job dừng ở AI2: tải các bước để banner biết lỗi hay đã huỷ.
+      if (needsStepStatuses(next.latestJobStatus)) {
+        void loadStepStatuses(id).then((steps) => {
+          if (currentDossier.current === id) setStepStatuses(steps)
+        })
+      }
+      listReviewSpots(id)
+        .then((rows) => {
+          if (currentDossier.current === id) setSpots(rows)
+        })
+        .catch(() => {
+          if (currentDossier.current === id) setSpots([])
+        })
     },
   )
 
@@ -1358,6 +1408,14 @@ export function DossierStructurePage() {
                 Hồ sơ đã nhận tệp nhưng đọc tài liệu bị lỗi. Vui lòng thử lại
                 hoặc báo quản trị viên.
               </p>
+              {/* Thông báo "phân tích thất bại" mở trang này: lỗi ở OCR thì
+                  chạy lại ở màn tiến trình. */}
+              <Link
+                className="mt-space-sm inline-block font-body-sm text-body-sm font-semibold underline"
+                to={progressPath(dossierId)}
+              >
+                Xem tiến trình đọc tài liệu
+              </Link>
             </section>
           ) : null}
 
@@ -1427,18 +1485,6 @@ export function DossierStructurePage() {
               {searchError ? (
                 <p className="font-body-sm text-body-sm text-on-error-container">
                   {searchError}
-                </p>
-              ) : null}
-              {searchNotice ? (
-                <p
-                  className="flex items-center gap-space-sm font-body-sm text-body-sm text-on-surface-variant"
-                  role="status"
-                >
-                  <MaterialIcon
-                    name="progress_activity"
-                    className="animate-spin text-[18px] text-primary"
-                  />
-                  {searchNotice}
                 </p>
               ) : null}
               {searchResult ? (
