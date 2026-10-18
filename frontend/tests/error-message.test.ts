@@ -64,6 +64,13 @@ describe('Vietnamese check (PR #122 review)', () => {
     warn.mockRestore()
   })
 
+  it('keeps a Vietnamese sentence with only Latin-1 letters (PR #122 follow-up)', () => {
+    expect(userErrorMessage(new Error('Không có'), 'Thử lại.')).toBe('Không có')
+    expect(
+      userErrorMessage(new Error('Tên này không hợp lệ'), 'Thử lại.'),
+    ).toBe('Tên này không hợp lệ')
+  })
+
   it('keeps a sentence the backend wrote in Vietnamese', () => {
     expect(userErrorMessage(new Error('Hồ sơ đã bị khoá.'), 'Thử lại.')).toBe(
       'Hồ sơ đã bị khoá.',

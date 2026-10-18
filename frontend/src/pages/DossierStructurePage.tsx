@@ -39,6 +39,7 @@ import {
   type DossierStructure,
   type ReviewSpot,
 } from '../api/structure'
+import { waitForAnalysisReopen } from '../api/analysisReopen'
 import { retryDossierFailed } from '../api/dossiers'
 import {
   analysisRetryErrorMessage,
@@ -252,14 +253,6 @@ export function DossierStructurePage() {
   useEffect(() => {
     currentDossier.current = dossierId
   }, [dossierId])
-  // Việc chạy nền (chờ AI2 mở lại sau "Chạy lại") dừng khi rời trang.
-  const mounted = useRef(true)
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-    }
-  }, [])
   const [filename, setFilename] = useState<string | null>(null)
   const [documentId, setDocumentId] = useState<string | null>(null)
   const [citeId, setCiteId] = useState<string | null>(null)
@@ -536,6 +529,8 @@ export function DossierStructurePage() {
     const controller = new AbortController()
     let timer: number | undefined
     let stopped = false
+    // Số lần liên tiếp không tải được các bước của run.
+    let stepFailures = 0
     setSpots([])
 
     async function tick() {
@@ -549,12 +544,22 @@ export function DossierStructurePage() {
         if (stopped) return
         if (steps === null) {
           // Không tải được các bước: chưa biết dừng ở OCR hay AI2, nên chưa
-          // kết luận (không báo nhầm "đọc tài liệu lỗi"), hỏi lại sau.
+          // kết luận (không báo nhầm "đọc tài liệu lỗi"), hỏi lại sau. Lỗi
+          // 3 lần liền thì báo lỗi kèm nút "Thử lại".
+          stepFailures += 1
+          if (stepFailures >= 3) {
+            setError(
+              'Không tải được trạng thái phân tích của hồ sơ. Vui lòng thử lại.',
+            )
+            setPhase('error')
+            return
+          }
           timer = window.setTimeout(() => {
             void tick()
           }, 5000)
           return
         }
+        stepFailures = 0
         setDetail(next)
         setStepStatuses(steps)
         setMode((current) => current ?? next.structureMode)
@@ -698,9 +703,13 @@ export function DossierStructurePage() {
   const [retryAnalysisError, setRetryAnalysisError] = useState<string | null>(
     null,
   )
-  const [retryAnalysisInfo, setRetryAnalysisInfo] = useState<string | null>(
-    null,
-  )
+  // Sau "Chạy lại" AI2: 'waiting' khi chưa thấy job mở lại, 'timeout' khi đã
+  // chờ 5 phút (chưa nhận, hoặc AI2 đã lỗi lại).
+  const [retryAnalysisInfo, setRetryAnalysisInfo] = useState<
+    'waiting' | 'timeout' | null
+  >(null)
+  // Tăng mỗi lần bắt đầu chờ, đổi hồ sơ hoặc rời trang: vòng chờ cũ dừng.
+  const reopenWait = useRef(0)
   const [cancellingAnalysis, setCancellingAnalysis] = useState(false)
   // Đổi hồ sơ (cùng trang): bỏ thông báo và trạng thái nút của hồ sơ trước.
   useEffect(() => {
@@ -710,35 +719,10 @@ export function DossierStructurePage() {
     setRetryAnalysisInfo(null)
     setRetryingAnalysis(false)
     setCancellingAnalysis(false)
-  }, [dossierId])
-  /**
-   * /ai2/retry trả 202 rồi worker mới mở lại job sang 'extracted'. Hỏi lại tới
-   * khi job rời 'failed' (true), hết lượt (false), hoặc đã rời hồ sơ (null).
-   */
-  async function waitForAnalysisReopen(
-    id: string,
-    tries: number,
-    delayMs: number,
-  ): Promise<boolean | null> {
-    for (let n = 0; n < tries; n += 1) {
-      await new Promise((resolve) => window.setTimeout(resolve, delayMs))
-      if (!mounted.current || currentDossier.current !== id) return null
-      let next: DossierStructure
-      try {
-        next = await getDossierStructure(id)
-      } catch {
-        continue
-      }
-      if (!mounted.current || currentDossier.current !== id) return null
-      if (next.latestJobStatus !== 'failed') {
-        setRetryAnalysisInfo(null)
-        setStepStatuses({})
-        setDetail(next)
-        return true
-      }
+    return () => {
+      reopenWait.current += 1
     }
-    return false
-  }
+  }, [dossierId])
   // Một nút "Chạy lại": lỗi tạm của AI2 chỉ phân tích lại; huỷ thì chạy tiếp,
   // giữ phần OCR đã đọc; lỗi AI2 khác thì chạy lại toàn bộ (đọc lại tài liệu).
   async function retryAnalysis() {
@@ -763,12 +747,24 @@ export function DossierStructurePage() {
         // Cùng run cũ: mốc 10 phút tính lại từ lúc bấm.
         restartAnalysisClock()
         setAnalysisNudge(null)
-        const reopened = await waitForAnalysisReopen(id, 15, 2000)
-        if (reopened === false) {
-          setRetryAnalysisInfo(
-            'Đã gửi yêu cầu chạy lại. Trang sẽ cập nhật khi hệ thống nhận.',
-          )
-          void waitForAnalysisReopen(id, Number.POSITIVE_INFINITY, 10_000)
+        setRetryAnalysisInfo(null)
+        // Bấm lại thì vòng chờ cũ dừng: chỉ một vòng chờ cho mỗi trang.
+        const token = ++reopenWait.current
+        const result = await waitForAnalysisReopen(id, {
+          getDossierStructure: (dossier) => getDossierStructure(dossier),
+          isCurrent: () =>
+            reopenWait.current === token && currentDossier.current === id,
+          onSlow: () => {
+            setRetryingAnalysis(false)
+            setRetryAnalysisInfo('waiting')
+          },
+        })
+        if (result.kind === 'reopened') {
+          setRetryAnalysisInfo(null)
+          setStepStatuses({})
+          setDetail(result.next)
+        } else if (result.kind === 'timeout') {
+          setRetryAnalysisInfo('timeout')
         }
         return
       }
@@ -1497,7 +1493,21 @@ export function DossierStructurePage() {
               className="mb-space-md shrink-0 rounded-lg bg-surface-container-high px-space-md py-space-sm font-body-sm text-body-sm text-on-surface"
               role="status"
             >
-              {retryAnalysisInfo}
+              {retryAnalysisInfo === 'waiting'
+                ? 'Đã gửi yêu cầu chạy lại. Trang sẽ cập nhật khi hệ thống nhận.'
+                : 'Chưa thấy hệ thống chạy lại phân tích. Bấm Kiểm tra lại, hoặc báo quản trị viên nếu vẫn vậy.'}
+              {retryAnalysisInfo === 'timeout' ? (
+                <button
+                  className="ml-space-sm font-semibold text-primary hover:underline"
+                  type="button"
+                  onClick={() => {
+                    setRetryAnalysisInfo(null)
+                    setAttempt((current) => current + 1)
+                  }}
+                >
+                  Kiểm tra lại
+                </button>
+              ) : null}
             </p>
           ) : null}
           {phase === 'ready' && retryAnalysisError ? (
