@@ -143,23 +143,28 @@ describe('semantic results closed boundary and projections', () => {
       'Cặp nghi vấn',
       'Dòng thời gian',
       '9007199254740993',
-      'UNKNOWN',
-      'not_assessed',
-      'SCOPE_DIFFERS',
-      'different_scope',
-      'TENANT_ALIAS',
-      'body',
-      'annex',
-      'SIGNING',
-      'effective_date_missing',
-      'NEEDS_REVIEW',
-      'SEMANTIC_CONFLICT',
-      'PAY / scope:invoice',
-      'modality_negation',
+      'Chưa chắc chắn',
+      'Khác phạm vi áp dụng',
+      'Ngày ký',
+      'Cần rà soát',
+      'Mâu thuẫn nội dung',
+      'Quyền/nghĩa vụ/phủ định',
     ]) {
       expect(html).toContain(text)
     }
-    expect(html).not.toContain('LEGAL_WINNER')
+    // Mã hệ thống được dịch hoặc chỉ ghi Console, không hiện nguyên văn
+    // (thuộc tính như value của ô lọc thì không hiện nên bỏ qua).
+    const visible = html.replace(/<[^>]+>/g, ' ')
+    for (const code of [
+      'SCOPE_DIFFERS',
+      'TENANT_ALIAS',
+      'SIGNING',
+      'NEEDS_REVIEW',
+      'SEMANTIC_CONFLICT',
+      'LEGAL_WINNER',
+    ]) {
+      expect(visible).not.toContain(code)
+    }
   })
   it.each([
     'dossier',
@@ -198,7 +203,7 @@ describe('semantic results closed boundary and projections', () => {
       renderToStaticMarkup(
         <ClauseFrameResults dossierId="dossier" initial={model} />,
       ),
-    ).toContain('NOT_MEASURED')
+    ).toContain('Chưa đo')
     expect(() =>
       decodeSemanticResults(semanticFixture(), 'dossier', 'another-run'),
     ).toThrow()

@@ -267,15 +267,8 @@ export function ConflictFindingReview({
       <p className="font-label-sm text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">
         Thẩm định của chuyên viên
       </p>
-      {latest ? (
-        <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">
-          Lần gần nhất:{' '}
-          <span className="font-semibold text-on-surface">
-            {VERDICT_LABEL[VERDICT_OF[latest.action] ?? 'correct']}
-          </span>{' '}
-          bởi {entryWho(latest)} · {entryWhen(latest)}
-        </p>
-      ) : !loading ? (
+      {/* Đã có thẩm định thì xem ở "Lịch sử thẩm định" bên dưới, không lặp lại. */}
+      {!latest && !loading ? (
         <p className="mt-1 font-body-sm text-body-sm text-secondary">
           Chưa có ai thẩm định mục này.
         </p>

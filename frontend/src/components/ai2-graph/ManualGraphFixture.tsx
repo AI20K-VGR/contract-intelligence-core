@@ -90,7 +90,7 @@ export function ManualGraphFixture() {
   return (
     <div className="mx-auto flex min-w-0 max-w-5xl flex-col gap-3 p-3">
       <p role="status" className="break-words text-sm">
-        Dữ liệu demo tổng hợp · không gọi API · không phải kết quả AI2 từ tài liệu người dùng
+        Dữ liệu mẫu để minh họa, không phải kết quả phân tích tài liệu thật
       </p>
       <ProcessingTimeline trace={trace} />
       <ContractGraphCanvas

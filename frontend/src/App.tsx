@@ -17,7 +17,6 @@ import { CreateDossierPage } from './pages/CreateDossierPage'
 import { DossierStructurePage } from './pages/DossierStructurePage'
 import { OcrProgressPage } from './pages/OcrProgressPage'
 import { QueryHistoryPage } from './pages/QueryHistoryPage'
-import { ManifestConfirmPage } from './pages/ManifestConfirmPage'
 import { DossierReviewPage } from './pages/DossierReviewPage'
 import { CitationComparePage } from './pages/CitationComparePage'
 import { CitationSplitViewPage } from './pages/CitationSplitViewPage'
@@ -127,10 +126,6 @@ export default function App() {
               <Route
                 path="/tach-file/:dossierId"
                 element={<SplitConfirmPage />}
-              />
-              <Route
-                path="/xac-nhan-manifest/:dossierId"
-                element={<ManifestConfirmPage />}
               />
               <Route
                 path="/tien-trinh-phan-tich/:dossierId"

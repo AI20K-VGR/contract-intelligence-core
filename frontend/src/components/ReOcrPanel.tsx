@@ -13,8 +13,8 @@ import { MaterialIcon } from './icons'
 const STATUS_LABELS: Record<string, string> = {
   queued: 'Đang chờ',
   pending: 'Đang chờ',
-  running: 'Đang OCR lại',
-  processing: 'Đang OCR lại',
+  running: 'Đang đọc lại',
+  processing: 'Đang đọc lại',
   completed: 'Đã xong',
   succeeded: 'Đã xong',
   failed: 'Lỗi',
@@ -91,12 +91,12 @@ export function ReOcrPanel({
   return (
     <div className="flex flex-col gap-space-sm border-b border-surface-container px-space-lg py-space-md">
       <p className="font-body-sm text-body-sm text-on-surface-variant">
-        Chọn các trang chữ bị sai rồi OCR lại bằng cấu hình khác. Kết quả cũ
+        Chọn các trang chữ bị sai rồi đọc lại bằng cấu hình khác. Kết quả cũ
         được giữ đến khi lần mới ghi xong.
       </p>
       <div className="flex flex-wrap items-end gap-space-sm">
         <label className="flex flex-col gap-1 font-label-sm text-label-sm text-on-surface-variant">
-          Cấu hình OCR
+          Cấu hình đọc
           <select
             className="h-9 rounded-lg border border-outline-variant/40 bg-surface-container-lowest px-space-sm font-body-sm text-body-sm text-on-surface"
             value={profile}
@@ -130,8 +130,8 @@ export function ReOcrPanel({
           {busy
             ? 'Đang gửi…'
             : selected.length === 0
-              ? 'Chọn trang để OCR lại'
-              : `OCR lại ${selected.length} trang`}
+              ? 'Chọn trang để đọc lại'
+              : `Đọc lại ${selected.length} trang`}
         </button>
       </div>
       {error ? (
@@ -141,7 +141,7 @@ export function ReOcrPanel({
       ) : null}
       {request ? (
         <p className="font-body-sm text-body-sm text-on-surface" role="status">
-          Yêu cầu OCR lại trang {request.pageNumbers.join(', ') || '—'}:{' '}
+          Yêu cầu đọc lại trang {request.pageNumbers.join(', ') || '—'}:{' '}
           <strong>
             {STATUS_LABELS[request.status.toLowerCase()] ?? request.status}
           </strong>

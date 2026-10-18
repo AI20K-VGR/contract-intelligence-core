@@ -5,7 +5,9 @@ import {
   type StructureMode,
 } from '../structure/types'
 import { ApiError, apiFetch, getJson, requestJson } from './client'
+import { isNetworkError, NETWORK_MESSAGE } from './errorMessage'
 import { patchDossier } from './dossiers'
+import { isAi2Failure, isCancelledJob, type StepStatuses } from './jobErrors'
 import {
   normalizeAi2SearchResult,
   type Ai2SearchHit,
@@ -133,6 +135,36 @@ export function isOcrComplete(status: string | null) {
 // nên run chỉ xong hẳn khi job sang bước rà soát.
 export function isRunFinished(status: string | null | undefined) {
   return status != null && REVIEW_STATUSES.has(status)
+}
+
+/**
+ * Phần phân tích (AI2) của hồ sơ sau khi OCR xong. Worker giữ job ở
+ * 'extracted' suốt lúc AI2 chạy; null khi OCR chưa xong hoặc OCR lỗi.
+ *
+ * Trang tiến trình và trang cây dùng chung hàm này, kèm trạng thái các bước
+ * của run (`loadStepStatuses`): S8 xong nghĩa là OCR đã xong, nên một job lỗi
+ * khi đó là lỗi AI2 dù AI2 trả mã lạ (errors[0].code), và một run bị huỷ khi
+ * đó là huỷ phần phân tích ('cancelled'), không phải huỷ OCR.
+ */
+export type AnalysisState = 'running' | 'done' | 'failed' | 'cancelled'
+
+export function analysisState(
+  status: string | null | undefined,
+  errorCode: string | null | undefined,
+  steps: StepStatuses = {},
+): AnalysisState | null {
+  if (status === 'extracted') return 'running'
+  if (isRunFinished(status)) return 'done'
+  if (status !== 'failed' && status !== 'cancelled') return null
+  if (isCancelledJob(status, errorCode)) {
+    return steps.S8?.status === 'succeeded' ? 'cancelled' : null
+  }
+  return isAi2Failure(errorCode, steps) ? 'failed' : null
+}
+
+/** Job đã dừng (lỗi hoặc huỷ): cần trạng thái các bước để biết dừng ở OCR hay AI2. */
+export function needsStepStatuses(status: string | null | undefined) {
+  return status === 'failed' || status === 'cancelled'
 }
 
 export function countClauses(nodes: ClauseNode[]): number {
@@ -294,7 +326,8 @@ export async function getDossierStructure(
   return {
     id,
     name: asString(row.name) || 'Hồ sơ chưa đặt tên',
-    latestJobId: typeof row.latest_job_id === 'string' ? row.latest_job_id : null,
+    latestJobId:
+      typeof row.latest_job_id === 'string' ? row.latest_job_id : null,
     ai2JobId:
       typeof metadata?.ai2_job_id === 'string' && metadata.ai2_job_id
         ? metadata.ai2_job_id
@@ -306,7 +339,8 @@ export async function getDossierStructure(
         ? row.latest_job_error_code
         : null,
     snapshotDigest:
-      typeof metadata?.ai2_snapshot_digest === 'string' && metadata.ai2_snapshot_digest
+      typeof metadata?.ai2_snapshot_digest === 'string' &&
+      metadata.ai2_snapshot_digest
         ? metadata.ai2_snapshot_digest
         : null,
     documents,
@@ -754,8 +788,8 @@ export function structureErrorMessage(error: unknown) {
     if (error.status === 404) return 'Không tìm thấy hồ sơ hoặc cây điều khoản.'
     return error.message
   }
-  if (error instanceof TypeError) {
-    return 'Không kết nối được backend.'
+  if (error instanceof TypeError || isNetworkError(error)) {
+    return NETWORK_MESSAGE
   }
   if (error instanceof Error && error.message) return error.message
   return 'Không tải được cấu trúc hợp đồng. Thử lại.'

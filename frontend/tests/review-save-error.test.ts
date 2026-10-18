@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../src/api/client'
 import {
   EXPIRED_MESSAGE,
@@ -40,7 +40,13 @@ describe('reviewErrorMessage', () => {
   })
 
   it('keeps other errors and falls back for unknown ones', () => {
-    expect(reviewErrorMessage(new Error('boom'), 'x')).toBe('boom')
+    expect(reviewErrorMessage(new Error('Mục đã đổi.'), 'x')).toBe(
+      'Mục đã đổi.',
+    )
+    // Câu tiếng Anh/kỹ thuật không hiện cho người dùng.
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(reviewErrorMessage(new Error('boom'), 'x')).toBe('x')
+    vi.restoreAllMocks()
     expect(reviewErrorMessage('lạ', 'Không lưu được')).toBe('Không lưu được')
   })
 })

@@ -29,6 +29,7 @@ import {
 } from '../data/shareGrant'
 import { dossiersLabel } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
+import { TechnicalDetail } from '../components/TechnicalDetail'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 
 type StatusFilter = 'all' | OcrState
@@ -46,10 +47,10 @@ function stateNotice(
 
 const filters: { id: StatusFilter; label: string }[] = [
   { id: 'all', label: 'Tất cả' },
-  { id: 'done', label: 'Đã OCR' },
-  { id: 'running', label: 'Đang OCR' },
-  { id: 'pending', label: 'Chưa OCR' },
-  { id: 'error', label: 'OCR lỗi' },
+  { id: 'done', label: 'Đã đọc' },
+  { id: 'running', label: 'Đang đọc' },
+  { id: 'pending', label: 'Chưa đọc' },
+  { id: 'error', label: 'Đọc lỗi' },
 ]
 
 /*
@@ -216,7 +217,7 @@ export function dossierFromSummary(
         ? 'folder_open'
         : 'folder',
     status: uiStatus(summary),
-    progressLabel: job ? (jobLabels[job] ?? job) : 'Chưa có job',
+    progressLabel: job ? (jobLabels[job] ?? job) : 'Chưa xử lý',
     reviewNote: reviewNote(summary),
     documents: summary.document_count,
     updated: formatWhen(summary.created_at),
@@ -253,11 +254,13 @@ function StatusCell({
   dossier,
   ocr,
   detail,
+  technical,
   onRetry,
 }: {
   dossier: Dossier
   ocr: OcrState | 'checking'
   detail: string | null
+  technical?: string | null
   /** Bỏ trống khi người dùng không được chạy lại hồ sơ này. */
   onRetry?: () => void
 }) {
@@ -270,7 +273,7 @@ function StatusCell({
   if (ocr === 'checking') {
     return (
       <span className="font-label-sm text-label-sm text-on-surface-variant">
-        Đang kiểm tra OCR…
+        Đang kiểm tra…
       </span>
     )
   }
@@ -283,7 +286,7 @@ function StatusCell({
           to={progressPath(dossier.id)}
         >
           <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
-          Đang OCR
+          Đang đọc
         </Link>
         {note}
       </div>
@@ -291,8 +294,8 @@ function StatusCell({
   }
 
   if (ocr === 'pending' || ocr === 'error') {
-    const label = ocr === 'pending' ? 'Chưa OCR' : 'OCR lỗi'
-    const action = ocr === 'pending' ? 'Tiếp tục OCR' : 'OCR lại'
+    const label = ocr === 'pending' ? 'Chưa đọc' : 'Đọc lỗi'
+    const action = ocr === 'pending' ? 'Tiếp tục đọc' : 'Đọc lại'
     return (
       <div className="flex flex-col items-start gap-1">
         <div className="flex flex-wrap items-center gap-1">
@@ -324,10 +327,11 @@ function StatusCell({
           ) : null}
         </div>
         {detail ? (
-          <span className="font-code-sm text-label-sm text-error">
+          <span className="font-body-sm text-label-sm text-error">
             {detail}
           </span>
         ) : null}
+        {ocr === 'error' ? <TechnicalDetail text={technical} /> : null}
         {note}
       </div>
     )
@@ -340,7 +344,7 @@ function StatusCell({
         to={`/ocr/${dossier.id}`}
       >
         <MaterialIcon name="check_circle" className="text-[14px]" />
-        Đã OCR
+        Đã đọc
       </Link>
       {note}
     </div>
@@ -980,6 +984,7 @@ export function MyDossiersPage() {
                     ) : (
                       <StatusCell
                         detail={ocrById[dossier.id]?.detail ?? null}
+                        technical={ocrById[dossier.id]?.technical}
                         dossier={dossier}
                         ocr={ocrOf(dossier)}
                         onRetry={
@@ -1073,7 +1078,8 @@ export function MyDossiersPage() {
             </h2>
             <p className="font-body-sm text-body-sm text-on-surface-variant">
               {pendingDelete.title} sẽ ẩn khỏi danh sách ngay. File và nội dung
-              hợp đồng được xóa. Nhật ký người xóa và số token OCR được giữ lại.
+              hợp đồng được xóa. Nhật ký người xóa và chi phí đọc tài liệu được
+              giữ lại.
             </p>
             <div className="flex justify-end gap-space-sm">
               <button

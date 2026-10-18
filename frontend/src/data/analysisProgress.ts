@@ -90,7 +90,7 @@ export const upcomingProgressLogs: ProgressLog[] = [
   {
     id: 'log-4',
     time: '14:28',
-    text: 'Phần 2: Hoàn tất OCR trang 84/84. Đã lập ma trận thực thể điều khoản.',
+    text: 'Phần 2: Đọc xong trang 84/84. Đã lập ma trận thực thể điều khoản.',
     status: 'info',
   },
   {
@@ -114,7 +114,7 @@ export const upcomingProgressLogs: ProgressLog[] = [
   {
     id: 'log-8',
     time: '14:28',
-    text: 'Pipeline hoàn thành 100%. Sẵn sàng phân tích sâu và tra cứu pháp lý!',
+    text: 'Đã xử lý xong 100%. Sẵn sàng phân tích sâu và tra cứu pháp lý!',
     status: 'finish',
   },
 ]

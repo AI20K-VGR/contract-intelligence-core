@@ -428,7 +428,7 @@ export function SplitConfirmPage() {
               ))}
             </ul>
             <p className="text-on-surface-variant">
-              Đang chuyển sang tiến trình OCR…
+              Đang chuyển sang tiến trình đọc tài liệu…
             </p>
           </div>
         </div>

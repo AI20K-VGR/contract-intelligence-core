@@ -7,6 +7,7 @@ import {
   type LexiconCommand,
   type LexiconModel,
 } from '../api/tenantLexicon'
+import { userErrorMessage } from '../api/errorMessage'
 
 const ACTION_SYMBOLS = [
   'PAY',
@@ -71,9 +72,7 @@ export function TenantLexiconPanel({
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted)
-          setMessage(
-            cause instanceof Error ? cause.message : 'Không đọc được lexicon.',
-          )
+          setMessage(userErrorMessage(cause, 'Không đọc được bộ từ điển.'))
       })
     return () => controller.abort()
   }, [tenantId, initial])
@@ -84,9 +83,7 @@ export function TenantLexiconPanel({
       setModel(await getTenantLexicon(tenantId, undefined, version))
       setHistorical(version !== undefined)
     } catch (cause) {
-      setMessage(
-        cause instanceof Error ? cause.message : 'Không tải được phiên bản.',
-      )
+      setMessage(userErrorMessage(cause, 'Không tải được phiên bản.'))
     } finally {
       setBusy(false)
     }
@@ -129,31 +126,29 @@ export function TenantLexiconPanel({
         }
         pending.current = null
       }
-      setMessage(
-        cause instanceof Error ? cause.message : 'Không lưu được quyết định.',
-      )
+      setMessage(userErrorMessage(cause, 'Không lưu được quyết định.'))
     } finally {
       setBusy(false)
     }
   }
   if (!model) return <p role="status">{message ?? 'Đang tải lexicon…'}</p>
   if (model.profile.tenant_id !== tenantId)
-    return <p role="alert">Profile thuộc tenant khác.</p>
+    return <p role="alert">Bộ từ điển này thuộc tổ chức khác.</p>
   const { profile, permissions, assignment } = model
   const disabled = busy || historical
   return (
     <section
-      aria-label="Alias của tenant"
+      aria-label="Tên gọi khác của tổ chức"
       className="space-y-3 rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-4 text-sm"
     >
       <h2 className="font-semibold">
-        Alias của tenant · Phiên bản {profile.version}
+        Tên gọi khác của tổ chức · Phiên bản {profile.version}
       </h2>
       <p>
         {profile.activation_state} · {profile.activation_blockers.join('; ')}
       </p>
       <p>
-        Alias đã duyệt: {profile.aliases.length} · Đang áp dụng:{' '}
+        Tên gọi khác đã duyệt: {profile.aliases.length} · Đang áp dụng:{' '}
         {profile.active_aliases.length}. Thay đổi cần lần chạy mới; kết quả cũ
         được giữ nguyên.
       </p>
@@ -352,7 +347,7 @@ export function TenantLexiconPanel({
                       })
                     }
                   >
-                    Đề nghị dùng chung alias trừu tượng
+                    Đề nghị dùng chung tên gọi khác
                   </button>
                 ) : null}
               </div>
@@ -429,7 +424,7 @@ export function TenantLexiconPanel({
           }}
         >
           <label>
-            Receipt đồng ý chia sẻ alias trừu tượng
+            Xác nhận đồng ý chia sẻ tên gọi khác
             <input
               required
               value={consentRef}
