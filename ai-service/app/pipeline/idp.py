@@ -496,6 +496,7 @@ def _run_idp(
             limited_coverage_issue,
             pair_conflict_candidates,
             pair_coverage,
+            timeout_coverage_issue,
         )
 
         pairs_status = "SKIPPED_GRAPH_FAILED" if graph is None else "OK"
@@ -503,6 +504,10 @@ def _run_idp(
         pairs_timed_out = graph is not None and _past_deadline(
             runtime, trace_writer, "contract_graph_pairs", handoff
         )
+        if pairs_timed_out:
+            # Not "ran and found nothing": say the stage was skipped (PR #125 review round 2).
+            pairs_status = "SKIPPED_PROCESSING_TIMEOUT"
+            issues.append(timeout_coverage_issue())
         if graph is not None and not pairs_timed_out:
             if trace_writer is not None:
                 trace_writer.start("contract_graph_pairs")

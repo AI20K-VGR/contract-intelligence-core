@@ -7,6 +7,7 @@ from typing import Any
 from app.contracts.models import ReviewState, ToolEnvelope
 from app.llm.client import NineRouterClient
 from app.pipeline.result_structure import _is_running_furniture
+from app.reasoning import answer_compose
 from app.reasoning.l0_rules import L0Rules, query_too_broad
 from app.reasoning.l1_retrieval import COMPARE_TYPES, L1Retrieval
 from app.reasoning.l2_plan import L2Planner
@@ -29,6 +30,101 @@ class FourLayerReasoner:
         self.l3 = L3Ground(gateway)
 
     def run(self, envelope: ToolEnvelope, task: dict[str, Any]) -> dict[str, Any]:
+        recall = answer_compose.expanded_query(str(task.get("query") or ""))
+        if recall != task.get("query"):
+            task = {**task, "recall_query": recall}
+        result = self._run_core(envelope, task)
+        policy_flags = task.get("policy_flags") or {}
+        llm = self.l2.llm
+        if not (
+            policy_flags.get("egress_allowed") is True
+            and policy_flags.get("use_llm") is True
+            and llm is not None
+            and llm.configured()
+            and answer_compose.eligible(task)
+        ):
+            return result
+        if result.get("review_state") == ReviewState.BLOCKED.value:
+            return result
+        query = str(task.get("query") or "")
+        gateway = self.l1.gateway
+        notes: list[str] = []
+        pairs = list(task.get("pair_relations") or [])
+        if pairs and answer_compose.is_conflict_query(query):
+            evidence, notes = answer_compose.evidence_from_pairs(gateway, envelope, pairs)
+        elif pairs and answer_compose.is_relation_query(task):
+            retrieved = self._compose_evidence(envelope, task, result)
+            paired, notes = answer_compose.evidence_from_pairs(gateway, envelope, pairs)
+            known = {item["node_id"] for item in retrieved}
+            evidence = retrieved + [item for item in paired if item["node_id"] not in known]
+        elif task.get("type") == "too_broad":
+            record = gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
+            evidence = (
+                answer_compose.evidence_from_outline(gateway, envelope, record) if record else []
+            )
+        else:
+            # L2 owns any question it already spent the model on (its own source
+            # rules and call budget); only L0 and fallback lists get a composed answer.
+            if result.get("used_llm"):
+                return result
+            evidence = self._compose_evidence(envelope, task, result)
+        composed = answer_compose.compose(llm, query, evidence, notes)
+        if composed is None:
+            return {**result, "used_llm": bool(result.get("used_llm")) or bool(evidence)}
+        state = (
+            ReviewState.ANSWERED.value
+            if composed["sufficient"] and not notes
+            else ReviewState.NEEDS_REVIEW.value
+        )
+        grounded = self.l3.run(
+            envelope,
+            task,
+            review_state=state,
+            answer=composed["answer"],
+            citations=composed["citations"],
+        )
+        if not grounded.get("citations"):
+            return result
+        return {
+            **result,
+            **grounded,
+            "layers_used": [*(result.get("layers_used") or []), "COMPOSE"],
+            "used_llm": True,
+        }
+
+    def _compose_evidence(
+        self, envelope: ToolEnvelope, task: dict[str, Any], result: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """What the answer cited, each heading with its body lines, then lexical hits
+        for the question itself: L0 can stop at a card with no source at all."""
+
+        gateway = self.l1.gateway
+        query = str(task.get("query") or "")
+        record = gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
+        named = answer_compose.referenced_nodes(record, query) if record else []
+        ids: list[str] = []
+        for citation in [*({"node_id": n} for n in named), *(result.get("citations") or [])]:
+            node_id = str((citation or {}).get("node_id") or "")
+            if node_id:
+                ids.extend(_node_and_children(gateway, envelope, node_id))
+        try:
+            recall_task = {
+                **task,
+                "type": "unscoped",
+                "recall_query": answer_compose.expanded_query(query),
+            }
+            hits = self.l1.run(envelope, recall_task).get("hits") or []
+        except ToolBlocked:
+            hits = []
+        for hit in hits[:8]:
+            node_id = str(hit.get("node_id") or "")
+            if node_id:
+                ids.extend(_node_and_children(gateway, envelope, node_id))
+        return answer_compose.evidence_from_citations(
+            gateway, envelope, [{"node_id": node_id} for node_id in dict.fromkeys(ids)]
+        )
+
+    def _run_core(self, envelope: ToolEnvelope, task: dict[str, Any]) -> dict[str, Any]:
         selected = {str(item) for item in (task.get("selected_member_ids") or []) if item}
         if selected:
             record = self.l1.gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
@@ -88,11 +184,11 @@ class FourLayerReasoner:
         l1 = _restrict_selected_members(l1, task, envelope, self.l1.gateway)
         layers.append("L1")
         outline_ids = [n["node_id"] for n in (l1.get("outline_ids") or [])]
-        coverage_group_ids = [str(node_id) for node_id in (l1.get("coverage_groups") or []) if node_id]
+        coverage_group_ids = [
+            str(node_id) for node_id in (l1.get("coverage_groups") or []) if node_id
+        ]
         planner_task = (
-            {**task, "coverage_group_ids": coverage_group_ids}
-            if coverage_group_ids
-            else task
+            {**task, "coverage_group_ids": coverage_group_ids} if coverage_group_ids else task
         )
         if l1.get("blocked"):
             grounded = self.l3.run(
@@ -105,7 +201,10 @@ class FourLayerReasoner:
             )
             layers.append("L3")
             return {
-                **grounded, "layers_used": layers, "steps": [], "used_llm": False,
+                **grounded,
+                "layers_used": layers,
+                "steps": [],
+                "used_llm": False,
                 "retrieval_trace": {"vector_status": "NOT_REQUESTED"},
             }
 
@@ -131,16 +230,17 @@ class FourLayerReasoner:
                 "logical_tables": [],
             }
         allow_llm = (
-            policy_flags.get("egress_allowed") is True
-            and policy_flags.get("use_llm") is True
+            policy_flags.get("egress_allowed") is True and policy_flags.get("use_llm") is True
         )
         # Unflagged direct stack callers retain the deterministic L2 fallback
         # contract. API requests always carry policy flags and therefore stay
         # fail-closed when external reasoning is not allowed.
         legacy_unflagged = not policy_flags
         freeform = ttype == "unscoped" and not _is_evaluation_query(task.get("query") or "")
-        need_l2 = (ttype in COMPARE_TYPES or freeform) and not query_too_broad(task.get("query") or "") and (
-            allow_llm or legacy_unflagged
+        need_l2 = (
+            (ttype in COMPARE_TYPES or freeform)
+            and not query_too_broad(task.get("query") or "")
+            and (allow_llm or legacy_unflagged)
         )
         draft = None
         steps: list = []
@@ -159,9 +259,12 @@ class FourLayerReasoner:
                 )
                 layers.append("L3")
                 return {
-                    **grounded, "layers_used": layers, "steps": l2.get("steps") or [],
+                    **grounded,
+                    "layers_used": layers,
+                    "steps": l2.get("steps") or [],
                     "used_llm": bool(l2.get("llm_called")),
-                    "retrieval_trace": l1.get("retrieval_trace") or {"vector_status": "NOT_REQUESTED"},
+                    "retrieval_trace": l1.get("retrieval_trace")
+                    or {"vector_status": "NOT_REQUESTED"},
                 }
             steps = l2.get("steps") or []
             draft = l2.get("draft")
@@ -193,11 +296,11 @@ class FourLayerReasoner:
             # every source. Two cited nodes keep the model sentence; any
             # source it skipped is still attached for review.
             if ttype in COMPARE_TYPES:
-                required_ids = list(dict.fromkeys(
-                    str(node_id)
-                    for node_id in (l1.get("anchor_ids") or [])
-                    if node_id
-                ))
+                required_ids = list(
+                    dict.fromkeys(
+                        str(node_id) for node_id in (l1.get("anchor_ids") or []) if node_id
+                    )
+                )
                 if len(required_ids) < 2:
                     required_ids.extend(
                         str(hit.get("node_id") or hit.get("chunk_id"))
@@ -213,22 +316,24 @@ class FourLayerReasoner:
                 }
                 # Citing "M1" or "4.2" covers the heading L1 retrieved; the
                 # model quotes the sub-clause that carries the value.
-                record = self.l1.gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
-                parent_of = {n.node_id: n.parent_id for n in record.evidence_nodes()} if record else {}
+                record = self.l1.gateway.store.get(
+                    envelope.auth.tenant_id, envelope.auth.dossier_id
+                )
+                parent_of = (
+                    {n.node_id: n.parent_id for n in record.evidence_nodes()} if record else {}
+                )
                 # Each citation covers one source: itself, else its parent.
                 # Counting both would let a single quote pass as a comparison.
+                required_set = set(required_ids)
                 covered = {
-                    required_id
-                    for required_id in required_ids
-                    if required_id in cited_ids
-                    or str(parent_of.get(required_id) or "") in cited_ids
-                }
+                    cited if cited in required_set else str(parent_of.get(cited) or "")
+                    for cited in cited_ids
+                } & required_set
                 # One cited node is not a comparison. Two or more keep the
                 # model sentence; sources it skipped stay attached for review.
                 if len(required_ids) > 1 and len(covered) < 2:
                     draft = None
                 else:
-                    required_set = set(required_ids)
                     for hit in (l1.get("hits") or [])[:8]:
                         nid = str(hit.get("node_id") or hit.get("chunk_id") or "")
                         if nid and nid in required_set and nid not in cited_ids:
@@ -237,7 +342,8 @@ class FourLayerReasoner:
             tables = l1["logical_tables"]
             citations = [
                 citation
-                for table in tables for row in table.get("rows", [])
+                for table in tables
+                for row in table.get("rows", [])
                 for citation in row.get("cell_citations", {}).values()
             ]
             answer = {
@@ -263,7 +369,8 @@ class FourLayerReasoner:
                 ]
             else:
                 candidate_hits = [
-                    h for h in (l1.get("hits") or [])
+                    h
+                    for h in (l1.get("hits") or [])
                     if not compare_ids
                     or str(h.get("node_id") or h.get("chunk_id") or "") in compare_ids
                 ]
@@ -308,7 +415,9 @@ class FourLayerReasoner:
                 if comparison_ids
                 else None
             )
-            answer = answer or (render_related_answer(packed, rels) if packed else {"hits": l1["hits"][:6]})
+            answer = answer or (
+                render_related_answer(packed, rels) if packed else {"hits": l1["hits"][:6]}
+            )
             state = (
                 ReviewState.NEEDS_REVIEW.value
                 if multi
@@ -468,7 +577,8 @@ def _restrict_selected_members(
         if table.node_id in allowed or table.table_id in allowed
     }
     bounded["logical_tables"] = [
-        table for table in result.get("logical_tables") or []
+        table
+        for table in result.get("logical_tables") or []
         if table.get("table_id") in allowed_tables
     ]
     bounded["coverage_groups"] = [
@@ -518,7 +628,11 @@ def _comparison_fallback_ids(
         role = source_roles.get(node.source_file_id or "")
         if role in {"body", "annex"}:
             return role
-        return "annex" if any("phu luc" in fold(label) or "annex" in fold(label) for label in labels(node)) else "body"
+        return (
+            "annex"
+            if any("phu luc" in fold(label) or "annex" in fold(label) for label in labels(node))
+            else "body"
+        )
 
     def is_root(node) -> bool:
         label = fold(node.raw_label)
@@ -529,7 +643,11 @@ def _comparison_fallback_ids(
 
     def number(node, kind: str) -> int | None:
         label = fold(node.raw_label)
-        pattern = r"(?:dieu|article)\s+0*(\d+)" if kind == "body" else r"(?:phu luc|annex|appendix)\s+0*(\d+)"
+        pattern = (
+            r"(?:dieu|article)\s+0*(\d+)"
+            if kind == "body"
+            else r"(?:phu luc|annex|appendix)\s+0*(\d+)"
+        )
         match = re.search(pattern, label)
         return int(match.group(1)) if match else None
 
@@ -547,8 +665,18 @@ def _comparison_fallback_ids(
         or not annex_match
         or not any(cue in query for cue in ("so sanh", "compare", "doi chieu", "versus", " vs "))
         or any(
-        cue in query
-        for cue in ("thanh toan", "payment", "gia tri", "contract value", "phat", "penalty", "tien do", "thue", "tax")
+            cue in query
+            for cue in (
+                "thanh toan",
+                "payment",
+                "gia tri",
+                "contract value",
+                "phat",
+                "penalty",
+                "tien do",
+                "thue",
+                "tax",
+            )
         )
     ):
         return []
@@ -567,7 +695,10 @@ def _comparison_fallback_ids(
 
     seed_ids = [
         str(item)
-        for item in [*(l1.get("anchor_ids") or []), *(h.get("node_id") or h.get("chunk_id") for h in l1.get("hits") or [])]
+        for item in [
+            *(l1.get("anchor_ids") or []),
+            *(h.get("node_id") or h.get("chunk_id") for h in l1.get("hits") or []),
+        ]
         if item
     ]
 
@@ -607,7 +738,11 @@ def _comparison_fallback_ids(
     )
     body_detail = body_detail or (body_children[0] if body_children else body_root)
     annex_detail = next(
-        (node for node in annex_children if re.match(r"^\s*\|\s*\d+\s*\|", node.text or node.raw_label)),
+        (
+            node
+            for node in annex_children
+            if re.match(r"^\s*\|\s*\d+\s*\|", node.text or node.raw_label)
+        ),
         None,
     )
     annex_detail = annex_detail or (annex_children[0] if annex_children else annex_root)
@@ -618,7 +753,9 @@ def _comparison_fallback_ids(
     return selected
 
 
-def _node_and_children(gateway: ToolGateway, envelope: ToolEnvelope, node_id: str, limit: int = 6) -> list[str]:
+def _node_and_children(
+    gateway: ToolGateway, envelope: ToolEnvelope, node_id: str, limit: int = 6
+) -> list[str]:
     """Return a heading plus the body lines stored under it."""
 
     record = gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
@@ -627,6 +764,8 @@ def _node_and_children(gateway: ToolGateway, envelope: ToolEnvelope, node_id: st
     children = [
         node.node_id
         for node in record.evidence_nodes()
-        if node.parent_id == node_id and node.node_id != node_id and not _is_running_furniture(node.raw_label or "")
+        if node.parent_id == node_id
+        and node.node_id != node_id
+        and not _is_running_furniture(node.raw_label or "")
     ]
     return [node_id, *children[:limit]]

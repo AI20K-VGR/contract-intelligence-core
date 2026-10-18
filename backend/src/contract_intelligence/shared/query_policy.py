@@ -144,7 +144,7 @@ def stored_dossier_content_sharing_consent(metadata: Any) -> bool:
     return isinstance(metadata, dict) and metadata.get("ai2_content_sharing_consent") is True
 
 
-def _document_ref(item: dict[str, Any]) -> str | None:
+def document_ref(item: dict[str, Any]) -> str | None:
     raw_nested = item.get("citation")
     nested: dict[str, Any] = raw_nested if isinstance(raw_nested, dict) else {}
     for value in (
@@ -192,7 +192,7 @@ def enforce_result_acl(
     for key in evidence_keys:
         kept: list[Any] = []
         for item in result[key]:
-            ref = _document_ref(item) if isinstance(item, dict) else None
+            ref = document_ref(item) if isinstance(item, dict) else None
             if ref is None or ref not in allowed_document_ids:
                 dropped += 1
                 continue
@@ -259,6 +259,7 @@ async def save_query_trace(
 
 __all__ = [
     "AclSecondPass",
+    "document_ref",
     "QueryLimitExceeded",
     "QueryTraceORM",
     "SlidingWindowLimiter",

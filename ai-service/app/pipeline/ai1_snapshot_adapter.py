@@ -12,7 +12,7 @@ import json
 import os
 import re
 import unicodedata
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -2431,7 +2431,7 @@ _WRAP_MIN_LENGTH = 45
 _WRAP_MIN_RIGHT_RATIO = 0.85
 
 
-def _all_caps(raw: str) -> bool:
+def all_caps(raw: str) -> bool:
     letters = [ch for ch in raw if ch.isalpha()]
     return len(letters) >= 4 and all(ch.isupper() for ch in letters)
 
@@ -2444,8 +2444,8 @@ def _continues_previous(
     if (
         _WRAP_TERMINAL.search(previous)
         or _WRAP_BLOCK_START.match(current)
-        or _all_caps(current)
-        or _all_caps(previous)
+        or all_caps(current)
+        or all_caps(previous)
     ):
         return False
     # AI1 renders table rows as "| a | b |" or tab-separated lines; a row is never prose.
@@ -2474,26 +2474,27 @@ def _cross_page_wrap_issues(
     the two halves, so a merged node could never cite. The reviewer is told instead,
     with both halves as evidence refs (page N tail, page N+1 head).
     """
-    repeated = Counter(
-        re.sub(r"\d+", "#", (node.text or "").strip().casefold())
-        for node in {n.node_id: n for n in nodes}.values()
-        if node.text
-    )
+    # One pass over the nodes: fold each text once and bucket candidates by page, instead
+    # of re-scanning every node for every page (O(pages x nodes) on 200-page dossiers).
+    keys = {id(n): re.sub(r"\d+", "#", n.text.strip().casefold()) for n in nodes if n.text}
+    repeated = Counter(keys[id(n)] for n in {n.node_id: n for n in nodes if n.text}.values())
+    by_page: dict[int, list[StructuralNode]] = defaultdict(list)
+    for n in nodes:
+        if (
+            n.page_range
+            and len(n.page_range) == 1
+            and n.type in _TEXT_NODE_TYPES
+            and (n.text or "").strip()
+            and not _PAGE_MARK.match(n.text)
+            and not all_caps(n.text)
+            and repeated[keys[id(n)]] < 2
+        ):
+            by_page[n.page_range[0]].append(n)
+    for bucket in by_page.values():
+        bucket.sort(key=lambda n: n.order)
 
     def content(page_number: int) -> list[StructuralNode]:
-        return sorted(
-            (
-                n
-                for n in nodes
-                if n.page_range == [page_number]
-                and n.type in _TEXT_NODE_TYPES
-                and (n.text or "").strip()
-                and not _PAGE_MARK.match(n.text)
-                and not _all_caps(n.text)
-                and repeated[re.sub(r"\d+", "#", n.text.strip().casefold())] < 2
-            ),
-            key=lambda n: n.order,
-        )
+        return by_page.get(page_number, [])
 
     issues: list[HandoffIssue] = []
     ordered = sorted(pages, key=lambda page: page.page_number)
@@ -2509,8 +2510,16 @@ def _cross_page_wrap_issues(
             (len(text.strip()) for text in left.line_texts.values()), default=len(previous)
         )
         max_right = max((box[2] for box in left.line_bboxes.values() if len(box) == 4), default=0.0)
+        # The envelope of a merged paragraph spans its widest line; the margin test needs
+        # the last line's own box (PR #125 review round 2).
+        line_ids = tail[-1].source_line_ids or []
+        last_bbox = left.line_bboxes.get(line_ids[-1]) if line_ids else None
         if not _continues_previous(
-            previous, tail[-1].bbox, current, max_length=max_length, max_right=max_right
+            previous,
+            last_bbox if last_bbox and len(last_bbox) == 4 else tail[-1].bbox,
+            current,
+            max_length=max_length,
+            max_right=max_right,
         ):
             continue
         issues.append(

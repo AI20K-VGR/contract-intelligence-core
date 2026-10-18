@@ -159,6 +159,7 @@ PAIRS_REASONING_ENV = "AI2_PAIRS_REASONING_EFFORT"
 PAIRS_REASONING_PROVIDER_DEFAULT = "provider_default"
 PAIRS_REASONING_EFFORTS = frozenset({"minimal", "low", "medium", "high"})
 _warned_pairs_efforts: set[str] = set()
+_warned_light_efforts: set[str] = set()
 _warned_pairs_lock = threading.Lock()
 
 
@@ -188,7 +189,30 @@ def _reasoning_effort(operation: str | None) -> str | None:
         return pairs_reasoning_effort()
     if operation not in LIGHT_REASONING_OPERATIONS:
         return None
-    return os.getenv(LIGHT_REASONING_ENV, "").strip().casefold() or None
+    return light_reasoning_effort()
+
+
+def light_reasoning_effort() -> str | None:
+    """Effort sent with slot_context/alias calls; an invalid value warns once, sends nothing.
+
+    NineRouterClient rejects anything outside PAIRS_REASONING_EFFORTS with ValueError, which
+    turned every light call into LLM_NON_RETRYABLE (PR #125 review round 2). The default
+    itself is unchanged (D6 pending).
+    """
+
+    raw = os.getenv(LIGHT_REASONING_ENV, "").strip().casefold()
+    if not raw or raw in PAIRS_REASONING_EFFORTS:
+        return raw or None
+    with _warned_pairs_lock:
+        first = raw not in _warned_light_efforts
+        _warned_light_efforts.add(raw)
+    if first:
+        logger.warning(
+            "ai2.config_invalid env=%s ignored; allowed=%s",
+            LIGHT_REASONING_ENV,
+            ",".join(sorted(PAIRS_REASONING_EFFORTS)),
+        )
+    return None
 
 
 def _log_call(
@@ -348,6 +372,7 @@ class ProcessingRuntime:
         operation: str | None = None,
         abort: Callable[[], bool] | None = None,
         issue_sink: list[tuple[str, str]] | None = None,
+        admit: Callable[[int], bool] | None = None,
     ) -> dict[str, Any] | None:
         """Call the LLM within budget and deadline; ``None`` means use the local fallback.
 
@@ -355,7 +380,9 @@ class ProcessingRuntime:
         can stop and keep what it already extracted. ``abort`` returning True stops
         the call before its next request or retry (``None``, no issue). With
         ``issue_sink`` the call's fallbacks are collected there instead of on the
-        runtime; the caller decides whether to ``commit_issues`` them.
+        runtime; the caller decides whether to ``commit_issues`` them. ``admit(attempt)``
+        runs before each attempt, outside the per-request timeout; it may block, and
+        False ends the call like an exhausted budget.
         """
 
         if issue_sink is None:
@@ -420,7 +447,9 @@ class ProcessingRuntime:
             if remaining <= 0:
                 context_exhausted()
                 return None
-            if self.llm_calls_used >= self.max_llm_calls:
+            if self.llm_calls_used >= self.max_llm_calls or (
+                admit is not None and not admit(attempt)
+            ):
                 fall_back(last_code or "LLM_BUDGET_EXCEEDED")
                 return None
             call_timeout = min(self.call_timeout_seconds, remaining)

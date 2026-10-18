@@ -146,6 +146,17 @@ def limited_coverage_issue(result: PairResult) -> EvidenceIssue:
     )
 
 
+def timeout_coverage_issue() -> EvidenceIssue:
+    """Pairs skipped because the processing deadline passed before the stage started."""
+    return EvidenceIssue(
+        issue_id="contract-graph:CONTRACT_GRAPH_PAIRS_LIMITED_COVERAGE",
+        missing="CONTRACT_GRAPH_PAIRS_LIMITED_COVERAGE",
+        review_state=ReviewState.NEEDS_REVIEW,
+        reason="Hết thời gian xử lý trước bước phân loại quan hệ; quan hệ ngầm giữa các khoản "
+        "chưa được phân tích. Không có phát hiện không có nghĩa là không có rủi ro.",
+    )
+
+
 def pair_coverage(
     result: PairResult | None,
     *,

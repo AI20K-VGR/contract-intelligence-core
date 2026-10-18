@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field
 
 from app.contracts.models import (
@@ -350,9 +351,7 @@ def _align_articles(left: list[_Article], right: list[_Article]) -> list[tuple[_
                 # Fall back to whole-article wording only when the numbering agrees.
                 if left_article.number != right_article.number:
                     continue
-                score = _jaccard(
-                    _tokens(left_article.all_text()), _tokens(right_article.all_text())
-                )
+                score = jaccard(_tokens(left_article.all_text()), _tokens(right_article.all_text()))
                 if score < 0.5:
                     continue
             same_number = 0 if left_article.number == right_article.number else 1
@@ -384,7 +383,7 @@ def _align_units(left: _Article, right: _Article) -> list[tuple[_Unit, _Unit]]:
     used: set[int | None] = set()
     for unit in left.subs:
         partner = right_by_index.get(unit.sub_index)
-        if partner is not None and _jaccard(_word_tokens(unit), _word_tokens(partner)) >= 0.25:
+        if partner is not None and jaccard(_word_tokens(unit), _word_tokens(partner)) >= 0.25:
             pairs.append((unit, partner))
             used.add(partner.sub_index)
             continue
@@ -392,7 +391,7 @@ def _align_units(left: _Article, right: _Article) -> list[tuple[_Unit, _Unit]]:
         for other in right.subs:
             if other.sub_index in used:
                 continue
-            score = _jaccard(_word_tokens(unit), _word_tokens(other))
+            score = jaccard(_word_tokens(unit), _word_tokens(other))
             if score >= 0.5 and (best is None or score > best[0]):
                 best = (score, other)
         if best is not None:
@@ -411,7 +410,7 @@ def _containment(left: set[str], right: set[str]) -> float:
     return len(left & right) / min(len(left), len(right))
 
 
-def _jaccard(left: set[str], right: set[str]) -> float:
+def jaccard(left: AbstractSet[str] | None, right: AbstractSet[str] | None) -> float:
     if not left or not right:
         return 0.0
     return len(left & right) / len(left | right)

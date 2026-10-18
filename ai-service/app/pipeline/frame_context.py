@@ -361,7 +361,11 @@ def _enrich(
         )
         for frame, context, item in batch:
             answer = by_id.get(item["id"])
-            if response is not None and answer is None:
+            if response is None:
+                # Provider failed (429/timeout): say so per frame, as the per-frame path did
+                # via validate_proposal_response(None) (PR #125 review round 2).
+                reasons.append("PROPOSAL_PROVIDER_EMPTY")
+            elif answer is None:
                 reasons.append("PROPOSAL_FRAME_MISSING")
             output[frame.frame_id] = (
                 _apply_proposals(

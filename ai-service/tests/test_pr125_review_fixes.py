@@ -321,5 +321,62 @@ def test_2_stored_ai1_snapshot_line_geometry_and_text_are_untouched(path):
         assert citation["validation_status"] == "VALID", node.node_id
 
 
+# -- round 2 (Chuongpham2004): unmarked fact joins one installment, not all --------------
+
+
+def test_r2_unmarked_advance_is_not_compared_with_a_later_installment():
+    from app.pipeline.compare import compare_facts
+
+    advance = _fact("f1", "30%", "Tạm ứng 30%")
+    annex = "Đợt 1: 30%; Đợt 2: 40%"
+    first = _fact("f2", "30%", annex).model_copy(update={"source_role": "annex"})
+    second = _fact("f3", "40%", annex).model_copy(update={"source_role": "annex"})
+    candidates, _ = compare_facts([advance, first, second], split_installments=True)
+    pairs = {frozenset((c.left_id, c.right_id)) for c in candidates}
+    assert frozenset(("f1", "f3")) not in pairs
+
+
+def test_r2_unmarked_fact_falls_back_to_installment_one():
+    from app.pipeline.compare import compare_facts
+
+    advance = _fact("f1", "30%", "Tạm ứng 30%")
+    first = _fact("f2", "25%", "Đợt 1: 25%").model_copy(update={"source_role": "annex"})
+    second = _fact("f3", "40%", "Đợt 2: 40%").model_copy(update={"source_role": "annex"})
+    candidates, _ = compare_facts([advance, first, second], split_installments=True)
+    pairs = {frozenset((c.left_id, c.right_id)) for c in candidates}
+    assert frozenset(("f1", "f2")) in pairs
+    assert frozenset(("f1", "f3")) not in pairs
+
+
+def test_r2_evidence_issues_are_unique_per_item(monkeypatch):
+    from app.pipeline import compare
+
+    monkeypatch.setattr(compare, "MAX_PAIRINGS_PER_ITEM", 0)
+    advance = _fact("f1", "30%", "Tạm ứng 30%")
+    first = _fact("f2", "30%", "Đợt 1: 30%").model_copy(update={"source_role": "annex"})
+    second = _fact("f3", "40%", "Đợt 2: 40%").model_copy(update={"source_role": "annex"})
+    extra = _fact("f4", "35%", "Tạm ứng 35%")
+    _, issues = compare.compare_facts([advance, extra, first, second], split_installments=True)
+    ids = [issue.issue_id for issue in issues]
+    assert len(ids) == len(set(ids)), ids
+
+
+def test_r2_pair_candidates_reuses_shared_text_helpers():
+    from app.pipeline import ai1_snapshot_adapter, clause_compare
+    from app.pipeline.contract_graph import pair_candidates
+
+    assert pair_candidates.all_caps is ai1_snapshot_adapter.all_caps
+    assert pair_candidates.jaccard is clause_compare.jaccard
+    assert not hasattr(pair_candidates, "_all_caps") and not hasattr(pair_candidates, "_jaccard")
+
+
+def test_r2_failed_slot_batch_records_a_reason_per_frame(monkeypatch):
+    # 429/timeout: runtime.complete_json returns None for the whole batch.
+    calls, out = _batch_setup(monkeypatch, 8, lambda _payload: None)
+    reasons = out[3]
+    assert len(calls) == 1
+    assert reasons.count("PROPOSAL_PROVIDER_EMPTY") == 8
+
+
 if __name__ == "__main__":  # pragma: no cover
     sys.exit(pytest.main([__file__, "-q"]))

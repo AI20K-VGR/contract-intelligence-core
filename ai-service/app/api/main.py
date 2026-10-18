@@ -6,12 +6,14 @@ import hashlib
 import json
 import logging
 import multiprocessing
+import multiprocessing.connection
 import os
 import sys
 import threading
 import time
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from dotenv import load_dotenv
@@ -364,22 +366,47 @@ def _payload_budget_seconds(payload: dict) -> float:
         return 900.0
 
 
+def _read_claim(receiver) -> tuple | None:
+    try:
+        # On Linux a killed child leaves the pipe readable at EOF: poll() is True, recv() raises.
+        return receiver.recv() if receiver.poll() else None
+    except (EOFError, OSError):
+        return None
+
+
+def _await_claim(receiver, child, limit: float) -> tuple[tuple | None, bool]:
+    """Wait up to ``limit`` s for the child's claim: (claim or None, limit expired first)."""
+    deadline = time.monotonic() + limit
+    while child.is_alive():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None, True
+        ready = multiprocessing.connection.wait([receiver, child.sentinel], remaining)
+        if receiver in ready:
+            return _read_claim(receiver), False
+    return None, False
+
+
 def _run_isolated_job(job_id: str, payload: dict, *, target=_job_process_entry) -> None:
     ctx = multiprocessing.get_context("spawn")
     receiver, sender = ctx.Pipe(duplex=False)
     child = ctx.Process(target=target, args=(job_id, payload, sender), daemon=True)
     child.start()
     sender.close()
-    child.join(_payload_budget_seconds(payload) + _JOB_KILL_GRACE_SECONDS)
+    limit = _payload_budget_seconds(payload) + _JOB_KILL_GRACE_SECONDS
+    # The job budget starts in the child after import, envelope check and adapt; a 200-page
+    # snapshot spends ~70 s there. The child reports its claim (budget start) over the pipe
+    # and the kill deadline counts from that moment; the same limit bounds a child that
+    # never claims (PR #125 review round 2).
+    claim, expired = _await_claim(receiver, child, limit)
+    # After a claim the full limit runs from now; without one only a short reap remains.
+    child.join(0 if expired else limit if claim is not None else 5)
     timed_out = child.is_alive()
     if timed_out:
         child.kill()
         child.join(5)
-    try:
-        # On Linux a killed child leaves the pipe readable at EOF: poll() is True, recv() raises.
-        claim = receiver.recv() if receiver.poll() else None
-    except (EOFError, OSError):
-        claim = None
+    if claim is None:
+        claim = _read_claim(receiver)
     receiver.close()
     if child.exitcode == 0:
         WIRE_JOBS.pop(job_id, None)
@@ -1232,6 +1259,44 @@ def process_from_backend(payload: dict, request: Request) -> dict:
     }
 
 
+def _query_pair_relations(record: Any, digest: str | None) -> list[dict[str, Any]]:
+    """Stored pair relations of the snapshot being queried; empty when unavailable."""
+
+    if record.pair_relations:
+        return [
+            {
+                "label": getattr(r.label, "value", r.label),
+                "node_a_id": r.node_a_id,
+                "node_b_id": r.node_b_id,
+            }
+            for r in record.pair_relations
+        ]
+    if not database_url() or not digest:
+        return []
+    from sqlalchemy import select
+
+    from app.db.engine import get_engine
+    from app.db.tables import contract_pair_relations as table
+
+    try:
+        with get_engine().connect() as cx:
+            rows = (
+                cx.execute(
+                    select(table.c.label, table.c.node_a_id, table.c.node_b_id).where(
+                        table.c.tenant_id == record.tenant_id,
+                        table.c.dossier_id == record.dossier_id,
+                        table.c.source_snapshot_digest.in_([digest, f"sha256:{digest}"]),
+                    )
+                )
+                .mappings()
+                .all()
+            )
+    except Exception:
+        logger.warning("ai2.query_pair_relations_unavailable", exc_info=True)
+        return []
+    return [dict(row) for row in rows]
+
+
 @app.post("/query")
 @app.post("/api/v1/query")
 def query_from_backend(payload: dict) -> dict:
@@ -1343,6 +1408,8 @@ def query_from_backend(payload: dict) -> dict:
                     llm = DeadlineLLM(candidate, timeout)
             query_store = InMemorySnapshotStore()
             query_store.put(record)
+            task = classify_ask(query)
+            task["pair_relations"] = _query_pair_relations(record, expected_digest)
             result = QueryRouter(
                 query_store,
                 ToolGateway(query_store, signed_principal=service_envelope is not None),
@@ -1357,7 +1424,7 @@ def query_from_backend(payload: dict) -> dict:
             ).query(
                 envelope,
                 query,
-                classify_ask(query),
+                task,
                 policy_flags=policy_flags,
             )
             citations = _enrich_citations(result.get("citations") or [], record)

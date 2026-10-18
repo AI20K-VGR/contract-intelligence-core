@@ -74,7 +74,7 @@ class L1Retrieval:
         self.vector_recall = vector_recall or VectorRecallService()
 
     def run(self, envelope: ToolEnvelope, task: dict[str, Any]) -> dict[str, Any]:
-        q = task.get("query") or ""
+        q = task.get("recall_query") or task.get("query") or ""
         ttype = task.get("type")
         hits: list[dict[str, Any]] = []
         structured_keys_used: list[str] = []

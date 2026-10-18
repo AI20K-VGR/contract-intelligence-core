@@ -61,3 +61,12 @@
   done_ts: ''
   source_ref: ''
   actor: user:unknown
+- id: BL-008
+  text: 'Backend: mở rộng verify_citation cho câu trả lời /ask,/query của mọi hồ sơ (hiện chỉ hồ sơ có semantic, PR #125); cần sửa mock test thiếu offset'
+  type: debt
+  priority: P2
+  status: open
+  created_ts: '2026-10-18T06:38:03.325477+00:00'
+  done_ts: ''
+  source_ref: ''
+  actor: user:dungskbg2004@gmail.com

@@ -202,7 +202,7 @@ gate theo chỉ số chặn retry/request mới của các lô sau `k`, các lô
 | ID | Sai khác | Tất định? |
 |---|---|---|
 | KD1 | Bộ đếm chi tiêu (`llm_calls`, token, `llm_timing`) gồm cả HTTP đã chi cho lô bị bỏ | có |
-| KD2 | Tranh chấp slot budget cuối khi có retry: lô thức dậy sau nhận `LLM_BUDGET_EXCEEDED` → `LLM_FALLBACK`, trong khi tuần tự dừng `BUDGET_EXHAUSTED` không issue. Lô nào thua phụ thuộc thứ tự thức dậy có jitter | **không** |
+| KD2 | Đã thu hẹp (PR #125 review vòng 2): `_BudgetGate` cho mỗi attempt của lô `j` chỉ lấy một lời gọi khi phần budget còn lại vẫn đủ cho số attempt còn lại của mọi lô trước `j` chưa xong; nếu không thì chờ các lô đó. Khi không còn lô trước nào đang chạy mà budget đã hết, lô `j` bị cắt `BUDGET_EXHAUSTED` không issue, đúng chỗ tuần tự dừng. Ví dụ budget 5, 5 lô, lô 2 gặp 429: song song giữ lô 1–4 như tuần tự. Khi budget dư, không lô nào phải chờ; khi budget sát, phần đuôi chạy gần như tuần tự. Còn lại: request format-fallback bên trong một attempt không được giữ chỗ trước, nên vẫn có thể tranh chấp trong trường hợp hiếm này | có (trừ format-fallback) |
 | KD3 | `DEADLINE` chỉ kiểm lúc submit, nên song song có thể hoàn tất các lô mà tuần tự đã cắt | có (theo đồng hồ) |
 | KD4 | HTTP đang bay khi abort vẫn chạy xong và tính phí; join chờ tối đa một latency | có |
 | KD5 | Lô bị bỏ vẫn mang event `not_sent` dù đã gửi, để event giống tuần tự | có |

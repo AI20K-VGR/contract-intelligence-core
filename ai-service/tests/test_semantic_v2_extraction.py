@@ -256,3 +256,41 @@ def test_deadline_stated_by_reference_stays_unknown_not_absent():
 
 def test_clause_without_any_deadline_is_still_absent():
     assert _only_frame("Bên B giao hàng tại kho của Bên A.").get("deadline").state == "ABSENT"
+
+
+# PR #125 review round 2 (Chuongpham2004): an amount stated by clause reference lives in the
+# referenced clause; ABSENT would forbid context enrichment from filling it.
+def test_amount_stated_by_reference_stays_unknown_not_absent():
+    frame = _only_frame("Bên A thanh toán tiền hàng theo khoản 2 Điều 5.")
+    for name in ("amount", "unit"):
+        slot = frame.get(name)
+        assert (slot.state, slot.reason) == ("UNKNOWN", "deferred_by_reference"), name
+
+
+# PR #125 review round 2: a conditional lead-in is the trigger, not a duty.
+def test_conditional_clause_is_not_a_declarative_obligation():
+    frames = extract_frames(
+        Evidence(
+            "doc-1",
+            "snap-1",
+            "node-1",
+            "Nếu Bên A thanh toán chậm, Bên A phải chịu phạt 0,1%/ngày.",
+        ),
+        profile="SALES",
+        dossier_id="dos-1",
+    )
+    for frame in frames:
+        modality = frame.get("modality_negation")
+        assert modality.reason != "declarative_obligation", frame
+        assert not (frame.get("action").value == "PAY" and modality.value == "REQUIRED"), frame
+
+
+def test_conditional_lead_ins_keep_modality_unknown():
+    for text in (
+        "Khi Bên A thanh toán đợt 1, Bên B giao hàng.",
+        "Trường hợp Bên A thanh toán chậm thì chịu lãi.",
+    ):
+        for frame in extract_frames(
+            Evidence("doc-1", "snap-1", "node-1", text), profile="SALES", dossier_id="dos-1"
+        ):
+            assert frame.get("modality_negation").reason != "declarative_obligation", text

@@ -34,7 +34,7 @@ from contract_intelligence.shared.acl import (
 )
 from contract_intelligence.shared.ai.citation_guard import verify_citation
 from contract_intelligence.shared.ai.persistence import (
-    _canonical_citation_item,
+    canonical_citation_item,
     load_ai2_read_model,
 )
 from contract_intelligence.shared.ai.schemas import SemanticExtension
@@ -43,9 +43,10 @@ from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.shared.persistence import get_async_session
 from contract_intelligence.shared.query_history import list_query_history, record_query_answer
 from contract_intelligence.shared.query_policy import (
+    AclSecondPass,
     QueryEndpoint,
     QueryLimitExceeded,
-    _document_ref,
+    document_ref,
     enforce_query_limits,
     enforce_result_acl,
     save_query_trace,
@@ -404,10 +405,16 @@ async def _run_dossier_query(
         and _acl_allows(user, dossier, AclAction.CITATION_READ),
         allowed_document_ids=await _dossier_document_ids(session, dossier),
     )
-    if semantic["semantic_extension"] is not None and acl.decision == "passed":
+    guard_error: str | None = None
+    if semantic["semantic_extension"] is not None and acl.decision != "denied":
         # A semantic dossier used to answer only from VALID frame citations; AI2's answer
         # now goes through the same OCR guard as persisted citations (PR #125 review #1).
-        filtered = await _guard_answer_citations(session, filtered)
+        # `filtered` already withheld the answer, but its surviving citations still reach
+        # the FE, so they are guarded too.
+        filtered, unverified = await _guard_answer_citations(session, filtered)
+        if unverified:
+            guard_error = "BACKEND_CITATION_UNVERIFIED"
+            acl = AclSecondPass(decision=acl.decision, dropped=acl.dropped + unverified)
     citations = list(filtered.get("citations") or [])
     answer = str(filtered.get("answer") or "")
     trace = await save_query_trace(
@@ -416,6 +423,7 @@ async def _run_dossier_query(
         state=str(filtered.get("state") or "ok"),
         citations=citations,
         acl=acl,
+        error_code=guard_error,
         latency_ms=latency_ms,
     )
     # Same transaction as the trace: history survives restarts with its answer.
@@ -439,21 +447,24 @@ async def _run_dossier_query(
     )
 
 
-async def _guard_answer_citations(session: AsyncSession, result: dict[str, Any]) -> dict[str, Any]:
+async def _guard_answer_citations(
+    session: AsyncSession, result: dict[str, Any]
+) -> tuple[dict[str, Any], int]:
     """Keep only citations whose quote matches the stored OCR span; withhold on any miss.
 
     The answer may quote a rejected citation, so it is withheld like an ACL drop.
+    Returns the guarded result and how many citations were rejected.
     """
     kept: list[Any] = []
     rejected = 0
     for item in result.get("citations") or []:
-        document_id = _document_ref(item) if isinstance(item, dict) else None
+        document_id = document_ref(item) if isinstance(item, dict) else None
         if document_id is None:
             rejected += 1
             continue
         try:
             guard = await verify_citation(
-                session, document_id=document_id, citation=_canonical_citation_item(item)
+                session, document_id=document_id, citation=canonical_citation_item(item)
             )
         except (TypeError, ValueError, ValidationError):
             rejected += 1
@@ -477,7 +488,7 @@ async def _guard_answer_citations(session: AsyncSession, result: dict[str, Any])
                 }
             ],
         )
-    return guarded
+    return guarded, rejected
 
 
 _QUERY_RESPONSES: dict[int | str, dict[str, Any]] = {

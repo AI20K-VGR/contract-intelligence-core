@@ -108,7 +108,7 @@ def compare_facts(
             )
         )
     if split_installments:
-        # Unmarked facts sit in several installment groups; one finding per fact pair.
+        # Defensive: an unmarked fact joins one group, but keep one finding per fact pair.
         seen: set[tuple[str, str, str]] = set()
         unique = []
         for cand in out:
@@ -117,6 +117,8 @@ def compare_facts(
                 seen.add(key)
                 unique.append(cand)
         out = unique
+        # Several installment groups of one item raise the same item-level issue.
+        issues = list({issue.issue_id: issue for issue in issues}.values())
     return out, issues
 
 
@@ -209,19 +211,34 @@ def _context_key(f: Fact, split_installments: bool = False) -> tuple:
 
 
 def _share_unmarked_installments(keyed: dict[tuple, list[Fact]]) -> None:
-    """A schedule fact naming no installment ("tạm ứng 30%") may be any of them.
+    """A schedule fact naming no installment ("tạm ứng 30%") joins one installment group.
 
-    It joins every installment group of its item instead of sitting alone, so it is still
-    compared with "Đợt 1: 25%" (PR #125 review 1d). Without installment groups it stays put.
+    It goes to the installment holding the same value, else to the first installment, so
+    "tạm ứng 30%" is still compared with "Đợt 1: 25%" (PR #125 review 1d) but never with
+    "Đợt 2: 40%" (#121). Without installment groups it stays put.
     """
     for (item, number), facts in list(keyed.items()):
         if number is not None:
             continue
-        marked = [key for key in keyed if key[0] == item and key[1] is not None]
+        marked = sorted(
+            (key for key in keyed if key[0] == item and key[1] is not None),
+            key=lambda key: (int(key[1]), key[1]),
+        )
         if not marked:
             continue
-        for key in marked:
-            keyed[key] = [*keyed[key], *facts]
+        for fact in facts:
+            value = fact.normalized_value or fact.raw_value
+            target = next(
+                (
+                    key
+                    for key in marked
+                    if any(
+                        (other.normalized_value or other.raw_value) == value for other in keyed[key]
+                    )
+                ),
+                marked[0],
+            )
+            keyed[target] = [*keyed[target], fact]
         del keyed[(item, number)]
 
 

@@ -202,3 +202,28 @@ def test_kafka_and_http_share_adapter_consent():
 
     assert "adapt_be_ai2_processing_request" in inspect.getsource(main)
     assert "adapt_be_ai2_processing_request" in inspect.getsource(kafka)
+
+
+# PR #125 review round 2 (Chuongpham2004): pairs skipped by the deadline are not "ran, found
+# nothing"; coverage says why and the limited-coverage issue is raised.
+def test_pairs_skipped_by_deadline_do_not_report_ok(monkeypatch):
+    from app.pipeline import idp
+
+    original = idp._past_deadline
+
+    def past(runtime, trace_writer, stage_id, handoff):
+        if stage_id == "contract_graph_pairs":
+            return True
+        return original(runtime, trace_writer, stage_id, handoff)
+
+    monkeypatch.setattr(idp, "_past_deadline", past)
+    monkeypatch.setattr(pair_builder, "build_pair_relations", lambda *a, **k: pytest.fail("ran"))
+    rec, res = run(llm=FakePairLLM())
+    cov = res.contribution.coverage["contract_graph"]["pairs"]
+    assert cov["status"] == "SKIPPED_PROCESSING_TIMEOUT"
+    issues = [
+        i
+        for i in res.contribution.evidence_issues
+        if i.missing == "CONTRACT_GRAPH_PAIRS_LIMITED_COVERAGE"
+    ]
+    assert len(issues) == 1 and "thời gian" in issues[0].reason

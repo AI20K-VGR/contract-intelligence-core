@@ -21,6 +21,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from app.contracts.models import StructuralNode
+from app.pipeline.ai1_snapshot_adapter import all_caps
+from app.pipeline.clause_compare import jaccard
 from app.pipeline.contract_graph import address as _address
 from app.pipeline.contract_graph.documents import named_document
 from app.pipeline.contract_graph.resolver import Status, StructureIndex, default_target_parts
@@ -158,12 +160,6 @@ def values_differ(left: Mapping[str, frozenset[str]], right: Mapping[str, frozen
     return any(left[unit] != right[unit] for unit in left.keys() & right.keys())
 
 
-def _jaccard(left: frozenset[str] | None, right: frozenset[str] | None) -> float:
-    if not left or not right:
-        return 0.0
-    return len(left & right) / len(left | right)
-
-
 def _cites(text: str, other: str) -> bool:
     """``other`` names ``text``'s own number as "khoản 4.2"."""
     match = _LEADING_NUMBER.match(text)
@@ -184,7 +180,7 @@ def _same_article_related(
         or text_b.rstrip().endswith(":")
         or min(len(text_a.strip()), len(text_b.strip())) <= _SAME_ARTICLE_SHORT_CHARS
         or (bool(unit_values(text_a)) and bool(unit_values(text_b)))
-        or _jaccard(words_a, words_b) >= _SAME_ARTICLE_MIN_JACCARD
+        or jaccard(words_a, words_b) >= _SAME_ARTICLE_MIN_JACCARD
     )
 
 
@@ -217,7 +213,7 @@ def _page_furniture(nodes: Iterable[StructuralNode]) -> set[str]:
         folded = _fold(text)  # verbatim: templated body lines differ in their numbers
         # An all-caps running header/footer recurs across the dossier's files too (one
         # page per file is common); restated prose is never all caps, so it stays apart.
-        scope = None if _all_caps(text) else node.source_file_id
+        scope = None if all_caps(text) else node.source_file_id
         page = (node.source_file_id, node.page_range[0])
         pages.setdefault((scope, folded), set()).add(page)
         members.setdefault((scope, folded), []).append(node.node_id)
@@ -227,11 +223,6 @@ def _page_furniture(nodes: Iterable[StructuralNode]) -> set[str]:
         if len(seen) >= _FURNITURE_MIN_PAGES
         for nid in members[key]
     }
-
-
-def _all_caps(text: str) -> bool:
-    letters = [ch for ch in text if ch.isalpha()]
-    return len(letters) >= 4 and all(ch.isupper() for ch in letters)
 
 
 # Lines that state no term: signature blocks, annex "attached to contract no." lines and
@@ -498,7 +489,7 @@ def generate_pair_candidates(
         ):
             stats["excluded_same_article_unrelated"] += 1
             continue
-        if _jaccard(words.get(a), words.get(b)) >= _NEAR_DUPLICATE_JACCARD:
+        if jaccard(words.get(a), words.get(b)) >= _NEAR_DUPLICATE_JACCARD:
             near_duplicate.add((a, b))
         score = sum(WEIGHTS[s] for s in srcs)
         score += _NEAR_DUPLICATE_BONUS if (a, b) in near_duplicate else 0

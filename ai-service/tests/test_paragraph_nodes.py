@@ -157,3 +157,89 @@ def test_finished_or_new_block_at_page_break_is_not_flagged(monkeypatch, pages):
 
 def test_seeded_hd_test_has_no_page_break_cut(monkeypatch):
     assert _issues(monkeypatch, hd.BODY_PAGES)[0] == []
+
+
+# PR #125 review round 2 (Chuongpham2004): the right-margin test reads the clause's last
+# line, not the node envelope (which spans its widest line).
+def _wrap_case(last_right: float):
+    from types import SimpleNamespace
+
+    from app.pipeline.ai1_snapshot_adapter import _cross_page_wrap_issues
+
+    long_line = "Bên A thanh toán cho Bên B toàn bộ giá trị hợp đồng sau khi nghiệm thu " * 2
+    last = "các hạng mục được hai bên ký xác nhận đầy đủ và hợp lệ theo phụ lục"
+    tail_lines = {"p1:l1": long_line[:100], "p1:l2": long_line[:100], "p1:l3": last}
+    left = SimpleNamespace(
+        page_number=1,
+        line_texts=tail_lines,
+        line_bboxes={
+            "p1:l1": [0.1, 0.1, 0.9, 0.12],
+            "p1:l2": [0.1, 0.12, 0.9, 0.14],
+            "p1:l3": [0.1, 0.14, last_right, 0.16],
+        },
+    )
+    head_text = "lịch kể từ ngày nhận đủ hồ sơ hợp lệ của Bên B."
+    right = SimpleNamespace(
+        page_number=2, line_texts={"p2:l1": head_text}, line_bboxes={"p2:l1": [0.1, 0.1, 0.9, 0.12]}
+    )
+    tail = SimpleNamespace(
+        node_id="n1",
+        text="\n".join(tail_lines.values()),
+        page_range=[1],
+        type="CLAUSE",
+        order=1,
+        bbox=[0.1, 0.1, 0.9, 0.16],
+        source_line_ids=list(tail_lines),
+    )
+    head = SimpleNamespace(
+        node_id="n2",
+        text=head_text,
+        page_range=[2],
+        type="CLAUSE",
+        order=2,
+        bbox=[0.1, 0.1, 0.9, 0.12],
+        source_line_ids=["p2:l1"],
+    )
+    return _cross_page_wrap_issues([left, right], [tail, head], document_id="doc-1")
+
+
+def test_short_last_line_of_a_wrapped_clause_is_not_a_page_cut():
+    assert _wrap_case(0.6) == []
+
+
+def test_last_line_reaching_the_margin_is_still_a_page_cut():
+    assert [i.code for i in _wrap_case(0.9)] == ["CLAUSE_CONTINUES_ON_NEXT_PAGE"]
+
+
+def test_page_wrap_scan_reads_each_node_once():
+    # PR #125 review round 2: content() re-scanned every node for every page pair.
+    from types import SimpleNamespace
+
+    from app.pipeline.ai1_snapshot_adapter import _cross_page_wrap_issues
+
+    reads = {"page_range": 0}
+
+    class Node(SimpleNamespace):
+        @property
+        def page_range(self):
+            reads["page_range"] += 1
+            return self._page_range
+
+    n_pages = 40
+    pages, nodes = [], []
+    for page in range(1, n_pages + 1):
+        pages.append(SimpleNamespace(page_number=page, line_texts={}, line_bboxes={}))
+        for k in range(3):
+            nodes.append(
+                Node(
+                    node_id=f"n{page}-{k}",
+                    text=f"Khoản {k} của trang số {page} kết thúc bằng dấu chấm.",
+                    _page_range=[page],
+                    type="CLAUSE",
+                    order=page * 10 + k,
+                    bbox=[0.1, 0.1, 0.9, 0.12],
+                    source_line_ids=[],
+                )
+            )
+    assert _cross_page_wrap_issues(pages, nodes, document_id="doc-1") == []
+    assert reads["page_range"] <= 3 * len(nodes)

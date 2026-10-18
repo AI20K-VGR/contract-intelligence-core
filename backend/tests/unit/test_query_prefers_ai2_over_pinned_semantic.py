@@ -156,3 +156,46 @@ async def test_semantic_dossier_answer_with_a_forged_citation_is_withheld(monkey
     assert [c["text_span"] for c in response.citations] == ["trong 30 ngày"]
     assert response.state == "BLOCKED" and not response.answer
     assert response.reasoning_trace[0]["code"] == "BACKEND_CITATION_UNVERIFIED"
+
+
+# PR #125 review round 2 (Chuongpham2004): with ACL `filtered` the in-dossier citations that
+# survive the ACL pass must still go through the OCR guard.
+_FOREIGN = {**_GOOD, "source_file_id": "doc-other"}
+
+
+@pytest.mark.asyncio
+async def test_acl_filtered_answer_still_runs_the_citation_guard(monkeypatch):
+    response, checked = await _ask_with_citations(
+        monkeypatch, _semantic("NEEDS_REVIEW", {"frames": []}), [_FORGED, _FOREIGN]
+    )
+    assert response.acl_decision == "filtered"
+    assert checked == ["trong 03 ngày"]
+    assert response.citations == []
+    assert response.state == "BLOCKED" and not response.answer
+
+
+@pytest.mark.asyncio
+async def test_guard_block_is_recorded_in_the_query_trace(monkeypatch):
+    await _ask_with_citations(
+        monkeypatch, _semantic("NEEDS_REVIEW", {"frames": []}), [_GOOD, _FORGED]
+    )
+    kwargs = dossier_api.save_query_trace.call_args.kwargs
+    assert kwargs["error_code"] == "BACKEND_CITATION_UNVERIFIED"
+    assert kwargs["acl"].decision == "passed"
+    assert kwargs["acl"].dropped == 1
+
+
+@pytest.mark.asyncio
+async def test_verified_answer_trace_has_no_guard_error(monkeypatch):
+    await _ask_with_citations(monkeypatch, _semantic("NEEDS_REVIEW", {"frames": []}), [_GOOD])
+    kwargs = dossier_api.save_query_trace.call_args.kwargs
+    assert kwargs.get("error_code") is None
+    assert kwargs["acl"].dropped == 0
+
+
+def test_router_does_not_import_private_citation_helpers():
+    import inspect
+
+    source = inspect.getsource(dossier_api)
+    assert "_canonical_citation_item" not in source
+    assert "_document_ref" not in source

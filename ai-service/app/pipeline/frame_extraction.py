@@ -98,10 +98,14 @@ def extract_frames(source: Evidence, *, profile: str, dossier_id: str) -> tuple[
                 action
                 and (party or both)
                 and not passive
-                and not re.search(r"\b(?:không|chưa|chẳng|được|quyền|có\s+thể)\b", prefix)
+                and not re.search(
+                    r"\b(?:không|chưa|chẳng|được|quyền|có\s+thể|nếu|khi|trường\s+hợp)\b", prefix
+                )
             ):
                 # "Bên A thanh toán ..." binds without "phải"; leaving it UNKNOWN blocked
-                # every comparison of declarative duties. Hedged forms stay UNKNOWN.
+                # every comparison of declarative duties. Hedged forms stay UNKNOWN, and so
+                # does a conditional lead-in ("Nếu Bên A thanh toán chậm, ..."): it is the
+                # trigger of another duty, not a duty itself.
                 slots["modality_negation"] = Slot(
                     "REQUIRED", "GROUNDED", (evidence,), "declarative_obligation"
                 )
@@ -219,10 +223,19 @@ def extract_frames(source: Evidence, *, profile: str, dossier_id: str) -> tuple[
                     and not percentages
                     and not re.search(r"\d", _non_quantity_residue(raw, deadline))
                 ):
-                    # Only numbering, references and the deadline carried digits: the
-                    # clause states no amount (a timing-only payment term).
-                    absent("amount")
-                    absent("unit")
+                    if not deadline and _CLAUSE_REFERENCE.search(raw):
+                        # "thanh toán tiền hàng theo khoản 2 Điều 5": no figure and no
+                        # timing here, so the reference carries the amount. ABSENT would
+                        # forbid context from filling it (mirrors the deadline case above).
+                        for name in ("amount", "unit"):
+                            slots[name] = Slot(
+                                None, "UNKNOWN", (evidence,), "deferred_by_reference"
+                            )
+                    else:
+                        # Only numbering, references and the deadline carried digits: the
+                        # clause states no amount (a timing-only payment term).
+                        absent("amount")
+                        absent("unit")
                 trigger = _payment_trigger(raw)
                 if trigger:
                     grounded("temporal_trigger", trigger)

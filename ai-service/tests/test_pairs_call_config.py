@@ -30,6 +30,7 @@ def _clean_env(monkeypatch):
     ):
         monkeypatch.delenv(key, raising=False)
     runtime_mod._warned_pairs_efforts.clear()
+    runtime_mod._warned_light_efforts.clear()
 
 
 def _capturing_client(model: str, sent: list[dict]) -> NineRouterClient:
@@ -144,3 +145,22 @@ def test_rule_only_keeps_base_prompt_version(monkeypatch):
     result = build(llm=None)
     assert result.mode == "rule_only"
     assert result.prompt_version == pc.PROMPT_VERSION
+
+
+# PR #125 review round 2 (Chuongpham2004): the light knob is validated like the pairs one.
+# An invalid value used to reach NineRouterClient, which raised ValueError on every
+# slot_context/alias call (LLM_NON_RETRYABLE) without any configuration warning.
+@pytest.mark.parametrize("value", ["none", "xhigh"])
+def test_light_effort_invalid_value_sends_nothing_with_one_warning(monkeypatch, caplog, value):
+    light = "AI2_LLM_LIGHT_REASONING_EFFORT"
+    monkeypatch.setenv(light, value)
+    with caplog.at_level(logging.WARNING, logger="app.pipeline.runtime"):
+        first = _sent("gpt-5.5", "slot_context")
+        second = _sent("gpt-5.5", "alias")
+    assert "reasoning_effort" not in first and "reasoning_effort" not in second
+    assert len([r for r in caplog.records if light in r.getMessage()]) == 1
+
+
+def test_light_effort_valid_value_still_sent(monkeypatch):
+    monkeypatch.setenv("AI2_LLM_LIGHT_REASONING_EFFORT", "MINIMAL")
+    assert _sent("gpt-5.5", "alias")["reasoning_effort"] == "minimal"

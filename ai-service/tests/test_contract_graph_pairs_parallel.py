@@ -332,25 +332,6 @@ def test_budget_cap_holds_under_parallel_retries():
     )
 
 
-# R2.14 — KD2
-def test_kd2_budget_contention_invariants():
-    actions = {(1, 1): "unavailable"}
-    seq, _ = observe(1, script=Script(actions=actions), runtime_kw={"max_llm_calls": 5})
-    assert seq["stopped_reason"] == "BUDGET_EXHAUSTED" and seq["batches_completed"] == 4
-    assert seq["issues"] == []
-    for _ in range(3):
-        par, _ = observe(5, script=Script(actions=actions), runtime_kw={"max_llm_calls": 5})
-        assert par["llm_calls_used"] <= 5
-        assert par["stopped_reason"] == "LLM_FALLBACK"
-        codes = [code for code, _ in par["issues"]]
-        assert len(codes) == 1 and codes[0] in {"LLM_BUDGET_EXCEEDED", "LLM_UNAVAILABLE"}
-        kept = par["batches_completed"]
-        assert kept <= 4
-        assert par["decisions"] == tuple(
-            d for d in seq["decisions"] if candidate_batch(d.candidate.node_a) < kept
-        )
-
-
 # R2.6
 def test_failure_blocks_only_later_batches(monkeypatch):
     marked = threading.Event()
@@ -678,3 +659,18 @@ def test_zero_planned_batches_take_sequential_path(monkeypatch, case):
     assert par == seq
     if case == "budget":
         assert par["stopped_reason"] == "BUDGET_EXHAUSTED"
+
+
+# R2.14 — KD2. PR #125 review round 2 (Chuongpham2004): budget 5, 5 batches, batch 2 (index 1) is
+# throttled once. Later batches must not take the budget batch 2 needs to retry; the
+# parallel run keeps batches 1-4 exactly like the sequential run.
+@pytest.mark.parametrize("kind", ["rate_limited", "unavailable"])
+def test_kd2_retry_keeps_its_budget_over_later_batches(kind):
+    actions = {(1, 1): kind}
+    seq, _ = observe(1, script=Script(actions=actions), runtime_kw={"max_llm_calls": 5})
+    assert seq["batches_completed"] == 4 and seq["stopped_reason"] == "BUDGET_EXHAUSTED"
+    for _ in range(3):
+        par, script = observe(5, script=Script(actions=actions), runtime_kw={"max_llm_calls": 5})
+        assert par["llm_calls_used"] <= 5
+        assert script.attempts[1] == 2
+        assert_equal_except_spend(par, seq)

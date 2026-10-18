@@ -376,6 +376,55 @@ class _AbortGate:
         return lambda: self.blocked(index)
 
 
+_NOT_SENT = object()
+
+
+class _BudgetGate:
+    """Index-priority admission to the shared call budget (PR #125 review round 2, KD2).
+
+    An attempt of batch ``j`` may take a call only if what is left still covers the
+    remaining attempts of every earlier batch that has not settled; otherwise it waits for
+    them. Once no earlier batch is pending and the budget is spent, it is refused, exactly
+    where the sequential loop would stop. With ample budget nothing ever waits.
+    """
+
+    def __init__(self, runtime: ProcessingRuntime, n_batches: int) -> None:
+        self._runtime = runtime
+        self._cond = threading.Condition()
+        self._used0 = runtime.llm_calls_used
+        self._granted = [0] * n_batches
+        self._settled = [False] * n_batches
+        self._first_admitted = [False] * n_batches
+
+    def _reserve_before(self, index: int) -> int | None:
+        """Calls owed to unsettled earlier batches, or None when none is pending."""
+        attempts = max(self._runtime.max_attempts, 1)
+        owed = [max(0, attempts - self._granted[i]) for i in range(index) if not self._settled[i]]
+        return sum(owed) if owed else None
+
+    def admit(self, index: int, attempt: int = 0, abort: Callable[[], bool] | None = None) -> bool:
+        with self._cond:
+            if attempt == 0 and self._first_admitted[index]:
+                return True  # pre-admitted before the request was built
+            while True:
+                used = max(self._runtime.llm_calls_used, self._used0 + sum(self._granted))
+                owed = self._reserve_before(index)
+                if used + 1 + (owed or 0) <= self._runtime.max_llm_calls:
+                    self._granted[index] += 1
+                    self._first_admitted[index] = True
+                    return True
+                if owed is None or (abort is not None and abort()):
+                    return False
+                if self._runtime.remaining() <= 0:
+                    return True  # let the runtime raise ProcessingTimeout
+                self._cond.wait(0.05)
+
+    def settle(self, index: int) -> None:
+        with self._cond:
+            self._settled[index] = True
+            self._cond.notify_all()
+
+
 def _pairs_concurrency() -> int:
     """``AI2_PAIRS_CONCURRENCY``: unset -> 5; ``1`` -> sequential; invalid or < 1 -> 5 + warning."""
 
@@ -764,20 +813,29 @@ def _classify_parallel(
             batch_client.traces = []
         clients.append(batch_client)
 
+    budget = _BudgetGate(runtime, n_planned)
+
     def work(index: int) -> Any:
+        abort = gate.predicate(index) if gate else None
         try:
+            if not budget.admit(index, abort=abort):
+                # Earlier batches spent the budget: the sequential loop never sends this one.
+                return _NOT_SENT
             response = runtime.complete_json(
                 clients[index],
                 system_prompt,
                 json.dumps({"pairs": built[index][1]}, ensure_ascii=False),
                 operation="pairs",
-                abort=gate.predicate(index) if gate else None,
+                abort=abort,
                 issue_sink=sinks[index],
+                admit=lambda attempt: budget.admit(index, attempt, abort),
             )
         except ProcessingTimeout:
             if gate:
                 gate.mark(index)
             raise
+        finally:
+            budget.settle(index)
         if gate and (
             response is None
             or not classifier_family_ok(_served(getattr(clients[index], "traces", [])))
@@ -793,13 +851,21 @@ def _classify_parallel(
         for index, offset in enumerate(offsets):
             runtime.report_progress("S9", offset, len(pairs), "pair")
             by_id, _messages, injections = built[index]
-            stats["injection_signals"] += injections
-            stats["pairs_sent"] += len(by_id)
             batch_stop = None
             try:
                 response = futures[index].result()
             except ProcessingTimeout:
                 response, batch_stop = None, "DEADLINE"
+            if response is _NOT_SENT:
+                cut(offset, "BUDGET_EXHAUSTED", f"batch-{index + 1}")
+                if gate:
+                    gate.mark(index)
+                for future in futures[index + 1 :]:
+                    future.cancel()
+                stop = stop or "BUDGET_EXHAUSTED"
+                break
+            stats["injection_signals"] += injections
+            stats["pairs_sent"] += len(by_id)
             batch_stop = consume(
                 offset,
                 by_id,
