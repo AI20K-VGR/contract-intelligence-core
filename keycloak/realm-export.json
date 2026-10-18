@@ -15,8 +15,6 @@
   "defaultLocale": "vi",
   "accessTokenLifespan": 900,
   "accessTokenLifespanForImplicitFlow": 900,
-  "revokeRefreshToken": true,
-  "refreshTokenMaxReuse": 0,
   "ssoSessionIdleTimeout": 1800,
   "accessCodeLifespan": 60,
   "accessCodeLifespanUserAction": 300,

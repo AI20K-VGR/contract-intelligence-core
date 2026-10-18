@@ -18,8 +18,7 @@ Runs inside the running backend container on ci-network (deploy/deploy.sh does i
 - seeded demo users: replace the passwords committed in realm-export.json with
   DEMO_*_PASSWORD from deploy/.env.prod;
 - realm SMTP: point at SMTP_* when a real mail server is configured;
-- brute-force protection on: the login page is public (off in the dev realm);
-- refresh token rotation on: a refresh token works once.
+- brute-force protection on: the login page is public (off in the dev realm).
 """
 
 from __future__ import annotations
@@ -257,18 +256,6 @@ def enable_brute_force_protection(token: str) -> None:
     print("[keycloak] brute-force protection on (5 failures, up to 15 min lockout)")
 
 
-def enable_refresh_token_rotation(token: str) -> None:
-    """Every refresh returns a new refresh token and the old one stops working.
-
-    The SPA keeps its refresh token where page scripts can read it; a stolen
-    one is then good for one use, and the next refresh by either side fails.
-    """
-    realm = _request("GET", f"/admin/realms/{REALM}", token)
-    realm.update({"revokeRefreshToken": True, "refreshTokenMaxReuse": 0})
-    _request("PUT", f"/admin/realms/{REALM}", token, realm)
-    print("[keycloak] refresh token rotation on (each refresh token is single-use)")
-
-
 def main() -> None:
     origins = [o.strip().rstrip("/") for o in _env("FRONTEND_ORIGINS").split(",") if o.strip()]
     token = _admin_token()
@@ -278,7 +265,6 @@ def main() -> None:
     reset_demo_passwords(token)
     configure_smtp(token)
     enable_brute_force_protection(token)
-    enable_refresh_token_rotation(token)
     print("[keycloak] done")
 
 
