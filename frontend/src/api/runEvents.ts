@@ -247,13 +247,13 @@ export const RUN_STEP_GROUPS = [
   },
   {
     id: 'ai1',
-    label: 'AI1 · OCR',
+    label: 'Đọc tài liệu',
     hint: 'Đọc PDF thành chữ và ảnh trang',
     steps: ['S2', 'S3', 'S8'],
   },
   {
     id: 'ai2',
-    label: 'AI2 · Phân tích',
+    label: 'Phân tích',
     hint: 'Cấu trúc, dữ kiện, mâu thuẫn',
     steps: ['S4', 'S5', 'S6', 'S7', 'S9', 'S10'],
   },
@@ -263,6 +263,80 @@ export const RUN_STEP_GROUPS = [
   hint: string
   steps: readonly (typeof RUN_STEP_ORDER)[number][]
 }[]
+
+/** Các bước AI2 chạy ngầm sau OCR; màn tiến trình không hiện các bước này. */
+export const AI2_RUN_STEPS: readonly string[] = RUN_STEP_GROUPS.flatMap(
+  (group) => (group.id === 'ai2' ? group.steps : []),
+)
+
+export function isAi2Step(code: string) {
+  return AI2_RUN_STEPS.includes(code)
+}
+
+/** Các bước BE và AI1, theo thứ tự chạy: phần người dùng chờ trước khi xem cây. */
+export const OCR_RUN_STEP_ORDER = RUN_STEP_ORDER.filter(
+  (code) => !isAi2Step(code),
+)
+
+const AI1_RUN_STEPS: readonly string[] = RUN_STEP_GROUPS.flatMap((group) =>
+  group.id === 'ai1' ? group.steps : [],
+)
+
+/** Các bước của màn tiến trình, kèm cờ bước nào là OCR của AI1. */
+export const OCR_RUN_STEPS = OCR_RUN_STEP_ORDER.map((code) => ({
+  code,
+  ocr: AI1_RUN_STEPS.includes(code),
+}))
+
+/**
+ * Trạng thái các bước của run mới nhất, để `analysisState` biết job dừng ở OCR
+ * hay ở AI2. {} khi chưa có run; null khi không tải được (lỗi mạng...): khi đó
+ * trang không được kết luận là "không phải lỗi AI2", mà phải khoá phần AI2.
+ */
+export async function loadStepStatuses(
+  dossierId: string,
+  signal?: AbortSignal,
+): Promise<Record<string, RunStep> | null> {
+  try {
+    const runId = await findLatestRunId(dossierId, signal)
+    if (!runId) return {}
+    const rows = await listRunSteps(runId, signal)
+    return Object.fromEntries(rows.map((row) => [row.step, row]))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Job vừa rời 'extracted' thì OCR chắc chắn đã xong (S8 xong), kể cả khi chưa
+ * tải được các bước: dùng khi AI2 kết thúc lúc trang đang mở.
+ */
+export function stepsAfterAnalysis(
+  steps: Record<string, { status: string }> | null,
+): Record<string, { status: string }> {
+  return { ...(steps ?? {}), S8: steps?.S8 ?? { status: 'succeeded' } }
+}
+
+/**
+ * Tiến độ chung của AI2 từ các bước đã nhận: bước xong tính trọn, bước đang
+ * chạy có `progress` tính phần đã xong. null khi chưa có số liệu nào.
+ */
+export function ai2ProgressPercent(steps: Record<string, RunStep>) {
+  const rows = AI2_RUN_STEPS.flatMap((code) =>
+    steps[code] ? [steps[code]] : [],
+  )
+  if (rows.length === 0) return null
+  const done = rows.reduce(
+    (sum, row) =>
+      row.status === 'succeeded'
+        ? sum + 1
+        : row.status === 'running' && row.progress && row.progress.total > 0
+          ? sum + Math.min(1, row.progress.done / row.progress.total)
+          : sum,
+    0,
+  )
+  return Math.min(99, Math.floor((done / AI2_RUN_STEPS.length) * 100))
+}
 
 /** Đọc payload `step.changed` do BE đẩy xuống; null nếu thiếu mã bước. */
 export function stepFromEvent(event: RunEvent): RunStep | null {

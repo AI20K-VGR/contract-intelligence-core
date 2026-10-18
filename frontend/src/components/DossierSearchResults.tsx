@@ -144,13 +144,13 @@ export function DossierSearchResults({
   onSelectCitation,
 }: DossierSearchResultsProps) {
   const [activeIndex, setActiveIndex] = useState(0)
-  const answer = result.answer ?? 'AI2 chưa đủ evidence để trả lời câu hỏi này.'
+  const answer = result.answer ?? 'AI chưa đủ căn cứ để trả lời câu hỏi này.'
   const reviewLabel =
     result.reviewState === 'ANSWERED'
-      ? 'Đã trả lời từ snapshot'
+      ? 'Đã trả lời từ nội dung hồ sơ'
       : result.reviewState === 'NEEDS_REVIEW'
-        ? 'Cần rà soát evidence'
-        : 'Chưa đủ evidence'
+        ? 'Cần rà soát căn cứ'
+        : 'Chưa đủ căn cứ'
 
   function selectCitation(index: number) {
     setActiveIndex(index)
@@ -168,15 +168,15 @@ export function DossierSearchResults({
             </div>
             <div>
               <h2 className="font-title-sm text-title-sm font-semibold text-primary">
-                Câu trả lời AI2
+                Câu trả lời của AI
               </h2>
               <p className="font-label-sm text-label-sm text-secondary">
-                {reviewLabel} · {result.hits.length} đoạn evidence
+                {reviewLabel} · {result.hits.length} đoạn căn cứ
               </p>
             </div>
           </div>
           <span className="font-label-sm text-label-sm text-secondary">
-            {result.connected ? 'Snapshot đã kết nối' : 'AI2 chưa kết nối'}
+            {result.connected ? 'Đã kết nối dữ liệu hồ sơ' : 'AI chưa sẵn sàng'}
           </span>
         </div>
 
@@ -203,7 +203,7 @@ export function DossierSearchResults({
             </span>
           </div>
           <span className="font-code-sm text-[12px] text-secondary">
-            Nhấp vào evidence để mở nguồn trong hồ sơ
+            Nhấp vào căn cứ để mở đoạn gốc trong hồ sơ
           </span>
         </div>
 
@@ -222,8 +222,8 @@ export function DossierSearchResults({
           </div>
         ) : (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-space-lg text-amber-950">
-            Không có evidence locatable cho câu hỏi này. Hãy kiểm tra snapshot
-            hoặc chuyển sang rà soát HITL.
+            Không tìm thấy căn cứ trong hồ sơ cho câu hỏi này. Hãy thử hỏi cách
+            khác hoặc chuyển sang rà soát thủ công.
           </div>
         )}
       </div>

@@ -53,7 +53,7 @@ export function DossierStructurePreview({
           className="font-semibold text-primary hover:underline"
           to={structurePath(dossierId)}
         >
-          Mở cấu trúc bảng và OCR
+          Mở cấu trúc bảng và nội dung đã đọc
         </Link>
       </div>
     )
@@ -61,7 +61,7 @@ export function DossierStructurePreview({
   if (data.nodes.length === 0) {
     return (
       <div className="rounded-lg bg-surface-container-low p-space-md font-body-sm text-body-sm text-secondary">
-        Chưa nhận diện được tiêu đề cấu trúc từ OCR.{' '}
+        Chưa nhận diện được tiêu đề cấu trúc từ tài liệu.{' '}
         <Link
           className="font-semibold text-primary hover:underline"
           to={structurePath(dossierId)}

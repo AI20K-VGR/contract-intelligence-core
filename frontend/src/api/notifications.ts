@@ -1,5 +1,5 @@
 import { requestJson } from './client'
-import { progressPath, structurePath } from '../data/dossiers'
+import { structurePath } from '../data/dossiers'
 
 /**
  * BE chưa có /api/v1/notifications (đề xuất ở DOC-05b v1.6.0), nên chuông
@@ -89,11 +89,9 @@ export function notificationIcon(type: string) {
 export function notificationLink(notification: AppNotification) {
   const dossierId = notification.dossier_id
   if (!dossierId) return null
-  switch (notification.type) {
-    case 'analysis_succeeded':
-    case 'analysis_failed':
-      return progressPath(dossierId)
-    default:
-      return structurePath(dossierId)
-  }
+  // Mọi thông báo mở trang cây. "Phân tích thất bại" cũng vậy: lỗi ở AI2 thì
+  // trang cây có banner và nút "Chạy lại"; lỗi ở OCR thì trang cây báo và dẫn
+  // sang màn tiến trình. Màn tiến trình chỉ còn phần đọc tài liệu, nên AI2 lỗi
+  // ở đó vẫn hiện 100%.
+  return structurePath(dossierId)
 }

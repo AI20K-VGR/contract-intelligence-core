@@ -1,4 +1,9 @@
 import { ApiError, requestJson } from './client'
+import {
+  isNetworkError,
+  NETWORK_MESSAGE,
+  userErrorMessage,
+} from './errorMessage'
 
 export type ReOcrProfile =
   'high_res_binarize' | 'table_optimized' | 'handwritten_vietnamese'
@@ -98,13 +103,14 @@ export async function listReOcrRequests(
 export function reOcrErrorMessage(error: unknown) {
   if (error instanceof ApiError) {
     if (error.status === 401) return 'Phiên đăng nhập hết hạn. Đăng nhập lại.'
-    if (error.status === 403) return 'Bạn không có quyền OCR lại tài liệu này.'
+    if (error.status === 403) return 'Bạn không có quyền đọc lại tài liệu này.'
     if (error.status === 404) return 'Không tìm thấy tài liệu.'
     if (error.status === 400 || error.status === 422) {
-      return error.message || 'Yêu cầu OCR lại chưa hợp lệ.'
+      return userErrorMessage(error, 'Yêu cầu đọc lại chưa hợp lệ.')
     }
     return error.message
   }
-  if (error instanceof TypeError) return 'Không kết nối được backend.'
-  return 'Không gửi được yêu cầu OCR lại. Thử lại.'
+  if (error instanceof TypeError || isNetworkError(error))
+    return NETWORK_MESSAGE
+  return 'Không gửi được yêu cầu đọc lại. Thử lại.'
 }

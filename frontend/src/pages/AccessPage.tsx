@@ -188,7 +188,7 @@ export function AccessPage() {
   const shownFilters = sharedOnly
     ? filters.filter((item) => item.id === 'shared_in')
     : filters
-  const columnCount = sharedOnly ? 4 : 5
+  const columnCount = sharedOnly ? 6 : 7
 
   return (
     <div className="flex flex-col w-full pb-margin-lg">
@@ -244,14 +244,14 @@ export function AccessPage() {
               <tr className="bg-surface-container-low text-on-secondary-container font-label-sm text-label-sm uppercase tracking-wider">
                 <th className="py-3 px-3 font-semibold">Hồ sơ</th>
                 <th className="py-3 px-3 font-semibold">Người có quyền</th>
-                <th className="py-3 px-3 font-semibold w-[9rem]">
-                  Quyền · Hạn
-                </th>
+                <th className="py-3 px-3 font-semibold w-[7rem]">Vai trò</th>
+                <th className="py-3 px-3 font-semibold w-[7.5rem]">Quyền</th>
+                <th className="py-3 px-3 font-semibold w-[8rem]">Hạn</th>
                 <th className="hidden xl:table-cell py-3 px-3 font-semibold w-[7.5rem]">
                   Tải lên
                 </th>
                 {sharedOnly ? null : (
-                  <th className="py-3 px-3 font-semibold w-[10rem]">
+                  <th className="py-3 px-3 font-semibold w-[6.5rem]">
                     Thao tác
                   </th>
                 )}
@@ -290,6 +290,7 @@ export function AccessPage() {
               ) : null}
               {visible.map((item) => {
                 const active = item.id === selectedId
+                const rows = grantRows(item, user, people)
                 return (
                   <tr
                     key={item.id}
@@ -343,13 +344,16 @@ export function AccessPage() {
                       ) : null}
                     </td>
                     <td className="py-3.5 px-3 align-top">
-                      <PeopleCell
-                        access={item.access}
-                        rows={grantRows(item, user, people)}
-                      />
+                      <PeopleCell access={item.access} rows={rows} />
                     </td>
                     <td className="py-3.5 px-3 align-top">
-                      <GrantCell rows={grantRows(item, user, people)} />
+                      <RoleCell rows={rows} />
+                    </td>
+                    <td className="py-3.5 px-3 align-top">
+                      <PermissionCell rows={rows} />
+                    </td>
+                    <td className="py-3.5 px-3 align-top">
+                      <ExpiryCell rows={rows} />
                     </td>
                     <td className="hidden xl:table-cell py-3.5 px-3 align-top text-on-surface-variant">
                       <span className="flex h-10 items-center truncate">
@@ -365,20 +369,20 @@ export function AccessPage() {
                         ) : (
                           <div className="relative inline-flex items-center gap-1.5">
                             <button
-                              className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 font-label-md text-label-md font-semibold disabled:opacity-50 ${
-                                active
-                                  ? 'bg-brand-200 text-brand-800'
-                                  : 'bg-brand-100 text-brand-700 hover:bg-brand-200'
+                              aria-expanded={active}
+                              aria-label="Chia sẻ"
+                              className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-outline-variant hover:bg-surface-container-low disabled:opacity-50 ${
+                                active ? 'bg-surface-container-low' : 'bg-white'
                               }`}
                               disabled={savingId === item.id}
+                              title="Chia sẻ hồ sơ"
                               type="button"
                               onClick={() => select(active ? '' : item.id)}
                             >
                               <MaterialIcon
                                 name="person_add"
-                                className="text-[18px]"
+                                className="text-[18px] text-brand-700"
                               />
-                              Chia sẻ
                             </button>
                             {item.access === 'shared_out' ? (
                               <button
@@ -419,7 +423,8 @@ export function AccessPage() {
                                 <div className="flex max-h-72 flex-col gap-space-xs overflow-auto">
                                   {tenants.length === 0 ? (
                                     <p className="px-1 font-body-sm text-body-sm text-secondary">
-                                      Tenant chưa có người dùng khác.
+                                      Chưa có người dùng nào khác trong hệ
+                                      thống.
                                     </p>
                                   ) : (
                                     tenants.map((person) => {
@@ -684,7 +689,7 @@ function initials(name: string) {
   return `${first}${last}`.toUpperCase()
 }
 
-// Mỗi người một dòng cao h-10 ở cả hai cột để tên và quyền thẳng hàng.
+// Mỗi người một dòng cao h-10 ở mọi cột để tên, vai trò, quyền và hạn thẳng hàng.
 function PeopleCell({
   access,
   rows,
@@ -719,26 +724,41 @@ function PeopleCell({
               </span>
             ) : null}
           </span>
-          {row.role ? <RoleBadge role={row.role} /> : null}
         </li>
       ))}
     </ul>
   )
 }
 
-function GrantCell({ rows }: { rows: GrantRow[] }) {
-  if (rows.length === 0) {
-    return (
-      <span className="flex h-10 items-center text-on-surface-variant">—</span>
-    )
-  }
+function EmptyCell() {
+  return (
+    <span className="flex h-10 items-center text-on-surface-variant">—</span>
+  )
+}
+
+function RoleCell({ rows }: { rows: GrantRow[] }) {
+  if (rows.length === 0) return <EmptyCell />
   return (
     <ul className="flex flex-col gap-1">
       {rows.map((row) => (
-        <li
-          key={row.id}
-          className="flex h-10 flex-col items-start justify-center gap-0.5"
-        >
+        <li key={row.id} className="flex h-10 items-center">
+          {row.role ? (
+            <RoleBadge role={row.role} />
+          ) : (
+            <span className="text-on-surface-variant">—</span>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function PermissionCell({ rows }: { rows: GrantRow[] }) {
+  if (rows.length === 0) return <EmptyCell />
+  return (
+    <ul className="flex flex-col gap-1">
+      {rows.map((row) => (
+        <li key={row.id} className="flex h-10 items-center">
           <span
             className="inline-flex shrink-0 cursor-help items-center gap-1 rounded bg-surface-container px-1.5 font-label-sm text-label-sm leading-5 text-on-surface"
             title={grantEffect(row.role, row.permission)}
@@ -749,19 +769,28 @@ function GrantCell({ rows }: { rows: GrantRow[] }) {
             />
             {permissionLabels[row.permission]}
           </span>
-          <span
-            className={`whitespace-nowrap font-label-sm text-[11px] leading-4 ${
-              row.expired
-                ? 'font-semibold text-error'
-                : 'text-on-surface-variant'
-            }`}
-          >
-            {row.expired
-              ? 'Đã hết hạn'
-              : row.expiresAt
-                ? `Đến ${formatExpiry(row.expiresAt)}`
-                : 'Không hết hạn'}
-          </span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function ExpiryCell({ rows }: { rows: GrantRow[] }) {
+  if (rows.length === 0) return <EmptyCell />
+  return (
+    <ul className="flex flex-col gap-1">
+      {rows.map((row) => (
+        <li
+          key={row.id}
+          className={`flex h-10 items-center whitespace-nowrap font-label-sm text-label-sm ${
+            row.expired ? 'font-semibold text-error' : 'text-on-surface-variant'
+          }`}
+        >
+          {row.expired
+            ? 'Đã hết hạn'
+            : row.expiresAt
+              ? `Đến ${formatExpiry(row.expiresAt)}`
+              : 'Không hết hạn'}
         </li>
       ))}
     </ul>

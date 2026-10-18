@@ -33,9 +33,11 @@ describe('DynamicCitationViewer', () => {
     expect(html).toContain('document-annex-7')
     expect(html).toContain('citation-annex-42')
     expect(html).toContain('Phụ lục')
-    expect(html).toContain('Trang 7')
-    expect(html).toContain('line:annex-7:p007:l004')
-    expect(html).toContain('0.1, 0.2, 0.8, 0.3')
+    expect(html).toContain('Trang 7, dòng 4')
+    expect(html).toContain('phu-luc-a.pdf')
+    // Mã dòng và tọa độ là dữ liệu kỹ thuật, không hiện cho người dùng.
+    expect(html).not.toContain('line:annex-7:p007:l004')
+    expect(html).not.toContain('0.1, 0.2, 0.8, 0.3')
     expect(html).not.toContain('DOS-2024-884')
     expect(html).not.toContain('v3.2')
   })
@@ -56,7 +58,7 @@ describe('DynamicCitationViewer', () => {
     )
 
     expect(html).toContain('Chưa định vị được nguồn')
-    expect(html).toContain('Khoảng trống evidence')
+    expect(html).toContain('Thiếu căn cứ')
     expect(html).not.toContain('Mở nguồn đã xác minh')
   })
 })

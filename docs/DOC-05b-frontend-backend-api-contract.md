@@ -267,6 +267,8 @@ Hiển thị tổng quan các lô xử lý (Batches), KPI trạng thái hợp đ
 ### Màn hình 3: Dossier Creation, Upload & Manifest Confirmation
 Màn hình khởi tạo hồ sơ, tải lên các file PDF (hợp đồng gốc + các phụ lục) và kiểm tra xác nhận danh mục tài liệu dự kiến.
 
+> **Frontend từ 16/10/2026 (PR #122):** không còn màn xác nhận manifest. Vai trò hợp đồng/phụ lục người dùng chọn lúc tải lên (`POST /dossiers`) hoặc lúc tách tệp (`POST /dossiers/{id}/split`) được backend tự xác nhận (`confirm_uploaded_manifest`) trước khi trả `202`, nên AI2 chạy ngay khi OCR xong. `GET /dossiers/{id}/manifest` và `POST /dossiers/{id}/manifest/confirm` vẫn giữ nguyên; frontend không gọi. API không đổi nên phiên bản hợp đồng không đổi.
+
 | Phương thức | Endpoint | Phân quyền `x-rbac` | Chức năng |
 |:---:|---|:---:|---|
 | `POST` | `/dossiers` | `OPERATOR`, `ADMINISTRATOR` | Tạo mới hồ sơ hợp đồng (Dossier) |

@@ -28,12 +28,16 @@ describe('ContextFindingsPanel', () => {
 
     const html = renderToStaticMarkup(<ContextFindingsPanel model={model} />)
 
-    expect(html).toContain('0 facts')
-    expect(html).toContain('0 findings')
-    expect(html).toContain('MISSING_ANNEX_MAPPING')
-    expect(html).toContain('PARTIAL_PAGE_COVERAGE')
+    expect(html).toContain('0 dữ kiện')
+    expect(html).toContain('0 phát hiện')
+    expect(html).toContain('Phát hiện cần xem lại')
+    expect(html).toContain('Có điểm cần kiểm tra khi phân tích hồ sơ')
     expect(html).toContain('7 / 8')
-    expect(html).toContain('LEXICAL_RETRIEVAL')
-    expect(html).toContain('NEEDS_REVIEW')
+    expect(html).toContain('AI đã thực hiện 1 bước')
+    expect(html).toContain('Cần rà soát')
+    // Mã hệ thống không hiện nguyên văn.
+    expect(html).not.toContain('MISSING_ANNEX_MAPPING')
+    expect(html).not.toContain('LEXICAL_RETRIEVAL')
+    expect(html).not.toContain('NEEDS_REVIEW')
   })
 })

@@ -26,7 +26,7 @@ export function ContentSharingConsent({
     if (
       next &&
       !window.confirm(
-        'Cho phép AI2 gửi nội dung hồ sơ này tới nhà cung cấp AI ở lần xử lý tiếp theo?',
+        'Cho phép gửi nội dung hồ sơ này tới dịch vụ AI ở lần phân tích tiếp theo?',
       )
     ) {
       return
@@ -58,16 +58,16 @@ export function ContentSharingConsent({
               void changeConsent(event.currentTarget.checked)
             }
           />
-          Cho phép AI2 xử lý nội dung hồ sơ
+          Cho phép AI phân tích nội dung hồ sơ
         </label>
       ) : (
         <span className="font-body-sm text-body-sm text-on-surface">
-          AI2 xử lý nội dung hồ sơ: {enabled ? 'đang bật' : 'đang tắt'}
+          AI phân tích nội dung hồ sơ: {enabled ? 'đang bật' : 'đang tắt'}
         </span>
       )}
       <p className="font-label-sm text-label-sm text-on-surface-variant">
         {canChange
-          ? 'Thay đổi có hiệu lực từ yêu cầu AI2 tiếp theo.'
+          ? 'Thay đổi có hiệu lực từ lần phân tích tiếp theo.'
           : 'Chỉ chủ hồ sơ hoặc Quản trị đổi được.'}
       </p>
       {pending ? (

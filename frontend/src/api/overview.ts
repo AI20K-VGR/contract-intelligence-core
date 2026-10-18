@@ -1,4 +1,5 @@
 import { ApiError, requestJson } from './client'
+import { isNetworkError, NETWORK_MESSAGE } from './errorMessage'
 
 export type ActivityEvent = {
   id: string
@@ -41,7 +42,8 @@ export function overviewErrorMessage(error: unknown) {
     if (error.status === 403) return 'Chỉ quản trị viên mới xem được mục này.'
     return error.message
   }
-  if (error instanceof TypeError) return 'Không kết nối được backend.'
+  if (error instanceof TypeError || isNetworkError(error))
+    return NETWORK_MESSAGE
   return 'Không tải được dữ liệu. Thử lại.'
 }
 

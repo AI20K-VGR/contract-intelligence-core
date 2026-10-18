@@ -149,6 +149,10 @@ export function CreateDossierPage() {
   const [dragOver, setDragOver] = useState(false)
 
   const files = contract ? [contract, ...annexes] : annexes
+  // Chỉ hỏi "có cả hợp đồng và phụ lục" khi tải đúng một tệp. Từ hai tệp trở
+  // lên thì mỗi tệp đã là một tài liệu, bỏ dấu tick cũ nếu có.
+  const splitOffered = Boolean(contract) && annexes.length === 0
+  const splitPending = splitOffered && mixedFile
   const busy = uploadStatus === 'uploading'
   const totalBytes = files.reduce((sum, item) => sum + item.file.size, 0)
 
@@ -299,13 +303,13 @@ export function CreateDossierPage() {
       )
       const created = await createDossier({
         contract: contractPdf,
-        metadata: mixedFile
+        metadata: splitPending
           ? { name: trimmedName, split_pending: true }
           : { name: trimmedName },
         annexes: annexPdfs,
       })
       if (!created?.dossier_id) {
-        setError('Backend không trả dossier_id.')
+        setError('Không tạo được hồ sơ. Vui lòng thử lại.')
         setUploadStatus('idle')
         return
       }
@@ -323,7 +327,7 @@ export function CreateDossierPage() {
       }
 
       navigate(
-        mixedFile
+        splitPending
           ? splitPath(created.dossier_id)
           : progressPath(created.dossier_id),
         { state: { structureMode, name: trimmedName } },
@@ -345,8 +349,8 @@ export function CreateDossierPage() {
 
       {!canUpload ? (
         <div className="mb-space-lg px-space-md py-space-sm rounded bg-surface-container text-on-surface font-body-sm text-body-sm">
-          Tài khoản thẩm định không tải hồ sơ. Chỉ vận hành và quản trị gọi được
-          API này.
+          Tài khoản thẩm định không tải hồ sơ lên được. Chỉ tài khoản vận hành
+          và quản trị mới tải được.
         </div>
       ) : null}
 
@@ -629,7 +633,7 @@ export function CreateDossierPage() {
               </div>
             ) : null}
 
-            {contract ? (
+            {splitOffered ? (
               <label
                 className={`flex cursor-pointer items-start gap-space-md rounded-xl border-2 px-space-lg py-space-md transition-colors ${
                   mixedFile
@@ -666,7 +670,7 @@ export function CreateDossierPage() {
                   <span className="font-body-sm text-body-sm text-on-surface">
                     Tick nếu hợp đồng và phụ lục nằm chung trong một file. Sau
                     khi tải lên, bạn chia file thành từng phần và xác nhận. Mỗi
-                    phần thành một tài liệu riêng rồi mới OCR.
+                    phần thành một tài liệu riêng rồi mới đọc.
                   </span>
                 </span>
               </label>
