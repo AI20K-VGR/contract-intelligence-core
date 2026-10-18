@@ -65,6 +65,7 @@ from contract_intelligence.shared.ai.persistence import (
 )
 from contract_intelligence.shared.audit import add_audit_event
 from contract_intelligence.shared.base import new_ulid
+from contract_intelligence.shared.page_features import page_ocr_status
 from contract_intelligence.shared.pdf import InvalidPdfError, count_pdf_pages
 from contract_intelligence.shared.processed_events import (
     already_processed,
@@ -1023,11 +1024,11 @@ def _no_readable_page(snapshot: Any) -> tuple[str, str] | None:
     the vision key is missing). Pages without a status are not judged.
     """
     pages = list(getattr(snapshot, "pages", None) or [])
-    features = [page.features or {} for page in pages]
-    statuses = [str(f.get("ai1_page_status") or "").upper() for f in features]
+    read = [page_ocr_status(page.features) for page in pages]
+    statuses = [status for status, _ in read]
     if not pages or "" in statuses or _READABLE_PAGE_STATUSES & set(statuses):
         return None
-    first_error = next((str(f["error"]) for f in features if f.get("error")), "")
+    first_error = next((error for _, error in read if error), "")
     detail = f"AI1 không đọc được trang nào ({len(pages)}/{len(pages)} trang lỗi)"
     return "AI1_NO_READABLE_PAGE", f"{detail}: {first_error[:200]}" if first_error else detail
 

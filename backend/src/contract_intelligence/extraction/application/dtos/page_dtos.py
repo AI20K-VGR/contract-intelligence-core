@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
+
+from contract_intelligence.shared.page_features import parse_page_features
 
 
 class PageDTO(BaseModel):
@@ -29,7 +30,7 @@ class PageDTO(BaseModel):
     def from_row(cls, row: dict[str, Any]) -> PageDTO:
         quality = row.get("quality")
         if quality is None and row.get("features"):
-            quality = _parse_json_obj(row["features"])
+            quality = parse_page_features(row["features"])
         return cls(
             id=row["id"],
             document_id=row.get("document_id", ""),
@@ -43,18 +44,6 @@ class PageDTO(BaseModel):
             render_uri=row.get("render_uri") or row.get("render_blob_uri"),
             quality=quality if isinstance(quality, dict) else None,
         )
-
-
-def _parse_json_obj(raw: object) -> dict[str, Any] | None:
-    if isinstance(raw, dict):
-        return raw
-    if isinstance(raw, str) and raw.strip():
-        try:
-            parsed = json.loads(raw)
-        except json.JSONDecodeError:
-            return None
-        return parsed if isinstance(parsed, dict) else None
-    return None
 
 
 __all__ = ["PageDTO"]

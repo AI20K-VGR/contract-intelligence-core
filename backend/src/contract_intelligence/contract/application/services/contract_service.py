@@ -216,7 +216,6 @@ class ContractService:
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[Dossier], int]:
-        from typing import cast
 
         list_kwargs: dict[str, Any] = {
             "status": status,
@@ -237,10 +236,19 @@ class ContractService:
             await self._dossier_repo.list(**list_kwargs),
         )
         items = list(page.items)
-        # Hydrate latest job onto each dossier for DossierSummary.latest_job_status
+        # Latest job of every dossier on the page in one query, for
+        # DossierSummary.latest_job_status.
+        latest = await self._job_repo.latest_by_dossiers([d.id for d in items if not d.jobs])
         for dossier in items:
-            await self._hydrate_latest_job(dossier)
+            if not dossier.jobs and dossier.id in latest:
+                dossier.jobs = [latest[dossier.id]]
         return items, page.total
+
+    async def document_summaries(self, dossier_ids: Sequence[str]) -> dict[str, dict[str, Any]]:
+        """Document counts and contract OCR status per dossier, for list screens."""
+        if not dossier_ids:
+            return {}
+        return await self._dossier_repo.document_summaries(dossier_ids)
 
     async def get_dossier(self, dossier_id: str) -> Dossier:
         dossier = await self._dossier_repo.get(dossier_id)
@@ -341,9 +349,9 @@ class ContractService:
         """Load latest Job onto dossier.jobs for navigation / DTO mapping."""
         if dossier.jobs:
             return
-        page = await self._job_repo.list(dossier_id=dossier.id, limit=1, offset=0)
-        if page.items:
-            dossier.jobs = [cast(Job, page.items[0])]
+        job = await self._job_repo.latest_for_dossier(dossier.id)
+        if job is not None:
+            dossier.jobs = [job]
 
     async def review_counts(self, dossier_id: str) -> tuple[int, int]:
         """``(open_review_items, pending_conflicts)`` of the dossier."""
@@ -355,8 +363,16 @@ class ContractService:
         """Return each dossier's lock and approval timestamp."""
         return await self._dossier_repo.lifecycle(dossier_ids)
 
-    async def list_documents(self, dossier_id: str) -> list[Document]:
-        await self.get_dossier(dossier_id)
+    async def list_documents(
+        self, dossier_id: str, *, dossier_loaded: bool = False
+    ) -> list[Document]:
+        """Documents of the dossier.
+
+        ``dossier_loaded=True`` skips loading the dossier again (404 check)
+        when the caller has just loaded it, e.g. for an ACL check.
+        """
+        if not dossier_loaded:
+            await self.get_dossier(dossier_id)
         return await self._document_repo.list_by_dossier(dossier_id)
 
     async def get_document(self, document_id: str) -> Document:

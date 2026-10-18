@@ -21,7 +21,8 @@ export function useAnalysisWatch(
   const [gone, setGone] = useState(false)
   const [watchKey, setWatchKey] = useState(0)
   // "Kiểm tra lại" đặt lại mốc 10 phút; lần theo dõi thường thì tính tiếp mốc cũ.
-  const restartNext = useRef(false)
+  // Giữ mã hồ sơ đã bấm: đổi sang hồ sơ khác thì cờ không áp vào hồ sơ đó.
+  const restartNext = useRef<string | null>(null)
 
   useEffect(() => {
     if (!dossierId || !running) {
@@ -31,8 +32,8 @@ export function useAnalysisWatch(
     }
     setStalled(false)
     setGone(false)
-    const restart = restartNext.current
-    restartNext.current = false
+    const restart = restartNext.current === dossierId
+    restartNext.current = null
     return startAnalysisWatch(
       dossierId,
       {
@@ -56,11 +57,11 @@ export function useAnalysisWatch(
      * /ai2/retry dùng lại run cũ, nên mốc cũ của run đó không còn đúng.
      */
     restartClock: () => {
-      restartNext.current = true
+      restartNext.current = dossierId
     },
     /** Hỏi lại ngay, nối lại SSE và tính lại mốc 10 phút (nút "Kiểm tra lại"). */
     recheck: () => {
-      restartNext.current = true
+      restartNext.current = dossierId
       setWatchKey((key) => key + 1)
     },
   }
