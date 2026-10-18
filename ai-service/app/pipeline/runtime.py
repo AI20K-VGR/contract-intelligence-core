@@ -487,7 +487,13 @@ class ProcessingRuntime:
                 self._time_attempt(operation, started, reserved, traces, before)
                 _log_provider_failure(client, exc, attempt, operation)
                 if _quota_exhausted(exc):
-                    self.provider_exhausted = True
+                    # Provider state is shared even when prefix consumption drops
+                    # this batch's sink. Its cause must be shared as well.
+                    with self._state_lock:
+                        self.provider_exhausted = True
+                        self._add_issue_locked(
+                            "LLM_QUOTA_EXHAUSTED", ISSUE_MESSAGES_VI["LLM_QUOTA_EXHAUSTED"]
+                        )
                     fall_back("LLM_QUOTA_EXHAUSTED")
                     return None
                 if self.remaining() <= 0:

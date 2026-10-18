@@ -117,7 +117,7 @@ Public job status ở cả hai kênh là:
 
 `QUEUED → RUNNING → SUCCEEDED | FAILED`
 
-**Tiến độ trong bước (đề xuất 16/10/2026, Backend đã sẵn sàng).** Khi job `RUNNING`, response `GET /jobs/{job_id}` có thể thêm trường tuỳ chọn:
+**Tiến độ trong bước (đã chốt 18/10/2026 trong [PR #125](https://github.com/AI20K-VGR/contract-intelligence-core/pull/125), thực hiện #116; Backend nhận từ PR #117).** Khi job `RUNNING`, response `GET /jobs/{job_id}` có thể thêm trường tuỳ chọn:
 
 ```json
 "progress": { "step": "S6", "done": 12, "total": 40, "unit": "clause" }

@@ -14,7 +14,7 @@ import re
 import unicodedata
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Mapping, NamedTuple
 
 from app.contracts.errors import ContractValidationError
 from app.contracts.models import (
@@ -2550,6 +2550,15 @@ def _bbox_union(left: list[float], right: list[float]) -> list[float]:
     ]
 
 
+class _OpenParagraph(NamedTuple):
+    node_indices: tuple[int, ...]
+    last_text: str
+    last_bbox: list[float]
+    last_order: int
+    last_line_id: str
+    char_start: int | None
+
+
 def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[StructuralNode]:
     nodes: list[StructuralNode] = []
     party: str | None = None
@@ -2578,10 +2587,9 @@ def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[S
         for line_id, span in line_offsets(page).items()
         if page_text[span[0] : span[1]] == page.line_texts[line_id]
     }
-    # (indices in ``nodes``, last raw line, its bbox, its order, last line id, char start of
-    # the paragraph): the paragraph a wrapped line may continue (all nodes of one line, e.g.
-    # several labelled facts). Reset by anything that is not the immediately next text line.
-    open_paragraph: tuple[tuple[int, ...], str, list[float], int, str, int | None] | None = None
+    # All nodes of one line (possibly several labelled facts) share a paragraph.
+    # Only the immediately next text line may continue it.
+    open_paragraph: _OpenParagraph | None = None
     for order, line in enumerate(lines):
         if order in consumed:
             continue
@@ -2608,10 +2616,10 @@ def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[S
         if not labelled:
             if (
                 open_paragraph is not None
-                and open_paragraph[3] == order - 1
+                and open_paragraph.last_order == order - 1
                 and _continues_previous(
-                    open_paragraph[1],
-                    open_paragraph[2],
+                    open_paragraph.last_text,
+                    open_paragraph.last_bbox,
                     raw,
                     max_length=max_length,
                     max_right=max_right,
@@ -2622,8 +2630,8 @@ def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[S
                 # Same clause wrapped onto the next OCR line: one node keeps the whole
                 # sentence, cut from the page text so ``text`` stays an exact substring.
                 # Node bbox is the envelope only; per-line boxes stay in page.line_bboxes.
-                text = page_text[open_paragraph[5] : merged_end]
-                for index in open_paragraph[0]:
+                text = page_text[open_paragraph.char_start : merged_end]
+                for index in open_paragraph.node_indices:
                     merged = nodes[index]
                     nodes[index] = merged.model_copy(
                         update={
@@ -2633,7 +2641,14 @@ def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[S
                             "source_line_ids": [*merged.source_line_ids, line_id],
                         }
                     )
-                open_paragraph = (open_paragraph[0], raw, bbox, order, line_id, open_paragraph[5])
+                open_paragraph = _OpenParagraph(
+                    open_paragraph.node_indices,
+                    raw,
+                    bbox,
+                    order,
+                    line_id,
+                    open_paragraph.char_start,
+                )
                 continue
             nodes.append(
                 _line_node(
@@ -2646,7 +2661,7 @@ def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[S
                     node_type="CLAUSE" if is_clause else "UNNUMBERED_BLOCK",
                 )
             )
-            open_paragraph = (
+            open_paragraph = _OpenParagraph(
                 (len(nodes) - 1,),
                 raw,
                 bbox,
@@ -2676,7 +2691,7 @@ def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[S
         open_paragraph = (
             None
             if following
-            else (
+            else _OpenParagraph(
                 tuple(range(first_field, len(nodes))),
                 raw,
                 bbox,
@@ -2696,12 +2711,12 @@ def _start(offsets: Mapping[str, tuple[int, int]], line_id: str) -> int | None:
 def _contiguous_end(
     page_text: str,
     offsets: Mapping[str, tuple[int, int]],
-    paragraph: tuple[Any, ...],
+    paragraph: _OpenParagraph,
     line_id: str,
 ) -> int | None:
     """End offset of ``line_id`` when only whitespace separates it from the paragraph."""
-    previous, current = offsets.get(paragraph[4]), offsets.get(line_id)
-    if paragraph[5] is None or previous is None or current is None:
+    previous, current = offsets.get(paragraph.last_line_id), offsets.get(line_id)
+    if paragraph.char_start is None or previous is None or current is None:
         return None
     if current[0] < previous[1] or page_text[previous[1] : current[0]].strip():
         return None

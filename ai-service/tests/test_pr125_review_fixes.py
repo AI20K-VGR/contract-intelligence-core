@@ -168,7 +168,7 @@ def test_1d_conflict_with_off_span_is_not_relabelled_reference(label):
 # -- 1d: frame_context slot batch output budget ------------------------------------------
 
 
-def test_1d_slot_batch_output_budget_scales_with_frames(monkeypatch):
+def test_1d_slot_batch_respects_per_request_output_budget(monkeypatch):
     seen: list[dict] = []
     _batch_setup(
         monkeypatch,
@@ -178,9 +178,8 @@ def test_1d_slot_batch_output_budget_scales_with_frames(monkeypatch):
     )
     from test_frame_job import semantic_record
 
-    per_frame = semantic_record().semantic_profile.context_bounds.max_output_tokens
-    assert seen[0]["max_output_tokens"] == min(per_frame * 8, 8192)
-    assert seen[0]["max_output_tokens"] > per_frame or per_frame * 8 > 8192
+    per_request = semantic_record().semantic_profile.context_bounds.max_output_tokens
+    assert seen[0]["max_output_tokens"] == per_request
 
 
 # -- 1d: lease outlives the child kill ---------------------------------------------------
