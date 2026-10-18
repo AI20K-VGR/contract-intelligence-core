@@ -117,7 +117,7 @@ def test_summary_covers_body_and_later_annexes_without_footers():
                     "Cung cấp 45 bàn làm việc.",
                     "ĐIỀU 2. BẢO HÀNH",
                     "Bảo hành trong 36 tháng.",
-                    "TÀI LIỆU MẪU KIỂM THỬ AI2 - KHÔNG CÓ GIÁ TRỊ GIAO DỊCH",
+                    "Trang 1/3",
                 ],
             ),
             _page(2, ["PHỤ LỤC 04 - GIÁ", "Giá điều chỉnh 725.000.000 đồng."]),
@@ -129,7 +129,7 @@ def test_summary_covers_body_and_later_annexes_without_footers():
     )
     text = "\n".join(e["text"] for e in evidence)
     assert all(value in text for value in ("45 bàn", "36 tháng", "725.000.000", "28 ngày"))
-    assert "KHÔNG CÓ GIÁ TRỊ GIAO DỊCH" not in text
+    assert "Trang 1/3" not in text
 
 
 def test_evidence_expansion_does_not_override_member_permissions():

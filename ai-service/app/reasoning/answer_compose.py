@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections import deque
+from html import escape
 from typing import Any
 
 from app.tools.gateway import ToolGateway
@@ -98,14 +99,7 @@ def expanded_query(query: str) -> str:
 def is_furniture(text: str) -> bool:
     from app.pipeline.result_structure import _is_running_furniture
 
-    folded = fold(text).strip()
-    return bool(
-        _is_running_furniture(text)
-        or _FURNITURE.match(text.strip())
-        or re.match(r"^tai lieu mau .*khong co gia tri", folded)
-        or re.match(r"^hop dong .*tai lieu mau kiem thu ai2$", folded)
-        or folded.startswith("bo tai lieu hu cau")
-    )
+    return bool(_is_running_furniture(text) or _FURNITURE.match(text.strip()))
 
 
 def is_summary_query(query: str) -> bool:
@@ -189,7 +183,8 @@ def scoped_evidence(
     if record is None:
         return []
     query = str(task.get("query") or "")
-    seeds = referenced_nodes(record, query)
+    reference_index = ReferenceIndex(record)
+    seeds = referenced_nodes(record, query, index=reference_index)
     if is_summary_query(query) and not seeds:
         return evidence_from_outline(gateway, envelope, record)
     # Follow explicit references for two hops, within the source file unless
@@ -203,7 +198,9 @@ def scoped_evidence(
             node = by_id[nid]
             if node.text:
                 targets.extend(
-                    referenced_nodes(record, node.text, source_file_id=node.source_file_id)
+                    referenced_nodes(
+                        record, node.text, source_file_id=node.source_file_id, index=reference_index
+                    )
                 )
         expanded = _descendants(record, list(dict.fromkeys([*seeds, *targets])))
         combined = list(dict.fromkeys([*ids, *expanded]))
@@ -215,53 +212,98 @@ def scoped_evidence(
     )
 
 
-def referenced_nodes(record: Any, query: str, *, source_file_id: str | None = None) -> list[str]:
+class ReferenceIndex:
+    """Request-local label lookup; never reuse across records, revisions or tenants.
+
+    Normalize each label once. Prefix keys retain the old matching of article 4
+    against 4.1, without matching clause 4.2 against 4.21. Reading order is kept.
+    The index grants no access: callers still fetch evidence through ToolGateway.
+    """
+
+    def __init__(self, record: Any) -> None:
+        self.body_files = {s.file_id for s in record.source_files if str(s.role) == "body"}
+        self.annex_files = {s.file_id for s in record.source_files if str(s.role) == "annex"}
+        self.article_files: set[str | None] = set()
+        self.labels: dict[tuple[str, str], list[tuple[int, Any, str]]] = {}
+        for position, node in enumerate(record.evidence_nodes()):
+            head = fold((node.raw_label or node.text or "").strip())[:40]
+            if node.raw_label and re.match(r"^dieu\s+\d", head):
+                self.article_files.add(node.source_file_id)
+            named = re.match(r"^(dieu|phu luc)\s+(\d+(?:\.\d+)*)\b", head)
+            numbered = re.match(r"^(\d+(?:\.\d+)*)(?=[.)\s]|$)", head)
+            keys: set[tuple[str, str]] = set()
+            if named:
+                number = named.group(2).lstrip("0") or "0"
+                parts = number.split(".")
+                keys.update((named.group(1), ".".join(parts[:i])) for i in range(1, len(parts) + 1))
+            if numbered:
+                parts = numbered.group(1).split(".")
+                keys.update(("number", ".".join(parts[:i])) for i in range(1, len(parts) + 1))
+            for key in keys:
+                self.labels.setdefault(key, []).append((position, node, head))
+
+
+def referenced_nodes(
+    record: Any,
+    query: str,
+    *,
+    source_file_id: str | None = None,
+    index: ReferenceIndex | None = None,
+) -> list[str]:
     """Nodes whose own label is the article/clause/annex the question names."""
 
     query = fold(query).replace("annex", "phu luc").replace("article", "dieu")
     wanted = _REF.findall(query)
+    if not wanted:
+        return []
     qualified = [
         sub if "." in sub else f"{article}.{sub}"
         for sub, article in re.findall(
             r"\bkhoan\s+(\d+(?:\.\d+)*)\s+(?:cua\s+)?dieu\s+(\d+)\b", query
         )
     ]
-    body_files = {s.file_id for s in record.source_files if str(s.role) == "body"}
-    annex_files = {s.file_id for s in record.source_files if str(s.role) == "annex"}
-    local_articles = any(
-        n.source_file_id == source_file_id and re.match(r"^dieu\s+\d", fold(n.raw_label or ""))
-        for n in record.evidence_nodes()
-    )
+    index = index if index is not None else ReferenceIndex(record)
     refers_to_body = source_file_id is not None and (
         bool(re.search(r"\bcua\s+hop dong\b", query))
-        or (source_file_id in annex_files and not local_articles)
+        or (source_file_id in index.annex_files and source_file_id not in index.article_files)
     )
-    if not wanted:
-        return []
+    keys = {("number", number) for number in qualified}
+    for kind, number in wanted:
+        if qualified and kind == "khoan":
+            continue
+        keys.add(
+            (kind, number.lstrip("0") or "0") if kind in {"dieu", "phu luc"} else ("number", number)
+        )
+    candidates = {
+        position: (node, head) for key in keys for position, node, head in index.labels.get(key, [])
+    }
+    patterns = [re.compile(rf"{re.escape(label)}(?:[.)\s]|$)") for label in qualified]
+    for kind, number in wanted:
+        if qualified and kind == "khoan":
+            continue
+        patterns.append(
+            re.compile(
+                rf"{kind}\s+0*{re.escape(number.lstrip('0') or '0')}\b"
+                if kind in {"dieu", "phu luc"}
+                else rf"{re.escape(number)}(\.|\s|$)"
+            )
+        )
     out: list[str] = []
-    for node in record.evidence_nodes():
-        head = fold((node.raw_label or node.text or "").strip())[:40]
-        permitted_files = body_files if refers_to_body else {source_file_id}
+    permitted_files = index.body_files if refers_to_body else {source_file_id}
+    for position in sorted(candidates):
+        node, head = candidates[position]
         if (
             source_file_id
             and node.source_file_id not in permitted_files
             and not head.startswith("phu luc")
         ):
             continue
-        if any(re.match(rf"{re.escape(label)}(?:[.)\s]|$)", head) for label in qualified):
-            out.append(node.node_id)
+        if not any(pattern.match(head) for pattern in patterns):
             continue
-        for kind, number in wanted:
-            if qualified and kind == "khoan":
-                continue
-            if kind in {"dieu", "phu luc"}:
-                match = re.match(rf"{kind}\s+0*{re.escape(number.lstrip('0') or '0')}\b", head)
-            else:
-                match = re.match(rf"{re.escape(number)}(\.|\s|$)", head)
-            if match:
-                out.append(node.node_id)
-                break
-    return out[:12]
+        out.append(node.node_id)
+        if len(out) == 12:
+            break
+    return out
 
 
 def _node(
@@ -372,6 +414,7 @@ def evidence_from_pairs(
             lines.append(f"- {pair.get('label')}: {a} <-> {b}")
     record = gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
     if record:
+        reference_index = ReferenceIndex(record)
         nodes = sorted(record.evidence_nodes(), key=lambda n: n.order)
         for item in list(ids):
             node = next((n for n in nodes if n.node_id == item["node_id"]), None)
@@ -392,7 +435,9 @@ def evidence_from_pairs(
             node = by_id.get(item["node_id"])
             if node:
                 targets.extend(
-                    referenced_nodes(record, node.text, source_file_id=node.source_file_id)
+                    referenced_nodes(
+                        record, node.text, source_file_id=node.source_file_id, index=reference_index
+                    )
                 )
         ids.extend({"node_id": nid} for nid in _descendants(record, list(dict.fromkeys(targets))))
     return evidence_from_citations(gateway, envelope, ids, limit=SUMMARY_EVIDENCE), lines
@@ -402,7 +447,8 @@ def _user_prompt(query: str, evidence: list[dict[str, Any]], notes: list[str]) -
     parts = [f"Câu hỏi: {query}", "", "Nguồn:"]
     for item in evidence:
         parts.append(
-            f"node_id: {item['node_id']}\n{item['path']}\n<source_text>\n{item['text']}\n</source_text>"
+            f"node_id: {item['node_id']}\n{escape(item['path'], quote=False)}\n"
+            f"<source_text>\n{escape(item['text'], quote=False)}\n</source_text>"
         )
     if notes:
         parts += ["", "Quan hệ hệ thống đã phát hiện giữa các nguồn (cần người xác nhận):", *notes]
@@ -427,7 +473,7 @@ def compose(
     used = len(query) + sum(len(note) for note in notes or []) + 1000
     partial = False
     for item in evidence:
-        cost = len(item["text"]) + len(item["path"]) + 256
+        cost = len(escape(item["text"], quote=False)) + len(escape(item["path"], quote=False)) + 256
         if used + cost > PROMPT_CHAR_LIMIT:
             partial = True
             continue
