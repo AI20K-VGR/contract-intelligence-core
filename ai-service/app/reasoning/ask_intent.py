@@ -157,7 +157,14 @@ def parse_ask(text: str) -> dict[str, Any]:
         spec["annex_numbers"] = annexes
         return spec
 
-    if _synthesis_question(plain) and not query_too_broad(query):
+    has_source = bool(clause or annexes or "hop dong" in plain)
+    # "Điều 5 và Phụ lục 1 khác nhau thế nào?" is a compare over named sources, not a
+    # synthesis (PR #125 review 1d); synthesis only takes what compare would not.
+    if (
+        _synthesis_question(plain)
+        and not query_too_broad(query)
+        and not (_compare_cue(plain) and has_source)
+    ):
         spec["type"] = "unscoped"
         return spec
 
@@ -175,7 +182,6 @@ def parse_ask(text: str) -> dict[str, Any]:
         spec["field_key"] = "contract_value"
         return spec
 
-    has_source = bool(clause or annexes or "hop dong" in plain)
     if _compare_cue(plain) and has_source:
         spec["type"] = (
             "cascade"

@@ -43,22 +43,30 @@ from app.tools.store import DossierRecord
 # "Điều 5. Thanh toán" names a topic, not a duty; extracting it produced a PAY
 # frame that "conflicted" with every payment clause. A title carries no party,
 # digit or sentence punctuation, so one-paragraph articles still extract.
+# The number needs a word boundary: "[ivxlc]+" alone read "Điều chỉnh"/"Phần lớn" as
+# headings (PR #125 review 1a). A title is a short noun phrase; a sentence with a
+# predicate ("có hiệu lực kể từ ...") is a clause even when it is numbered.
 _HEADING_ONLY = re.compile(
-    r"(?:điều|chương|mục|phần|article|chapter|section)\s+(?:\d+[a-z]?|[ivxlc]+)"
-    r"\s*[.:\-–]?\s*[^\d.;:!?]{0,100}",
+    r"(?:điều|chương|mục|phần|article|chapter|section)\s+(?:\d+[a-z]?|[ivxlc]+)\b"
+    r"\s*[.:\-–]?\s*(?P<title>[^\d.;:!?]{0,100})",
     re.IGNORECASE,
 )
+_HEADING_TITLE_MAX_WORDS = 8
+_HEADING_PREDICATE = re.compile(r"\b(?:có|được|phải|sẽ|chịu|kể\s+từ|do|bị|không)\b", re.IGNORECASE)
 
 
 def _is_heading_only(text: str) -> bool:
     stripped = text.strip()
-    return bool(_HEADING_ONLY.fullmatch(stripped)) and not re.search(
-        r"\bbên\s+[ab]\b", stripped, re.I
-    )
+    match = _HEADING_ONLY.fullmatch(stripped)
+    if match is None or re.search(r"\bbên\s+[ab]\b", stripped, re.I):
+        return False
+    title = match.group("title")
+    return len(title.split()) <= _HEADING_TITLE_MAX_WORDS and not _HEADING_PREDICATE.search(title)
 
 
 # Frames per slot-context call: one call per frame spent the job budget on ~12 frames.
 SLOT_FRAMES_PER_CALL = 8
+_OUTPUT_TOKENS_CAP = 8192  # ContextBounds.max_output_tokens upper bound (le=8192)
 
 
 def _semantic_order(nodes, priority_nodes: tuple[str, ...]) -> list[StructuralNode]:
@@ -337,7 +345,9 @@ def _enrich(
                 client,
                 system,
                 encoded,
-                max_output_tokens=bounds.max_output_tokens,
+                # ``bounds.max_output_tokens`` is sized for one frame's answer; a batch
+                # answers len(batch) frames (PR #125 review 1d).
+                max_output_tokens=min(bounds.max_output_tokens * len(batch), _OUTPUT_TOKENS_CAP),
                 operation_deadline=operation_deadline,
                 operation="slot_context",
             )

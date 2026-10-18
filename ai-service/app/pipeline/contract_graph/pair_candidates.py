@@ -169,7 +169,7 @@ def _cites(text: str, other: str) -> bool:
     match = _LEADING_NUMBER.match(text)
     return (
         bool(match)
-        and re.search(r"\bkhoan\s+" + re.escape(match.group(1)) + r"(?![\d.]\d)", _fold(other))
+        and re.search(r"\bkhoan\s+" + re.escape(match.group(1)) + r"(?!\d|\.\d)", _fold(other))
         is not None
     )
 

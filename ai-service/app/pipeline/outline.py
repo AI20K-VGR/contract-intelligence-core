@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from app.contracts.models import Citation, PageSnapshot, StructuralNode
-from app.pipeline.citations import CitationResolver, quote_digest
+from app.pipeline.citations import (
+    CitationResolver,
+    line_offsets,
+    node_line_fragments,
+    quote_digest,
+)
 
 
 def build_tree(nodes: list[StructuralNode]) -> list[dict]:
@@ -175,16 +180,14 @@ def citation_for_node(
         )
         citation.source_hash = page.source_hash
         citation.quote_sha256 = quote_digest(span)
+        if node is not None and not citation.bbox_fragments:
+            citation.bbox_fragments = node_line_fragments(page, citation.line_ids)
         citation.validation_status = CitationResolver([page]).verify(citation).status
     return citation.model_dump()
 
 
 def _span_for_line_ids(page: PageSnapshot, line_ids: list[str]) -> tuple[int, int] | None:
-    ranges: dict[str, tuple[int, int]] = {}
-    cursor = 0
-    for index, (line_id, line_text) in enumerate(page.line_texts.items()):
-        ranges[line_id] = (cursor, cursor + len(line_text))
-        cursor += len(line_text) + (1 if index < len(page.line_texts) - 1 else 0)
+    ranges = line_offsets(page)
     selected = [ranges[line_id] for line_id in line_ids if line_id in ranges]
     if not selected:
         return None

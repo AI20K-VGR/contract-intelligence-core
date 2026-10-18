@@ -253,10 +253,11 @@ def _restatement_key(text: str) -> str:
 
 
 def _no_value_difference(text_a: str, text_b: str) -> bool:
-    """Both clauses state unit-typed values, yet no unit present on both sides disagrees.
+    """Same wording, unit-typed values on both sides, and no shared unit disagrees.
 
-    Luna labelled such pairs CONFLICT (same 05-day deadline on another trigger, a percentage
-    on one side only); a clause pair without numbers on one side is left to the model.
+    Only a restatement ("05 ngày" vs "5 ngày" in the same sentence) is overruled; a pair whose
+    words differ (another trigger, another party) or without numbers on one side is left to
+    the model.
     """
 
     def values(text: str) -> dict[str, frozenset[str]]:
@@ -266,7 +267,20 @@ def _no_value_difference(text_a: str, text_b: str) -> bool:
         }
 
     left, right = values(text_a), values(text_b)
-    return bool(left) and bool(right) and not values_differ(left, right)
+    return (
+        bool(left)
+        and bool(right)
+        and not values_differ(left, right)
+        # Same numbers prove nothing when the words around them differ: "30 ngày làm việc"
+        # vs "30 ngày", Bên A vs Bên B, "kể từ ngày nghiệm thu" vs "giao hàng" (PR #125 1b).
+        and _wording(text_a) == _wording(text_b)
+    )
+
+
+def _wording(text: str) -> str:
+    """Clause text without its label, numbers, case or punctuation."""
+    body = _NUMBER.sub(" ", _LINE_LABEL.sub("", unicodedata.normalize("NFC", text)))
+    return " ".join(re.sub(r"[^\w]+", " ", body.casefold()).split())
 
 
 def _numbers(text: str) -> Counter[str]:
@@ -612,9 +626,12 @@ def classify_pairs(
                     for code, count in stats["rejected"].items()
                     if count > rejected_before[code]
                 )
+                # A CONFLICT/DUPLICATE whose span did not ground stays a validator reject
+                # (counted unclassified); relabelling it REFERENCE hid the model's finding.
                 fallback = (
                     _explicit_reference(by_id[pid], served)
                     if reason in _REFERENCE_FALLBACK
+                    and item.get("label") not in {"CONFLICT", "DUPLICATE"}
                     else None
                 )
                 if fallback is not None:

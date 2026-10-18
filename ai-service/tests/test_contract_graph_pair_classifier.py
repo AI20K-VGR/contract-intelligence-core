@@ -509,25 +509,33 @@ def test_conflict_with_different_values_still_accepted():
     assert len(result.decisions) == 1
 
 
+def test_conflict_on_a_restatement_without_any_differing_value_rejected():
+    # Same wording and the same 05-day deadline; only the model's span choice differs.
+    a = "2. Bên A thanh toán mỗi đợt trong vòng 05 ngày kể từ ngày nhận được hóa đơn hợp lệ."
+    b = "3.2. Bên A thanh toán mỗi đợt trong vòng 5 ngày kể từ ngày nhận được hóa đơn hợp lệ."
+    result = classify([pair(a, b)], {"results": [answer(span_a=a[3:60], span_b=b)]})
+    assert result.stats["rejected"]["conflict_no_value_difference"] == 1
+    assert not result.decisions
+
+
 @pytest.mark.parametrize(
     ("a", "b"),
     [
-        # Same 05-day deadline, different trigger; the percentage exists on one side only.
+        # Same 05-day deadline, different trigger (PR #125 review 1b: keep the model's CONFLICT).
         (
             "a) 40% giá trị hợp đồng trong vòng 05 ngày kể từ ngày ký Hợp đồng;",
             "3.2. Bên A thanh toán mỗi đợt trong vòng 05 ngày kể từ ngày nhận được hóa đơn hợp lệ.",
         ),
-        # No unit stated on both sides: nothing that could disagree.
         (
             "2. Bên A thanh toán mỗi đợt trong vòng 5 ngày kể từ ngày nhận được hóa đơn hợp lệ.",
             "b) 60% giá trị hợp đồng còn lại sau khi nghiệm thu toàn bộ hàng hóa.",
         ),
     ],
 )
-def test_conflict_without_any_differing_value_rejected(a, b):
+def test_conflict_with_different_wording_is_left_to_the_model(a, b):
     result = classify([pair(a, b)], {"results": [answer(span_a=a, span_b=b)]})
-    assert result.stats["rejected"]["conflict_no_value_difference"] == 1
-    assert not result.decisions
+    assert result.stats["rejected"]["conflict_no_value_difference"] == 0
+    assert len(result.decisions) == 1
 
 
 def test_conflict_without_numbers_on_one_side_is_left_to_the_model():

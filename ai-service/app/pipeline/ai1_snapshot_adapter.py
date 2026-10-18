@@ -38,7 +38,12 @@ from app.contracts.models import (
 )
 from app.contracts.schema_validation import validate_contract
 from app.contracts.wire import BeAi2ProcessingRequest
-from app.pipeline.citations import CitationResolver, quote_digest
+from app.pipeline.citations import (
+    CitationResolver,
+    canonical_page_text,
+    line_offsets,
+    quote_digest,
+)
 from app.pipeline.structure import assign_contract_units, contract_unit_line_scopes
 from app.tools.store import DossierRecord
 
@@ -2556,10 +2561,18 @@ def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[S
         ),
         default=0.0,
     )
-    # (indices in ``nodes``, last raw line, its bbox, its order): the paragraph a wrapped
-    # line may continue (all nodes of one line, e.g. several labelled facts). Reset by
-    # anything that is not the immediately next text line.
-    open_paragraph: tuple[tuple[int, ...], str, list[float], int] | None = None
+    # Merged text is cut from the page text itself: AI1's own ``text`` may separate lines
+    # with something other than one newline (PR #125 review 2), so no separator is assumed.
+    page_text = canonical_page_text(page)
+    offsets = {
+        line_id: span
+        for line_id, span in line_offsets(page).items()
+        if page_text[span[0] : span[1]] == page.line_texts[line_id]
+    }
+    # (indices in ``nodes``, last raw line, its bbox, its order, last line id, char start of
+    # the paragraph): the paragraph a wrapped line may continue (all nodes of one line, e.g.
+    # several labelled facts). Reset by anything that is not the immediately next text line.
+    open_paragraph: tuple[tuple[int, ...], str, list[float], int, str, int | None] | None = None
     for order, line in enumerate(lines):
         if order in consumed:
             continue
@@ -2594,12 +2607,15 @@ def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[S
                     max_length=max_length,
                     max_right=max_right,
                 )
+                and (merged_end := _contiguous_end(page_text, offsets, open_paragraph, line_id))
+                is not None
             ):
                 # Same clause wrapped onto the next OCR line: one node keeps the whole
-                # sentence. "\n" keeps ``text`` an exact substring of ``page.text``.
+                # sentence, cut from the page text so ``text`` stays an exact substring.
+                # Node bbox is the envelope only; per-line boxes stay in page.line_bboxes.
+                text = page_text[open_paragraph[5] : merged_end]
                 for index in open_paragraph[0]:
                     merged = nodes[index]
-                    text = f"{merged.text}\n{raw}"
                     nodes[index] = merged.model_copy(
                         update={
                             "text": text,
@@ -2608,7 +2624,7 @@ def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[S
                             "source_line_ids": [*merged.source_line_ids, line_id],
                         }
                     )
-                open_paragraph = (open_paragraph[0], raw, bbox, order)
+                open_paragraph = (open_paragraph[0], raw, bbox, order, line_id, open_paragraph[5])
                 continue
             nodes.append(
                 _line_node(
@@ -2621,7 +2637,14 @@ def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[S
                     node_type="CLAUSE" if is_clause else "UNNUMBERED_BLOCK",
                 )
             )
-            open_paragraph = ((len(nodes) - 1,), raw, bbox, order)
+            open_paragraph = (
+                (len(nodes) - 1,),
+                raw,
+                bbox,
+                order,
+                line_id,
+                _start(offsets, line_id),
+            )
             continue
         first_field = len(nodes)
         for index, (key, value) in enumerate(labelled):
@@ -2642,9 +2665,38 @@ def _line_nodes(page: PageSnapshot, lines: list[Any], *, page_no: int) -> list[S
         # A labelled clause wraps too ("... đã bao gồm" / "thuế giá trị gia tăng."). A total
         # pulled from the next line has already rewritten ``raw``, so it opens nothing.
         open_paragraph = (
-            None if following else (tuple(range(first_field, len(nodes))), raw, bbox, order)
+            None
+            if following
+            else (
+                tuple(range(first_field, len(nodes))),
+                raw,
+                bbox,
+                order,
+                line_id,
+                _start(offsets, line_id),
+            )
         )
     return nodes
+
+
+def _start(offsets: Mapping[str, tuple[int, int]], line_id: str) -> int | None:
+    span = offsets.get(line_id)
+    return span[0] if span else None
+
+
+def _contiguous_end(
+    page_text: str,
+    offsets: Mapping[str, tuple[int, int]],
+    paragraph: tuple[Any, ...],
+    line_id: str,
+) -> int | None:
+    """End offset of ``line_id`` when only whitespace separates it from the paragraph."""
+    previous, current = offsets.get(paragraph[4]), offsets.get(line_id)
+    if paragraph[5] is None or previous is None or current is None:
+        return None
+    if current[0] < previous[1] or page_text[previous[1] : current[0]].strip():
+        return None
+    return current[1]
 
 
 def _amount_after_total_label(

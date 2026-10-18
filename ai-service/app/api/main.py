@@ -338,6 +338,16 @@ def _run_wire_job(job_id: str, payload: dict) -> None:
 # which both processes share. "thread" (default) keeps the in-process worker for tests.
 JOB_ISOLATION = os.getenv("AI2_JOB_ISOLATION", "thread").strip().casefold()
 _JOB_KILL_GRACE_SECONDS = 60
+# Lease slack past the kill: the child claims after spawn, and the parent kills at
+# spawn + budget + grace. A lease ending first let the sweep record AI2_WORKER_RESTARTED
+# for a hung job instead of PROCESSING_TIMEOUT (PR #125 review 1d).
+_LEASE_SLACK_SECONDS = 30
+
+
+def _job_lease_ms(budget_seconds: float) -> int:
+    return int((budget_seconds + _JOB_KILL_GRACE_SECONDS + _LEASE_SLACK_SECONDS) * 1000)
+
+
 _CLAIM_REPORT = None  # child side of the pipe: (worker_token, tenant_id, dossier_id)
 
 
@@ -486,7 +496,7 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
             job_id,
             tenant_id=tenant_id,
             dossier_id=request.dossier_id,
-            lease_ms=request.policy_flags.budget_limits.max_processing_seconds * 1000 + 30_000,
+            lease_ms=_job_lease_ms(request.policy_flags.budget_limits.max_processing_seconds),
             execution_id=execution_id,
         )
         if worker_token is None:

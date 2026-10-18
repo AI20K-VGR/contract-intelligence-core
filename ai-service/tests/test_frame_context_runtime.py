@@ -328,7 +328,7 @@ def test_proposal_citing_an_empty_context_node_is_rejected_not_raised(monkeypatc
     assert "PROPOSAL_SOURCE_NOT_GROUNDED" in reasons
 
 
-def _batch_setup(monkeypatch, n_frames, respond):
+def _batch_setup(monkeypatch, n_frames, respond, seen_kwargs=None):
     from app.contracts.clause_frames import ClauseFrame, Evidence, Slot
     from app.pipeline import frame_context
 
@@ -356,6 +356,8 @@ def _batch_setup(monkeypatch, n_frames, respond):
 
     def complete_json(_runtime, _client, system, user, **_kwargs):
         calls.append(json.loads(user))
+        if seen_kwargs is not None:
+            seen_kwargs.append(_kwargs)
         _runtime.llm_calls_used += 1
         return respond(json.loads(user))
 

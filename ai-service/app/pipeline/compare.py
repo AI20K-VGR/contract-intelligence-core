@@ -62,6 +62,8 @@ def compare_facts(
         if ck[0] is None or ck[0] == "mst_seller":
             continue
         keyed[ck].append(f)
+    if split_installments:
+        _share_unmarked_installments(keyed)
 
     out: list[Candidate] = _compare_contract_identities(facts)
     for ctx, group in keyed.items():
@@ -105,6 +107,16 @@ def compare_facts(
                 None,
             )
         )
+    if split_installments:
+        # Unmarked facts sit in several installment groups; one finding per fact pair.
+        seen: set[tuple[str, str, str]] = set()
+        unique = []
+        for cand in out:
+            key = (*sorted((cand.left_id, cand.right_id)), str(cand.finding_type))
+            if key not in seen:
+                seen.add(key)
+                unique.append(cand)
+        out = unique
     return out, issues
 
 
@@ -175,14 +187,42 @@ _INSTALLMENT_KEYS = frozenset({"payment_schedule", "payment_term"})
 
 
 def _installment(f: Fact) -> str | None:
-    match = _INSTALLMENT.search(fold_for_match(f.citation.text_span or f.raw_value or ""))
-    return match.group(1).lstrip("0") or "0" if match else None
+    """The installment this value belongs to: the last "đợt N" before the value.
+
+    A sentence naming several installments ("đợt 1: 30%; đợt 2: 40%") keys each value by
+    its own one; when the value cannot be located among several, the fact stays unmarked.
+    """
+    span = fold_for_match(f.citation.text_span or f.raw_value or "")
+    marks = list(_INSTALLMENT.finditer(span))
+    numbers = {m.group(1).lstrip("0") or "0" for m in marks}
+    if len(numbers) <= 1:
+        return next(iter(numbers), None)
+    at = span.find(fold_for_match(f.raw_value or "")) if f.raw_value else -1
+    before = [m for m in marks if m.end() <= at] if at >= 0 else []
+    return before[-1].group(1).lstrip("0") or "0" if before else None
 
 
 def _context_key(f: Fact, split_installments: bool = False) -> tuple:
     # Split only with the contract graph pairs on: the flag-off output is pinned byte-for-byte.
     split = split_installments and f.item_key in _INSTALLMENT_KEYS
     return (f.item_key or f.scope, _installment(f) if split else None)
+
+
+def _share_unmarked_installments(keyed: dict[tuple, list[Fact]]) -> None:
+    """A schedule fact naming no installment ("tạm ứng 30%") may be any of them.
+
+    It joins every installment group of its item instead of sitting alone, so it is still
+    compared with "Đợt 1: 25%" (PR #125 review 1d). Without installment groups it stays put.
+    """
+    for (item, number), facts in list(keyed.items()):
+        if number is not None:
+            continue
+        marked = [key for key in keyed if key[0] == item and key[1] is not None]
+        if not marked:
+            continue
+        for key in marked:
+            keyed[key] = [*keyed[key], *facts]
+        del keyed[(item, number)]
 
 
 def _pair_two_sources(

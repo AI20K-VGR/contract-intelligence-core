@@ -80,3 +80,79 @@ async def test_ask_with_a_persisted_semantic_result_is_answered_by_ai2(monkeypat
 async def test_ask_while_the_current_result_is_not_ready_stays_blocked(monkeypatch):
     response, calls = await _ask(monkeypatch, _semantic("NOT_READY", None))
     assert calls == [] and response.state == "BLOCKED"
+
+
+# PR #125 review (Chuongpham2004 #1): a semantic dossier used to keep only VALID frame
+# citations; AI2 answers must pass the OCR citation guard before they are returned.
+_GOOD = {
+    "source_file_id": "doc-a",
+    "text_span": "trong 30 ngày",
+    "char_start": 10,
+    "char_end": 23,
+    "page": 1,
+    "line_ids": ["doc-a:s1:p001:l001"],
+}
+_FORGED = {**_GOOD, "text_span": "trong 03 ngày"}
+
+
+async def _ask_with_citations(monkeypatch, semantic, citations):
+    from contract_intelligence.shared.ai.citation_guard import CitationGuardResult
+
+    checked: list[str] = []
+
+    async def verify(_session, *, document_id, citation):
+        checked.append(citation.quote)
+        ok = citation.quote == _GOOD["text_span"] and document_id == "doc-a"
+        return CitationGuardResult(accepted=ok, quote=citation.quote, quote_sha256="")
+
+    monkeypatch.setattr(dossier_api, "verify_citation", verify, raising=False)
+
+    async def ai2(_payload):
+        return {"state": "ANSWERED", "answer": "Thanh toán trong 30 ngày.", "citations": citations}
+
+    monkeypatch.setattr(dossier_api, "_semantic_result", AsyncMock(return_value=semantic))
+    monkeypatch.setattr(dossier_api, "_ensure_current_semantic_run", AsyncMock())
+    dossier = SimpleNamespace(
+        id="dossier-a",
+        tenant_id="tenant-a",
+        checksum=None,
+        deleted_at=None,
+        metadata_json={"created_by": "owner", "ai2_snapshot_digest": "digest-a"},
+    )
+    monkeypatch.setattr(dossier_api, "_acl_check_dossier_access", AsyncMock(return_value=dossier))
+    monkeypatch.setattr(dossier_api, "enforce_query_limits", AsyncMock())
+    monkeypatch.setattr(dossier_api, "query_ai2", ai2)
+    monkeypatch.setattr(
+        dossier_api, "save_query_trace", AsyncMock(return_value=SimpleNamespace(id="t"))
+    )
+    monkeypatch.setattr(dossier_api, "_dossier_document_ids", AsyncMock(return_value={"doc-a"}))
+    monkeypatch.setattr(dossier_api, "record_query_answer", lambda *_a: None)
+    response = await dossier_api._run_dossier_query(
+        endpoint="query",
+        dossier_id="dossier-a",
+        body=DossierQueryRequest(query="Thời hạn thanh toán?"),
+        session=_Session(),
+        user=AuthenticatedUser("owner", "tenant-a", "o@example.test", "O", "OPERATOR"),
+    )
+    return response, checked
+
+
+@pytest.mark.asyncio
+async def test_semantic_dossier_answer_keeps_only_guard_verified_citations(monkeypatch):
+    response, checked = await _ask_with_citations(
+        monkeypatch, _semantic("NEEDS_REVIEW", {"frames": []}), [_GOOD]
+    )
+    assert checked == ["trong 30 ngày"]
+    assert [c["text_span"] for c in response.citations] == ["trong 30 ngày"]
+    assert response.answer == "Thanh toán trong 30 ngày."
+
+
+@pytest.mark.asyncio
+async def test_semantic_dossier_answer_with_a_forged_citation_is_withheld(monkeypatch):
+    response, checked = await _ask_with_citations(
+        monkeypatch, _semantic("NEEDS_REVIEW", {"frames": []}), [_GOOD, _FORGED]
+    )
+    assert checked == ["trong 30 ngày", "trong 03 ngày"]
+    assert [c["text_span"] for c in response.citations] == ["trong 30 ngày"]
+    assert response.state == "BLOCKED" and not response.answer
+    assert response.reasoning_trace[0]["code"] == "BACKEND_CITATION_UNVERIFIED"

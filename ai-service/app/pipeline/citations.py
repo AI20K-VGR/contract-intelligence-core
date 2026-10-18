@@ -126,14 +126,32 @@ class CitationResolver:
 
 
 def _line_ranges(page: PageSnapshot) -> dict[str, tuple[int, int]]:
+    return line_offsets(page)
+
+
+def line_offsets(page: PageSnapshot) -> dict[str, tuple[int, int]]:
+    """Each line's range in ``canonical_page_text``, located in reading order.
+
+    AI1 may send its own page ``text`` whose line separator is not one newline (CRLF, a
+    space); a fixed one-character step then drifts. A line not found keeps the
+    one-character assumption so offsets never go backwards.
+    """
+    text = canonical_page_text(page)
     ranges: dict[str, tuple[int, int]] = {}
     cursor = 0
-    for index, (line_id, line_text) in enumerate(page.line_texts.items()):
-        start = cursor
-        end = start + len(line_text)
-        ranges[line_id] = (start, end)
-        cursor = end + (1 if index < len(page.line_texts) - 1 else 0)
+    for line_id, line_text in page.line_texts.items():
+        found = text.find(line_text, cursor) if line_text else -1
+        start = found if found >= 0 else cursor
+        ranges[line_id] = (start, start + len(line_text))
+        cursor = start + len(line_text) + (0 if found >= 0 else 1)
     return ranges
+
+
+def node_line_fragments(page: PageSnapshot, line_ids: Iterable[str]) -> list[list[float]]:
+    """AI1's own per-line boxes for a multi-line node; a node bbox is only their envelope."""
+    boxes = [page.line_bboxes.get(line_id) for line_id in line_ids]
+    fragments = [list(box) for box in boxes if box and len(box) == 4]
+    return fragments if len(fragments) > 1 else []
 
 
 def _valid_bbox(value: list[float]) -> bool:
