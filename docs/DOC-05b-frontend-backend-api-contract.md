@@ -173,7 +173,7 @@ Mọi phản hồi lỗi (HTTP status >= 400) đều tuân theo chuẩn RFC 7807
 ### 3.3 Mã Lỗi Doanh nghiệp Thường Gặp
 | HTTP Status | Code Doanh nghiệp | Khi nào xảy ra? | Hành động của Frontend |
 |:---:|---|---|---|
-| `401` | `UNAUTHORIZED` | Token hết hạn hoặc không hợp lệ. **v3.0.0:** `error.message` chỉ là `Token has expired` hoặc `Invalid token`, không nói kiểm tra nào hỏng (issuer, audience, kid); lý do ghi ở log backend. **v3.4.0:** thêm `Session has ended` khi phiên Keycloak của token đã kết thúc (người dùng đăng xuất, quản trị khoá tài khoản), dù token chưa hết hạn | Điều hướng người dùng về màn hình Login hoặc gọi refresh token. Không dựa vào nội dung `message` |
+| `401` | `UNAUTHORIZED` | Token hết hạn hoặc không hợp lệ. **v3.0.0:** `error.message` chỉ là `Token has expired` hoặc `Invalid token`, không nói kiểm tra nào hỏng (issuer, audience, kid); lý do ghi ở log backend. **v3.4.0:** thêm `Session has ended` khi phiên Keycloak của token đã kết thúc (người dùng đăng xuất, quản trị khoá tài khoản), dù token chưa hết hạn. Lưu ý: body `401` thực tế là `{"detail": "..."}` của FastAPI, không theo khung `error` | Điều hướng người dùng về màn hình Login hoặc gọi refresh token. Không dựa vào nội dung `message` |
 | `403` | `FORBIDDEN` | Sai `X-Tenant-Id` hoặc không đủ quyền `x-rbac` | Hiển thị thông báo "Không có quyền thực hiện chức năng này" |
 | `404` | `NOT_FOUND` | Không tìm thấy ID hồ sơ / tài liệu / run | Hiển thị màn hình 404 hoặc thông báo mục đã bị xóa |
 | `409` | `VERSION_CONFLICT` | Phiên bản `base_version` gửi lên cũ hơn DB | **Refetch item mới nhất**, cảnh báo reviewer có xung đột chỉnh sửa |
@@ -222,7 +222,7 @@ Màn hình hiển thị thông tin user hiện tại (từ Keycloak JWT). Fronte
 3. Frontend lưu phiên (`access_token`, `refresh_token`, `id_token`) trong `localStorage` (`oidc-client-ts`, `frontend/src/auth/oidc.ts`).
 4. Khi `access_token` hết hạn, frontend gọi Keycloak refresh endpoint trực tiếp.
 5. Khi user click "Đăng xuất", frontend gọi Keycloak logout endpoint trực tiếp.
-6. **v3.4.0:** khi một phiên kết thúc (đăng xuất, quản trị đăng xuất hộ hoặc khoá tài khoản), Keycloak gọi `POST /auth/backchannel-logout` của backend trong mạng nội bộ (OIDC Back-Channel Logout). Từ đó mọi access token của phiên (`sid`) nhận `401` với `error.message` `Session has ended`, thay vì còn dùng được tới khi hết hạn (tối đa 15 phút). Frontend không phải gọi gì thêm; `401` vẫn xử lý như hiện tại (về màn đăng nhập). Phiên kết thúc vì hết thời gian chờ không gửi thông báo này: token còn dùng được tới `exp`.
+6. **v3.4.0:** khi một phiên kết thúc (đăng xuất, quản trị đăng xuất hộ hoặc khoá tài khoản), Keycloak gọi `POST /auth/backchannel-logout` của backend trong mạng nội bộ (OIDC Back-Channel Logout). Từ đó mọi access token của phiên (`sid`) nhận `401` với body `{"detail": "Session has ended"}`, thay vì còn dùng được tới khi hết hạn (tối đa 15 phút). Frontend không phải gọi gì thêm; `401` vẫn xử lý như hiện tại (về màn đăng nhập). Phiên kết thúc vì hết thời gian chờ không gửi thông báo này: token còn dùng được tới `exp`.
 
 | Phương thức | Endpoint | Phân quyền | Chức năng |
 |:---:|---|:---:|---|
