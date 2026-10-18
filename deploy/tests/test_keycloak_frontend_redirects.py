@@ -114,3 +114,29 @@ def test_backchannel_logout_url_can_be_overridden(
     assert keycloak["sent"]["attributes"]["backchannel.logout.url"] == (
         "http://api.internal:9000/logout"
     )
+
+
+def test_refresh_token_rotation_is_turned_on_and_other_realm_settings_kept(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    realm: dict[str, Any] = {
+        "realm": "contract-intelligence",
+        "revokeRefreshToken": False,
+        "accessTokenLifespan": 900,
+        "bruteForceProtected": True,
+    }
+    sent: list[tuple[str, str, Any]] = []
+
+    def _request(method: str, path: str, _token: Any = None, body: Any = None) -> Any:
+        sent.append((method, path, copy.deepcopy(body)))
+        return copy.deepcopy(realm) if method == "GET" else None
+
+    monkeypatch.setattr(kc, "_request", _request)
+
+    kc.enable_refresh_token_rotation("token")
+
+    method, path, body = sent[-1]
+    assert (method, path) == ("PUT", "/admin/realms/contract-intelligence")
+    assert body["revokeRefreshToken"] is True
+    assert body["refreshTokenMaxReuse"] == 0
+    assert body["accessTokenLifespan"] == 900 and body["bruteForceProtected"] is True
