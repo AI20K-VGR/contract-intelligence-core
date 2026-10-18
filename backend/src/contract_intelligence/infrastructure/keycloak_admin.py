@@ -20,6 +20,10 @@ from keycloak.exceptions import KeycloakConnectionError, KeycloakError
 
 from contract_intelligence.config.settings import get_settings
 from contract_intelligence.schemas.users import UserDTO, UserRole, UserStatus
+from contract_intelligence.shared.email_delivery import (
+    UNDELIVERABLE_MESSAGE,
+    skip_undeliverable,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -104,6 +108,29 @@ class EmailNotConfiguredError(UserAdminError):
 class InvalidUserStateError(UserAdminError):
     def __init__(self, code: str, message: str, **details: Any) -> None:
         super().__init__(code, message, status_code=409, details=details)
+
+
+class UndeliverableEmailError(UserAdminError):
+    """The address is on a reserved domain (``.local``, ``.test``...): mail would bounce."""
+
+    def __init__(self, email: str) -> None:
+        super().__init__(
+            "email_domain_undeliverable",
+            UNDELIVERABLE_MESSAGE,
+            status_code=422,
+            details={"email": email},
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class TenantMember:
+    """A Keycloak user checked to be enabled and stamped with the caller's tenant."""
+
+    id: str
+    email: str
+    display_name: str
+    status: UserStatus
+    role: UserRole | None = None
 
 
 # -----------------------------------------------------------------------------
@@ -371,6 +398,85 @@ def _user_attributes(user: dict[str, Any]) -> dict[str, list[str]]:
     return cleaned
 
 
+# Keycloak user ids are UUIDs; anything else is not looked up (it lands in the URL path).
+_USER_ID_RE = re.compile(r"[A-Za-z0-9-]{1,64}")
+
+
+def _users_with_email(admin: KeycloakAdmin, email: str) -> list[dict[str, Any]]:
+    """Users whose email is exactly ``email`` (case-insensitive)."""
+    wanted = email.strip().casefold()
+    if not wanted:
+        return []
+    users = admin.get_users({"email": email.strip(), "exact": True, "max": 10})
+    return [
+        user
+        for user in users or []
+        if isinstance(user, dict) and str(user.get("email") or "").strip().casefold() == wanted
+    ]
+
+
+def _as_tenant_member(user: dict[str, Any], tenant_id: str) -> TenantMember | None:
+    """``user`` as a member of ``tenant_id``; None when disabled or in another tenant."""
+    if not tenant_id or user.get("enabled") is not True or not user.get("id"):
+        return None
+    attrs = user.get("attributes")
+    if _attr_first(attrs if isinstance(attrs, dict) else None, "tenant_id") != tenant_id:
+        return None
+    dto = _to_user_dto(user, None)
+    return TenantMember(
+        id=dto.id, email=dto.email, display_name=dto.display_name, status=dto.status
+    )
+
+
+def _resolve_tenant_members_sync(
+    *, tenant_id: str, recipients: list[tuple[str, str]]
+) -> list[TenantMember | None]:
+    admin = _build_keycloak_admin()
+    try:
+        out: list[TenantMember | None] = []
+        for user_id, email in recipients:
+            user: dict[str, Any] | None = None
+            if user_id:
+                if _USER_ID_RE.fullmatch(user_id):
+                    try:
+                        user = _get_user_or_raise(admin, user_id)
+                    except UserNotFoundError:
+                        user = None
+            else:
+                matches = _users_with_email(admin, email)
+                user = matches[0] if len(matches) == 1 else None
+            out.append(_as_tenant_member(user, tenant_id) if user else None)
+        return out
+    except KeycloakError as exc:
+        raise _translate_keycloak_error(exc) from exc
+    except KeycloakConnectionError as exc:
+        raise KeycloakUnavailableError(str(exc)) from exc
+
+
+def _lookup_tenant_member_sync(*, tenant_id: str, email: str) -> TenantMember | None:
+    admin = _build_keycloak_admin()
+    try:
+        matches = [
+            member
+            for member in (_as_tenant_member(u, tenant_id) for u in _users_with_email(admin, email))
+            if member is not None and member.status == "active"
+        ]
+        if len(matches) != 1:
+            return None
+        member = matches[0]
+        return TenantMember(
+            id=member.id,
+            email=member.email,
+            display_name=member.display_name,
+            status=member.status,
+            role=_get_app_role_for_user(admin, member.id),
+        )
+    except KeycloakError as exc:
+        raise _translate_keycloak_error(exc) from exc
+    except KeycloakConnectionError as exc:
+        raise KeycloakUnavailableError(str(exc)) from exc
+
+
 def send_share_login_email_sync(
     *,
     user_id: str,
@@ -379,13 +485,19 @@ def send_share_login_email_sync(
     email: str = "",
     require_password: bool = False,
 ) -> bool:
-    """Gửi thư đặt mật khẩu khi user còn trạng thái được mời hoặc chưa có mật khẩu."""
+    """Gửi thư đặt mật khẩu khi user còn trạng thái được mời hoặc chưa có mật khẩu.
+
+    True khi việc gửi thư cho người này đã xong ở đây (đã gửi, hoặc bỏ qua vì địa chỉ
+    thuộc tên miền không nhận thư); False khi người này cần thư mở hồ sơ thường.
+    """
     admin = _build_keycloak_admin()
     user = _get_user_or_raise(admin, user_id)
     invited = _derive_status(user) == "invited" or require_password
     if not invited:
         return False
     address = (user.get("email") or email or user.get("username") or "").strip()
+    if skip_undeliverable(address, purpose="share_login", user_id=user_id):
+        return True
     required = list(user.get("requiredActions") or [])
     if "UPDATE_PASSWORD" not in required:
         required.append("UPDATE_PASSWORD")
@@ -526,6 +638,8 @@ def _create_user_sync(
     role: UserRole,
     tenant_id: str,
 ) -> UserDTO:
+    if skip_undeliverable(email, purpose="invite"):
+        raise UndeliverableEmailError(email)
     admin = _build_keycloak_admin()
     user_id: str | None = None
     try:
@@ -636,6 +750,8 @@ def _resend_invite_sync(*, user_id: str) -> UserDTO:
                 user_id=user_id,
                 status=dto.status,
             )
+        if skip_undeliverable(dto.email, purpose="invite_resend", user_id=user_id):
+            raise UndeliverableEmailError(dto.email)
         # Ensure required action is still set before sending.
         required = list(user.get("requiredActions") or [])
         if "UPDATE_PASSWORD" not in required:
@@ -726,6 +842,24 @@ async def resend_invite(*, user_id: str) -> UserDTO:
     return await asyncio.to_thread(_resend_invite_sync, user_id=user_id)
 
 
+async def resolve_tenant_members(
+    *, tenant_id: str, recipients: list[tuple[str, str]]
+) -> list[TenantMember | None]:
+    """Check share recipients ``(user_id, email)``: by id, or by exact email without one.
+
+    One entry per recipient, None when the user is missing, disabled or outside
+    ``tenant_id``. Keycloak being down raises, so the caller saves nothing.
+    """
+    return await asyncio.to_thread(
+        _resolve_tenant_members_sync, tenant_id=tenant_id, recipients=recipients
+    )
+
+
+async def lookup_tenant_member(*, tenant_id: str, email: str) -> TenantMember | None:
+    """The one active member of ``tenant_id`` whose email is exactly ``email``, with role."""
+    return await asyncio.to_thread(_lookup_tenant_member_sync, tenant_id=tenant_id, email=email)
+
+
 # Backward-compatible alias used by the earlier Sprint-2 invite endpoint.
 async def invite_user_via_keycloak(email: str, role_name: str) -> str:
     """Legacy helper — create + invite; returns Keycloak user id."""
@@ -743,6 +877,8 @@ __all__ = [
     "EmailNotConfiguredError",
     "InvalidUserStateError",
     "KeycloakUnavailableError",
+    "TenantMember",
+    "UndeliverableEmailError",
     "UserAdminError",
     "UserListResult",
     "UserNotFoundError",
@@ -751,6 +887,8 @@ __all__ = [
     "enable_user",
     "invite_user_via_keycloak",
     "list_users",
+    "lookup_tenant_member",
     "resend_invite",
+    "resolve_tenant_members",
     "update_user_role",
 ]

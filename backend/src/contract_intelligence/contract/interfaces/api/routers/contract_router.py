@@ -46,7 +46,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.background import BackgroundTask
 
@@ -101,6 +101,7 @@ from contract_intelligence.shared.auth import (
 )
 from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.shared.base import utcnow
+from contract_intelligence.shared.email_delivery import skip_undeliverable
 from contract_intelligence.shared.exceptions import (
     DomainErrorCode,
     DossierTooManyDocuments,
@@ -119,7 +120,12 @@ from contract_intelligence.shared.query_policy import (
     server_query_policy_flags,
     stored_dossier_content_sharing_consent,
 )
-from contract_intelligence.shared.responses import ApiMeta, ApiResponse
+from contract_intelligence.shared.responses import (
+    ApiMeta,
+    ApiResponse,
+    ErrorPayload,
+    ErrorResponse,
+)
 from contract_intelligence.shared.storage import ByteRange, RangeNotSatisfiableError
 from contract_intelligence.shared.utils import safe_filename
 
@@ -248,6 +254,88 @@ def _stored_grant(item: AccessGrantBody) -> dict[str, Any]:
     return grant
 
 
+SHARE_RECIPIENT_NOT_FOUND_MESSAGE = (
+    "Không tìm thấy email này trong đơn vị của bạn, hoặc người này chưa kích hoạt "
+    "tài khoản. Vui lòng kiểm tra lại."
+)
+
+
+class ShareRecipientsRejectedError(Exception):
+    """Some new share recipients are not enabled members of the caller's tenant."""
+
+    def __init__(self, rejected: list[str]) -> None:
+        super().__init__(SHARE_RECIPIENT_NOT_FOUND_MESSAGE)
+        self.rejected = rejected
+
+
+async def _checked_grants(
+    items: list[AccessGrantBody],
+    previous: dict[str, dict[str, Any]],
+    *,
+    tenant_id: str,
+) -> list[dict[str, Any]]:
+    """Grants to store, with every new recipient checked against Keycloak.
+
+    A grant whose ``id`` is already shared keeps its stored identity (only
+    ``permission``/``expires_at`` come from the body) and is not checked again, so
+    the owner can edit other people. A new one is looked up by ``id``, or by
+    ``email`` without one: it must be an enabled user of ``tenant_id``, and its
+    ``id``/``email``/``display_name``/``status`` come from Keycloak, not the body.
+    Raises ``ShareRecipientsRejectedError`` before anything is stored or sent.
+    """
+    from contract_intelligence.infrastructure import keycloak_admin
+
+    grants: list[dict[str, Any]] = []
+    fresh: list[tuple[int, AccessGrantBody]] = []
+    for item in items:
+        grant = _stored_grant(item)
+        old = previous.get(item.id.strip()) if item.id.strip() else None
+        if old is None:
+            fresh.append((len(grants), item))
+        else:
+            grant.update(
+                id=item.id.strip(),
+                email=str(old.get("email") or ""),
+                display_name=str(old.get("display_name") or ""),
+                status=old.get("status"),
+            )
+        grants.append(grant)
+    if fresh:
+        members = await keycloak_admin.resolve_tenant_members(
+            tenant_id=tenant_id,
+            recipients=[(item.id.strip(), item.email.strip()) for _, item in fresh],
+        )
+        rejected: list[str] = []
+        for (index, item), member in zip(fresh, members, strict=True):
+            if member is None:
+                rejected.append(item.email.strip() or item.id.strip())
+                continue
+            grants[index].update(
+                id=member.id,
+                email=member.email,
+                display_name=member.display_name,
+                status=member.status,
+            )
+        if rejected:
+            raise ShareRecipientsRejectedError(rejected)
+    seen: set[str] = set()
+    unique: list[dict[str, Any]] = []
+    for grant in grants:
+        if grant["id"] not in seen:
+            seen.add(grant["id"])
+            unique.append(grant)
+    return unique
+
+
+def _error_json(status_code: int, code: str, message: str, details: dict[str, Any]) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content=ErrorResponse(
+            error=ErrorPayload(code=code, message=message, details=details)
+        ).model_dump(mode="json"),
+    )
+
+
 def _can_read_dossier(metadata: dict[str, Any] | None, user_id: str) -> bool:
     """Chủ hồ sơ luôn xem được. Người được chia sẻ chỉ xem khi quyền đang bật."""
     principal = AuthenticatedUser(
@@ -374,6 +462,10 @@ def _send_share_emails(
     pending: list[dict[str, Any]] = []
     for person in recipients:
         user_id = str(person.get("id") or "").strip()
+        if skip_undeliverable(
+            str(person.get("email") or ""), purpose="share", dossier_id=dossier_id, user_id=user_id
+        ):
+            continue
         must_set_password = person.get("status") == "invited"
         if user_id:
             try:
@@ -1902,20 +1994,33 @@ async def get_dossier_access(
 @router.put(
     "/dossiers/{dossier_id}/access",
     response_model=ApiResponse[DossierAccessDTO],
-    responses={404: {"description": "Dossier not found"}},
+    responses={
+        404: {"description": "Dossier not found"},
+        422: {
+            "model": ErrorResponse,
+            "description": "share_recipient_not_found: a new recipient is not an enabled "
+            "member of the caller's tenant (details.rejected_emails)",
+        },
+        503: {"model": ErrorResponse, "description": "Keycloak unavailable; nothing saved"},
+    },
 )
 async def update_dossier_access(
     dossier_id: Annotated[str, Path(min_length=1)],
     body: DossierAccessBody,
     svc: ContractServiceDep,
     user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
-) -> ApiResponse[DossierAccessDTO]:
+) -> ApiResponse[DossierAccessDTO] | JSONResponse:
     """Đặt quyền hồ sơ. Gộp vào metadata, giữ created_by.
 
     Chỉ chủ hồ sơ hoặc ADMINISTRATOR. Mỗi người được chia sẻ có ``permission``
     (``read``/``edit``) và ``expires_at`` tuỳ chọn. ``expires_at`` mới đặt hoặc vừa
     đổi phải ở tương lai; grant đã hết hạn mà gửi lại nguyên ``expires_at`` cũ thì
     được giữ (vẫn không có tác dụng) để chủ hồ sơ sửa người khác không bị chặn.
+
+    Người nhận mới (``id`` chưa có trong grant cũ) phải là người dùng đang bật trong
+    cùng tenant với người gọi; ``id``/``email``/``display_name`` lấy từ Keycloak. Có
+    người không hợp lệ thì trả 422 ``share_recipient_not_found``, không lưu, không gửi
+    thư. Grant cũ gửi lại thì giữ nguyên danh tính đã lưu và không kiểm tra lại.
     """
     dossier = await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_MANAGE)
     now = utcnow()
@@ -1934,14 +2039,34 @@ async def update_dossier_access(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"expires_at của {item.email or item.id} đã ở quá khứ.",
             )
-    previous_ids = {
-        str(item.get("id"))
+    previous = {
+        str(item.get("id")): item
         for item in (current.get("shared_with") or [])
         if isinstance(item, dict) and item.get("id")
     }
+    previous_ids = set(previous)
+    grants: list[dict[str, Any]] = []
+    if body.scope != "mine":
+        from contract_intelligence.infrastructure.keycloak_admin import UserAdminError
+
+        try:
+            grants = await _checked_grants(body.shared_with, previous, tenant_id=user.tenant_id)
+        except ShareRecipientsRejectedError as exc:
+            logger.info(
+                "dossiers.access.recipients_rejected",
+                dossier_id=dossier_id,
+                count=len(exc.rejected),
+            )
+            return _error_json(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "share_recipient_not_found",
+                SHARE_RECIPIENT_NOT_FOUND_MESSAGE,
+                {"rejected_emails": exc.rejected},
+            )
+        except UserAdminError as exc:
+            return _error_json(exc.status_code, exc.code, exc.message, exc.details)
     current.setdefault("created_by", user.user_id)
     current.setdefault("created_by_name", user.display_name)
-    grants = [] if body.scope == "mine" else [_stored_grant(item) for item in body.shared_with]
     if body.scope == "shared_in" and user.user_id not in {item["id"] for item in grants}:
         grants.append(
             {
