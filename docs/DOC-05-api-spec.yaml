@@ -2219,6 +2219,7 @@ paths:
                 scope: { type: string, enum: [mine, shared_out, shared_in] }
                 shared_with:
                   type: array
+                  maxItems: 100
                   items:
                     type: object
                     required: [id]

@@ -216,11 +216,18 @@ class AccessGrantBody(BaseModel):
     expires_at: datetime | None = None
 
 
+# Each new recipient costs a Keycloak lookup; a dossier is shared with a team,
+# not the whole tenant.
+MAX_SHARE_RECIPIENTS = 100
+
+
 class DossierAccessBody(BaseModel):
     """Quyền truy cập hồ sơ: của tôi, đã chia sẻ, được chia sẻ."""
 
     scope: Literal["mine", "shared_out", "shared_in"]
-    shared_with: list[AccessGrantBody] = []
+    shared_with: list[AccessGrantBody] = Field(
+        default_factory=list, max_length=MAX_SHARE_RECIPIENTS
+    )
 
 
 class DossierAccessDTO(BaseModel):

@@ -646,7 +646,8 @@ Backend đã có cả hai endpoint và các trường dưới đây. Response b�
 
   `rejected_emails` là email gửi lên, hoặc `id` khi phần tử không có email.
 - **Lượt chia sẻ cũ** gửi lại (cùng `id`) giữ nguyên `email`, `display_name`, `status` đang lưu, chỉ lấy `permission` và `expires_at` từ body, và không kiểm tra lại. Nhờ vậy chủ hồ sơ sửa người khác không bị chặn bởi một người đã bị khoá sau đó.
-- Nhiều phần tử trỏ tới cùng một người thì chỉ lưu phần tử đầu. Response `shared_with` là danh sách đã lưu.
+- Nhiều phần tử trỏ tới cùng một người thì chỉ lưu phần tử đầu, và backend chỉ tra Keycloak một lần cho mỗi `id` hoặc email. Response `shared_with` là danh sách đã lưu.
+- `shared_with` tối đa 100 phần tử; nhiều hơn thì nhận `422` của FastAPI trước khi tra Keycloak.
 - Keycloak không trả lời thì trả `503 keycloak_unavailable` và không lưu gì.
 - Với `scope=shared_out`, người nhận mới nhận thư: thư đặt mật khẩu nếu còn `invited`, thư mở hồ sơ nếu không.
 

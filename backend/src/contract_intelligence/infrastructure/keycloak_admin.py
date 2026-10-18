@@ -428,24 +428,37 @@ def _as_tenant_member(user: dict[str, Any], tenant_id: str) -> TenantMember | No
     )
 
 
+def _resolve_one(
+    admin: KeycloakAdmin, tenant_id: str, user_id: str, email: str
+) -> TenantMember | None:
+    user: dict[str, Any] | None = None
+    if user_id:
+        if _USER_ID_RE.fullmatch(user_id):
+            try:
+                user = _get_user_or_raise(admin, user_id)
+            except UserNotFoundError:
+                user = None
+    else:
+        matches = _users_with_email(admin, email)
+        user = matches[0] if len(matches) == 1 else None
+    return _as_tenant_member(user, tenant_id) if user else None
+
+
 def _resolve_tenant_members_sync(
     *, tenant_id: str, recipients: list[tuple[str, str]]
 ) -> list[TenantMember | None]:
     admin = _build_keycloak_admin()
     try:
+        # One lookup per distinct id or email in this call: a body repeating the
+        # same recipient must not cost one Keycloak request per copy. Not shared
+        # across calls, since a user's tenant or status can change.
+        resolved: dict[tuple[str, str], TenantMember | None] = {}
         out: list[TenantMember | None] = []
         for user_id, email in recipients:
-            user: dict[str, Any] | None = None
-            if user_id:
-                if _USER_ID_RE.fullmatch(user_id):
-                    try:
-                        user = _get_user_or_raise(admin, user_id)
-                    except UserNotFoundError:
-                        user = None
-            else:
-                matches = _users_with_email(admin, email)
-                user = matches[0] if len(matches) == 1 else None
-            out.append(_as_tenant_member(user, tenant_id) if user else None)
+            key = ("id", user_id) if user_id else ("email", email.strip().casefold())
+            if key not in resolved:
+                resolved[key] = _resolve_one(admin, tenant_id, user_id, email)
+            out.append(resolved[key])
         return out
     except KeycloakError as exc:
         raise _translate_keycloak_error(exc) from exc

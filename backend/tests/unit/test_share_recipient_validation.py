@@ -71,8 +71,10 @@ class _FakeAdmin:
         self.queries: list[dict[str, Any]] = []
         self.sent: list[str] = []
         self.created: list[dict[str, Any]] = []
+        self.user_reads: list[str] = []
 
     def get_user(self, user_id: str) -> dict[str, Any]:
+        self.user_reads.append(user_id)
         for user in self.users:
             if user["id"] == user_id:
                 return user
@@ -321,6 +323,51 @@ async def test_duplicate_recipients_are_stored_once(
     assert response.status_code == 200, response.text
     stored = mock_svc.patch_dossier.await_args.kwargs["metadata"]["shared_with"]
     assert [grant["id"] for grant in stored] == ["u-rita"]
+
+
+@pytest.mark.asyncio
+async def test_a_repeated_recipient_is_looked_up_once(
+    client: AsyncClient, kc: _FakeAdmin, mock_svc: AsyncMock, mailer: MagicMock
+) -> None:
+    same_id = [{"id": "u-rita", "permission": "edit" if i else "read"} for i in range(60)]
+    same_email = [{"id": "", "email": e} for e in ("ivy@lexis.vn", " IVY@lexis.vn ")] * 20
+
+    response = await _put(client, _share(*same_id, *same_email))
+
+    assert response.status_code == 200, response.text
+    assert kc.user_reads.count("u-rita") == 1
+    assert [q for q in kc.queries if q.get("email")] == [
+        {"email": "ivy@lexis.vn", "exact": True, "max": 10}
+    ]
+    stored = mock_svc.patch_dossier.await_args.kwargs["metadata"]["shared_with"]
+    # The first copy wins, as before.
+    assert [(g["id"], g["permission"]) for g in stored] == [("u-rita", "read"), ("u-ivy", "edit")]
+
+
+@pytest.mark.asyncio
+async def test_a_repeated_invalid_recipient_is_looked_up_once(
+    client: AsyncClient, kc: _FakeAdmin, mock_svc: AsyncMock
+) -> None:
+    response = await _put(client, _share(*[{"id": "u-zoe", "email": "zoe@lexis.vn"}] * 3))
+
+    assert response.status_code == 422
+    assert kc.user_reads.count("u-zoe") == 1
+    mock_svc.patch_dossier.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_too_many_recipients_are_refused_before_any_lookup(
+    client: AsyncClient, kc: _FakeAdmin, mock_svc: AsyncMock
+) -> None:
+    body = _share(
+        *[{"id": f"u-{i}", "email": ""} for i in range(contract_router.MAX_SHARE_RECIPIENTS + 1)]
+    )
+
+    response = await _put(client, body)
+
+    assert response.status_code == 422
+    assert kc.user_reads == []
+    mock_svc.patch_dossier.assert_not_awaited()
 
 
 @pytest.mark.asyncio
