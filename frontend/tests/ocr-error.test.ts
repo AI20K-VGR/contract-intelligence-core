@@ -49,3 +49,22 @@ describe('ocrErrorDetail', () => {
     ).toBe('APIConnectionError: Connection error.')
   })
 })
+
+describe('ocrErrorMessage with numbers (PR #122 review)', () => {
+  it('reads a bare number as a page or size, not an HTTP code', () => {
+    expect(ocrErrorMessage('page 401: ReadTimeout')).toBe(
+      'Đọc tài liệu quá lâu. Vui lòng bấm "Đọc lại".',
+    )
+    expect(ocrErrorMessage('chunk 500 timed out')).toBe(
+      'Đọc tài liệu quá lâu. Vui lòng bấm "Đọc lại".',
+    )
+  })
+
+  it('still reads an HTTP code that comes with its context', () => {
+    expect(ocrErrorMessage('Upstream returned HTTP 401')).toBe(NOT_READY)
+    expect(ocrErrorMessage('Mistral failed: status_code=503')).toBe(
+      ocrErrorMessage('ServiceUnavailable'),
+    )
+    expect(ocrErrorMessage('ServiceUnavailable')).not.toBe(NOT_READY)
+  })
+})

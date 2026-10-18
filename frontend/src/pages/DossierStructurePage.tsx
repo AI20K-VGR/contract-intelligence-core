@@ -39,10 +39,20 @@ import {
   type DossierStructure,
   type ReviewSpot,
 } from '../api/structure'
-import { restartOcrErrorMessage, retryDossierFailed } from '../api/dossiers'
-import { analysisRetryKind, type StepStatuses } from '../api/jobErrors'
-import { loadStepStatuses } from '../api/runEvents'
-import { reprocessDossier } from '../api/runs'
+import { retryDossierFailed } from '../api/dossiers'
+import {
+  analysisRetryErrorMessage,
+  analysisRetryKind,
+  type StepStatuses,
+} from '../api/jobErrors'
+import { loadStepStatuses, stepsAfterAnalysis } from '../api/runEvents'
+import {
+  cancelRun,
+  isCancellableRun,
+  latestDossierRun,
+  reprocessDossier,
+  runActionErrorMessage,
+} from '../api/runs'
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { useDossierPermissions } from '../auth/dossierPermissions'
@@ -242,6 +252,14 @@ export function DossierStructurePage() {
   useEffect(() => {
     currentDossier.current = dossierId
   }, [dossierId])
+  // Việc chạy nền (chờ AI2 mở lại sau "Chạy lại") dừng khi rời trang.
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
   const [filename, setFilename] = useState<string | null>(null)
   const [documentId, setDocumentId] = useState<string | null>(null)
   const [citeId, setCiteId] = useState<string | null>(null)
@@ -529,6 +547,14 @@ export function DossierStructurePage() {
           ? await loadStepStatuses(dossierId, controller.signal)
           : {}
         if (stopped) return
+        if (steps === null) {
+          // Không tải được các bước: chưa biết dừng ở OCR hay AI2, nên chưa
+          // kết luận (không báo nhầm "đọc tài liệu lỗi"), hỏi lại sau.
+          timer = window.setTimeout(() => {
+            void tick()
+          }, 5000)
+          return
+        }
         setDetail(next)
         setStepStatuses(steps)
         setMode((current) => current ?? next.structureMode)
@@ -672,6 +698,47 @@ export function DossierStructurePage() {
   const [retryAnalysisError, setRetryAnalysisError] = useState<string | null>(
     null,
   )
+  const [retryAnalysisInfo, setRetryAnalysisInfo] = useState<string | null>(
+    null,
+  )
+  const [cancellingAnalysis, setCancellingAnalysis] = useState(false)
+  // Đổi hồ sơ (cùng trang): bỏ thông báo và trạng thái nút của hồ sơ trước.
+  useEffect(() => {
+    setAnalysisJustFinished(false)
+    setAnalysisNudge(null)
+    setRetryAnalysisError(null)
+    setRetryAnalysisInfo(null)
+    setRetryingAnalysis(false)
+    setCancellingAnalysis(false)
+  }, [dossierId])
+  /**
+   * /ai2/retry trả 202 rồi worker mới mở lại job sang 'extracted'. Hỏi lại tới
+   * khi job rời 'failed' (true), hết lượt (false), hoặc đã rời hồ sơ (null).
+   */
+  async function waitForAnalysisReopen(
+    id: string,
+    tries: number,
+    delayMs: number,
+  ): Promise<boolean | null> {
+    for (let n = 0; n < tries; n += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, delayMs))
+      if (!mounted.current || currentDossier.current !== id) return null
+      let next: DossierStructure
+      try {
+        next = await getDossierStructure(id)
+      } catch {
+        continue
+      }
+      if (!mounted.current || currentDossier.current !== id) return null
+      if (next.latestJobStatus !== 'failed') {
+        setRetryAnalysisInfo(null)
+        setStepStatuses({})
+        setDetail(next)
+        return true
+      }
+    }
+    return false
+  }
   // Một nút "Chạy lại": lỗi tạm của AI2 chỉ phân tích lại; huỷ thì chạy tiếp,
   // giữ phần OCR đã đọc; lỗi AI2 khác thì chạy lại toàn bộ (đọc lại tài liệu).
   async function retryAnalysis() {
@@ -692,11 +759,17 @@ export function DossierStructurePage() {
     try {
       if (kind === 'ai2') {
         await retryDossierFailed(id, 'ai2')
-        const next = await getDossierStructure(id)
         if (currentDossier.current !== id) return
-        setStepStatuses({})
-        setDetail(next)
+        // Cùng run cũ: mốc 10 phút tính lại từ lúc bấm.
+        restartAnalysisClock()
         setAnalysisNudge(null)
+        const reopened = await waitForAnalysisReopen(id, 15, 2000)
+        if (reopened === false) {
+          setRetryAnalysisInfo(
+            'Đã gửi yêu cầu chạy lại. Trang sẽ cập nhật khi hệ thống nhận.',
+          )
+          void waitForAnalysisReopen(id, Number.POSITIVE_INFINITY, 10_000)
+        }
         return
       }
       if (kind === 'resume') await retryDossierFailed(id, 'ocr')
@@ -705,11 +778,41 @@ export function DossierStructurePage() {
       if (currentDossier.current === id) navigate(progressPath(id))
     } catch (cause: unknown) {
       if (currentDossier.current !== id) return
-      setRetryAnalysisError(
-        restartOcrErrorMessage(cause) ?? 'Không chạy lại được phân tích.',
-      )
+      setRetryAnalysisError(analysisRetryErrorMessage(cause))
+      // 409: đã có người chạy lại trước, tải lại trạng thái hồ sơ.
+      if (cause instanceof ApiError && cause.status === 409)
+        setAttempt((current) => current + 1)
     } finally {
       if (currentDossier.current === id) setRetryingAnalysis(false)
+    }
+  }
+  async function cancelAnalysis() {
+    if (cancellingAnalysis) return
+    if (
+      !window.confirm(
+        'Huỷ lần phân tích đang chạy? Cây điều khoản đã đọc vẫn được giữ.',
+      )
+    ) {
+      return
+    }
+    const id = dossierId
+    setCancellingAnalysis(true)
+    setRetryAnalysisError(null)
+    try {
+      const run = await latestDossierRun(id)
+      if (currentDossier.current !== id) return
+      if (!run || !isCancellableRun(run.status)) {
+        setRetryAnalysisError('Không có lần phân tích nào đang chạy để huỷ.')
+        return
+      }
+      await cancelRun(run.runId)
+      // Hỏi lại ngay: job sang 'failed' (RUN_CANCELLED), banner báo đã huỷ.
+      if (currentDossier.current === id) recheckAnalysis()
+    } catch (cause: unknown) {
+      if (currentDossier.current === id)
+        setRetryAnalysisError(runActionErrorMessage(cause))
+    } finally {
+      if (currentDossier.current === id) setCancellingAnalysis(false)
     }
   }
   // Cây đã xem được trong lúc AI2 chạy: AI2 xong thì tải lại xung đột.
@@ -717,22 +820,32 @@ export function DossierStructurePage() {
   const {
     percent: analysisPercent,
     stalled: analysisStalled,
+    gone: analysisGone,
+    restartClock: restartAnalysisClock,
     recheck: recheckAnalysis,
   } = useAnalysisWatch(
     dossierId,
     phase === 'ready' && analysis === 'running',
     (next) => {
       const id = dossierId
-      setDetail(next)
       setAnalysisNudge(null)
       setAnalysisJustFinished(
         analysisState(next.latestJobStatus, next.latestJobErrorCode) === 'done',
       )
-      // Job dừng ở AI2: tải các bước để banner biết lỗi hay đã huỷ.
+      // Đặt các bước cùng lúc với job: nếu đặt job trước, có một lượt vẽ job
+      // 'failed' với bước cũ và banner báo nhầm "đọc tài liệu lỗi".
+      const apply = (steps: StepStatuses) => {
+        if (currentDossier.current !== id) return
+        setStepStatuses(steps)
+        setDetail(next)
+      }
       if (needsStepStatuses(next.latestJobStatus)) {
-        void loadStepStatuses(id).then((steps) => {
-          if (currentDossier.current === id) setStepStatuses(steps)
-        })
+        // Job rời 'extracted' nên OCR chắc chắn đã xong, kể cả khi lỗi mạng.
+        void loadStepStatuses(id).then((steps) =>
+          apply(stepsAfterAnalysis(steps)),
+        )
+      } else {
+        apply({})
       }
       listReviewSpots(id)
         .then((rows) => {
@@ -743,6 +856,18 @@ export function DossierStructurePage() {
         })
     },
   )
+
+  useEffect(() => {
+    if (!analysisGone) return
+    navigate(backTo, {
+      replace: true,
+      state: {
+        notice:
+          'Hồ sơ không còn mở được: đã bị xoá hoặc bạn không còn quyền xem.',
+        noticeTone: 'error',
+      },
+    })
+  }, [analysisGone, backTo, navigate])
 
   // Xung đột neo bằng trang + dòng OCR bên hợp đồng → nút cây đang chứa dòng đó.
   const anchors = useMemo(
@@ -1356,10 +1481,24 @@ export function DossierStructurePage() {
               waitingFor="Hỏi đáp, lịch sử hỏi đáp, xung đột và đồ thị quan hệ"
               onDismiss={() => setAnalysisJustFinished(false)}
               onRecheck={recheckAnalysis}
+              cancelling={cancellingAnalysis}
+              onCancel={
+                permissions.canEdit && analysis === 'running'
+                  ? () => void cancelAnalysis()
+                  : undefined
+              }
               onRetry={
                 permissions.canEdit ? () => void retryAnalysis() : undefined
               }
             />
+          ) : null}
+          {phase === 'ready' && retryAnalysisInfo ? (
+            <p
+              className="mb-space-md shrink-0 rounded-lg bg-surface-container-high px-space-md py-space-sm font-body-sm text-body-sm text-on-surface"
+              role="status"
+            >
+              {retryAnalysisInfo}
+            </p>
           ) : null}
           {phase === 'ready' && retryAnalysisError ? (
             <p

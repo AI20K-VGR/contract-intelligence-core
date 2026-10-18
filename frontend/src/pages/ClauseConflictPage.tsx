@@ -485,11 +485,18 @@ export function ClauseConflictPage() {
   const {
     percent: analysisPercent,
     stalled: analysisStalled,
+    gone: analysisGone,
     recheck: recheckAnalysis,
   } = useAnalysisWatch(dossierId, analysis === 'running', () => {
     setJustFinished(true)
     setReloadKey((key) => key + 1)
   })
+  useEffect(() => {
+    if (analysisGone)
+      setError(
+        'Hồ sơ không còn mở được: đã bị xoá hoặc bạn không còn quyền xem.',
+      )
+  }, [analysisGone])
 
   useEffect(() => {
     if (!dossierId) return

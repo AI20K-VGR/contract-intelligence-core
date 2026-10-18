@@ -1,3 +1,4 @@
+import { ApiError } from './client'
 import {
   ai2ProgressPercent,
   findLatestRunId,
@@ -41,6 +42,8 @@ export type AnalysisWatchHandlers = {
   onStalled: () => void
   /** Job rời 'extracted' (AI2 xong, lỗi hoặc bị huỷ): gọi đúng một lần. */
   onDone: (next: DossierStructure) => void
+  /** Hồ sơ không còn mở được (403/404: bị xoá hoặc bị thu quyền): đã dừng. */
+  onGone?: () => void
 }
 
 function sessionStore(): WatchStorage | null {
@@ -62,7 +65,7 @@ const browserDeps: AnalysisWatchDeps = {
   now: () => Date.now(),
 }
 
-const startedKey = (runId: string) => `ai2-watch-started:${runId}`
+const startedKey = (id: string) => `ai2-watch-started:${id}`
 
 /**
  * Theo dõi phần phân tích (AI2) của một hồ sơ đang ở 'extracted': nghe SSE
@@ -99,8 +102,9 @@ export function startAnalysisWatch(
     schedulePoll()
   }
 
-  function armStall(runId: string) {
-    runKey = startedKey(runId)
+  /** `id`: run đang theo dõi, hoặc hồ sơ khi chưa tìm được run. */
+  function armStall(id: string) {
+    runKey = startedKey(id)
     let started: number | null = null
     try {
       if (restart) storage?.removeItem(runKey)
@@ -142,7 +146,17 @@ export function startAnalysisWatch(
     try {
       const next = await deps.getDossierStructure(dossierId, controller.signal)
       if (next.latestJobStatus !== 'extracted') finish(next)
-    } catch {
+    } catch (cause) {
+      // Hồ sơ bị xoá hoặc bị thu quyền: hỏi lại cũng vô ích.
+      if (
+        !finished &&
+        cause instanceof ApiError &&
+        (cause.status === 403 || cause.status === 404)
+      ) {
+        stop()
+        handlers.onGone?.()
+        return true
+      }
       // Lỗi mạng tạm thời: lần hỏi sau thử lại.
     }
     return finished
@@ -169,6 +183,8 @@ export function startAnalysisWatch(
     }
     if (finished) return
     if (!runId) {
+      // Không có run (hoặc lỗi mạng): vẫn đếm 10 phút để còn báo khi kẹt.
+      armStall(`dossier:${dossierId}`)
       schedulePoll()
       return
     }

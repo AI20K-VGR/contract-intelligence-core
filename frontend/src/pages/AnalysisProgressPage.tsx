@@ -651,6 +651,8 @@ export function AnalysisProgressPage() {
 
   const failedLabel = cancelled ? 'Đã hủy lần xử lý' : 'Đọc tài liệu thất bại'
   const finished = ready || failed
+  // OCR xong nhưng job còn 'extracted' là AI2 đang chạy: vẫn huỷ được.
+  const cancellable = !finished || jobStatus === 'extracted'
   const runningStep = finished
     ? undefined
     : stepList.find((row) => row.status === 'running')
@@ -871,7 +873,7 @@ export function AnalysisProgressPage() {
 
       <div className="mt-gutter pt-space-md flex flex-col md:flex-row items-center justify-between gap-space-md">
         <div className="flex items-center gap-space-md">
-          {finished || !canManageRun ? null : (
+          {!cancellable || !canManageRun ? null : (
             <button
               className="font-body-sm text-body-sm text-error hover:underline flex items-center gap-space-xs disabled:opacity-60"
               disabled={busy || !dossierId}

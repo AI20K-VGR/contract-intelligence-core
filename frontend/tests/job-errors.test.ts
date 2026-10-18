@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { normalizeAi2SearchResult } from '../src/api/ai2'
+import { ApiError } from '../src/api/client'
 import {
+  analysisRetryErrorMessage,
   analysisRetryKind,
   isAi2Failure,
   isCancelledJob,
@@ -38,6 +40,25 @@ describe('analysisRetryKind (một nút "Chạy lại")', () => {
     const info = jobErrorInfo('DOSSIER_SOMETHING_NEW')
     expect(info.retry).toBe('none')
     expect(info.message).toContain('không đúng cấu trúc')
+  })
+})
+
+describe('analysisRetryErrorMessage (PR #122 review)', () => {
+  it('words a failed "Chạy lại" for analysis, not for reading documents', () => {
+    expect(analysisRetryErrorMessage(new ApiError(403, 'Forbidden'))).toBe(
+      'Bạn không có quyền chạy lại phân tích hồ sơ này.',
+    )
+    expect(analysisRetryErrorMessage(new ApiError(409, 'Conflict'))).toBe(
+      'Hồ sơ đã được chạy lại hoặc đang chạy. Đang tải lại trạng thái.',
+    )
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(analysisRetryErrorMessage(new ApiError(500, 'Internal'))).toBe(
+      'Không chạy lại được phân tích. Vui lòng thử lại.',
+    )
+    warn.mockRestore()
+    expect(analysisRetryErrorMessage(new TypeError('Failed to fetch'))).toBe(
+      'Không kết nối được máy chủ. Vui lòng kiểm tra mạng rồi thử lại.',
+    )
   })
 })
 

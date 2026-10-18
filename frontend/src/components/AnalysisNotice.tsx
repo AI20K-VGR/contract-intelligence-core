@@ -19,6 +19,8 @@ export function AnalysisNotice({
   stalled = false,
   onRecheck,
   showingPrevious = false,
+  onCancel,
+  cancelling = false,
   className = '',
 }: {
   state: AnalysisState | null
@@ -51,8 +53,21 @@ export function AnalysisNotice({
    * vẫn mở theo kết quả đó; xung đột thì không (backend chỉ trả của run hiện tại).
    */
   showingPrevious?: boolean
+  /** Có quyền huỷ: banner đang phân tích (kể cả quá 10 phút) có nút "Huỷ phân tích". */
+  onCancel?: () => void
+  cancelling?: boolean
   className?: string
 }) {
+  const cancelButton = onCancel ? (
+    <button
+      className="shrink-0 font-semibold text-error hover:underline disabled:opacity-60"
+      disabled={cancelling}
+      type="button"
+      onClick={onCancel}
+    >
+      {cancelling ? 'Đang huỷ…' : 'Huỷ phân tích'}
+    </button>
+  ) : null
   if (state === 'done') {
     if (!justFinished) return null
     return (
@@ -103,6 +118,7 @@ export function AnalysisNotice({
             Kiểm tra lại
           </button>
         ) : null}
+        {cancelButton}
       </div>
     )
   }
@@ -153,6 +169,7 @@ export function AnalysisNotice({
           />
         </span>
       ) : null}
+      {running ? cancelButton : null}
       {canRetry ? (
         <button
           className="shrink-0 font-semibold text-primary hover:underline disabled:opacity-60"

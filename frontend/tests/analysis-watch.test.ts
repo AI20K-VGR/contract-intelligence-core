@@ -6,6 +6,7 @@ import {
   startAnalysisWatch,
   type AnalysisWatchDeps,
 } from '../src/api/analysisWatch'
+import { ApiError } from '../src/api/client'
 import type { RunEvent, WatchRunHandlers } from '../src/api/runEvents'
 import type { DossierStructure } from '../src/api/structure'
 
@@ -50,6 +51,7 @@ function setup(watch: WatchImpl = openUntilClosed) {
     onPercent: vi.fn(),
     onStalled: vi.fn(),
     onDone: vi.fn(),
+    onGone: vi.fn(),
   }
   return { job, storage, deps, handlers }
 }
@@ -162,6 +164,43 @@ describe('startAnalysisWatch', () => {
     await vi.advanceTimersByTimeAsync(FALLBACK_POLL_MS)
     expect(handlers.onDone).toHaveBeenCalledTimes(1)
     expect(storage.map.has('ai2-watch-started:run_1')).toBe(false)
+  })
+
+  it('still says it is stalled after 10 minutes when no run is found', async () => {
+    const { deps, handlers } = setup()
+    vi.mocked(deps.findLatestRunId).mockResolvedValue(null)
+    startAnalysisWatch('dos_1', handlers, {}, deps)
+    await vi.advanceTimersByTimeAsync(ANALYSIS_STALL_MS)
+    expect(handlers.onStalled).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops and says the dossier is gone on 403/404', async () => {
+    const { deps, handlers } = setup(async (h) => h.onRejected(403))
+    startAnalysisWatch('dos_1', handlers, {}, deps)
+    await vi.advanceTimersByTimeAsync(0)
+    vi.mocked(deps.getDossierStructure).mockRejectedValue(
+      new ApiError(404, 'Not found'),
+    )
+    await vi.advanceTimersByTimeAsync(FALLBACK_POLL_MS)
+    expect(handlers.onGone).toHaveBeenCalledTimes(1)
+    const asked = vi.mocked(deps.getDossierStructure).mock.calls.length
+    await vi.advanceTimersByTimeAsync(STALLED_POLL_MS * 3)
+    expect(deps.getDossierStructure).toHaveBeenCalledTimes(asked)
+    expect(handlers.onDone).not.toHaveBeenCalled()
+  })
+
+  it('keeps asking after a network error', async () => {
+    const { job, deps, handlers } = setup(async (h) => h.onRejected(403))
+    startAnalysisWatch('dos_1', handlers, {}, deps)
+    await vi.advanceTimersByTimeAsync(0)
+    vi.mocked(deps.getDossierStructure).mockRejectedValueOnce(
+      new TypeError('Failed to fetch'),
+    )
+    await vi.advanceTimersByTimeAsync(FALLBACK_POLL_MS)
+    job.status = 'pending_review'
+    await vi.advanceTimersByTimeAsync(FALLBACK_POLL_MS)
+    expect(handlers.onGone).not.toHaveBeenCalled()
+    expect(handlers.onDone).toHaveBeenCalledTimes(1)
   })
 
   it('stops everything when the page leaves', async () => {

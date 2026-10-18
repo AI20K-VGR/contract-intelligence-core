@@ -48,3 +48,25 @@ describe('userErrorMessage', () => {
     warn.mockRestore()
   })
 })
+
+describe('Vietnamese check (PR #122 review)', () => {
+  it('does not take French, Greek or "×" for Vietnamese', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(userErrorMessage(new Error('café indisponible'), 'Thử lại.')).toBe(
+      'Thử lại.',
+    )
+    expect(userErrorMessage(new Error('size 2×3 rejected'), 'Thử lại.')).toBe(
+      'Thử lại.',
+    )
+    expect(userErrorMessage(new Error('Δ overflow'), 'Thử lại.')).toBe(
+      'Thử lại.',
+    )
+    warn.mockRestore()
+  })
+
+  it('keeps a sentence the backend wrote in Vietnamese', () => {
+    expect(userErrorMessage(new Error('Hồ sơ đã bị khoá.'), 'Thử lại.')).toBe(
+      'Hồ sơ đã bị khoá.',
+    )
+  })
+})

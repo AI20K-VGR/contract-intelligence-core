@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ApiError } from '../api/client'
+import { isNetworkError, NETWORK_MESSAGE } from '../api/errorMessage'
 import { openMonitoringSession } from '../api/monitoring'
 import { MaterialIcon } from '../components/icons'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -23,8 +24,8 @@ function errorMessage(error: unknown) {
     }
     return error.message
   }
-  if (error instanceof TypeError) {
-    return 'Không kết nối được máy chủ. Vui lòng kiểm tra mạng rồi thử lại.'
+  if (error instanceof TypeError || isNetworkError(error)) {
+    return NETWORK_MESSAGE
   }
   if (error instanceof Error) {
     return error.message

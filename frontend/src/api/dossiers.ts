@@ -1,5 +1,9 @@
 import { ApiError, postMultipart, requestJson } from './client'
-import { userErrorMessage } from './errorMessage'
+import {
+  isNetworkError,
+  NETWORK_MESSAGE,
+  userErrorMessage,
+} from './errorMessage'
 
 /** OpenAPI `1.1.0+sprint4-ai-integration` — POST /api/v1/dossiers */
 export type CreateDossierMetadata = {
@@ -188,8 +192,8 @@ export function splitErrorMessage(error: unknown) {
     if (error.status === 422) return `Các phần chưa hợp lệ: ${error.message}`
     return error.message
   }
-  if (error instanceof TypeError)
-    return 'Không kết nối được máy chủ. Vui lòng kiểm tra mạng rồi thử lại.'
+  if (error instanceof TypeError || isNetworkError(error))
+    return NETWORK_MESSAGE
   return 'Không tách được file. Thử lại.'
 }
 
@@ -329,21 +333,35 @@ const OCR_SERVICE_DOWN =
 
 // Thứ tự quan trọng: lỗi AI1 lồng nhau ("… unavailable: APIConnectionError: …"),
 // nên xét nguyên nhân cụ thể trước, câu chung "unavailable" sau cùng.
+// Mã HTTP chỉ tính khi đi kèm ngữ cảnh ("HTTP 401", "status 503",
+// "status_code=500"): một số trần có thể là số trang, kích thước hay id dòng.
+const HTTP_STATUS = String.raw`(?:HTTP|status(?:_code)?)\s*[:=]?\s*`
 const OCR_ERROR_RULES: [RegExp, string][] = [
-  [
-    /_API_KEY is not set|disabled in configuration|AuthenticationError|PermissionDeniedError|\b40[13]\b/i,
-    OCR_NOT_READY,
-  ],
+  // Mất kết nối và quá lâu là nguyên nhân cụ thể nhất: xét trước, kể cả khi
+  // câu lỗi có số giống mã HTTP ("page 401: ReadTimeout").
   [
     /APIConnectionError|ConnectionError|Connection error|ConnectError/i,
     'Mất kết nối khi đọc tài liệu. Vui lòng bấm "Đọc lại".',
   ],
   [/Timeout|timed? ?out/i, 'Đọc tài liệu quá lâu. Vui lòng bấm "Đọc lại".'],
   [
+    new RegExp(
+      `_API_KEY is not set|disabled in configuration|AuthenticationError|PermissionDeniedError|${HTTP_STATUS}40[13]\\b`,
+      'i',
+    ),
+    OCR_NOT_READY,
+  ],
+  [
     /RateLimitError|rate limit|\b429\b/i,
     'Hệ thống đang quá tải. Vui lòng thử lại sau ít phút.',
   ],
-  [/InternalServerError|ServiceUnavailable|\b50[023]\b/i, OCR_SERVICE_DOWN],
+  [
+    new RegExp(
+      `InternalServerError|ServiceUnavailable|${HTTP_STATUS}50[023]\\b`,
+      'i',
+    ),
+    OCR_SERVICE_DOWN,
+  ],
   [
     /not a valid PDF/i,
     'Tệp không phải PDF hợp lệ. Vui lòng kiểm tra và tải lại tệp.',
@@ -534,8 +552,8 @@ export function restartOcrErrorMessage(error: unknown) {
     if (error.status === 404) return 'Hồ sơ không có tài liệu để đọc.'
     return error.message
   }
-  if (error instanceof TypeError)
-    return 'Không kết nối được máy chủ. Vui lòng kiểm tra mạng rồi thử lại.'
+  if (error instanceof TypeError || isNetworkError(error))
+    return NETWORK_MESSAGE
   if (error instanceof Error && error.message) return error.message
   return 'Không đọc lại được tài liệu. Thử lại.'
 }

@@ -18,6 +18,7 @@ export function useAnalysisWatch(
   })
   const [percent, setPercent] = useState<number | null>(null)
   const [stalled, setStalled] = useState(false)
+  const [gone, setGone] = useState(false)
   const [watchKey, setWatchKey] = useState(0)
   // "Kiểm tra lại" đặt lại mốc 10 phút; lần theo dõi thường thì tính tiếp mốc cũ.
   const restartNext = useRef(false)
@@ -29,6 +30,7 @@ export function useAnalysisWatch(
       return
     }
     setStalled(false)
+    setGone(false)
     const restart = restartNext.current
     restartNext.current = false
     return startAnalysisWatch(
@@ -37,6 +39,7 @@ export function useAnalysisWatch(
         onPercent: setPercent,
         onStalled: () => setStalled(true),
         onDone: (next) => latest.current(next),
+        onGone: () => setGone(true),
       },
       { restart },
     )
@@ -46,6 +49,15 @@ export function useAnalysisWatch(
     percent,
     /** Quá 10 phút mà AI2 chưa xong: SSE đã đóng, vẫn hỏi lại 60 giây một lần. */
     stalled,
+    /** Hồ sơ không còn mở được (403/404): đã ngừng theo dõi. */
+    gone,
+    /**
+     * Lần theo dõi tới tính mốc 10 phút từ đầu. Gọi khi bấm "Chạy lại":
+     * /ai2/retry dùng lại run cũ, nên mốc cũ của run đó không còn đúng.
+     */
+    restartClock: () => {
+      restartNext.current = true
+    },
     /** Hỏi lại ngay, nối lại SSE và tính lại mốc 10 phút (nút "Kiểm tra lại"). */
     recheck: () => {
       restartNext.current = true

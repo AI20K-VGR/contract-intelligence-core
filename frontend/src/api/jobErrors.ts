@@ -1,3 +1,10 @@
+import { ApiError } from './client'
+import {
+  isNetworkError,
+  NETWORK_MESSAGE,
+  userErrorMessage,
+} from './errorMessage'
+
 // Mã lỗi backend gắn vào run/job (xem events_router.py và contract_router.py).
 // Lỗi tạm thì chạy lại được; lỗi vĩnh viễn thì chỉ báo.
 export type JobRetryKind = 'ai2' | 'ocr' | 'none'
@@ -112,4 +119,23 @@ export function analysisRetryKind(
   if (AI2_RETRYABLE.has(normalized)) return 'ai2'
   if (normalized.startsWith('DOSSIER_') || PERMANENT[normalized]) return 'none'
   return 'reprocess'
+}
+
+/**
+ * Câu báo khi nút "Chạy lại" phân tích không gửi được. 409: người khác (hoặc
+ * tab khác) đã chạy lại trước, trang cần tải lại trạng thái.
+ */
+export function analysisRetryErrorMessage(cause: unknown) {
+  if (cause instanceof ApiError) {
+    if (cause.status === 403)
+      return 'Bạn không có quyền chạy lại phân tích hồ sơ này.'
+    if (cause.status === 409)
+      return 'Hồ sơ đã được chạy lại hoặc đang chạy. Đang tải lại trạng thái.'
+  }
+  if (cause instanceof TypeError || isNetworkError(cause))
+    return NETWORK_MESSAGE
+  return userErrorMessage(
+    cause,
+    'Không chạy lại được phân tích. Vui lòng thử lại.',
+  )
 }

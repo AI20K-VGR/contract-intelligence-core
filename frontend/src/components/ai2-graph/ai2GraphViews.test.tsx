@@ -169,10 +169,10 @@ describe('AI2 graph accessible views', () => {
     const operation = renderToStaticMarkup(
       <ProcessingTimeline trace={both} graphKind="operation" />,
     )
-    expect(pair).toContain('Tìm quan hệ giữa các điều khoản')
-    expect(pair).not.toContain('Tìm quan hệ điều khoản sửa đổi')
-    expect(operation).toContain('Tìm quan hệ điều khoản sửa đổi')
-    expect(operation).not.toContain('Tìm quan hệ giữa các điều khoản')
+    expect(pair).toContain('Phân tích quan hệ giữa các điều khoản')
+    expect(pair).not.toContain('Nối điều khoản sửa đổi với điều khoản gốc')
+    expect(operation).toContain('Nối điều khoản sửa đổi với điều khoản gốc')
+    expect(operation).not.toContain('Phân tích quan hệ giữa các điều khoản')
   })
 
   it('names the extraction and semantic stages and keeps them off both graph tabs', () => {

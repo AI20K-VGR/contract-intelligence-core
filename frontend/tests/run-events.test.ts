@@ -47,6 +47,20 @@ describe('OCR and AI2 steps', () => {
     ).toBe(41)
   })
 
+  it('never gives NaN or more than a step for bad progress (PR #122 review)', () => {
+    expect(
+      ai2ProgressPercent({
+        S4: runStep('S4', 'running', { done: 0, total: 0, unit: 'clause' }),
+      }),
+    ).toBe(0)
+    // done vượt total: tính tối đa một bước (1/6 = 16%).
+    expect(
+      ai2ProgressPercent({
+        S4: runStep('S4', 'running', { done: 12, total: 10, unit: 'clause' }),
+      }),
+    ).toBe(16)
+  })
+
   it('stays under 100 until the run itself is finished', () => {
     const all = Object.fromEntries(
       ['S4', 'S5', 'S6', 'S7', 'S9', 'S10'].map((code) => [

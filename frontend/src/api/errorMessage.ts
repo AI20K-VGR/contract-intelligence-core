@@ -13,8 +13,10 @@ export const LOGIN_NETWORK_MESSAGE =
 const NETWORK_ERROR =
   /failed to fetch|networkerror|load failed|network request failed/i
 
-// Có dấu tiếng Việt thì coi là câu đã viết cho người dùng (BE, kiểm tra ở FE).
-const VIETNAMESE = /[À-ỹ]/
+// Có chữ riêng của tiếng Việt thì coi là câu đã viết cho người dùng (BE, kiểm
+// tra ở FE): ă đ ĩ ũ ơ ư và khối chữ có dấu tiếng Việt (U+1EA0–U+1EF9). Không
+// dùng cả khoảng À–ỹ, vì khoảng đó gồm chữ Pháp ("café"), Hy Lạp, Cyrillic và ×.
+const VIETNAMESE = /[ăđĩũơưĂĐĨŨƠƯ\u1EA0-\u1EF9]/
 
 export function isNetworkError(cause: unknown) {
   return cause instanceof Error && NETWORK_ERROR.test(cause.message)

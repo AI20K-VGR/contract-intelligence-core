@@ -289,21 +289,32 @@ export const OCR_RUN_STEPS = OCR_RUN_STEP_ORDER.map((code) => ({
 }))
 
 /**
- * Trạng thái các bước của run mới nhất ({} khi chưa có run hoặc lỗi mạng),
- * để `analysisState` biết job dừng ở OCR hay ở AI2.
+ * Trạng thái các bước của run mới nhất, để `analysisState` biết job dừng ở OCR
+ * hay ở AI2. {} khi chưa có run; null khi không tải được (lỗi mạng...): khi đó
+ * trang không được kết luận là "không phải lỗi AI2", mà phải khoá phần AI2.
  */
 export async function loadStepStatuses(
   dossierId: string,
   signal?: AbortSignal,
-): Promise<Record<string, RunStep>> {
+): Promise<Record<string, RunStep> | null> {
   try {
     const runId = await findLatestRunId(dossierId, signal)
     if (!runId) return {}
     const rows = await listRunSteps(runId, signal)
     return Object.fromEntries(rows.map((row) => [row.step, row]))
   } catch {
-    return {}
+    return null
   }
+}
+
+/**
+ * Job vừa rời 'extracted' thì OCR chắc chắn đã xong (S8 xong), kể cả khi chưa
+ * tải được các bước: dùng khi AI2 kết thúc lúc trang đang mở.
+ */
+export function stepsAfterAnalysis(
+  steps: Record<string, { status: string }> | null,
+): Record<string, { status: string }> {
+  return { ...(steps ?? {}), S8: steps?.S8 ?? { status: 'succeeded' } }
 }
 
 /**
@@ -319,8 +330,8 @@ export function ai2ProgressPercent(steps: Record<string, RunStep>) {
     (sum, row) =>
       row.status === 'succeeded'
         ? sum + 1
-        : row.status === 'running' && row.progress
-          ? sum + row.progress.done / row.progress.total
+        : row.status === 'running' && row.progress && row.progress.total > 0
+          ? sum + Math.min(1, row.progress.done / row.progress.total)
           : sum,
     0,
   )

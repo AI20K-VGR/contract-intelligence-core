@@ -1,5 +1,9 @@
 import { ApiError, requestJson } from './client'
-import { userErrorMessage } from './errorMessage'
+import {
+  isNetworkError,
+  NETWORK_MESSAGE,
+  userErrorMessage,
+} from './errorMessage'
 
 export type ReOcrProfile =
   'high_res_binarize' | 'table_optimized' | 'handwritten_vietnamese'
@@ -106,7 +110,7 @@ export function reOcrErrorMessage(error: unknown) {
     }
     return error.message
   }
-  if (error instanceof TypeError)
-    return 'Không kết nối được máy chủ. Vui lòng kiểm tra mạng rồi thử lại.'
+  if (error instanceof TypeError || isNetworkError(error))
+    return NETWORK_MESSAGE
   return 'Không gửi được yêu cầu đọc lại. Thử lại.'
 }

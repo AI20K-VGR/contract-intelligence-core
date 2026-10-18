@@ -7,11 +7,12 @@ import { MaterialIcon } from '../icons'
 import { TechnicalDetail } from '../TechnicalDetail'
 import { processingTimelineOutcome, stageReasonText } from './timelineOutcome'
 
+// Cùng bộ nhãn với #125 (merge sau PR này): #125 chỉ cần bỏ bản của nó.
 const stageLabels: Record<string, string> = {
-  contract_graph_operation: 'Tìm quan hệ điều khoản sửa đổi',
-  contract_graph_pairs: 'Tìm quan hệ giữa các điều khoản',
-  extraction: 'Trích xuất dữ kiện',
-  semantic: 'Phân tích ngữ nghĩa',
+  extraction: 'Trích xuất dữ kiện từ điều khoản',
+  semantic: 'Phân tích ngữ nghĩa điều khoản',
+  contract_graph_operation: 'Nối điều khoản sửa đổi với điều khoản gốc',
+  contract_graph_pairs: 'Phân tích quan hệ giữa các điều khoản',
 }
 
 // Đơn vị kết quả của từng bước, để "0 mục" thành "Không tìm thấy quan hệ nào".

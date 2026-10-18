@@ -5,6 +5,7 @@ import {
   type StructureMode,
 } from '../structure/types'
 import { ApiError, apiFetch, getJson, requestJson } from './client'
+import { isNetworkError, NETWORK_MESSAGE } from './errorMessage'
 import { patchDossier } from './dossiers'
 import { isAi2Failure, isCancelledJob, type StepStatuses } from './jobErrors'
 import {
@@ -787,8 +788,8 @@ export function structureErrorMessage(error: unknown) {
     if (error.status === 404) return 'Không tìm thấy hồ sơ hoặc cây điều khoản.'
     return error.message
   }
-  if (error instanceof TypeError) {
-    return 'Không kết nối được máy chủ. Vui lòng kiểm tra mạng rồi thử lại.'
+  if (error instanceof TypeError || isNetworkError(error)) {
+    return NETWORK_MESSAGE
   }
   if (error instanceof Error && error.message) return error.message
   return 'Không tải được cấu trúc hợp đồng. Thử lại.'

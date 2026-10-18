@@ -102,3 +102,38 @@ describe('AnalysisNotice', () => {
     expect(html).not.toContain(RETRY_BUTTON)
   })
 })
+
+describe('AnalysisNotice cancel (PR #122 review)', () => {
+  it('offers "Huỷ phân tích" while running and while stalled', () => {
+    for (const stalled of [false, true]) {
+      const html = renderToStaticMarkup(
+        <AnalysisNotice
+          stalled={stalled}
+          state="running"
+          waitingFor="Hỏi đáp"
+          onCancel={() => {}}
+          onRecheck={() => {}}
+        />,
+      )
+      expect(html).toContain('Huỷ phân tích')
+    }
+  })
+
+  it('has no cancel button once stopped or without the right', () => {
+    expect(
+      renderToStaticMarkup(
+        <AnalysisNotice
+          errorCode="AI2_TIMEOUT"
+          state="failed"
+          waitingFor="Hỏi đáp"
+          onCancel={() => {}}
+        />,
+      ),
+    ).not.toContain('Huỷ phân tích')
+    expect(
+      renderToStaticMarkup(
+        <AnalysisNotice state="running" waitingFor="Hỏi đáp" />,
+      ),
+    ).not.toContain('Huỷ phân tích')
+  })
+})
