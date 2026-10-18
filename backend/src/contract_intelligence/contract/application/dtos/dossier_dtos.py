@@ -40,6 +40,33 @@ class MyAccessDTO(BaseModel):
     can_approve: bool = False
 
 
+class DocumentCountsDTO(BaseModel):
+    """Documents of a dossier by role."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    contracts: int = 0
+    annexes: int = 0
+
+
+class ContractOcrSummaryDTO(BaseModel):
+    """OCR state of the dossier's first contract (else first document).
+
+    Gives the list screen what it used to read from ``/documents`` and
+    ``/documents/{id}/pages`` per dossier. A page counts as failed when its
+    ``ai1_page_status`` is ``FAILED`` or it carries an error; ``first_error``
+    is that page's raw error (capped at 500 characters).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: str
+    filename: str | None = None
+    page_count: int = 0
+    failed_pages: int = 0
+    first_error: str | None = None
+
+
 class DossierSummaryDTO(BaseModel):
     """Lightweight dossier projection for list endpoints (openapi.yaml: DossierSummary)."""
 
@@ -58,6 +85,10 @@ class DossierSummaryDTO(BaseModel):
     my_access: MyAccessDTO | None = None
     metadata: dict[str, Any] | None = None
     created_at: datetime
+    # Null when the caller may not read the dossier's documents.
+    document_counts: DocumentCountsDTO | None = None
+    # Null when the dossier has no document yet or the caller may not read it.
+    contract_ocr: ContractOcrSummaryDTO | None = None
 
     @classmethod
     def from_domain(

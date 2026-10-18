@@ -207,6 +207,17 @@ class TestListDossiers:
         assert items == []
         assert total == 0
 
+    async def test_hydrates_latest_jobs_of_the_page(
+        self,
+        contract_service: ContractService,
+    ) -> None:
+        a = await contract_service.create_dossier(name="A", batch_id=None)
+        b = await contract_service.create_dossier(name="B", batch_id=None)
+        a.jobs, b.jobs = [], []  # as read back from the database
+        items, _ = await contract_service.list_dossiers(limit=10, offset=0)
+        assert {d.id: d.latest_job().dossier_id for d in items} == {a.id: a.id, b.id: b.id}
+        assert await contract_service.document_summaries([]) == {}
+
     async def test_returns_all_dossiers(
         self,
         contract_service: ContractService,

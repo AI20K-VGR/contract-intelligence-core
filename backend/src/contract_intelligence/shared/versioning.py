@@ -59,7 +59,8 @@ __version__ = "2.0.0"
 # v3.1.0: bật consent AI2 tự reindex hồ sơ đã qua AI2; consent trả thêm ai2_reindex_queued.
 # v3.2.0: progress {done,total,unit} trên /runs/{id}/steps và SSE step.changed;
 #         mã lỗi AI1_NO_READABLE_PAGE khi AI1 không đọc được trang nào.
-__api_contract__ = "v3.2.0"
+# v3.3.0: GET /dossiers thêm document_counts, contract_ocr; header Server-Timing.
+__api_contract__ = "v3.3.0"
 
 # AI service contract version (DOC-05c) — wrap khi AI service sẵn sàng
 __ai_contract__ = "v1.0.0"
