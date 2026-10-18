@@ -21,6 +21,7 @@ import {
 import { useAuth } from '../auth/useAuth'
 import { validateWorkEmail } from '../auth/session'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
+import { userErrorMessage } from '../api/errorMessage'
 
 const PAGE_SIZE = 20
 
@@ -359,7 +360,7 @@ export function UsersPage() {
                       </p>
                       <p className="font-body-sm text-body-sm text-secondary max-w-md">
                         {error
-                          ? 'Form tạo user vẫn mở được. Danh sách hiện khi backend có API quản lý người dùng.'
+                          ? 'Vẫn tạo được người dùng mới. Danh sách sẽ hiện khi chức năng này sẵn sàng.'
                           : 'Tạo người dùng để gửi email đặt mật khẩu.'}
                       </p>
                     </div>
@@ -663,7 +664,7 @@ function CreateUserDialog({
       normalized = validateWorkEmail(email)
     } catch (err) {
       setNameError(null)
-      setFieldError(err instanceof Error ? err.message : 'Email không hợp lệ.')
+      setFieldError(userErrorMessage(err, 'Email không hợp lệ.'))
       return
     }
     const nameField = event.currentTarget.elements.namedItem('displayName')

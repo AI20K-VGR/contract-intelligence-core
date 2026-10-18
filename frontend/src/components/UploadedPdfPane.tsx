@@ -7,6 +7,7 @@ import {
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { loadDocumentPdf } from '../api/structure'
 import { MaterialIcon } from './icons'
+import { userErrorMessage } from '../api/errorMessage'
 
 GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -78,9 +79,7 @@ export function UploadedPdfPane({
       })
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return
-        setError(
-          cause instanceof Error ? cause.message : 'Không tải được file PDF.',
-        )
+        setError(userErrorMessage(cause, 'Không tải được file PDF.'))
       })
 
     return () => {

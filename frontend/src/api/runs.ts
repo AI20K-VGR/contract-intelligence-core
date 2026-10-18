@@ -1,4 +1,5 @@
 import { ApiError, apiFetch, requestJson } from './client'
+import { isNetworkError, NETWORK_MESSAGE } from './errorMessage'
 
 export type DossierRun = {
   runId: string
@@ -222,7 +223,8 @@ export function runActionErrorMessage(error: unknown) {
     }
     return error.message
   }
-  if (error instanceof TypeError) return 'Không kết nối được backend.'
+  if (error instanceof TypeError || isNetworkError(error))
+    return NETWORK_MESSAGE
   return 'Không thực hiện được. Thử lại.'
 }
 

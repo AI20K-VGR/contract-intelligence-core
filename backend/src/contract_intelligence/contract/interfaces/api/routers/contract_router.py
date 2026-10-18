@@ -62,6 +62,8 @@ from contract_intelligence.contract.application.dtos.document_dtos import (
     DocumentListItemDTO,
 )
 from contract_intelligence.contract.application.dtos.dossier_dtos import (
+    ContractOcrSummaryDTO,
+    DocumentCountsDTO,
     DossierCreatedDTO,
     DossierDetailDTO,
     DossierSummaryDTO,
@@ -287,6 +289,28 @@ async def _require_readable(
     return dossier
 
 
+def _may(dossier: Any, user: AuthenticatedUser, action: AclAction) -> bool:
+    return bool(
+        dossier_access_decision(
+            action=action,
+            principal=user,
+            dossier_id=dossier.id,
+            dossier_tenant_id=getattr(dossier, "tenant_id", user.tenant_id),
+            metadata=dossier.metadata,
+        )
+    )
+
+
+def _may_read_documents(dossier: Any, user: AuthenticatedUser) -> bool:
+    """Whether ``user`` may list this dossier's documents (see ``list_dossier_documents``)."""
+    return _may(dossier, user, AclAction.CITATION_READ)
+
+
+def _may_read_pages(dossier: Any, user: AuthenticatedUser) -> bool:
+    """Whether ``user`` may read the pages behind ``contract_ocr`` (``acl_document``: QUERY)."""
+    return _may(dossier, user, AclAction.QUERY)
+
+
 _DossierDTO = TypeVar("_DossierDTO", DossierSummaryDTO, DossierDetailDTO)
 
 
@@ -311,7 +335,7 @@ def _for_viewer(dto: _DossierDTO, user: AuthenticatedUser) -> _DossierDTO:
 
 async def _dossier_detail(svc: Any, dossier: Any, user: AuthenticatedUser) -> DossierDetailDTO:
     """Detail DTO with documents, latest job and open review / conflict counts."""
-    documents = await svc.list_documents(dossier.id)
+    documents = await svc.list_documents(dossier.id, dossier_loaded=True)
     open_review_items, pending_conflicts = await svc.review_counts(dossier.id)
     locked, approved_at = (await svc.lifecycle([dossier.id])).get(dossier.id, (False, None))
     latest = dossier.latest_job()
@@ -751,7 +775,7 @@ async def restart_dossier_ocr(
     của nó bị bỏ và các trang bị OCR (và trả tiền) lần nữa.
     """
     dossier = await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_EDIT)
-    documents = await svc.list_documents(dossier_id)
+    documents = await svc.list_documents(dossier_id, dossier_loaded=True)
     if not documents:
         raise HTTPException(status_code=404, detail="Dossier has no document to OCR")
     job = dossier.latest_job()
@@ -881,7 +905,9 @@ async def split_dossier_document(
     if source.dossier_id != dossier_id or not source.blob_uri:
         raise HTTPException(status_code=404, detail="Document not found in this dossier")
     problem = _check_split_parts(body.parts, int(source.page_count or 0))
-    others = [d for d in await svc.list_documents(dossier_id) if d.id != source.id]
+    others = [
+        d for d in await svc.list_documents(dossier_id, dossier_loaded=True) if d.id != source.id
+    ]
     if problem is not None:
         raise HTTPException(status_code=422, detail=problem)
     document_count = len(others) + len(body.parts)
@@ -1119,21 +1145,35 @@ async def list_dossiers(
         offset=offset,
     )
     lifecycle = await svc.lifecycle([d.id for d in items])
+    # Documents and contract OCR state for the whole page, so the list screen
+    # needs no per-dossier /documents and /pages calls. Counts use the ACL of
+    # /documents (CITATION_READ), contract_ocr the ACL of /pages (QUERY): a
+    # grant can name its actions, so one may be allowed without the other.
+    document_readable = {d.id for d in items if _may_read_documents(d, user)}
+    pages_readable = {d.id for d in items if _may_read_pages(d, user)}
+    documents = await svc.document_summaries([d.id for d in items if d.id in document_readable])
     summaries: list[DossierSummaryDTO] = []
     for d in items:
         latest = d.latest_job()
         locked, approved_at = lifecycle.get(d.id, (False, None))
-        summaries.append(
-            _for_viewer(
-                DossierSummaryDTO.from_domain(
-                    d,
-                    latest_job_status=latest.status if latest else None,
-                    locked=locked,
-                    approved_at=approved_at,
-                ),
-                user,
-            )
+        dto = DossierSummaryDTO.from_domain(
+            d,
+            latest_job_status=latest.status if latest else None,
+            locked=locked,
+            approved_at=approved_at,
         )
+        if d.id in document_readable:
+            doc = documents.get(d.id) or {}
+            ocr = doc.get("contract_ocr") if d.id in pages_readable else None
+            dto = dto.model_copy(
+                update={
+                    "document_counts": DocumentCountsDTO(
+                        contracts=doc.get("contracts", 0), annexes=doc.get("annexes", 0)
+                    ),
+                    "contract_ocr": ContractOcrSummaryDTO(**ocr) if ocr else None,
+                }
+            )
+        summaries.append(_for_viewer(dto, user))
     return ApiResponse(
         data=summaries,
         meta=ApiMeta(
@@ -1962,7 +2002,7 @@ async def list_dossier_documents(
     """Danh sách toàn bộ văn bản trong dossier (contract + annexes)."""
     # Verify dossier exists for proper 404 semantics
     await _require_readable(svc, dossier_id, _user, action=AclAction.CITATION_READ)
-    documents = await svc.list_documents(dossier_id)
+    documents = await svc.list_documents(dossier_id, dossier_loaded=True)
     return ApiResponse(data=[DocumentListItemDTO.from_domain(d) for d in documents])
 
 

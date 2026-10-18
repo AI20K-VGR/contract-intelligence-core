@@ -168,7 +168,7 @@ export function ClauseTree({
   if (nodes.length === 0) {
     return (
       <p className="font-body-sm text-body-sm text-on-surface-variant">
-        OCR đã xong, nhưng tài liệu chưa có nút cấu trúc.
+        Đã đọc xong, nhưng tài liệu chưa có nút cấu trúc.
       </p>
     )
   }

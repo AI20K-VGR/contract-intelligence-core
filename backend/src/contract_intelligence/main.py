@@ -104,6 +104,7 @@ from contract_intelligence.shared.run_events import (
     get_run_event_broker,
     listen_dsn,
 )
+from contract_intelligence.shared.server_timing import ServerTimingMiddleware
 from contract_intelligence.shared.versioning import full_version
 
 logger = get_logger(__name__)
@@ -311,6 +312,11 @@ def create_app() -> FastAPI:
 
     # Prometheus HTTP metrics (route template labels only).
     app.add_middleware(HttpMetricsMiddleware)
+
+    # Server-Timing (app + SQL time per request). Added last = outermost, so
+    # it covers the other middlewares too.
+    if settings.server_timing_enabled:
+        app.add_middleware(ServerTimingMiddleware, allow_origins=settings.cors_allow_origins)
 
     # Exception handlers
     @app.exception_handler(DomainException)

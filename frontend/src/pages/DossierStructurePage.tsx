@@ -22,6 +22,8 @@ import {
   type ContractGraphKind,
 } from '../api/contractGraph'
 import {
+  analysisState,
+  needsStepStatuses,
   contractDocument,
   getDossierStructure,
   listDocumentTables,
@@ -37,9 +39,24 @@ import {
   type DossierStructure,
   type ReviewSpot,
 } from '../api/structure'
+import { retryDossierFailed } from '../api/dossiers'
+import {
+  analysisRetryErrorMessage,
+  analysisRetryKind,
+  type StepStatuses,
+} from '../api/jobErrors'
+import { loadStepStatuses, stepsAfterAnalysis } from '../api/runEvents'
+import {
+  cancelRun,
+  isCancellableRun,
+  latestDossierRun,
+  reprocessDossier,
+  runActionErrorMessage,
+} from '../api/runs'
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { useDossierPermissions } from '../auth/dossierPermissions'
+import { AnalysisNotice } from '../components/AnalysisNotice'
 import { CitationPane } from '../components/CitationPane'
 import { ConflictNotice } from '../components/ConflictNotice'
 import { UploadedPdfPane } from '../components/UploadedPdfPane'
@@ -65,6 +82,7 @@ import {
   usePageBreadcrumb,
   usePageTitle,
 } from '../hooks/usePageTitle'
+import { useAnalysisWatch } from '../hooks/useAnalysisWatch'
 import { useCompactSidebar } from '../hooks/useSidebar'
 import {
   buildStructureTree,
@@ -147,7 +165,7 @@ import {
   conflictMarkers,
   openConflictCount,
 } from '../structure/conflictAnchors'
-import { conflictPagePath } from '../data/dossiers'
+import { conflictPagePath, progressPath } from '../data/dossiers'
 
 type Phase = 'loading' | 'ocr' | 'ready' | 'failed' | 'error'
 
@@ -214,6 +232,12 @@ export function DossierStructurePage() {
   const { dossierId = '' } = useParams()
   const permissions = useDossierPermissions(dossierId)
   const location = useLocation()
+  // State điều hướng (trích dẫn đang mở, chế độ cây) chỉ đọc lúc tải hồ sơ:
+  // state đổi sau đó không được làm trang tải lại cả hồ sơ.
+  const locationState = useRef(location.state)
+  useEffect(() => {
+    locationState.current = location.state
+  })
   const navigate = useNavigate()
   const { user } = useAuth()
   const backTo = user ? dossiersPath(user.role) : '/'
@@ -221,6 +245,21 @@ export function DossierStructurePage() {
   const [attempt, setAttempt] = useState(0)
   const [phase, setPhase] = useState<Phase>('loading')
   const [detail, setDetail] = useState<DossierStructure | null>(null)
+  // Trạng thái các bước của run, chỉ tải khi job đã dừng: để biết dừng ở OCR hay AI2.
+  const [stepStatuses, setStepStatuses] = useState<StepStatuses>({})
+  // Hồ sơ đang mở: kết quả về muộn của hồ sơ cũ (đã chuyển trang) bị bỏ.
+  const currentDossier = useRef(dossierId)
+  useEffect(() => {
+    currentDossier.current = dossierId
+  }, [dossierId])
+  // Việc chạy nền (chờ AI2 mở lại sau "Chạy lại") dừng khi rời trang.
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
   const [filename, setFilename] = useState<string | null>(null)
   const [documentId, setDocumentId] = useState<string | null>(null)
   const [citeId, setCiteId] = useState<string | null>(null)
@@ -242,8 +281,12 @@ export function DossierStructurePage() {
 
   const [showAi2Graph, setShowAi2Graph] = useState(false)
   const [ai2GraphKind, setAi2GraphKind] = useState<ContractGraphKind>('pair')
-  const [graphClauses, setGraphClauses] = useState<Record<string, ClauseNode[]>>({})
-  const [graphLines, setGraphLines] = useState<Record<string, { id: string; pageNo: number; text: string }[]>>({})
+  const [graphClauses, setGraphClauses] = useState<
+    Record<string, ClauseNode[]>
+  >({})
+  const [graphLines, setGraphLines] = useState<
+    Record<string, { id: string; pageNo: number; text: string }[]>
+  >({})
   const [ai2Citation, setAi2Citation] = useState<Record<
     string,
     unknown
@@ -301,17 +344,26 @@ export function DossierStructurePage() {
         return [
           document.id,
           {
-            lines: documentLines.status === 'fulfilled'
-              ? documentLines.value.map(({ id, pageNo, text }) => ({ id, pageNo, text }))
-              : [],
+            lines:
+              documentLines.status === 'fulfilled'
+                ? documentLines.value.map(({ id, pageNo, text }) => ({
+                    id,
+                    pageNo,
+                    text,
+                  }))
+                : [],
             clauses: clauses.status === 'fulfilled' ? clauses.value : [],
           },
         ] as const
       }),
     ).then((entries) => {
       if (!cancelled) {
-        setGraphClauses(Object.fromEntries(entries.map(([id, value]) => [id, value.clauses])))
-        setGraphLines(Object.fromEntries(entries.map(([id, value]) => [id, value.lines])))
+        setGraphClauses(
+          Object.fromEntries(entries.map(([id, value]) => [id, value.clauses])),
+        )
+        setGraphLines(
+          Object.fromEntries(entries.map(([id, value]) => [id, value.lines])),
+        )
       }
     })
     return () => {
@@ -402,6 +454,10 @@ export function DossierStructurePage() {
     event.preventDefault()
     const question = query.trim()
     if (!dossierId || !question || searching) return
+    if (ai2Locked) {
+      remindAnalysis('Hỏi đáp')
+      return
+    }
     const run = ++searchRun.current
     setSearching(true)
     setSearchError(null)
@@ -486,21 +542,43 @@ export function DossierStructurePage() {
       try {
         const next = await getDossierStructure(dossierId, controller.signal)
         if (stopped) return
+        // Job dừng: cần các bước để biết dừng ở OCR hay ở AI2 (analysisState).
+        const steps = needsStepStatuses(next.latestJobStatus)
+          ? await loadStepStatuses(dossierId, controller.signal)
+          : {}
+        if (stopped) return
+        if (steps === null) {
+          // Không tải được các bước: chưa biết dừng ở OCR hay AI2, nên chưa
+          // kết luận (không báo nhầm "đọc tài liệu lỗi"), hỏi lại sau.
+          timer = window.setTimeout(() => {
+            void tick()
+          }, 5000)
+          return
+        }
         setDetail(next)
+        setStepStatuses(steps)
         setMode((current) => current ?? next.structureMode)
         setError(null)
-        if (next.latestJobStatus === 'failed') {
+        // AI2 lỗi hoặc bị huỷ sau khi OCR xong: cây vẫn có, chỉ phần phân tích dừng.
+        const nextAnalysis = analysisState(
+          next.latestJobStatus,
+          next.latestJobErrorCode,
+          steps,
+        )
+        const afterOcr =
+          nextAnalysis === 'failed' || nextAnalysis === 'cancelled'
+        if (needsStepStatuses(next.latestJobStatus) && !afterOcr) {
           setPhase('failed')
           return
         }
-        if (!isOcrComplete(next.latestJobStatus)) {
+        if (!isOcrComplete(next.latestJobStatus) && !afterOcr) {
           setPhase('ocr')
           timer = window.setTimeout(() => {
             void tick()
           }, 2000)
           return
         }
-        const focusedCitation = readFocusedCitation(location.state)
+        const focusedCitation = readFocusedCitation(locationState.current)
         const document =
           (focusedCitation?.hit.sourceFileId
             ? next.documents.find(
@@ -532,7 +610,7 @@ export function DossierStructurePage() {
           // from the actual OCR/table payload instead of forcing numbered.
           if (
             !next.structureMode &&
-            stateStructureMode(location.state) === null
+            stateStructureMode(locationState.current) === null
           ) {
             let hasTables = false
             if (buildStructureTree(ocrLines, 'numbered').length === 0) {
@@ -590,6 +668,207 @@ export function DossierStructurePage() {
     }
   }, [attempt, backTo, dossierId, navigate])
 
+  const analysis = detail
+    ? analysisState(
+        detail.latestJobStatus,
+        detail.latestJobErrorCode,
+        stepStatuses,
+      )
+    : null
+  const analysisStopped = analysis === 'failed' || analysis === 'cancelled'
+  // Hỏi đáp, lịch sử hỏi đáp, xung đột và đồ thị dùng kết quả AI2: khoá tới khi
+  // AI2 xong. Bấm vào thì banner nháy lên, nói rõ phần đó đang chờ.
+  // "Chạy lại toàn bộ" tạo run mới; AI2 lỗi ở run đó thì đồ thị và hỏi đáp vẫn
+  // dùng được kết quả lần trước (backend giữ ai2_job_id và snapshot của lần
+  // thành công). Xung đột thì không: backend chỉ trả xung đột của run hiện tại,
+  // nên trang đối soát sẽ rỗng và dễ hiểu nhầm là không có mâu thuẫn.
+  // (Bật consent chạy lại AI2 mà lỗi không đổi job sang 'failed', #105.)
+  // Huỷ trong lúc AI2 chạy ('cancelled') khoá giống như lỗi.
+  const previousAi2 = Boolean(detail?.ai2JobId)
+  const ai2Locked = analysis === 'running' || (analysisStopped && !previousAi2)
+  const conflictsLocked = analysis === 'running' || analysisStopped
+  const [analysisNudge, setAnalysisNudge] = useState<{
+    label: string
+    at: number
+  } | null>(null)
+  function remindAnalysis(label: string) {
+    setAnalysisNudge({ label, at: Date.now() })
+  }
+  const [retryingAnalysis, setRetryingAnalysis] = useState(false)
+  const [retryAnalysisError, setRetryAnalysisError] = useState<string | null>(
+    null,
+  )
+  const [retryAnalysisInfo, setRetryAnalysisInfo] = useState<string | null>(
+    null,
+  )
+  const [cancellingAnalysis, setCancellingAnalysis] = useState(false)
+  // Đổi hồ sơ (cùng trang): bỏ thông báo và trạng thái nút của hồ sơ trước.
+  useEffect(() => {
+    setAnalysisJustFinished(false)
+    setAnalysisNudge(null)
+    setRetryAnalysisError(null)
+    setRetryAnalysisInfo(null)
+    setRetryingAnalysis(false)
+    setCancellingAnalysis(false)
+  }, [dossierId])
+  /**
+   * /ai2/retry trả 202 rồi worker mới mở lại job sang 'extracted'. Hỏi lại tới
+   * khi job rời 'failed' (true), hết lượt (false), hoặc đã rời hồ sơ (null).
+   */
+  async function waitForAnalysisReopen(
+    id: string,
+    tries: number,
+    delayMs: number,
+  ): Promise<boolean | null> {
+    for (let n = 0; n < tries; n += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, delayMs))
+      if (!mounted.current || currentDossier.current !== id) return null
+      let next: DossierStructure
+      try {
+        next = await getDossierStructure(id)
+      } catch {
+        continue
+      }
+      if (!mounted.current || currentDossier.current !== id) return null
+      if (next.latestJobStatus !== 'failed') {
+        setRetryAnalysisInfo(null)
+        setStepStatuses({})
+        setDetail(next)
+        return true
+      }
+    }
+    return false
+  }
+  // Một nút "Chạy lại": lỗi tạm của AI2 chỉ phân tích lại; huỷ thì chạy tiếp,
+  // giữ phần OCR đã đọc; lỗi AI2 khác thì chạy lại toàn bộ (đọc lại tài liệu).
+  async function retryAnalysis() {
+    if (retryingAnalysis) return
+    const kind = analysisRetryKind(analysis, detail?.latestJobErrorCode)
+    if (kind === 'none') return
+    if (
+      kind === 'reprocess' &&
+      !window.confirm(
+        'Chạy lại sẽ đọc lại tài liệu từ đầu và phân tích lại, mất vài phút. Tiếp tục?',
+      )
+    ) {
+      return
+    }
+    const id = dossierId
+    setRetryingAnalysis(true)
+    setRetryAnalysisError(null)
+    try {
+      if (kind === 'ai2') {
+        await retryDossierFailed(id, 'ai2')
+        if (currentDossier.current !== id) return
+        // Cùng run cũ: mốc 10 phút tính lại từ lúc bấm.
+        restartAnalysisClock()
+        setAnalysisNudge(null)
+        const reopened = await waitForAnalysisReopen(id, 15, 2000)
+        if (reopened === false) {
+          setRetryAnalysisInfo(
+            'Đã gửi yêu cầu chạy lại. Trang sẽ cập nhật khi hệ thống nhận.',
+          )
+          void waitForAnalysisReopen(id, Number.POSITIVE_INFINITY, 10_000)
+        }
+        return
+      }
+      if (kind === 'resume') await retryDossierFailed(id, 'ocr')
+      else await reprocessDossier(id)
+      // OCR chạy lại (hoặc chạy tiếp): theo dõi ở màn tiến trình.
+      if (currentDossier.current === id) navigate(progressPath(id))
+    } catch (cause: unknown) {
+      if (currentDossier.current !== id) return
+      setRetryAnalysisError(analysisRetryErrorMessage(cause))
+      // 409: đã có người chạy lại trước, tải lại trạng thái hồ sơ.
+      if (cause instanceof ApiError && cause.status === 409)
+        setAttempt((current) => current + 1)
+    } finally {
+      if (currentDossier.current === id) setRetryingAnalysis(false)
+    }
+  }
+  async function cancelAnalysis() {
+    if (cancellingAnalysis) return
+    if (
+      !window.confirm(
+        'Huỷ lần phân tích đang chạy? Cây điều khoản đã đọc vẫn được giữ.',
+      )
+    ) {
+      return
+    }
+    const id = dossierId
+    setCancellingAnalysis(true)
+    setRetryAnalysisError(null)
+    try {
+      const run = await latestDossierRun(id)
+      if (currentDossier.current !== id) return
+      if (!run || !isCancellableRun(run.status)) {
+        setRetryAnalysisError('Không có lần phân tích nào đang chạy để huỷ.')
+        return
+      }
+      await cancelRun(run.runId)
+      // Hỏi lại ngay: job sang 'failed' (RUN_CANCELLED), banner báo đã huỷ.
+      if (currentDossier.current === id) recheckAnalysis()
+    } catch (cause: unknown) {
+      if (currentDossier.current === id)
+        setRetryAnalysisError(runActionErrorMessage(cause))
+    } finally {
+      if (currentDossier.current === id) setCancellingAnalysis(false)
+    }
+  }
+  // Cây đã xem được trong lúc AI2 chạy: AI2 xong thì tải lại xung đột.
+  const [analysisJustFinished, setAnalysisJustFinished] = useState(false)
+  const {
+    percent: analysisPercent,
+    stalled: analysisStalled,
+    gone: analysisGone,
+    restartClock: restartAnalysisClock,
+    recheck: recheckAnalysis,
+  } = useAnalysisWatch(
+    dossierId,
+    phase === 'ready' && analysis === 'running',
+    (next) => {
+      const id = dossierId
+      setAnalysisNudge(null)
+      setAnalysisJustFinished(
+        analysisState(next.latestJobStatus, next.latestJobErrorCode) === 'done',
+      )
+      // Đặt các bước cùng lúc với job: nếu đặt job trước, có một lượt vẽ job
+      // 'failed' với bước cũ và banner báo nhầm "đọc tài liệu lỗi".
+      const apply = (steps: StepStatuses) => {
+        if (currentDossier.current !== id) return
+        setStepStatuses(steps)
+        setDetail(next)
+      }
+      if (needsStepStatuses(next.latestJobStatus)) {
+        // Job rời 'extracted' nên OCR chắc chắn đã xong, kể cả khi lỗi mạng.
+        void loadStepStatuses(id).then((steps) =>
+          apply(stepsAfterAnalysis(steps)),
+        )
+      } else {
+        apply({})
+      }
+      listReviewSpots(id)
+        .then((rows) => {
+          if (currentDossier.current === id) setSpots(rows)
+        })
+        .catch(() => {
+          if (currentDossier.current === id) setSpots([])
+        })
+    },
+  )
+
+  useEffect(() => {
+    if (!analysisGone) return
+    navigate(backTo, {
+      replace: true,
+      state: {
+        notice:
+          'Hồ sơ không còn mở được: đã bị xoá hoặc bạn không còn quyền xem.',
+        noticeTone: 'error',
+      },
+    })
+  }, [analysisGone, backTo, navigate])
+
   // Xung đột neo bằng trang + dòng OCR bên hợp đồng → nút cây đang chứa dòng đó.
   const anchors = useMemo(
     () => anchorConflicts(spots, nodes, lines ?? [], documentId),
@@ -646,9 +925,10 @@ export function DossierStructurePage() {
         return nodeId === graphLineId || nodeId.startsWith(`${graphLineId}:`)
       })
       if (!line) return ''
-      const clauseTree = endpointDocumentId === documentId
-        ? nodes
-        : graphClauses[endpointDocumentId] ?? []
+      const clauseTree =
+        endpointDocumentId === documentId
+          ? nodes
+          : (graphClauses[endpointDocumentId] ?? [])
       const clause = findClauseByQuote(clauseTree, line.text, line.pageNo)
       return (clause?.text || line.text).replace(/\s+/g, ' ').trim()
     },
@@ -657,7 +937,8 @@ export function DossierStructurePage() {
 
   const resolveGraphNodeLabel = useCallback(
     (nodeId: string, sourceDocumentId?: string | null) =>
-      resolveGraphEvidenceText(nodeId, sourceDocumentId) || 'Không tải được nội dung điều khoản OCR',
+      resolveGraphEvidenceText(nodeId, sourceDocumentId) ||
+      'Không tải được nội dung điều khoản',
     [resolveGraphEvidenceText],
   )
 
@@ -676,29 +957,32 @@ export function DossierStructurePage() {
           citationRef: edge.target_citation_ref,
         },
       ]
-      const found = await Promise.all(endpoints.map(async (endpoint) => {
-        if (
-          !endpoint.documentId ||
-          !detail.documents.some((document) => document.id === endpoint.documentId)
-        ) return null
-        try {
-          const evidence = endpoint.citationRef.startsWith('cite:')
-            ? await getContractGraphEvidence({
-                dossierId,
-                jobId: detail.ai2JobId!,
-                snapshotDigest: detail.snapshotDigest!,
-                graphKind: ai2GraphKind,
-                nodeId: endpoint.nodeId,
-                citationRef: endpoint.citationRef,
-              })
-            : await getInspectorRecord('citation', endpoint.citationRef)
-          return typeof evidence.quote === 'string'
-            ? evidence.quote
-            : null
-        } catch {
-          return null
-        }
-      }))
+      const found = await Promise.all(
+        endpoints.map(async (endpoint) => {
+          if (
+            !endpoint.documentId ||
+            !detail.documents.some(
+              (document) => document.id === endpoint.documentId,
+            )
+          )
+            return null
+          try {
+            const evidence = endpoint.citationRef.startsWith('cite:')
+              ? await getContractGraphEvidence({
+                  dossierId,
+                  jobId: detail.ai2JobId!,
+                  snapshotDigest: detail.snapshotDigest!,
+                  graphKind: ai2GraphKind,
+                  nodeId: endpoint.nodeId,
+                  citationRef: endpoint.citationRef,
+                })
+              : await getInspectorRecord('citation', endpoint.citationRef)
+            return typeof evidence.quote === 'string' ? evidence.quote : null
+          } catch {
+            return null
+          }
+        }),
+      )
       return {
         ...(found[0] ? { sourceText: found[0] } : {}),
         ...(found[1] ? { targetText: found[1] } : {}),
@@ -736,7 +1020,11 @@ export function DossierStructurePage() {
             })
           : await getInspectorRecord('citation', citationRef)
         if (ai2CitationRequests.current.isCurrent(requestId))
-          setAi2Citation({ ...record, __node_id: nodeId, __document_id: sourceDocumentId })
+          setAi2Citation({
+            ...record,
+            __node_id: nodeId,
+            __document_id: sourceDocumentId,
+          })
       } catch (error) {
         if (!ai2CitationRequests.current.isCurrent(requestId)) return
         // A legacy opaque handle may not be a Backend citation ID; use the already-loaded OCR clause if it maps exactly.
@@ -763,7 +1051,16 @@ export function DossierStructurePage() {
           setAi2CitationLoading(false)
       }
     },
-    [ai2GraphKind, citeOf, detail?.ai2JobId, detail?.snapshotDigest, dossierId, documentId, nodes, openTreeCite],
+    [
+      ai2GraphKind,
+      citeOf,
+      detail?.ai2JobId,
+      detail?.snapshotDigest,
+      dossierId,
+      documentId,
+      nodes,
+      openTreeCite,
+    ],
   )
 
   function openUploadedPdf(id: string) {
@@ -994,8 +1291,8 @@ export function DossierStructurePage() {
                   ) : (
                     <span>
                       {activeMode === 'tables'
-                        ? 'Các bảng mà OCR đã trích từ hợp đồng.'
-                        : 'Hệ thống OCR hợp đồng rồi dựng cây điều khoản.'}
+                        ? 'Các bảng đã trích từ hợp đồng.'
+                        : 'Hệ thống đọc hợp đồng rồi dựng cây điều khoản.'}
                     </span>
                   )}
                   {phase === 'ready' ? (
@@ -1007,22 +1304,22 @@ export function DossierStructurePage() {
                           className={`inline-flex items-center gap-1 whitespace-nowrap underline-offset-2 transition-colors hover:text-primary hover:underline ${
                             showLines ? 'text-primary' : ''
                           }`}
-                          title="Xem các dòng OCR đang dùng để dựng cây"
+                          title="Xem các dòng chữ đang dùng để dựng cây"
                           type="button"
                           onClick={() => {
                             setCiteId(null)
                             setShowLines((open) => !open)
                           }}
                         >
-                          {lines.length} dòng OCR
+                          {lines.length} dòng chữ
                           <MaterialIcon
                             name={showLines ? 'close' : 'open_in_new'}
                             style={{ fontSize: 14 }}
                           />
                         </button>
                       ) : (
-                        <span title="Backend không trả dòng OCR">
-                          cây AI1 trả sẵn
+                        <span title="Chưa có từng dòng chữ của tài liệu">
+                          cấu trúc dựng sẵn
                         </span>
                       )}
                     </>
@@ -1036,17 +1333,24 @@ export function DossierStructurePage() {
                 </div>
               </div>
               {phase === 'ready' ? (
-
-                <div className="flex w-full shrink-0 items-center gap-space-sm md:w-auto">
+                <div className="flex w-full shrink-0 items-center gap-space-sm pr-2 pt-1.5 md:w-auto">
                   {AI2_GRAPH_UI_ENABLED ? (
                     <button
+                      aria-disabled={ai2Locked || undefined}
                       aria-pressed={showAi2Graph}
-                      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border shadow-[0_1px_2px_rgba(15,23,42,0.06)] ${showAi2Graph ? 'border-primary bg-primary text-white' : 'border-outline-variant/30 bg-surface-container-lowest text-on-surface hover:bg-surface-container'}`}
-                      title="Graph AI2"
+                      className={`relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border shadow-[0_1px_2px_rgba(15,23,42,0.06)] ${showAi2Graph ? 'border-primary bg-primary text-white' : 'border-outline-variant/30 bg-surface-container-lowest text-on-surface hover:bg-surface-container'} ${ai2Locked ? 'opacity-50' : ''}`}
+                      title={
+                        ai2Locked ? 'Graph AI2 · đang phân tích' : 'Graph AI2'
+                      }
                       type="button"
-                      onClick={() => setShowAi2Graph((shown) => !shown)}
+                      onClick={() =>
+                        ai2Locked
+                          ? remindAnalysis('Đồ thị quan hệ')
+                          : setShowAi2Graph((shown) => !shown)
+                      }
                     >
                       <MaterialIcon name="hub" className="text-[18px]" />
+                      {ai2Locked ? <LockBadge /> : null}
                       <span className="sr-only">Graph AI2</span>
                     </button>
                   ) : null}
@@ -1059,56 +1363,151 @@ export function DossierStructurePage() {
                       className="absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-outline"
                     />
                     <input
+                      aria-disabled={ai2Locked || undefined}
                       aria-label="Hỏi về hợp đồng"
-
-                      className="h-10 w-full rounded-full border border-outline-variant/30 bg-surface-container-lowest pl-9 pr-space-md font-body-sm text-body-sm text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-secondary"
-                      placeholder="Hỏi về hợp đồng này…"
+                      className={`h-10 w-full rounded-full border border-outline-variant/30 bg-surface-container-lowest pl-9 pr-space-md font-body-sm text-body-sm text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-secondary ${
+                        ai2Locked ? 'cursor-not-allowed opacity-60' : ''
+                      }`}
+                      placeholder={
+                        ai2Locked
+                          ? 'Hỏi đáp mở khi phân tích xong'
+                          : 'Hỏi về hợp đồng này…'
+                      }
+                      readOnly={ai2Locked}
                       type="search"
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
+                      onClick={
+                        ai2Locked ? () => remindAnalysis('Hỏi đáp') : undefined
+                      }
                     />
+                    {ai2Locked ? (
+                      <MaterialIcon
+                        name="lock"
+                        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[16px] text-outline"
+                      />
+                    ) : null}
                   </form>
 
                   {/* Đang hỏi đáp: về cấu trúc cây. Đang ở cấu trúc cây: mở lịch sử hỏi đáp. */}
                   <button
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-outline-variant/30 bg-surface-container-lowest text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] hover:bg-surface-container"
-                    title={qaMode ? 'Cấu trúc cây' : 'Lịch sử hỏi đáp'}
+                    aria-disabled={(!qaMode && ai2Locked) || undefined}
+                    className={`relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-outline-variant/30 bg-surface-container-lowest text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] hover:bg-surface-container ${
+                      !qaMode && ai2Locked ? 'opacity-50' : ''
+                    }`}
+                    title={
+                      qaMode
+                        ? 'Cấu trúc cây'
+                        : ai2Locked
+                          ? 'Lịch sử hỏi đáp · đang phân tích'
+                          : 'Lịch sử hỏi đáp'
+                    }
                     type="button"
-                    onClick={qaMode ? closeAnswer : () => setHistoryOpen(true)}
+                    onClick={
+                      qaMode
+                        ? closeAnswer
+                        : ai2Locked
+                          ? () => remindAnalysis('Lịch sử hỏi đáp')
+                          : () => setHistoryOpen(true)
+                    }
                   >
                     <MaterialIcon
                       name={qaMode ? 'account_tree' : 'history'}
                       className="text-[18px]"
                     />
+                    {!qaMode && ai2Locked ? <LockBadge /> : null}
                     <span className="sr-only">
                       {qaMode ? 'Cấu trúc cây' : 'Lịch sử hỏi đáp'}
                     </span>
                   </button>
-                  <Link
-                    className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-outline-variant/30 bg-surface-container-lowest text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] hover:bg-amber-50"
-                    state={{ dossierId, name: detail?.name }}
-                    title={
-                      openConflicts > 0
-                        ? `Xem xung đột · ${openConflicts} chưa ai thẩm định`
-                        : 'Xem xung đột'
-                    }
-                    to={conflictPagePath(dossierId)}
-                  >
-                    <MaterialIcon
-                      name="warning"
-                      className="text-[18px] text-amber-700"
-                    />
-                    <span className="sr-only">Xem xung đột</span>
-                    {openConflicts > 0 ? (
-                      <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 font-label-sm text-[10px] font-bold text-amber-950">
-                        {openConflicts}
-                      </span>
-                    ) : null}
-                  </Link>
+                  {conflictsLocked ? (
+                    <button
+                      aria-disabled
+                      className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-outline-variant/30 bg-surface-container-lowest text-on-surface opacity-50 shadow-[0_1px_2px_rgba(15,23,42,0.06)]"
+                      title={
+                        analysis === 'failed'
+                          ? 'Xem xung đột · cần phân tích lại'
+                          : 'Xem xung đột · đang phân tích'
+                      }
+                      type="button"
+                      onClick={() => remindAnalysis('Xung đột')}
+                    >
+                      <MaterialIcon
+                        name="warning"
+                        className="text-[18px] text-amber-700"
+                      />
+                      <LockBadge />
+                      <span className="sr-only">Xem xung đột</span>
+                    </button>
+                  ) : (
+                    <Link
+                      className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-outline-variant/30 bg-surface-container-lowest text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] hover:bg-amber-50"
+                      state={{ dossierId, name: detail?.name }}
+                      title={
+                        openConflicts > 0
+                          ? `Xem xung đột · ${openConflicts} chưa ai thẩm định`
+                          : 'Xem xung đột'
+                      }
+                      to={conflictPagePath(dossierId)}
+                    >
+                      <MaterialIcon
+                        name="warning"
+                        className="text-[18px] text-amber-700"
+                      />
+                      <span className="sr-only">Xem xung đột</span>
+                      {openConflicts > 0 ? (
+                        <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 font-label-sm text-[10px] font-bold text-amber-950">
+                          {openConflicts}
+                        </span>
+                      ) : null}
+                    </Link>
+                  )}
                 </div>
               ) : null}
             </div>
           </div>
+
+          {phase === 'ready' ? (
+            <AnalysisNotice
+              className="mb-space-md shrink-0"
+              errorCode={detail?.latestJobErrorCode}
+              justFinished={analysisJustFinished}
+              nudge={analysisNudge}
+              percent={analysisPercent}
+              retrying={retryingAnalysis}
+              showingPrevious={previousAi2}
+              stalled={analysisStalled}
+              state={analysis}
+              waitingFor="Hỏi đáp, lịch sử hỏi đáp, xung đột và đồ thị quan hệ"
+              onDismiss={() => setAnalysisJustFinished(false)}
+              onRecheck={recheckAnalysis}
+              cancelling={cancellingAnalysis}
+              onCancel={
+                permissions.canEdit && analysis === 'running'
+                  ? () => void cancelAnalysis()
+                  : undefined
+              }
+              onRetry={
+                permissions.canEdit ? () => void retryAnalysis() : undefined
+              }
+            />
+          ) : null}
+          {phase === 'ready' && retryAnalysisInfo ? (
+            <p
+              className="mb-space-md shrink-0 rounded-lg bg-surface-container-high px-space-md py-space-sm font-body-sm text-body-sm text-on-surface"
+              role="status"
+            >
+              {retryAnalysisInfo}
+            </p>
+          ) : null}
+          {phase === 'ready' && retryAnalysisError ? (
+            <p
+              className="mb-space-md shrink-0 rounded-lg bg-error-container px-space-md py-space-sm font-body-sm text-body-sm text-on-error-container"
+              role="alert"
+            >
+              {retryAnalysisError}
+            </p>
+          ) : null}
 
           {phase === 'loading' || phase === 'ocr' ? (
             <section className="bg-surface-container-lowest p-space-xl rounded-xl shadow-sm flex items-start gap-space-md">
@@ -1120,11 +1519,11 @@ export function DossierStructurePage() {
                 {phase === 'ocr' ? (
                   <>
                     <h2 className="font-title-sm text-title-sm text-primary">
-                      Đang OCR và dựng cấu trúc
+                      Đang đọc tài liệu và dựng cấu trúc
                     </h2>
                     <p className="font-body-sm text-body-sm text-on-surface-variant">
-                      Trang này tự cập nhật. Cây hiện khi job sang trạng thái đã
-                      trích xuất. Worker backend và AI1 cần đang chạy.
+                      Trang này tự cập nhật. Cấu trúc sẽ hiện khi đọc xong tài
+                      liệu.
                     </p>
                   </>
                 ) : (
@@ -1142,12 +1541,20 @@ export function DossierStructurePage() {
               role="alert"
             >
               <h2 className="font-title-sm text-title-sm">
-                OCR không hoàn tất
+                Đọc tài liệu không hoàn tất
               </h2>
               <p className="font-body-sm text-body-sm mt-space-xs">
-                Hồ sơ đã nhận file, nhưng bước OCR trả lỗi. Kiểm tra worker và
-                thử tải lại.
+                Hồ sơ đã nhận tệp nhưng đọc tài liệu bị lỗi. Vui lòng thử lại
+                hoặc báo quản trị viên.
               </p>
+              {/* Thông báo "phân tích thất bại" mở trang này: lỗi ở OCR thì
+                  chạy lại ở màn tiến trình. */}
+              <Link
+                className="mt-space-sm inline-block font-body-sm text-body-sm font-semibold underline"
+                to={progressPath(dossierId)}
+              >
+                Xem tiến trình đọc tài liệu
+              </Link>
             </section>
           ) : null}
 
@@ -1170,7 +1577,6 @@ export function DossierStructurePage() {
               </button>
             </section>
           ) : null}
-
 
           {phase === 'ready' && answerOpen ? (
             <section className="mb-space-md rounded-xl bg-surface-container-lowest px-space-md py-space-md shadow-sm">
@@ -1306,17 +1712,40 @@ export function DossierStructurePage() {
             <QueryHistoryPanel
               dossierId={dossierId}
               refreshKey={historyRefresh}
+              onClose={closeAnswer}
               onReuse={(question) => {
                 setQuery(question)
                 searchInputRef.current?.focus()
               }}
               onCite={(citation, citeNo) => {
+                const cite: SearchCite = {
+                  id: citation.lineId ?? `history-citation-${citeNo}`,
+                  n: citeNo,
+                  quote: citation.quote,
+                  documentId: citation.documentId,
+                  pageNo: citation.pageNo,
+                  lineId: citation.lineId,
+                  bbox: citation.bbox,
+                }
+                // Trích dẫn ở phụ lục (tài liệu khác): mở đúng tài liệu đó như câu
+                // trả lời trực tiếp, không dò trên cây của hợp đồng chính.
+                if (citation.documentId && citation.documentId !== documentId) {
+                  openForeignSearchCitation(cite)
+                  return
+                }
+                if (!documentId) return
                 const node = findClauseByQuote(
                   answerNodes,
                   citation.quote,
                   citation.pageNo,
                 )
-                if (!node || !documentId) return
+                if (!node) {
+                  // Không khớp được nút cây: vẫn mở theo trang/vùng AI2 trả về.
+                  if (citation.pageNo) {
+                    openForeignSearchCitation({ ...cite, documentId })
+                  }
+                  return
+                }
                 setShowLines(false)
                 setPdfDocumentId(null)
                 setCiteId(null)
@@ -1361,18 +1790,38 @@ export function DossierStructurePage() {
             />
           ) : null}
 
-          {phase === 'ready' && showAi2Graph && detail ? (
-            <div className="mb-space-sm flex flex-wrap items-center justify-between gap-space-sm rounded-xl border border-outline-variant/20 bg-surface-container-lowest p-space-sm">
-              <div className="flex flex-wrap items-center gap-space-xs" role="group" aria-label="Loại graph AI2">
+          {/* Thanh loại sơ đồ + quyền AI chỉ đi kèm phần đồ thị: cùng điều kiện hiện với nó. */}
+          {phase === 'ready' &&
+          showAi2Graph &&
+          detail &&
+          !qaMode &&
+          !reviewCiteId ? (
+            <div className="mb-space-md flex flex-wrap items-center justify-between gap-space-sm rounded-lg bg-surface-container-lowest px-space-lg py-space-sm shadow-sm">
+              {/* Cùng kiểu nhóm nút chọn loại cấu trúc / kiểu xem ở thanh trên. */}
+              <div
+                className="inline-flex items-center gap-0.5 rounded-full bg-surface-container p-1"
+                role="group"
+                aria-label="Loại sơ đồ"
+              >
                 {(['pair', 'operation'] as const).map((kind) => (
                   <button
                     key={kind}
                     aria-pressed={ai2GraphKind === kind}
-                    className={`rounded-full px-3 py-1.5 font-body-sm text-body-sm ${ai2GraphKind === kind ? 'bg-primary text-white' : 'bg-surface-container text-on-surface hover:bg-primary/10'}`}
+                    className={`inline-flex h-8 items-center gap-space-xs rounded-full px-space-md font-body-sm text-body-sm font-semibold transition-colors ${
+                      ai2GraphKind === kind
+                        ? 'bg-brand-100 text-brand-700 shadow-sm ring-1 ring-brand-200'
+                        : 'text-on-surface-variant hover:bg-surface-container-high hover:text-primary'
+                    }`}
                     type="button"
                     onClick={() => setAi2GraphKind(kind)}
                   >
-                    {kind === 'pair' ? 'Quan hệ điều khoản' : 'Sửa đổi điều khoản'}
+                    <MaterialIcon
+                      name={kind === 'pair' ? 'link' : 'edit_note'}
+                      className="text-[18px]"
+                    />
+                    {kind === 'pair'
+                      ? 'Quan hệ điều khoản'
+                      : 'Sửa đổi điều khoản'}
                   </button>
                 ))}
               </div>
@@ -1422,9 +1871,11 @@ export function DossierStructurePage() {
                 ) : (
                   <p
                     role="status"
-                    className="rounded border border-outline-variant p-3"
+                    className="rounded-lg bg-surface-container-lowest p-space-lg font-body-sm text-body-sm text-on-surface-variant shadow-sm"
                   >
-                    Graph AI2 chưa có mã job và snapshot hiện hành để đọc.
+                    {analysis === 'running'
+                      ? 'Đang phân tích hồ sơ. Sơ đồ quan hệ sẽ hiện khi phân tích xong.'
+                      : 'Chưa có dữ liệu để vẽ sơ đồ quan hệ cho hồ sơ này.'}
                   </p>
                 )
               ) : activeMode !== 'tables' ? (
@@ -1453,12 +1904,7 @@ export function DossierStructurePage() {
                       )
                     default:
                       // key để đổi hướng thì dựng lại, tự căn vừa khung.
-                      return (
-                        <StructureMindmap
-                          key="mindmap"
-                          {...shared}
-                        />
-                      )
+                      return <StructureMindmap key="mindmap" {...shared} />
                   }
                 })()
               ) : null}
@@ -1529,6 +1975,18 @@ function MetaDot() {
   )
 }
 
+/** Ổ khoá nhỏ ở góc nút: phần này chờ phân tích xong. */
+function LockBadge() {
+  return (
+    <span
+      aria-hidden
+      className="absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-surface-container-lowest text-on-surface-variant ring-1 ring-outline-variant/40"
+    >
+      <MaterialIcon name="lock" style={{ fontSize: 11 }} />
+    </span>
+  )
+}
+
 function SegmentButton({
   active,
   disabled,
@@ -1588,14 +2046,14 @@ function OcrLinesPane({
       <div className="flex items-center justify-between gap-space-sm border-b border-surface-container px-space-md py-space-sm">
         <div className="min-w-0">
           <p className="font-title-sm text-title-sm text-on-surface">
-            {lines.length} dòng OCR
+            {lines.length} dòng chữ
           </p>
           <p className="font-label-sm text-label-sm text-on-surface-variant">
             Đúng các dòng đang dùng để dựng cây, đủ chữ.
           </p>
         </div>
         <button
-          aria-label="Đóng danh sách dòng OCR"
+          aria-label="Đóng danh sách dòng chữ"
           className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container"
           type="button"
           onClick={onClose}

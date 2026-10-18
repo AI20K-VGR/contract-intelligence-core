@@ -36,7 +36,7 @@ export const structureModes: {
     label: 'Bảng',
     short: 'Bảng',
     icon: 'table',
-    hint: 'Hiện mọi bảng mà OCR đã trích từ hợp đồng.',
+    hint: 'Hiện mọi bảng đã trích từ hợp đồng.',
   },
 ]
 

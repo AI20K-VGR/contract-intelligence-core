@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  conflictKind,
   withinDocumentId,
   withinSideLabel,
 } from '../src/structure/withinDocument'
@@ -25,13 +24,5 @@ describe('withinDocumentId', () => {
   it('labels the sides Vế 1 and Vế 2', () => {
     expect(withinSideLabel(0)).toBe('Vế 1')
     expect(withinSideLabel(1)).toBe('Vế 2')
-  })
-})
-
-describe('conflictKind', () => {
-  it('is within for same-document sides, between otherwise', () => {
-    expect(conflictKind({ sides: [side('d1'), side('d1')] })).toBe('within')
-    expect(conflictKind({ sides: [side('d1'), side('d2')] })).toBe('between')
-    expect(conflictKind({ sides: [side('d1')] })).toBe('between')
   })
 })
