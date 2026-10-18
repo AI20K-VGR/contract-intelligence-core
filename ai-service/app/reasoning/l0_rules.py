@@ -23,22 +23,26 @@ TOO_BROAD = (
 )
 
 
-def _clause_body(gateway: ToolGateway, envelope: ToolEnvelope, node_id: str, limit: int = 12) -> list[dict[str, Any]]:
+def _clause_body(
+    gateway: ToolGateway, envelope: ToolEnvelope, node_id: str, limit: int = 12
+) -> list[dict[str, Any]]:
     """Sub-clauses stored under a heading, each fetched through the gateway.
 
     OCR snapshots keep "ĐIỀU 3. ..." as a one-line heading node and put 3.1,
     3.2, ... under it, so the heading's own text is not the clause.
     """
-    from app.pipeline.result_structure import _is_running_furniture
+    from app.reasoning.answer_compose import is_furniture
 
     store = getattr(gateway, "store", None)
-    record = store.get(envelope.auth.tenant_id, envelope.auth.dossier_id) if store is not None else None
+    record = (
+        store.get(envelope.auth.tenant_id, envelope.auth.dossier_id) if store is not None else None
+    )
     if record is None:
         return []
     child_ids = [
         node.node_id
         for node in sorted(record.evidence_nodes(), key=lambda item: item.order)
-        if node.parent_id == node_id and not _is_running_furniture(node.raw_label or "")
+        if node.parent_id == node_id and not is_furniture(node.raw_label or "")
     ]
     body: list[dict[str, Any]] = []
     for child_id in child_ids[:limit]:
@@ -51,7 +55,10 @@ def _clause_body(gateway: ToolGateway, envelope: ToolEnvelope, node_id: str, lim
 
 def _countish(query: str) -> bool:
     low = (query or "").lower()
-    return any(w in low for w in ("bao nhiêu", "bao nhieu", "how many", "số lượng", "so luong", "có mấy", "co may"))
+    return any(
+        w in low
+        for w in ("bao nhiêu", "bao nhieu", "how many", "số lượng", "so luong", "có mấy", "co may")
+    )
 
 
 def _count_party_query(query: str) -> bool:
@@ -60,7 +67,13 @@ def _count_party_query(query: str) -> bool:
         return False
     if "pháp nhân" in low or "phap nhan" in low or "legal entit" in low:
         return False
-    return bool(re.search(r"\bbên\b", low) or re.search(r"\bben\b", low) or "parties" in low or "đối tác" in low or "doi tac" in low)
+    return bool(
+        re.search(r"\bbên\b", low)
+        or re.search(r"\bben\b", low)
+        or "parties" in low
+        or "đối tác" in low
+        or "doi tac" in low
+    )
 
 
 def _count_entity_query(query: str) -> bool:
@@ -102,7 +115,9 @@ class L0Rules:
         ttype = task.get("type")
         q = (task.get("query") or "").lower()
         try:
-            outline = self.gateway.call("list_structure", envelope, dossier_id=envelope.auth.dossier_id)
+            outline = self.gateway.call(
+                "list_structure", envelope, dossier_id=envelope.auth.dossier_id
+            )
         except ToolBlocked:
             return {
                 "resolved": True,
@@ -129,9 +144,15 @@ class L0Rules:
             qtext = task.get("query") or ""
             parties = []
             for key in ("party_a", "party_b", "party_c", "party_y"):
-                parties.extend(_selected_hits(self.gateway.call("search_structured", envelope, key=key), selected))
+                parties.extend(
+                    _selected_hits(
+                        self.gateway.call("search_structured", envelope, key=key), selected
+                    )
+                )
             if _count_party_query(qtext) or (
-                ttype == "count_entity" and "pháp nhân" not in qtext.lower() and "phap nhan" not in qtext.lower()
+                ttype == "count_entity"
+                and "pháp nhân" not in qtext.lower()
+                and "phap nhan" not in qtext.lower()
             ):
                 from app.reasoning.fact_link import count_contract_parties
 
@@ -145,7 +166,9 @@ class L0Rules:
 
                 mst = _selected_hits(_all_mst_hits(self.gateway, envelope), selected)
                 mst.extend(_identity_hits(self.gateway, envelope, outline))
-                parties = _selected_hits(_hydrate_structured_hits(self.gateway, envelope, parties), selected)
+                parties = _selected_hits(
+                    _hydrate_structured_hits(self.gateway, envelope, parties), selected
+                )
                 linked = count_legal_entities(mst, parties)
             return {
                 "resolved": True,
@@ -171,7 +194,9 @@ class L0Rules:
                 mst = []
                 for mst_key in mst_keys:
                     mst.extend(
-                        _selected_hits(self.gateway.call("search_structured", envelope, key=mst_key), selected)
+                        _selected_hits(
+                            self.gateway.call("search_structured", envelope, key=mst_key), selected
+                        )
                     )
                 return assemble_party(
                     role,
@@ -255,7 +280,9 @@ class L0Rules:
                 hits = _selected_hits(_all_mst_hits(self.gateway, envelope), selected)
                 linked = assemble_mst(hits)
             else:
-                hits = _selected_hits(self.gateway.call("search_structured", envelope, key=key), selected)
+                hits = _selected_hits(
+                    self.gateway.call("search_structured", envelope, key=key), selected
+                )
                 if key == "contract_value":
                     linked = _contract_value_from_text(self.gateway, envelope)
                 else:
@@ -293,7 +320,9 @@ class L0Rules:
             }
 
         if ttype == "too_broad" or query_too_broad(task.get("query") or ""):
-            sample = [n.get("raw_label") for n in outline if n.get("type") in {"CLAUSE", "SECTION"}][:8]
+            sample = [
+                n.get("raw_label") for n in outline if n.get("type") in {"CLAUSE", "SECTION"}
+            ][:8]
             return {
                 "resolved": True,
                 "review_state": ReviewState.INSUFFICIENT_EVIDENCE.value,
@@ -327,8 +356,14 @@ class L0Rules:
 
             linked = render_same_item_relations(record) or render_relation_verdict(record)
             folded_query = fold_for_match(task.get("query") or "")
-            if re.search(r"\bco\b.*\bkhong\b", folded_query) and isinstance(linked.get("answer"), str):
-                prefix = "Có. " if linked.get("review_state") != ReviewState.INSUFFICIENT_EVIDENCE.value else "Không rõ. "
+            if re.search(r"\bco\b.*\bkhong\b", folded_query) and isinstance(
+                linked.get("answer"), str
+            ):
+                prefix = (
+                    "Có. "
+                    if linked.get("review_state") != ReviewState.INSUFFICIENT_EVIDENCE.value
+                    else "Không rõ. "
+                )
                 linked = {**linked, "answer": prefix + linked["answer"]}
             return {"resolved": True, **linked}
 
@@ -369,22 +404,30 @@ class L0Rules:
                     body = _clause_body(self.gateway, envelope, nid)
                     text = "\n".join(
                         part
-                        for part in [full.get("text") or "", *(str(child.get("text") or "") for child in body)]
+                        for part in [
+                            full.get("text") or "",
+                            *(str(child.get("text") or "") for child in body),
+                        ]
                         if part.strip()
                     )
                     packed.append(
                         {
                             "node_id": nid,
                             "label": full.get("raw_label"),
-                            "path": " › ".join((full.get("ancestors") or []) + [full.get("raw_label") or ""]),
+                            "path": " › ".join(
+                                (full.get("ancestors") or []) + [full.get("raw_label") or ""]
+                            ),
                             "text": text[:2400],
                             "page_range": full.get("page_range"),
                             "side": side,
                         }
                     )
-                    cites.append(full.get("citation") or {"node_id": nid, "text_span": full.get("raw_label")})
+                    cites.append(
+                        full.get("citation") or {"node_id": nid, "text_span": full.get("raw_label")}
+                    )
                     cites.extend(
-                        child.get("citation") or {"node_id": child.get("node_id"), "text_span": child.get("text")}
+                        child.get("citation")
+                        or {"node_id": child.get("node_id"), "text_span": child.get("text")}
                         for child in body
                     )
                 multi = len(packed) > 1 or bool(rels)
@@ -410,7 +453,15 @@ class L0Rules:
                 }
 
         if ttype == "structure" and "thanh toán" in q:
-            node = next((n for n in outline if n.get("type") == "UNNUMBERED_BLOCK" and "Thanh toán" in (n.get("raw_label") or "")), None)
+            node = next(
+                (
+                    n
+                    for n in outline
+                    if n.get("type") == "UNNUMBERED_BLOCK"
+                    and "Thanh toán" in (n.get("raw_label") or "")
+                ),
+                None,
+            )
             if node:
                 return {
                     "resolved": True,
@@ -423,7 +474,14 @@ class L0Rules:
         if ttype == "lookup_insufficient" or "phụ lục 7" in q or "phu luc 7" in q:
             has_pl7 = any("Phụ lục 7" in (n.get("raw_label") or "") for n in outline)
             if not has_pl7:
-                ref = next((n for n in outline if n["node_id"] == "cl_9" or (n.get("raw_label") or "").startswith("Điều 9")), None)
+                ref = next(
+                    (
+                        n
+                        for n in outline
+                        if n["node_id"] == "cl_9" or (n.get("raw_label") or "").startswith("Điều 9")
+                    ),
+                    None,
+                )
                 cite = []
                 if ref:
                     cite = [{"node_id": ref["node_id"], "text_span": "Xem Phụ lục 7"}]
@@ -444,7 +502,9 @@ class L0Rules:
                 "notes": "no_fx",
             }
 
-        if ttype == "not_comparable" and ("xây lắp" in q or "thiet bi" in q or "thiết bị" in q or "gộp phạt" in q):
+        if ttype == "not_comparable" and (
+            "xây lắp" in q or "thiet bi" in q or "thiết bị" in q or "gộp phạt" in q
+        ):
             return {
                 "resolved": True,
                 "review_state": ReviewState.NOT_COMPARABLE.value,
@@ -484,7 +544,9 @@ class L0Rules:
 
         if ttype == "boundary_ambiguous":
             q = (task.get("query") or "").lower()
-            clause_match = re.search(r"điều\s+(\d+(?:\.\d+)*)", q) or re.search(r"dieu\s+(\d+(?:\.\d+)*)", q)
+            clause_match = re.search(r"điều\s+(\d+(?:\.\d+)*)", q) or re.search(
+                r"dieu\s+(\d+(?:\.\d+)*)", q
+            )
             if not clause_match:
                 return None
             clause_num = clause_match.group(1)
@@ -492,7 +554,9 @@ class L0Rules:
             exact_matches = [n for n in outline if pat.search(n.get("raw_label") or "")]
             if exact_matches:
                 return None
-            sample = [n.get("raw_label") for n in outline if n.get("type") in {"CLAUSE", "SECTION"}][:6]
+            sample = [
+                n.get("raw_label") for n in outline if n.get("type") in {"CLAUSE", "SECTION"}
+            ][:6]
             return {
                 "resolved": True,
                 "review_state": ReviewState.INSUFFICIENT_EVIDENCE.value,
@@ -513,9 +577,13 @@ class L0Rules:
                 tid = tables[0]["table_id"]
             if tid:
                 meta = self.gateway.call("get_table_meta", envelope, table_id=tid)
-                rows = self.gateway.call("get_table_rows", envelope, table_id=tid, start=0, end=meta["n_rows"])
+                rows = self.gateway.call(
+                    "get_table_rows", envelope, table_id=tid, start=0, end=meta["n_rows"]
+                )
                 values = [item["cells"][1] for item in rows if len(item.get("cells") or []) > 1]
-                numeric = [value for value in (parse_amount(item) for item in values) if value is not None]
+                numeric = [
+                    value for value in (parse_amount(item) for item in values) if value is not None
+                ]
                 return {
                     "resolved": True,
                     "review_state": ReviewState.ANSWERED.value,
@@ -526,7 +594,10 @@ class L0Rules:
                             "first_rows": meta.get("first_rows"),
                             "last_rows": meta.get("last_rows"),
                         },
-                        "n_missing": sum(value is None or str(value).strip() in {"", "-", "N/A"} for value in values),
+                        "n_missing": sum(
+                            value is None or str(value).strip() in {"", "-", "N/A"}
+                            for value in values
+                        ),
                         "n_numeric": len(numeric),
                         "sample_first": values[0] if values else None,
                         "sample_last": values[-1] if values else None,
@@ -562,7 +633,10 @@ def _attribute_in_scope(gateway, envelope, outline, task: dict[str, Any]) -> dic
             nodes = [
                 node
                 for node in nodes
-                if "phu luc" not in fold_for_match(" ".join(node.get("breadcrumb") or []) + " " + (node.get("raw_label") or ""))
+                if "phu luc"
+                not in fold_for_match(
+                    " ".join(node.get("breadcrumb") or []) + " " + (node.get("raw_label") or "")
+                )
             ]
     lines: list[str] = []
     citations = []
@@ -575,7 +649,14 @@ def _attribute_in_scope(gateway, envelope, outline, task: dict[str, Any]) -> dic
         folded = fold_for_match(text)
         if cues and not any(cue in folded or cue in text.lower() for cue in cues):
             continue
-        snippet = next((line.strip() for line in text.splitlines() if any(cue in fold_for_match(line) for cue in cues)), text[:240])
+        snippet = next(
+            (
+                line.strip()
+                for line in text.splitlines()
+                if any(cue in fold_for_match(line) for cue in cues)
+            ),
+            text[:240],
+        )
         if not snippet:
             continue
         lines.append(snippet[:240])
@@ -609,7 +690,14 @@ def _contract_value_from_text(gateway, envelope) -> dict[str, Any]:
             key = str(fact.item_key or "")
             structured = ""
             if fact.citation and fact.citation.node_id:
-                node = next((item for item in record.evidence_nodes() if item.node_id == fact.citation.node_id), None)
+                node = next(
+                    (
+                        item
+                        for item in record.evidence_nodes()
+                        if item.node_id == fact.citation.node_id
+                    ),
+                    None,
+                )
                 structured = str(getattr(node, "structured_key", "") or "")
             if key != "contract_value" and not structured.endswith("contract_value"):
                 continue
@@ -620,14 +708,16 @@ def _contract_value_from_text(gateway, envelope) -> dict[str, Any]:
             if marker in seen:
                 continue
             seen.add(marker)
-            rows.append((
-                side,
-                f"{label}: {amount}",
-                {
-                    "node_id": fact.citation.node_id,
-                    "text_span": (fact.citation.text_span or str(amount))[:240],
-                },
-            ))
+            rows.append(
+                (
+                    side,
+                    f"{label}: {amount}",
+                    {
+                        "node_id": fact.citation.node_id,
+                        "text_span": (fact.citation.text_span or str(amount))[:240],
+                    },
+                )
+            )
     if not rows and record is not None:
         for item in labelled_contract_values(record):
             marker = ("Chữ nguồn", item["amount"])
@@ -675,7 +765,8 @@ def _raw_money_check(gateway, envelope, task: dict[str, Any]) -> dict[str, Any]:
             }
         linked = {
             "review_state": ReviewState.NEEDS_REVIEW.value,
-            "answer": "Có fact giá trị hợp đồng: " + "; ".join(str(hit.get("value") or "") for hit in hits),
+            "answer": "Có fact giá trị hợp đồng: "
+            + "; ".join(str(hit.get("value") or "") for hit in hits),
             "citations": [hit.get("citation") or {"node_id": hit.get("node_id")} for hit in hits],
             "notes": "money_from_fact",
         }
@@ -694,10 +785,23 @@ def _clause_label(query: str) -> str | None:
 def _label_match(raw: str, label: str) -> bool:
     s = fold_for_match(raw.strip())
     wanted = fold_for_match(label.strip())
-    return s == wanted or s.startswith(wanted + ".") or s.startswith(wanted + " ") or s.startswith(wanted + ",")
+    return (
+        s == wanted
+        or s.startswith(wanted + ".")
+        or s.startswith(wanted + " ")
+        or s.startswith(wanted + ",")
+    )
 
 
-_MST_KEYS = ("mst_seller", "mst_party_a", "mst_party_b", "mst_party_c", "mst_party_y", "mst_buyer", "mst_supplier")
+_MST_KEYS = (
+    "mst_seller",
+    "mst_party_a",
+    "mst_party_b",
+    "mst_party_c",
+    "mst_party_y",
+    "mst_buyer",
+    "mst_supplier",
+)
 
 
 def _dedupe_hits(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -719,7 +823,9 @@ def _all_mst_hits(gateway: Any, envelope: ToolEnvelope) -> list[dict[str, Any]]:
     return _dedupe_hits(hits)
 
 
-def _hydrate_structured_hits(gateway: Any, envelope: ToolEnvelope, hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _hydrate_structured_hits(
+    gateway: Any, envelope: ToolEnvelope, hits: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     """Add node text so party↔MST linking can use same-line evidence."""
 
     hydrated: list[dict[str, Any]] = []
@@ -750,7 +856,9 @@ def _selected_hits(hits: list[dict[str, Any]] | None, selected: set[str]) -> lis
     ]
 
 
-def _identity_hits(gateway: ToolGateway, envelope: ToolEnvelope, outline: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _identity_hits(
+    gateway: ToolGateway, envelope: ToolEnvelope, outline: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     """Recover explicit MST tokens when AI1 did not normalize party facts."""
 
     hits: list[dict[str, Any]] = []

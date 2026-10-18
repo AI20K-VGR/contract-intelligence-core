@@ -250,7 +250,9 @@ class L2Planner:
                 "Answer only from trimmed tool results. JSON {answer, citations:[{node_id,text_span}], sufficient:bool, legal_winner:false}. "
                 f"{_answer_language_instruction(str(task.get('query') or ''))} "
                 "If sources conflict, sufficient=false and list all citations. No legal conclusion. No invented annex. "
-                "Every sentence must quote a span from a retrieved node.",
+                "Every substantive factual claim must cite a relevant retrieved node. "
+                "If the sources do not answer the question, say that the dossier has insufficient evidence, "
+                "set sufficient=false and citations=[]; never substitute an unrelated quotation for an answer.",
                 user,
             )
         except Exception:
@@ -266,7 +268,7 @@ class L2Planner:
             draft["legal_winner"] = False
             draft["sufficient"] = False
         cites = draft.get("citations") or []
-        if not cites:
+        if not cites and draft.get("sufficient") is True:
             draft["citations"] = [
                 h.get("citation") or {"node_id": h.get("node_id")}
                 for h in (l1.get("hits") or [])[:6]

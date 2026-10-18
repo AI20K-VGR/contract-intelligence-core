@@ -33,6 +33,19 @@ class FourLayerReasoner:
         recall = answer_compose.expanded_query(str(task.get("query") or ""))
         if recall != task.get("query"):
             task = {**task, "recall_query": recall}
+        flags = task.get("policy_flags") or {}
+        direct = bool(
+            flags.get("egress_allowed") is True
+            and flags.get("use_llm") is True
+            and self.l2.llm is not None
+            and self.l2.llm.configured()
+            and answer_compose.eligible(task)
+            and answer_compose.needs_scoped_evidence(task)
+        )
+        if direct:
+            # One composition call with the whole bounded source scope,
+            # rather than spending L2's call on a truncated prefix first.
+            task = {**task, "scoped_composition": True}
         result = self._run_core(envelope, task)
         policy_flags = task.get("policy_flags") or {}
         llm = self.l2.llm
@@ -46,12 +59,30 @@ class FourLayerReasoner:
             return result
         if result.get("review_state") == ReviewState.BLOCKED.value:
             return result
+        selected = [str(item) for item in task.get("selected_member_ids") or [] if item]
+        if selected:
+            # _run_core already validates membership. Keep that same scope
+            # for the composer; context expansion must not reopen the dossier.
+            envelope = envelope.model_copy(
+                update={"auth": envelope.auth.model_copy(update={"member_ids": selected})}
+            )
+        if result.get("l0_notes") == "missing_clause":
+            return result
         query = str(task.get("query") or "")
         gateway = self.l1.gateway
         notes: list[str] = []
         pairs = list(task.get("pair_relations") or [])
         if pairs and answer_compose.is_conflict_query(query):
             evidence, notes = answer_compose.evidence_from_pairs(gateway, envelope, pairs)
+        elif direct:
+            evidence = answer_compose.scoped_evidence(gateway, envelope, task)
+            # Named annexes do not replace the body facts L0/L1 already
+            # found. A body-vs-annex question needs both sets of sources.
+            existing = self._compose_evidence(envelope, task, result)
+            seen = {item["node_id"] for item in evidence}
+            evidence += [item for item in existing if item["node_id"] not in seen]
+            if not evidence:
+                return result
         elif pairs and answer_compose.is_relation_query(task):
             retrieved = self._compose_evidence(envelope, task, result)
             paired, notes = answer_compose.evidence_from_pairs(gateway, envelope, pairs)
@@ -71,9 +102,21 @@ class FourLayerReasoner:
         composed = answer_compose.compose(llm, query, evidence, notes)
         if composed is None:
             return {**result, "used_llm": bool(result.get("used_llm")) or bool(evidence)}
+        if task.get("type") in COMPARE_TYPES and answer_compose.needs_multiple_sources(query):
+            cited = {item["node_id"] for item in composed["citations"]}
+            if len(cited) < 2:
+                # Preserve the existing two-source comparison contract. A
+                # fluent one-sided draft must not replace the bounded
+                # body/annex fallback or hide the other side's anchors.
+                return {**result, "used_llm": True}
+            composed["citations"].extend(
+                item
+                for item in result.get("citations") or []
+                if item.get("node_id") and item["node_id"] not in cited
+            )
         state = (
             ReviewState.ANSWERED.value
-            if composed["sufficient"] and not notes
+            if composed["sufficient"] and not notes and task.get("type") not in COMPARE_TYPES
             else ReviewState.NEEDS_REVIEW.value
         )
         grounded = self.l3.run(
@@ -102,7 +145,9 @@ class FourLayerReasoner:
         query = str(task.get("query") or "")
         record = gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
         named = answer_compose.referenced_nodes(record, query) if record else []
-        ids: list[str] = []
+        ids: list[str] = [
+            item["node_id"] for item in answer_compose.party_evidence(gateway, envelope, query)
+        ]
         for citation in [*({"node_id": n} for n in named), *(result.get("citations") or [])]:
             node_id = str((citation or {}).get("node_id") or "")
             if node_id:
@@ -112,6 +157,7 @@ class FourLayerReasoner:
                 **task,
                 "type": "unscoped",
                 "recall_query": answer_compose.expanded_query(query),
+                "policy_flags": {**(task.get("policy_flags") or {}), "use_vector": False},
             }
             hits = self.l1.run(envelope, recall_task).get("hits") or []
         except ToolBlocked:
@@ -241,6 +287,7 @@ class FourLayerReasoner:
             (ttype in COMPARE_TYPES or freeform)
             and not query_too_broad(task.get("query") or "")
             and (allow_llm or legacy_unflagged)
+            and not task.get("scoped_composition")
         )
         draft = None
         steps: list = []
@@ -766,6 +813,6 @@ def _node_and_children(
         for node in record.evidence_nodes()
         if node.parent_id == node_id
         and node.node_id != node_id
-        and not _is_running_furniture(node.raw_label or "")
+        and not answer_compose.is_furniture(node.raw_label or "")
     ]
     return [node_id, *children[:limit]]

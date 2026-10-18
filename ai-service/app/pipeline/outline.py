@@ -34,7 +34,10 @@ def locate(nodes: list[StructuralNode], pages: list[PageSnapshot], node_id: str)
     crumb = _breadcrumb(nodes, node)
     unique = (node.structured_value or "").strip()
     needles = [s for s in (unique, node.text, node.raw_label) if s]
-    page = next((p for p in pages if node.page_revision_id and p.page_revision_id == node.page_revision_id), None)
+    page = next(
+        (p for p in pages if node.page_revision_id and p.page_revision_id == node.page_revision_id),
+        None,
+    )
     if page is None:
         page = next(
             (
@@ -96,17 +99,29 @@ def citation_for_node(
     # locator may use a structured value to find a precise character offset,
     # but reducing the citation to that value would hide amendment/context
     # cues such as "sửa ... thành ..." from comparison and review layers.
-    requested_span = text_span or ((node.text if node else "") or location.get("text_span") or "")[:240]
-    page = next((item for item in pages if item.page_revision_id == location.get("page_revision_id")), None)
+    requested_span = (
+        text_span or ((node.text if node else "") or location.get("text_span") or "")[:240]
+    )
+    page = next(
+        (item for item in pages if item.page_revision_id == location.get("page_revision_id")), None
+    )
     # A reconstructed node can span several pages.  A citation must still be
     # scoped to the page containing the requested subspan; otherwise the node
     # carries line IDs from other page revisions and becomes INVALID even
     # though the quoted role/clause is present in the source.
     if node is not None and requested_span:
         candidate_pages = [
-            item for item in pages
-            if not node.page_range or item.page_number in set(node.page_range)
+            item
+            for item in pages
+            if (not node.source_file_id or item.source_file_id == node.source_file_id)
+            and (not node.page_range or item.page_number in set(node.page_range))
         ]
+        # Different files commonly both have a page 1 and the same phrase.
+        # Keep the node's own page first; a quote must never migrate to a
+        # matching sentence in another document.
+        candidate_pages.sort(
+            key=lambda item: item.page_revision_id != location.get("page_revision_id")
+        )
         exact_page = next((item for item in candidate_pages if requested_span in item.text), None)
         if exact_page is not None:
             page = exact_page
@@ -117,7 +132,8 @@ def citation_for_node(
                     "page_revision_id": page.page_revision_id,
                     "page_range": [page.page_number],
                     "source_line_ids": [
-                        line_id for line_id in (node.source_line_ids or [])
+                        line_id
+                        for line_id in (node.source_line_ids or [])
                         if line_id in page.line_texts
                     ],
                     "char_start": None,
@@ -128,8 +144,20 @@ def citation_for_node(
     located_end = location.get("char_end")
     span = requested_span
     char_start = -1
-    source_range = _span_for_line_ids(page, node.source_line_ids) if page and node and node.source_line_ids else None
-    exact_start = (page.text.find(requested_span, *source_range) if source_range else page.text.find(requested_span)) if page and requested_span else -1
+    source_range = (
+        _span_for_line_ids(page, node.source_line_ids)
+        if page and node and node.source_line_ids
+        else None
+    )
+    exact_start = (
+        (
+            page.text.find(requested_span, *source_range)
+            if source_range
+            else page.text.find(requested_span)
+        )
+        if page and requested_span
+        else -1
+    )
     if exact_start >= 0:
         span = requested_span
         char_start = exact_start
@@ -248,5 +276,10 @@ def _search_page(page: PageSnapshot | None, needles: list[str]) -> dict | None:
             n = text[idx : idx + min(len(n), 80)] if idx >= 0 else n
         if idx >= 0:
             end = idx + max(len(n[:180]), 3)
-            return {"page": page.page_number, "start": idx, "end": min(end, len(text)), "span": text[idx:end]}
+            return {
+                "page": page.page_number,
+                "start": idx,
+                "end": min(end, len(text)),
+                "span": text[idx:end],
+            }
     return None
