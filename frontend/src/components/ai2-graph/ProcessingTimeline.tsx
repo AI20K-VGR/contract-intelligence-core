@@ -4,8 +4,8 @@ import { processingTimelineOutcome } from './timelineOutcome'
 const stageLabels: Record<string, string> = {
   extraction: 'Trích xuất dữ kiện từ điều khoản',
   semantic: 'Phân tích ngữ nghĩa điều khoản',
-  contract_graph_operation: 'Tìm quan hệ điều khoản sửa đổi',
-  contract_graph_pairs: 'Tìm quan hệ giữa các điều khoản',
+  contract_graph_operation: 'Nối điều khoản sửa đổi với điều khoản gốc',
+  contract_graph_pairs: 'Phân tích quan hệ giữa các điều khoản',
 }
 
 const stageStatusLabels: Record<string, string> = {
