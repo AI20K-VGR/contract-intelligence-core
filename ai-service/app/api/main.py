@@ -5,11 +5,15 @@ import copy
 import hashlib
 import json
 import logging
+import multiprocessing
+import multiprocessing.connection
 import os
+import sys
 import threading
 import time
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from dotenv import load_dotenv
@@ -117,6 +121,7 @@ app.include_router(processing_trace_router)
 if STATIC.exists():
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
+
 def _store_capacity() -> int | None:
     # With Postgres, /query reloads every dossier from ai2.dossier_query_snapshots,
     # so the in-memory store is a cache. Without it the store is the only copy.
@@ -125,6 +130,29 @@ def _store_capacity() -> int | None:
 
 STORE = InMemorySnapshotStore(max_entries=_store_capacity())
 logger = logging.getLogger(__name__)
+# Job/dispatch timing lines. The app configures no logging, so without a handler of its own
+# these INFO lines never reach `docker logs`. propagate stays on so caplog still sees them.
+timing_logger = logging.getLogger("ai2.timing")
+
+
+def _ensure_timing_handler() -> None:
+    if timing_logger.handlers:
+        return
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setLevel(logging.INFO)
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+    timing_logger.addHandler(handler)
+    timing_logger.setLevel(logging.INFO)
+
+
+# A spawned job child re-imports this module, so it gets the handler too.
+_ensure_timing_handler()
+
+
+def _elapsed_ms(started: float) -> int:
+    return max(0, int((time.monotonic() - started) * 1000))
+
+
 # Every job's durable state is in JOB_STORE; these maps only cache recent jobs
 # so a long-lived process does not keep every result it ever produced.
 JOBS: BoundedDict[str, JobResult] = BoundedDict(env_capacity("AI2_JOBS_CACHE_SIZE", 8))
@@ -279,29 +307,210 @@ def _run_wire_job(job_id: str, payload: dict) -> None:
     failing it, and the processing budget starts only once it runs.
     """
 
+    entered = time.monotonic()
+    slot_wait_ms = run_ms = None
     try:
         with _JOB_SLOTS:
+            slot_wait_ms = _elapsed_ms(entered)
+            held = time.monotonic()
             try:
-                _execute_wire_job(job_id, payload)
+                if JOB_ISOLATION == "process":
+                    _run_isolated_job(job_id, payload)
+                else:
+                    _execute_wire_job(job_id, payload)
             finally:
                 # The job's records are garbage now; give their pages back
                 # before the next job, not at the end of the process.
                 release_memory()
+                run_ms = _elapsed_ms(held)
     finally:
         with _HELD_LOCK:
             _HELD_JOB_IDS.discard(job_id)
+        timing_logger.info(
+            "ai2.job_timing scope=dispatch isolation=%s job_id=%s slot_wait_ms=%s run_ms=%s",
+            JOB_ISOLATION,
+            job_id,
+            slot_wait_ms,
+            run_ms,
+        )
+
+
+# "process" runs each job in a spawned child: an OOM-kill or a hung job then takes the
+# child, not the API answering GET /jobs and /query (#113). Job state lives in JOB_STORE,
+# which both processes share. "thread" (default) keeps the in-process worker for tests.
+JOB_ISOLATION = os.getenv("AI2_JOB_ISOLATION", "thread").strip().casefold()
+_JOB_KILL_GRACE_SECONDS = 60
+# Lease slack past the kill: the child claims after spawn, and the parent kills at
+# spawn + budget + grace. A lease ending first let the sweep record AI2_WORKER_RESTARTED
+# for a hung job instead of PROCESSING_TIMEOUT (PR #125 review 1d).
+_LEASE_SLACK_SECONDS = 30
+
+
+def _job_lease_ms(budget_seconds: float) -> int:
+    return int((budget_seconds + _JOB_KILL_GRACE_SECONDS + _LEASE_SLACK_SECONDS) * 1000)
+
+
+_CLAIM_REPORT = None  # child side of the pipe: (worker_token, tenant_id, dossier_id)
+
+
+def _job_process_entry(job_id: str, payload: dict, conn) -> None:
+    global _CLAIM_REPORT
+    _CLAIM_REPORT = conn
+    _execute_wire_job(job_id, payload)
+
+
+def _payload_budget_seconds(payload: dict) -> float:
+    try:
+        return float(payload["policy_flags"]["budget_limits"]["max_processing_seconds"])
+    except (KeyError, TypeError, ValueError):
+        return 900.0
+
+
+def _read_claim(receiver) -> tuple | None:
+    try:
+        # On Linux a killed child leaves the pipe readable at EOF: poll() is True, recv() raises.
+        return receiver.recv() if receiver.poll() else None
+    except (EOFError, OSError):
+        return None
+
+
+def _await_claim(receiver, child, limit: float) -> tuple[tuple | None, bool]:
+    """Wait up to ``limit`` s for the child's claim: (claim or None, limit expired first)."""
+    deadline = time.monotonic() + limit
+    while child.is_alive():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None, True
+        ready = multiprocessing.connection.wait([receiver, child.sentinel], remaining)
+        if receiver in ready:
+            return _read_claim(receiver), False
+    return None, False
+
+
+def _run_isolated_job(job_id: str, payload: dict, *, target=_job_process_entry) -> None:
+    ctx = multiprocessing.get_context("spawn")
+    receiver, sender = ctx.Pipe(duplex=False)
+    child = ctx.Process(target=target, args=(job_id, payload, sender), daemon=True)
+    child.start()
+    sender.close()
+    limit = _payload_budget_seconds(payload) + _JOB_KILL_GRACE_SECONDS
+    # The job budget starts in the child after import, envelope check and adapt; a 200-page
+    # snapshot spends ~70 s there. The child reports its claim (budget start) over the pipe
+    # and the kill deadline counts from that moment; the same limit bounds a child that
+    # never claims (PR #125 review round 2).
+    claim, expired = _await_claim(receiver, child, limit)
+    # After a claim the full limit runs from now; without one only a short reap remains.
+    child.join(0 if expired else limit if claim is not None else 5)
+    timed_out = child.is_alive()
+    if timed_out:
+        child.kill()
+        child.join(5)
+    if claim is None:
+        claim = _read_claim(receiver)
+    receiver.close()
+    if child.exitcode == 0:
+        WIRE_JOBS.pop(job_id, None)
+        _refresh_query_store(job_id)
+        return
+    code = "PROCESSING_TIMEOUT" if timed_out else "AI2_WORKER_CRASHED"
+    logger.warning(
+        "ai2.job_process_ended job_id=%s exitcode=%s code=%s", job_id, child.exitcode, code
+    )
+    update = {
+        "status": "FAILED",
+        "review_state": "BLOCKED",
+        "result": None,
+        "errors": [{"code": code, "message": ISSUE_MESSAGES_VI[code], "retryable": True}],
+    }
+    wire = {**_known_wire(job_id), **update}
+    WIRE_JOBS.pop(job_id, None)
+    if claim is None:
+        JOB_STORE.fail_unclaimed(job_id, update)
+    else:
+        worker_token, tenant_id, dossier_id = claim
+        JOB_STORE.set_wire(
+            job_id,
+            tenant_id=tenant_id,
+            dossier_id=dossier_id,
+            worker_token=worker_token,
+            status="FAILED",
+            wire=wire,
+        )
+    try:
+        ProcessingTraceStore(JOB_STORE).finalize_stale_job(job_id)
+    except Exception as exc:
+        logger.warning(
+            "ai2.processing_trace_finalize_failed job_id=%s code=%s", job_id, type(exc).__name__
+        )
+
+
+def _refresh_query_store(job_id: str) -> None:
+    """The child wrote the query snapshot; this process drops or reloads its cached copy."""
+    stored = JOB_STORE.get(job_id) or {}
+    tenant_id, dossier_id = stored.get("tenant_id"), stored.get("dossier_id")
+    if not tenant_id or not dossier_id:
+        return
+    if database_url():
+        STORE.discard(tenant_id, dossier_id)
+        return
+    persisted = load_query_snapshot(dossier_id, tenant_id=tenant_id)
+    if persisted is not None:
+        STORE.put(persisted[0])
+
+
+_PROGRESS_MIN_INTERVAL_SECONDS = 1.0
+
+
+def _progress_writer(job_id: str, tenant_id: str, dossier_id: str, worker_token: str):
+    """Persist in-step progress on the RUNNING wire (#116): every step change, else at most once a second."""
+    last = {"step": None, "at": 0.0}
+
+    def write(progress: dict) -> None:
+        now = time.monotonic()
+        if progress["step"] == last["step"] and now - last["at"] < _PROGRESS_MIN_INTERVAL_SECONDS:
+            return
+        last.update(step=progress["step"], at=now)
+        wire = {**_known_wire(job_id), "status": "RUNNING", "progress": progress}
+        WIRE_JOBS[job_id] = wire
+        JOB_STORE.set_wire(
+            job_id,
+            tenant_id=tenant_id,
+            dossier_id=dossier_id,
+            worker_token=worker_token,
+            status="RUNNING",
+            wire=wire,
+        )
+
+    return write
+
+
+def _attach_job_timing(result: JobResult, timing: dict) -> None:
+    # Written before persist, so it carries what was measured up to the end of run_idp.
+    if result.contribution is None:
+        return
+    result.contribution.coverage = {
+        **result.contribution.coverage,
+        "job_timing": {key: timing[key] for key in ("snapshot_load_ms", "claim_ms", "pipeline_ms")},
+    }
 
 
 def _execute_wire_job(job_id: str, payload: dict) -> None:
     """Execute one accepted wire request and retain its public result."""
 
+    timing: dict[str, int | None] = dict.fromkeys(
+        ("snapshot_load_ms", "claim_ms", "pipeline_ms", "persist_ms")
+    )
+    status: str | None = None
+    accepted: bool | None = None
     try:
+        started = time.monotonic()
         service_envelope = verify_service_envelope(payload)
         request, adapted = adapt_be_ai2_processing_request(
             payload,
             tenant_id=service_envelope.tenant_id,
             actor_id=service_envelope.actor_id,
         )
+        timing["snapshot_load_ms"] = _elapsed_ms(started)
         tenant_id = request.service_envelope.tenant_id
         execution_id = uuid4().hex
         if request.semantic_profile is not None:
@@ -309,15 +518,19 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
 
             if os.getenv("AI2_SEMANTIC_ENABLED", "true").strip().casefold() == "true":
                 effective_context_bounds(request.semantic_profile.context_bounds)
+        started = time.monotonic()
         worker_token = JOB_STORE.claim(
             job_id,
             tenant_id=tenant_id,
             dossier_id=request.dossier_id,
-            lease_ms=request.policy_flags.budget_limits.max_processing_seconds * 1000 + 30_000,
+            lease_ms=_job_lease_ms(request.policy_flags.budget_limits.max_processing_seconds),
             execution_id=execution_id,
         )
         if worker_token is None:
+            status = "UNCLAIMED"
             return
+        if _CLAIM_REPORT is not None:
+            _CLAIM_REPORT.send((worker_token, tenant_id, request.dossier_id))
         queued = _known_wire(job_id)
         if queued:
             wire = dict(queued)
@@ -331,6 +544,7 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
                 status="RUNNING",
                 wire=wire,
             )
+        timing["claim_ms"] = _elapsed_ms(started)
         egress_allowed = processing_egress_allowed()
         llm = None
         if egress_allowed:
@@ -343,6 +557,7 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
             max_processing_seconds=request.policy_flags.budget_limits.max_processing_seconds,
             max_llm_calls=request.policy_flags.budget_limits.max_llm_calls,
             max_embedding_tokens=request.policy_flags.budget_limits.max_embedding_tokens,
+            on_progress=_progress_writer(job_id, tenant_id, request.dossier_id, worker_token),
         )
         query_snapshot_digest = adapted.record.pins.source_snapshot_digest
         trace_writer = ProcessingTraceWriter(
@@ -357,6 +572,7 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
         # AI2_PROCESSING_EGRESS_ALLOWED controls whether the configured client
         # can be used. The pipeline itself owns retry/fallback accounting.
         processing_store = InMemorySnapshotStore()
+        started = time.monotonic()
         result = run_idp(
             adapted.record,
             adapted.envelope,
@@ -366,11 +582,15 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
             runtime=runtime,
             trace_writer=trace_writer,
         )
+        timing["pipeline_ms"] = _elapsed_ms(started)
+        _attach_job_timing(result, timing)
         processed_record = (
             processing_store.get(adapted.record.tenant_id, adapted.record.dossier_id)
             or adapted.record
         )
         wire = job_result_to_wire(result, request, query_snapshot_digest=query_snapshot_digest)
+        status = wire["status"]
+        started = time.monotonic()
         accepted = JOB_STORE.complete_with_snapshot(
             job_id,
             tenant_id=tenant_id,
@@ -382,6 +602,7 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
             record=processed_record,
             envelope=adapted.envelope,
         )
+        timing["persist_ms"] = _elapsed_ms(started)
         if accepted:
             # The finished wire carries the whole result and JOB_STORE already
             # has it (GET /jobs/{id} reads it there): keep no second copy.
@@ -395,6 +616,7 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
                 if persisted is not None:
                     STORE.put(persisted[0])
     except Exception as exc:  # worker boundary: every failure ends the job
+        status = "FAILED"
         code = exc.code if isinstance(exc, SnapshotContractError) else "AI2_WORKER_FAILED"
         update = {
             "status": "FAILED",
@@ -416,6 +638,19 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
         else:
             # Failed before claiming: without this the job stays QUEUED forever.
             JOB_STORE.fail_unclaimed(job_id, update)
+    finally:
+        # Numbers and ids only; a FAILED job logs the marks it reached (the rest are None).
+        timing_logger.info(
+            "ai2.job_timing scope=worker job_id=%s snapshot_load_ms=%s claim_ms=%s "
+            "pipeline_ms=%s persist_ms=%s status=%s accepted=%s",
+            job_id,
+            timing["snapshot_load_ms"],
+            timing["claim_ms"],
+            timing["pipeline_ms"],
+            timing["persist_ms"],
+            status,
+            accepted,
+        )
 
 
 def _sweep_stale_jobs(
@@ -1024,6 +1259,44 @@ def process_from_backend(payload: dict, request: Request) -> dict:
     }
 
 
+def _query_pair_relations(record: Any, digest: str | None) -> list[dict[str, Any]]:
+    """Stored pair relations of the snapshot being queried; empty when unavailable."""
+
+    if record.pair_relations:
+        return [
+            {
+                "label": getattr(r.label, "value", r.label),
+                "node_a_id": r.node_a_id,
+                "node_b_id": r.node_b_id,
+            }
+            for r in record.pair_relations
+        ]
+    if not database_url() or not digest:
+        return []
+    from sqlalchemy import select
+
+    from app.db.engine import get_engine
+    from app.db.tables import contract_pair_relations as table
+
+    try:
+        with get_engine().connect() as cx:
+            rows = (
+                cx.execute(
+                    select(table.c.label, table.c.node_a_id, table.c.node_b_id).where(
+                        table.c.tenant_id == record.tenant_id,
+                        table.c.dossier_id == record.dossier_id,
+                        table.c.source_snapshot_digest.in_([digest, f"sha256:{digest}"]),
+                    )
+                )
+                .mappings()
+                .all()
+            )
+    except Exception:
+        logger.warning("ai2.query_pair_relations_unavailable", exc_info=True)
+        return []
+    return [dict(row) for row in rows]
+
+
 @app.post("/query")
 @app.post("/api/v1/query")
 def query_from_backend(payload: dict) -> dict:
@@ -1135,6 +1408,8 @@ def query_from_backend(payload: dict) -> dict:
                     llm = DeadlineLLM(candidate, timeout)
             query_store = InMemorySnapshotStore()
             query_store.put(record)
+            task = classify_ask(query)
+            task["pair_relations"] = _query_pair_relations(record, expected_digest)
             result = QueryRouter(
                 query_store,
                 ToolGateway(query_store, signed_principal=service_envelope is not None),
@@ -1149,7 +1424,7 @@ def query_from_backend(payload: dict) -> dict:
             ).query(
                 envelope,
                 query,
-                classify_ask(query),
+                task,
                 policy_flags=policy_flags,
             )
             citations = _enrich_citations(result.get("citations") or [], record)

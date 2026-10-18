@@ -22,7 +22,7 @@
         "additionalProperties": false,
         "required": ["stage_id", "status", "started_ms", "duration_ms", "item_count", "reason_code"],
         "properties": {
-          "stage_id": { "enum": ["contract_graph_operation", "contract_graph_pairs"] },
+          "stage_id": { "enum": ["extraction", "contract_graph_operation", "contract_graph_pairs", "semantic"] },
           "status": { "enum": ["RUNNING", "COMPLETED", "FAILED", "SKIPPED", "INTERRUPTED_UNKNOWN", "INCOMPLETE_UNKNOWN"] },
           "started_ms": { "type": ["integer", "null"], "minimum": 0 },
           "duration_ms": { "type": ["integer", "null"], "minimum": 0 },

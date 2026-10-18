@@ -32,15 +32,21 @@ from contract_intelligence.shared.acl import (
     dossier_access_decision,
     dossier_denied_detail,
 )
-from contract_intelligence.shared.ai.persistence import load_ai2_read_model
+from contract_intelligence.shared.ai.citation_guard import verify_citation
+from contract_intelligence.shared.ai.persistence import (
+    canonical_citation_item,
+    load_ai2_read_model,
+)
 from contract_intelligence.shared.ai.schemas import SemanticExtension
 from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user
 from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.shared.persistence import get_async_session
 from contract_intelligence.shared.query_history import list_query_history, record_query_answer
 from contract_intelligence.shared.query_policy import (
+    AclSecondPass,
     QueryEndpoint,
     QueryLimitExceeded,
+    document_ref,
     enforce_query_limits,
     enforce_result_acl,
     save_query_trace,
@@ -363,7 +369,10 @@ async def _run_dossier_query(
     started = time.monotonic()
     try:
         semantic = await _semantic_result(session, dossier)
-        if semantic["semantic_extension"] is not None or semantic["state"] == "NOT_READY":
+        # AI2 answers against the same pinned snapshot digest. The persisted semantic frames
+        # only matched query tokens and returned their text verbatim, without the LLM (#121);
+        # they still block a question while the current result is not ready.
+        if semantic["state"] == "NOT_READY":
             ai2_raw = _semantic_query(semantic, body.query)
         else:
             ai2_raw = await query_ai2(ai2_payload)
@@ -396,6 +405,16 @@ async def _run_dossier_query(
         and _acl_allows(user, dossier, AclAction.CITATION_READ),
         allowed_document_ids=await _dossier_document_ids(session, dossier),
     )
+    guard_error: str | None = None
+    if semantic["semantic_extension"] is not None and acl.decision != "denied":
+        # A semantic dossier used to answer only from VALID frame citations; AI2's answer
+        # now goes through the same OCR guard as persisted citations (PR #125 review #1).
+        # `filtered` already withheld the answer, but its surviving citations still reach
+        # the FE, so they are guarded too.
+        filtered, unverified = await _guard_answer_citations(session, filtered)
+        if unverified:
+            guard_error = "BACKEND_CITATION_UNVERIFIED"
+            acl = AclSecondPass(decision=acl.decision, dropped=acl.dropped + unverified)
     citations = list(filtered.get("citations") or [])
     answer = str(filtered.get("answer") or "")
     trace = await save_query_trace(
@@ -404,6 +423,7 @@ async def _run_dossier_query(
         state=str(filtered.get("state") or "ok"),
         citations=citations,
         acl=acl,
+        error_code=guard_error,
         latency_ms=latency_ms,
     )
     # Same transaction as the trace: history survives restarts with its answer.
@@ -425,6 +445,50 @@ async def _run_dossier_query(
         trace_id=trace.id,
         acl_decision=acl.decision,
     )
+
+
+async def _guard_answer_citations(
+    session: AsyncSession, result: dict[str, Any]
+) -> tuple[dict[str, Any], int]:
+    """Keep only citations whose quote matches the stored OCR span; withhold on any miss.
+
+    The answer may quote a rejected citation, so it is withheld like an ACL drop.
+    Returns the guarded result and how many citations were rejected.
+    """
+    kept: list[Any] = []
+    rejected = 0
+    for item in result.get("citations") or []:
+        document_id = document_ref(item) if isinstance(item, dict) else None
+        if document_id is None:
+            rejected += 1
+            continue
+        try:
+            guard = await verify_citation(
+                session, document_id=document_id, citation=canonical_citation_item(item)
+            )
+        except (TypeError, ValueError, ValidationError):
+            rejected += 1
+            continue
+        if guard.accepted:
+            kept.append(item)
+        else:
+            rejected += 1
+    guarded = {**result, "citations": kept}
+    if rejected:
+        logger.warning("dossiers.query.citation_unverified", rejected=rejected)
+        guarded.update(
+            answer=None,
+            text=None,
+            state="BLOCKED",
+            retrieval_layer={},
+            reasoning_trace=[
+                {
+                    "code": "BACKEND_CITATION_UNVERIFIED",
+                    "message": f"Đã loại {rejected} trích dẫn không khớp văn bản OCR.",
+                }
+            ],
+        )
+    return guarded, rejected
 
 
 _QUERY_RESPONSES: dict[int | str, dict[str, Any]] = {

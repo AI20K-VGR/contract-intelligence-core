@@ -38,7 +38,7 @@ Khi cả hai bên duyệt xong:
 | D10 | Contract hỏi đáp | AI2 trả `query_snapshot_digest` trong result; Backend lưu nguyên giá trị, không tự tính; `state` có 4 giá trị, thêm `BLOCKED` | 30/09 |
 | D12 | Hồ sơ nhiều hợp đồng (Sprint 3) | Cho phép nhiều `body`; AI2 so từng cặp hợp đồng; AI2 nhận `max_body_members` trước, Backend nới `/split` và manifest sau | Trước khi làm DOC-11 §4.2 mục 12 |
 | D11 | Nơi lưu dữ liệu AI2 | **Phương án A (Lead duyệt 30/09):** nghiệp vụ ở Postgres của Backend; trạng thái riêng của AI2 ở schema `ai2` trong cùng Postgres, AI2 tự quản migration | Trước lần deploy online đầu tiên |
-| D13 | Tiến độ trong bước | **Đề xuất của Backend 16/10, chờ AI2 duyệt (#116).** Khi job `RUNNING`, `GET /jobs/{job_id}` trả thêm trường tuỳ chọn `progress: {step, done, total, unit}` (`step` ∈ S4, S5, S6, S7, S9, S10); Backend chỉ dùng để hiển thị, bỏ qua khi thiếu hoặc sai. Chi tiết ở `BE-AI2-PROCESSING-CONTRACT.vi.md` §3. Backend đã nhận trường này từ PR #117 | Khi AI2 làm #116 |
+| D13 | Tiến độ trong bước | **Đã chốt 18/10/2026 trong PR #125, thực hiện #116; Backend nhận từ PR #117.** Khi job `RUNNING`, `GET /jobs/{job_id}` trả thêm trường tuỳ chọn `progress: {step, done, total, unit}` (`step` ∈ S4, S5, S6, S7, S9, S10); Backend chỉ dùng để hiển thị, bỏ qua khi thiếu hoặc sai. Chi tiết ở `BE-AI2-PROCESSING-CONTRACT.vi.md` §3 | Đã triển khai trong PR #125 |
 
 ---
 
@@ -193,6 +193,16 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
 - **Điều kiện giữ nguyên:** bản online chỉ xử lý hợp đồng mẫu đã ẩn thông tin. Consent mặc định `true` không kiểm tra được nội dung hồ sơ, nên đây vẫn là quy tắc vận hành.
 - **Key và chi phí:** Văn Dũng giữ OpenAI API key của bản online, đặt hard limit trên tài khoản OpenAI và tự theo dõi chi phí. **Trần: 30 USD/tháng** (Văn Dũng đề xuất ngày 15/10; Lead giao quyền chọn số cho Văn Dũng và **Trang xác nhận con số ngày 15/10** ở review PR #85, chặn bằng hard limit trên tài khoản OpenAI). Giữ trần theo hồ sơ: tối đa 20 lần gọi LLM và 100.000 token embedding.
 - **Cảnh báo khi chạm trần:** không có cảnh báo chủ động (Văn Dũng chọn ngày 15/10). Cơ chế chặn: chạm hard limit thì OpenAI từ chối, AI2 trả `NEEDS_REVIEW` thay vì `FAILED` theo cam kết D6, và Văn Dũng tắt các cờ egress trong `deploy/.env.prod` rồi deploy lại. Hệ quả cần chấp nhận: không ai biết sắp chạm trần cho tới khi lời gọi bắt đầu bị từ chối.
+
+**Bổ sung D6 ngày 18/10/2026 — PR #125.** [Lead (Trang) đã duyệt](https://github.com/AI20K-VGR/contract-intelligence-core/pull/125#pullrequestreview-5562096637):
+- `AI2_LLM_LIGHT_REASONING_EFFORT=low` chỉ cho `slot_context`/`alias`; `AI2_PAIRS_CONCURRENCY=5` trên production, với điều kiện admission/budget cho lô song song được sửa trước merge. `_BudgetGate` và test retry/budget đã được bổ sung trong `19a43461`.
+- Nếu tỉ lệ 429 tăng sau deploy, đặt `AI2_PAIRS_CONCURRENCY=1`. Key/project của pairs riêng với AI1 theo xác nhận của Lead; vẫn theo dõi 429 và thời gian OCR của `ai1-worker`.
+- `ContextBounds.max_output_tokens` là trần **mỗi request**, kể cả request chứa nhiều frame; không nhân theo số frame. Nếu response thiếu/cắt, giữ frame cũ và ghi lý do coverage, không suy diễn slot.
+
+**COMPOSE trên `/ask` và `/query` — Lead đã duyệt ngày 18/10/2026, có điều kiện.** [Quyết định của Lead tại PR #125](https://github.com/AI20K-VGR/contract-intelligence-core/pull/125#pullrequestreview-5563062147): đồng ý giữ COMPOSE trong PR này, với điều kiện Chương review xong phần COMPOSE (`369cf2d7`, `c7c91e96` và các bản sửa tiếp theo) trên SHA mới trước merge. Đây là phê duyệt riêng với hai knob ở trên, không thay thế approve code trên SHA cuối.
+- Khi LLM/egress được phép và có nguồn phù hợp, câu hỏi L0/L1 đủ điều kiện có thể gọi thêm một lần LLM để viết câu trả lời có trích dẫn. Tra điều khoản đơn thuần giữ nguyên văn; câu đã dùng L2 không gọi COMPOSE tiếp trừ nhánh tổng hợp quan hệ.
+- Gửi câu hỏi, các đoạn nguồn được ToolGateway cho phép và quan hệ pair đã lưu; không gửi PDF. Prompt COMPOSE giới hạn 48.000 ký tự; nguồn có thể gồm dữ liệu các bên/tài khoản nếu liên quan câu hỏi. Vẫn áp dụng consent, scope, chữ ký và timeout LLM chung của query; không có ngân sách mới được duyệt.
+- Hệ quả: tăng chi phí/độ trễ so với L0 trả trực tiếp; thêm lần gửi nội dung tới provider khi consent cho phép. Provider lỗi thì giữ kết quả truy xuất. Theo phê duyệt của Lead, chi phí vẫn trong trần 30 USD/tháng và dữ liệu vẫn theo phạm vi D6: bản online chỉ dùng hợp đồng mẫu đã ẩn thông tin, consent từng hồ sơ và `AI2_QUERY_EGRESS_ALLOWED`, không gửi PDF. Test local không thay thế review/approve code của Chương và Đức Dũng trên SHA mới; Lead approve sau hai reviewer.
 
 **Lịch:** đóng băng code giữ tối 02/10 (DOC-11); deploy 03/10.
 
@@ -454,3 +464,5 @@ Các mục sau để lại cho Sprint 3:
 | 2026-10-02 | D6: vượt `max_llm_calls` trả `NEEDS_REVIEW` (không còn `INSUFFICIENT_EVIDENCE`) và issue `EGRESS_DENIED` mang `NEEDS_REVIEW`, theo D-4 Sprint 3 và B5 (run `BLOCKED` bị đánh `failed`). Lead (Trang) đồng ý trong review PR #56; sửa cả mục D6, việc A3/A8 và bảng việc | Văn Dũng |
 | 2026-10-15 | D6: Lead (Trang) chốt ở review PR #85: model `gpt-5.5`; bật mặc định mọi cờ egress, vector, LLM và `AI2_CONTENT_SHARING_CONSENT_DEFAULT`; đồ thị hợp đồng bật, auto-pass và embedding discovery tắt; consent theo hồ sơ giữ ở Backend (`PATCH .../ai2-content-sharing-consent`, có audit; `PATCH /dossiers/{id}` không đổi được); điều kiện hợp đồng mẫu đã ẩn thông tin giữ nguyên; Văn Dũng giữ key, trần 30 USD/tháng (Trang xác nhận 15/10), không cảnh báo chủ động. Thay các dòng "LLM", "Trần", "Chia cờ" của 30/09 | Văn Dũng |
 | 2026-10-16 | Thêm D13 (tiến độ trong bước, trường `progress` tuỳ chọn của `GET /jobs/{job_id}`): đề xuất của Backend theo yêu cầu frontend, chờ AI2 duyệt ở #116; `BE-AI2-PROCESSING-CONTRACT.vi.md` §3 ghi cùng trạng thái. Theo review của Trang ở PR #117 | Chương |
+| 2026-10-18 | PR #125: ghi phê duyệt Lead cho light reasoning `low`, pairs concurrency `5` có điều kiện budget, rollback về `1` khi 429 tăng; D13 và processing §3 đã chốt cho #116. COMPOSE được mô tả riêng và vẫn chờ Lead duyệt | Văn Dũng |
+| 2026-10-18 | Lead duyệt giữ COMPOSE trong PR #125 (review 5563062147), với điều kiện Chương review xong COMPOSE trên SHA mới; giữ trần 30 USD/tháng, phạm vi dữ liệu/consent D6. Vẫn chờ reviewer approve code cuối | Văn Dũng |

@@ -954,7 +954,7 @@ def _context_findings_as_items(
         def side(document_id: str, citation: dict[str, Any]) -> FindingSideItem:
             return FindingSideItem(
                 document_id=document_id,
-                citation=_canonical_citation_item(citation),
+                citation=canonical_citation_item(citation),
                 value_snapshot={"text": str(citation.get("text_span") or "")},
             )
 
@@ -1009,7 +1009,7 @@ async def _page_line_confidences(
     ]
 
 
-def _canonical_citation_item(raw: dict[str, Any]) -> CitationItem:
+def canonical_citation_item(raw: dict[str, Any]) -> CitationItem:
     """Map one canonical AI2 citation to the legacy DB persistence DTO."""
 
     page = int(raw.get("page") or (raw.get("page_range") or [1])[0] or 1)
@@ -1165,7 +1165,7 @@ async def persist_ai2_processing_result(
                 confidence=confidence,
                 extractor=str(raw_fact.get("provenance") or "ai2.canonical"),
                 context_text=None,
-                citation=_canonical_citation_item(citation or {}),
+                citation=canonical_citation_item(citation or {}),
             )
         )
 
@@ -1209,7 +1209,7 @@ async def persist_ai2_processing_result(
                     side_a=FindingSideItem(
                         document_id=left.document_id,
                         clause_node_id=None,
-                        citation=_canonical_citation_item(left.evidence[0].citation.model_dump()),
+                        citation=canonical_citation_item(left.evidence[0].citation.model_dump()),
                         value_snapshot={
                             "semantic": {
                                 "frame": left.model_dump(mode="json"),
@@ -1226,7 +1226,7 @@ async def persist_ai2_processing_result(
                     side_b=FindingSideItem(
                         document_id=right.document_id,
                         clause_node_id=None,
-                        citation=_canonical_citation_item(right.evidence[0].citation.model_dump()),
+                        citation=canonical_citation_item(right.evidence[0].citation.model_dump()),
                         value_snapshot={
                             "semantic": {
                                 "frame": right.model_dump(mode="json"),
@@ -1257,7 +1257,7 @@ async def persist_ai2_processing_result(
             ) -> FindingSideItem:
                 return FindingSideItem(
                     document_id=frame.document_id,
-                    citation=_canonical_citation_item(frame.evidence[0].citation.model_dump()),
+                    citation=canonical_citation_item(frame.evidence[0].citation.model_dump()),
                     value_snapshot={
                         "semantic": {
                             "frame": frame.model_dump(mode="json"),
@@ -1339,11 +1339,11 @@ async def persist_ai2_processing_result(
                 method="ai2.canonical",
                 side_a=FindingSideItem(
                     document_id=str(left_citation["source_file_id"]),
-                    citation=_canonical_citation_item(left_citation),
+                    citation=canonical_citation_item(left_citation),
                 ),
                 side_b=FindingSideItem(
                     document_id=str(right_citation["source_file_id"]),
-                    citation=_canonical_citation_item(right_citation),
+                    citation=canonical_citation_item(right_citation),
                 ),
             )
         )
@@ -1651,6 +1651,7 @@ async def _build_citation_orm(
 __all__ = [
     "Ai2PersistenceConflict",
     "Ai2ReadModel",
+    "canonical_citation_item",
     "evaluate_ai2_completeness",
     "load_ai2_read_model",
     "persist_ai1_snapshot",

@@ -9,7 +9,6 @@ from urllib.parse import urljoin
 
 from app.contracts.errors import ContractValidationError
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CONTRACT_ROOT = REPO_ROOT / "docs" / "contracts"
 
@@ -56,9 +55,9 @@ def validate_contract(instance: Mapping[str, Any], filename: str, *, error_code:
                 )
 
     validator = Draft202012Validator(schema, registry=registry, format_checker=FormatChecker())
-    errors = sorted(validator.iter_errors(instance), key=lambda item: list(item.absolute_path))
-    if not errors:
+    # First error only: collecting every error of a large invalid snapshot exhausted memory.
+    error = next(iter(validator.iter_errors(instance)), None)
+    if error is None:
         return
-    error = errors[0]
     path = ".".join(str(part) for part in error.absolute_path) or "$"
     raise ContractValidationError(f"{path}: {error.message}", code=error_code)

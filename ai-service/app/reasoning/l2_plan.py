@@ -59,7 +59,8 @@ def _answer_language_instruction(query: str) -> str:
 
 def _asks_full_payment_schedule(query: str) -> bool:
     folded = "".join(
-        char for char in unicodedata.normalize("NFD", query.casefold())
+        char
+        for char in unicodedata.normalize("NFD", query.casefold())
         if unicodedata.category(char) != "Mn"
     ).replace("đ", "d")
     return any(
@@ -153,7 +154,9 @@ class L2Planner:
         self.last_prompt_chars = 0
         self.llm_called = False
 
-    def run(self, envelope: ToolEnvelope, task: dict[str, Any], l1: dict[str, Any]) -> dict[str, Any]:
+    def run(
+        self, envelope: ToolEnvelope, task: dict[str, Any], l1: dict[str, Any]
+    ) -> dict[str, Any]:
         # Planner instances can serve multiple queries; call state belongs to
         # this run, not the previous query.
         self.last_prompt_chars = 0
@@ -247,20 +250,28 @@ class L2Planner:
                 "Answer only from trimmed tool results. JSON {answer, citations:[{node_id,text_span}], sufficient:bool, legal_winner:false}. "
                 f"{_answer_language_instruction(str(task.get('query') or ''))} "
                 "If sources conflict, sufficient=false and list all citations. No legal conclusion. No invented annex. "
-                "Every sentence must quote a span from a retrieved node.",
+                "Every substantive factual claim must cite a relevant retrieved node. "
+                "If the sources do not answer the question, say that the dossier has insufficient evidence, "
+                "set sufficient=false and citations=[]; never substitute an unrelated quotation for an answer.",
                 user,
             )
         except Exception:
             return self._fallback_review(envelope, task, l1)
         if not _valid_draft(draft):
             return self._fallback_review(envelope, task, l1)
+        for citation in draft.get("citations") or []:
+            # Live models echo ids as "[id]"; unmatched ids made every
+            # comparison draft fail the two-source check.
+            if isinstance(citation, dict) and isinstance(citation.get("node_id"), str):
+                citation["node_id"] = citation["node_id"].strip().strip("[]()<>`'\" ")
         if draft.get("legal_winner"):
             draft["legal_winner"] = False
             draft["sufficient"] = False
         cites = draft.get("citations") or []
-        if not cites:
+        if not cites and draft.get("sufficient") is True:
             draft["citations"] = [
-                h.get("citation") or {"node_id": h.get("node_id")} for h in (l1.get("hits") or [])[:6]
+                h.get("citation") or {"node_id": h.get("node_id")}
+                for h in (l1.get("hits") or [])[:6]
             ]
             draft["sufficient"] = False
         logical_tables = l1.get("logical_tables") or []
@@ -272,11 +283,13 @@ class L2Planner:
                 for citation in row.get("cell_citations", {}).values()
             ]
             cited_nodes = {
-                str(item.get("node_id")) for item in draft.get("citations", [])
+                str(item.get("node_id"))
+                for item in draft.get("citations", [])
                 if isinstance(item, dict) and item.get("node_id")
             }
             draft["citations"].extend(
-                citation for citation in table_citations
+                citation
+                for citation in table_citations
                 if str(citation.get("node_id") or "") not in cited_nodes
             )
             if any(not table.get("coverage", {}).get("complete") for table in logical_tables):
@@ -284,7 +297,8 @@ class L2Planner:
             if _asks_full_payment_schedule(str(task.get("query") or "")):
                 expected = {
                     str(row.get("cells", [None])[0])
-                    for table in logical_tables for row in table.get("rows", [])
+                    for table in logical_tables
+                    for row in table.get("rows", [])
                     if row.get("cells") and row["cells"][0]
                 }
                 answer_ids = {
@@ -325,7 +339,11 @@ class L2Planner:
         # every expanded ID is still fetched through gateway.call below, so a
         # gateway without a store just plans the L1 hits themselves.
         store = getattr(self.gateway, "store", None)
-        record = store.get(envelope.auth.tenant_id, envelope.auth.dossier_id) if store is not None else None
+        record = (
+            store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
+            if store is not None
+            else None
+        )
         expanded: list[str] = list(ids)
         if record is not None:
             children: dict[str, list[str]] = {node_id: [] for node_id in ids}
@@ -347,10 +365,14 @@ class L2Planner:
         if table_ok:
             plan.insert(0, {"tool": "list_tables", "args": {}})
         if not plan:
-            plan.append({"tool": "list_structure", "args": {"dossier_id": envelope.auth.dossier_id}})
+            plan.append(
+                {"tool": "list_structure", "args": {"dossier_id": envelope.auth.dossier_id}}
+            )
         return plan[:MAX_STEPS]
 
-    def _fallback_review(self, envelope: ToolEnvelope, task: dict[str, Any], l1: dict[str, Any]) -> dict[str, Any]:
+    def _fallback_review(
+        self, envelope: ToolEnvelope, task: dict[str, Any], l1: dict[str, Any]
+    ) -> dict[str, Any]:
         hits = (l1.get("hits") or [])[:8]
         packed: list[dict[str, Any]] = []
         cites: list[dict[str, Any]] = []
@@ -405,13 +427,12 @@ class L2Planner:
             "llm_called": self.llm_called,
         }
 
-
-    def _plan(self, task: dict, l1: dict, prior: list | None, table_ok: bool, envelope: ToolEnvelope) -> list[dict[str, Any]]:
+    def _plan(
+        self, task: dict, l1: dict, prior: list | None, table_ok: bool, envelope: ToolEnvelope
+    ) -> list[dict[str, Any]]:
         tools = "list_structure, get_node, list_tables, get_table_meta, search_structured, search_semantic"
         ids = [h.get("node_id") for h in (l1.get("hits") or []) if h.get("node_id")][:8]
-        user = (
-            f"query={task.get('query')}\nhits={ids}\nprior_ok={[s.get('tool') for s in (prior or [])]}"
-        )
+        user = f"query={task.get('query')}\nhits={ids}\nprior_ok={[s.get('tool') for s in (prior or [])]}"
         self.last_prompt_chars = max(self.last_prompt_chars, len(user))
         data = self.llm.complete_json(
             f"Plan tool calls. JSON {{plan:[{{tool, args}}]}}. Tools: {tools}. Max 8. Address-passing: IDs first. Do not request full PDF. Do not get_table_rows.",

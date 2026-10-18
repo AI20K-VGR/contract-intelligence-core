@@ -1572,6 +1572,46 @@
       "description": "Digest that POST /query binds to; Backend sends it back as snapshot_digest. Optional: absent when AI2 never adapted the request.",
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
+    },
+    "progress": {
+      "description": "Optional while RUNNING: in-step progress (BE-AI2-PROCESSING-CONTRACT §3).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "step",
+        "done",
+        "total",
+        "unit"
+      ],
+      "properties": {
+        "step": {
+          "enum": [
+            "S4",
+            "S5",
+            "S6",
+            "S7",
+            "S9",
+            "S10"
+          ]
+        },
+        "done": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "unit": {
+          "enum": [
+            "chunk",
+            "clause",
+            "pair",
+            "page",
+            "document"
+          ]
+        }
+      }
     }
   }
 }

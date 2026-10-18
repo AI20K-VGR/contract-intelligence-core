@@ -16,6 +16,7 @@ from app.contracts.models import (
     ModelDisposition,
     ReviewState,
 )
+from app.pipeline.ai1_snapshot_adapter import fold_for_match
 from app.pipeline.relation_markers import annex_amendment_title_targets
 
 AMEND_RE = re.compile(r"sửa|sua|thay thế|thay the|điều chỉnh|dieu chinh|amends?", re.I)
@@ -47,6 +48,7 @@ def compare_facts(
     annex_labels_present: set[str] | None = None,
     relation_pairs: set[tuple[str, str]] | None = None,
     require_relation_for_cross_document: bool = False,
+    split_installments: bool = False,
 ) -> tuple[list[Candidate], list[EvidenceIssue]]:
     """One finding = two sources in the same contract context. No legal winner."""
     annex_labels_present = annex_labels_present or set()
@@ -56,10 +58,12 @@ def compare_facts(
     for f in facts:
         if _is_identity_fact(f):
             continue
-        ck = _context_key(f)
+        ck = _context_key(f, split_installments)
         if ck[0] is None or ck[0] == "mst_seller":
             continue
         keyed[ck].append(f)
+    if split_installments:
+        _share_unmarked_installments(keyed)
 
     out: list[Candidate] = _compare_contract_identities(facts)
     for ctx, group in keyed.items():
@@ -103,6 +107,18 @@ def compare_facts(
                 None,
             )
         )
+    if split_installments:
+        # Defensive: an unmarked fact joins one group, but keep one finding per fact pair.
+        seen: set[tuple[str, str, str]] = set()
+        unique = []
+        for cand in out:
+            key = (*sorted((cand.left_id, cand.right_id)), str(cand.finding_type))
+            if key not in seen:
+                seen.add(key)
+                unique.append(cand)
+        out = unique
+        # Several installment groups of one item raise the same item-level issue.
+        issues = list({issue.issue_id: issue for issue in issues}.values())
     return out, issues
 
 
@@ -166,8 +182,64 @@ def _compare_contract_identities(facts: list[Fact]) -> list[Candidate]:
     return output
 
 
-def _context_key(f: Fact) -> tuple:
-    return (f.item_key or f.scope,)
+# "Đợt 1"/"lần 2"/"giai đoạn 3": one schedule's installments are different terms, so they are
+# compared only with the same installment (30% for đợt 1 vs 40% for đợt 2 is not a conflict, #121).
+_INSTALLMENT = re.compile(r"\b(?:dot|lan|giai doan)\s+(\d{1,2})\b")
+_INSTALLMENT_KEYS = frozenset({"payment_schedule", "payment_term"})
+
+
+def _installment(f: Fact) -> str | None:
+    """The installment this value belongs to: the last "đợt N" before the value.
+
+    A sentence naming several installments ("đợt 1: 30%; đợt 2: 40%") keys each value by
+    its own one; when the value cannot be located among several, the fact stays unmarked.
+    """
+    span = fold_for_match(f.citation.text_span or f.raw_value or "")
+    marks = list(_INSTALLMENT.finditer(span))
+    numbers = {m.group(1).lstrip("0") or "0" for m in marks}
+    if len(numbers) <= 1:
+        return next(iter(numbers), None)
+    at = span.find(fold_for_match(f.raw_value or "")) if f.raw_value else -1
+    before = [m for m in marks if m.end() <= at] if at >= 0 else []
+    return before[-1].group(1).lstrip("0") or "0" if before else None
+
+
+def _context_key(f: Fact, split_installments: bool = False) -> tuple:
+    # Split only with the contract graph pairs on: the flag-off output is pinned byte-for-byte.
+    split = split_installments and f.item_key in _INSTALLMENT_KEYS
+    return (f.item_key or f.scope, _installment(f) if split else None)
+
+
+def _share_unmarked_installments(keyed: dict[tuple, list[Fact]]) -> None:
+    """A schedule fact naming no installment ("tạm ứng 30%") joins one installment group.
+
+    It goes to the installment holding the same value, else to the first installment, so
+    "tạm ứng 30%" is still compared with "Đợt 1: 25%" (PR #125 review 1d) but never with
+    "Đợt 2: 40%" (#121). Without installment groups it stays put.
+    """
+    for (item, number), facts in list(keyed.items()):
+        if number is not None:
+            continue
+        marked = sorted(
+            (key for key in keyed if key[0] == item and key[1] is not None),
+            key=lambda key: (int(key[1]), key[1]),
+        )
+        if not marked:
+            continue
+        for fact in facts:
+            value = fact.normalized_value or fact.raw_value
+            target = next(
+                (
+                    key
+                    for key in marked
+                    if any(
+                        (other.normalized_value or other.raw_value) == value for other in keyed[key]
+                    )
+                ),
+                marked[0],
+            )
+            keyed[target] = [*keyed[target], fact]
+        del keyed[(item, number)]
 
 
 def _pair_two_sources(

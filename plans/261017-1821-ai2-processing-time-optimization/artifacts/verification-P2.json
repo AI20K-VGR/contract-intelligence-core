@@ -1,0 +1,43 @@
+{
+  "stage": "cook",
+  "plan": "261017-1821-ai2-processing-time-optimization",
+  "checks": [
+    {
+      "name": "offline-suite",
+      "status": "PASS"
+    },
+    {
+      "name": "golden",
+      "status": "PASS"
+    },
+    {
+      "name": "deploy-tests",
+      "status": "PASS"
+    },
+    {
+      "name": "ruff-touched",
+      "status": "PASS"
+    },
+    {
+      "name": "p2-remeasure",
+      "status": "PASS"
+    },
+    {
+      "name": "rollback-switch",
+      "status": "PASS"
+    },
+    {
+      "name": "run-live-quality",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P2",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-17T18:05:23+00:00",
+  "blastRadius": {
+    "unavailable": true,
+    "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF-ai2-contract-graph"
+  },
+  "run_seq": null
+}

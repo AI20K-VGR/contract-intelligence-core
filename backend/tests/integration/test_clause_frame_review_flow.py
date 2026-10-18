@@ -21,6 +21,7 @@ from tests.integration.test_clause_frame_roundtrip import (
     request_fixture,
 )
 
+from contract_intelligence.api.v1 import dossiers as dossier_api
 from contract_intelligence.conflict.infrastructure.persistence.orm import FindingORM, FindingSideORM
 from contract_intelligence.contract.infrastructure.persistence.orm import (
     DocumentORM,
@@ -175,8 +176,18 @@ async def semantic_case(
 
 
 @pytest.mark.asyncio
-async def test_persisted_semantics_query_review_acl_and_current_run(semantic_case: Any) -> None:
+async def test_persisted_semantics_query_review_acl_and_current_run(
+    semantic_case: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
     factory, request, result = semantic_case
+    sent: list[dict[str, Any]] = []
+
+    async def ai2(payload: dict[str, Any]) -> dict[str, Any]:
+        # A current semantic result no longer short-circuits /query: AI2 answers (#121).
+        sent.append(payload)
+        return {"state": "NEEDS_REVIEW", "answer": "9007199254740993", "citations": []}
+
+    monkeypatch.setattr(dossier_api, "query_ai2", ai2)
     dossier, run = request["dossier_id"], request["task_id"]
     route = f"/api/v1/dossiers/{dossier}/semantic-results"
     async with semantic_route_client(factory, semantic_reviewer()) as client:
@@ -191,7 +202,7 @@ async def test_persisted_semantics_query_review_acl_and_current_run(semantic_cas
         )
         assert query.status_code == 200, query.text
         assert query.json()["state"] == "NEEDS_REVIEW"
-        assert query.json()["retrieval_layer"]["run_id"] == run
+        assert [p["query"] for p in sent] == ["9007199254740993"]
         assert "9007199254740993" in query.json()["answer"]
         conflicts = await client.get(f"/api/v1/dossiers/{dossier}/conflicts")
         assert conflicts.status_code == 200

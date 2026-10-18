@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field
 
 from app.contracts.models import (
@@ -54,8 +55,29 @@ REFERENCE_TAIL_RE = re.compile(r"^(?:cua|va|nay|tren|duoi|khoan|diem|,|\))")
 # unlabelled section that the outline could not detect.
 MAX_UNIT_LINES = 8
 STOPWORDS = {
-    "va", "cua", "ve", "cac", "trong", "cho", "den", "tu", "theo", "thi", "la", "co",
-    "bi", "doi", "voi", "ben", "hop", "dong", "nay", "duoc", "khi", "de", "khac",
+    "va",
+    "cua",
+    "ve",
+    "cac",
+    "trong",
+    "cho",
+    "den",
+    "tu",
+    "theo",
+    "thi",
+    "la",
+    "co",
+    "bi",
+    "doi",
+    "voi",
+    "ben",
+    "hop",
+    "dong",
+    "nay",
+    "duoc",
+    "khi",
+    "de",
+    "khac",
 }
 UNIT_LABEL = {
     "%": "%",
@@ -98,7 +120,9 @@ class _Unit:
         for index, line in enumerate(self.lines):
             folded = fold_for_match(line.text).strip()
             if index == 0:
-                match = SUB_RE.match(folded) if self.sub_index is not None else ARTICLE_RE.match(folded)
+                match = (
+                    SUB_RE.match(folded) if self.sub_index is not None else ARTICLE_RE.match(folded)
+                )
                 folded = match.group(3 if self.sub_index is not None else 2) if match else folded
             parts.append(folded)
         return " ".join(parts)
@@ -147,7 +171,9 @@ def compare_clauses_across_files(record: DossierRecord) -> list[Candidate]:
                 continue
             for left_article, right_article in _align_articles(body.articles, annex.articles):
                 for left_unit, right_unit in _align_units(left_article, right_article):
-                    candidate = _compare_units(record, body, annex, left_article, left_unit, right_unit)
+                    candidate = _compare_units(
+                        record, body, annex, left_article, left_unit, right_unit
+                    )
                     if candidate is not None:
                         candidates.append(candidate)
     return candidates
@@ -163,9 +189,14 @@ def _build_outline(record: DossierRecord, file_id: str) -> _Outline:
     )
     node_by_line: dict[tuple[str, str], StructuralNode] = {}
     for node in record.evidence_nodes():
-        if node.source_file_id != file_id or len(node.source_line_ids) != 1:
+        # Single-line nodes and wrapped-paragraph nodes ("line:*") map each of their lines;
+        # a whole-page fallback node spanning every line must not claim them.
+        if node.source_file_id != file_id or not node.source_line_ids:
             continue
-        node_by_line.setdefault((node.page_revision_id or "", node.source_line_ids[0]), node)
+        if len(node.source_line_ids) != 1 and not node.node_id.startswith("line:"):
+            continue
+        for line_id in node.source_line_ids:
+            node_by_line.setdefault((node.page_revision_id or "", line_id), node)
 
     repeated = _repeated_lines(pages)
     lines: list[_Line] = []
@@ -180,7 +211,14 @@ def _build_outline(record: DossierRecord, file_id: str) -> _Outline:
                 label = f"Phụ lục {heading.group(1)}"
             if _is_noise(folded, repeated):
                 continue
-            lines.append(_Line(page=page, line_id=line_id, text=text, node=node_by_line.get((page.page_revision_id, line_id))))
+            lines.append(
+                _Line(
+                    page=page,
+                    line_id=line_id,
+                    text=text,
+                    node=node_by_line.get((page.page_revision_id, line_id)),
+                )
+            )
 
     articles: list[_Article] = []
     current: _Article | None = None
@@ -189,7 +227,9 @@ def _build_outline(record: DossierRecord, file_id: str) -> _Outline:
         folded = fold_for_match(line.text).strip()
         article_match = _article_heading(line.text, folded)
         if article_match:
-            current = _Article(number=int(article_match.group(1)), title=_title_from(line.text), lines=[line])
+            current = _Article(
+                number=int(article_match.group(1)), title=_title_from(line.text), lines=[line]
+            )
             current_sub = None
             articles.append(current)
             continue
@@ -201,7 +241,9 @@ def _build_outline(record: DossierRecord, file_id: str) -> _Outline:
             continue
         sub_match = SUB_RE.match(folded)
         if sub_match and int(sub_match.group(1)) == current.number:
-            current_sub = _Unit(article_number=current.number, sub_index=int(sub_match.group(2)), lines=[line])
+            current_sub = _Unit(
+                article_number=current.number, sub_index=int(sub_match.group(2)), lines=[line]
+            )
             current.subs.append(current_sub)
             continue
         if current_sub is not None:
@@ -288,7 +330,11 @@ def _title_from(raw: str) -> str:
 
 
 def _tokens(folded: str) -> set[str]:
-    return {token for token in re.findall(r"[a-z]+", folded) if token not in STOPWORDS and len(token) > 1}
+    return {
+        token
+        for token in re.findall(r"[a-z]+", folded)
+        if token not in STOPWORDS and len(token) > 1
+    }
 
 
 # --------------------------------------------------------------------------- alignment
@@ -305,7 +351,7 @@ def _align_articles(left: list[_Article], right: list[_Article]) -> list[tuple[_
                 # Fall back to whole-article wording only when the numbering agrees.
                 if left_article.number != right_article.number:
                     continue
-                score = _jaccard(_tokens(left_article.all_text()), _tokens(right_article.all_text()))
+                score = jaccard(_tokens(left_article.all_text()), _tokens(right_article.all_text()))
                 if score < 0.5:
                     continue
             same_number = 0 if left_article.number == right_article.number else 1
@@ -326,13 +372,18 @@ def _align_articles(left: list[_Article], right: list[_Article]) -> list[tuple[_
 
 def _align_units(left: _Article, right: _Article) -> list[tuple[_Unit, _Unit]]:
     if not left.subs and not right.subs:
-        return [(_Unit(left.number, None, list(left.lines)), _Unit(right.number, None, list(right.lines)))]
+        return [
+            (
+                _Unit(left.number, None, list(left.lines)),
+                _Unit(right.number, None, list(right.lines)),
+            )
+        ]
     right_by_index = {unit.sub_index: unit for unit in right.subs}
     pairs: list[tuple[_Unit, _Unit]] = []
     used: set[int | None] = set()
     for unit in left.subs:
         partner = right_by_index.get(unit.sub_index)
-        if partner is not None and _jaccard(_word_tokens(unit), _word_tokens(partner)) >= 0.25:
+        if partner is not None and jaccard(_word_tokens(unit), _word_tokens(partner)) >= 0.25:
             pairs.append((unit, partner))
             used.add(partner.sub_index)
             continue
@@ -340,7 +391,7 @@ def _align_units(left: _Article, right: _Article) -> list[tuple[_Unit, _Unit]]:
         for other in right.subs:
             if other.sub_index in used:
                 continue
-            score = _jaccard(_word_tokens(unit), _word_tokens(other))
+            score = jaccard(_word_tokens(unit), _word_tokens(other))
             if score >= 0.5 and (best is None or score > best[0]):
                 best = (score, other)
         if best is not None:
@@ -359,7 +410,7 @@ def _containment(left: set[str], right: set[str]) -> float:
     return len(left & right) / min(len(left), len(right))
 
 
-def _jaccard(left: set[str], right: set[str]) -> float:
+def jaccard(left: AbstractSet[str] | None, right: AbstractSet[str] | None) -> float:
     if not left or not right:
         return 0.0
     return len(left & right) / len(left | right)
@@ -420,7 +471,10 @@ def _compare_units(
                     differences.append((ltext, rtext))
         else:
             differences.append(
-                (", ".join(text for _, text in left_list), ", ".join(text for _, text in right_list))
+                (
+                    ", ".join(text for _, text in left_list),
+                    ", ".join(text for _, text in right_list),
+                )
             )
     if not differences:
         return None
@@ -503,7 +557,11 @@ def _unit_citation(unit: _Unit) -> Citation | None:
 
 
 def _union(boxes: list[list[float]]) -> list[float]:
-    valid = [box for box in boxes if all(0 <= value <= 1 for value in box) and box[2] > box[0] and box[3] > box[1]]
+    valid = [
+        box
+        for box in boxes
+        if all(0 <= value <= 1 for value in box) and box[2] > box[0] and box[3] > box[1]
+    ]
     if not valid:
         return []
     return [
