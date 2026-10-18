@@ -98,7 +98,9 @@ class EchoLLM:
 
 
 def _runtime(clock: FakeClock, **kw: Any) -> ProcessingRuntime:
-    return ProcessingRuntime(egress_allowed=True, clock=clock.monotonic, sleep=clock.sleep, **kw)
+    return ProcessingRuntime(
+        egress_allowed=True, clock=clock.monotonic, sleep=clock.sleep, jitter=lambda: 0.0, **kw
+    )
 
 
 def _codes(runtime: ProcessingRuntime) -> list[str]:

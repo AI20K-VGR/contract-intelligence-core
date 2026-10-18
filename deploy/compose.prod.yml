@@ -160,6 +160,7 @@ services:
       AI2_LLM_API_KEY: ${AI2_LLM_API_KEY:?set the LLM key in deploy/.env.prod}
       AI2_LLM_MODEL: ${AI2_LLM_MODEL:-gpt-5.5}
       AI2_LLM_STRONG_MODEL: ${AI2_LLM_STRONG_MODEL:-gpt-5.5}
+      AI2_LLM_LIGHT_REASONING_EFFORT: ${AI2_LLM_LIGHT_REASONING_EFFORT:-low}
       AI2_LLM_PROBE_MAX_TOKENS: ${AI2_LLM_PROBE_MAX_TOKENS:-}
       AI2_LLM_PROBE_TIMEOUT_SECONDS: ${AI2_LLM_PROBE_TIMEOUT_SECONDS:-}
       AI2_CONTRACT_GRAPH_ENABLED: ${AI2_CONTRACT_GRAPH_ENABLED:-true}
@@ -169,6 +170,10 @@ services:
       # Both or neither: empty skips pairs with RULE_ONLY_LLM_UNAVAILABLE.
       AI2_CONTRACT_GRAPH_PAIRS_BASE_URL: ${AI2_CONTRACT_GRAPH_PAIRS_BASE_URL:-}
       AI2_CONTRACT_GRAPH_PAIRS_API_KEY: ${AI2_CONTRACT_GRAPH_PAIRS_API_KEY:-}
+      # Parallel pair batches; 1 = sequential (rollback: set it in deploy/.env.prod, redeploy).
+      AI2_PAIRS_CONCURRENCY: ${AI2_PAIRS_CONCURRENCY:-5}
+      # Pairs reasoning effort; stays empty (provider default) until an OpenAI confirmation run.
+      AI2_PAIRS_REASONING_EFFORT: ${AI2_PAIRS_REASONING_EFFORT:-}
       AI2_EMBEDDING_BASE_URL: ${AI2_EMBEDDING_BASE_URL:?set the embedding provider in deploy/.env.prod}
       AI2_EMBEDDING_API_KEY: ${AI2_EMBEDDING_API_KEY:?set the embedding key in deploy/.env.prod}
       AI2_EMBEDDING_MODEL: ${AI2_EMBEDDING_MODEL:-text-embedding-3-small}

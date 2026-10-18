@@ -68,7 +68,9 @@ class CitationResolver:
             return CitationCheck("INVALID", "page_revision_id/source scope did not resolve")
         node = self.nodes.get(citation.node_id)
         if self.nodes and node is None and citation.node_id != f"page:{page.page_revision_id}":
-            return CitationCheck("INVALID", "citation node is outside the active evidence scope", page)
+            return CitationCheck(
+                "INVALID", "citation node is outside the active evidence scope", page
+            )
         if node is not None:
             if node.page_revision_id and node.page_revision_id != page.page_revision_id:
                 return CitationCheck("INVALID", "node page revision does not match citation", page)
@@ -76,7 +78,11 @@ class CitationResolver:
                 return CitationCheck("INVALID", "node source file does not match page", page)
             if node.page_range and page.page_number not in node.page_range:
                 return CitationCheck("INVALID", "citation page is outside node page range", page)
-            if citation.source_file_id and node.source_file_id and citation.source_file_id != node.source_file_id:
+            if (
+                citation.source_file_id
+                and node.source_file_id
+                and citation.source_file_id != node.source_file_id
+            ):
                 return CitationCheck("INVALID", "citation source file does not match node", page)
         text = canonical_page_text(page)
         if not citation.text_span:
@@ -97,19 +103,31 @@ class CitationResolver:
             if table is None:
                 return CitationCheck("UNVERIFIED", "source table is unavailable", page)
             cell = next((c for c in table.cells if c.cell_id == citation.cell_id), None)
-            if cell is None or table.page_revision_id != page.page_revision_id or table.node_id != citation.node_id:
+            if (
+                cell is None
+                or table.page_revision_id != page.page_revision_id
+                or table.node_id != citation.node_id
+            ):
                 return CitationCheck("INVALID", "table cell scope did not resolve", page)
             if cell.text != citation.text_span or cell.bbox != citation.bbox:
                 return CitationCheck("INVALID", "citation differs from source cell", page)
             if getattr(cell, "geometry_provenance", "MEASURED") != "MEASURED":
-                return CitationCheck("UNVERIFIED", "table cell geometry is claimed or derived", page)
+                return CitationCheck(
+                    "UNVERIFIED", "table cell geometry is claimed or derived", page
+                )
             return CitationCheck("VALID", "exact source cell verified", page)
         if citation.char_start is None or citation.char_end is None:
             return CitationCheck("UNVERIFIED", "exact character offsets are missing", page)
-        if citation.char_start < 0 or citation.char_end <= citation.char_start or citation.char_end > len(text):
+        if (
+            citation.char_start < 0
+            or citation.char_end <= citation.char_start
+            or citation.char_end > len(text)
+        ):
             return CitationCheck("INVALID", "character offsets are outside page text", page)
         if text[citation.char_start : citation.char_end] != citation.text_span:
-            return CitationCheck("INVALID", "text span does not match exact character offsets", page)
+            return CitationCheck(
+                "INVALID", "text span does not match exact character offsets", page
+            )
         if not citation.line_ids:
             return CitationCheck("UNVERIFIED", "line_ids are missing", page)
         line_ranges = _line_ranges(page)
@@ -126,15 +144,41 @@ class CitationResolver:
 
 
 def _line_ranges(page: PageSnapshot) -> dict[str, tuple[int, int]]:
+    return line_offsets(page)
+
+
+def line_offsets(page: PageSnapshot) -> dict[str, tuple[int, int]]:
+    """Each line's range in ``canonical_page_text``, located in reading order.
+
+    AI1 may send its own page ``text`` whose line separator is not one newline (CRLF, a
+    space); a fixed one-character step then drifts. A line not found keeps the
+    one-character assumption so offsets never go backwards.
+    """
+    text = canonical_page_text(page)
     ranges: dict[str, tuple[int, int]] = {}
     cursor = 0
-    for index, (line_id, line_text) in enumerate(page.line_texts.items()):
-        start = cursor
-        end = start + len(line_text)
-        ranges[line_id] = (start, end)
-        cursor = end + (1 if index < len(page.line_texts) - 1 else 0)
+    for line_id, line_text in page.line_texts.items():
+        if not line_text:
+            ranges[line_id] = (cursor, cursor)
+            continue
+        found = text.find(line_text, cursor) if line_text else -1
+        start = found if found >= 0 else cursor
+        ranges[line_id] = (start, start + len(line_text))
+        cursor = start + len(line_text) + (0 if found >= 0 else 1)
     return ranges
 
 
+def node_line_fragments(page: PageSnapshot, line_ids: Iterable[str]) -> list[list[float]]:
+    """AI1's own per-line boxes for a multi-line node; a node bbox is only their envelope."""
+    boxes = [page.line_bboxes.get(line_id) for line_id in line_ids]
+    fragments = [list(box) for box in boxes if box and len(box) == 4]
+    return fragments if len(fragments) > 1 else []
+
+
 def _valid_bbox(value: list[float]) -> bool:
-    return len(value) == 4 and all(0 <= item <= 1 for item in value) and value[2] > value[0] and value[3] > value[1]
+    return (
+        len(value) == 4
+        and all(0 <= item <= 1 for item in value)
+        and value[2] > value[0]
+        and value[3] > value[1]
+    )

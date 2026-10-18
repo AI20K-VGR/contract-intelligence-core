@@ -1,0 +1,58 @@
+{
+  "direction": "lower",
+  "noise": "high",
+  "rel_band": 0.05,
+  "candidates": [
+    {
+      "candidate": "C0",
+      "trials": [
+        17.69,
+        22.475,
+        17.788,
+        14.994,
+        21.469,
+        21.266,
+        17.943,
+        15.307,
+        14.847,
+        14.886
+      ],
+      "rep": 17.739,
+      "spread": 7.628000000000002,
+      "n": 10
+    },
+    {
+      "candidate": "C1",
+      "trials": [
+        19.535,
+        17.64,
+        18.59,
+        26.704,
+        21.288,
+        19.473,
+        18.469,
+        18.661,
+        15.544,
+        15.376
+      ],
+      "rep": 18.625500000000002,
+      "spread": 11.328000000000001,
+      "n": 10
+    }
+  ],
+  "ranking": [
+    "C0",
+    "C1"
+  ],
+  "observed_spread_floor": 11.328000000000001,
+  "band": 11.328000000000001,
+  "gap": 0.8865000000000016,
+  "verdict": "tie_within_noise",
+  "winner": null,
+  "rationale": "gap 0.8865 <= band 11.33 (max of 5% relative and observed spread 11.33) -> tie within noise",
+  "schema": "artifact-bakeoff-verdict",
+  "run": "p3-s1",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-17T18:37:13.881794+00:00",
+  "over_budget": []
+}

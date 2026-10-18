@@ -232,9 +232,10 @@ class _EvalRuntime(ProcessingRuntime):
         super().__init__(**kwargs)
         self._labeler_served_model = labeler_served_model
 
-    def complete_json(self, client: Any, system: str, user: str, *, strong: bool = False) -> dict | None:
+    def complete_json(self, client: Any, system: str, user: str, *, strong: bool = False,
+                      operation: str | None = None) -> dict | None:
         start = len(getattr(client, "traces", []))
-        response = super().complete_json(client, system, user, strong=strong)
+        response = super().complete_json(client, system, user, strong=strong, operation=operation)
         if response is not None:
             traces = getattr(client, "traces", [])[start:]
             served = traces[-1].get("served_model") if traces else None

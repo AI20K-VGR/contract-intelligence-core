@@ -136,3 +136,49 @@ async def test_verify_citation_rejects_missing_span(session: AsyncSession) -> No
     result = await verify_citation(session, document_id="doc_cit_1", citation=cit)
     assert result.accepted is False
     assert result.reason == "no_ocr_span"
+
+
+async def _two_line_page(session: AsyncSession) -> str:
+    # AI1 stores document text as lines joined by "\n": line 2 starts one char after line 1.
+    doc_id = "doc_wrapped"
+    for line_no, (text, start) in enumerate(
+        (("Bên A thanh toán mỗi khoản trong", 0), ("vòng 07 ngày.", 33)), start=1
+    ):
+        session.add(
+            OcrLineORM(
+                id=new_ulid("ln_"),
+                tenant_id="ten_test",
+                document_id=doc_id,
+                page_no=1,
+                line_no=line_no,
+                text=text,
+                bbox="[0,0,100,20]",
+                confidence="0.99",
+                doc_char_start=start,
+                doc_char_end=start + len(text),
+            )
+        )
+    await session.commit()
+    return doc_id
+
+
+async def test_wrapped_clause_quote_keeps_line_break(session: AsyncSession) -> None:
+    # AI2 cites a clause wrapped over two OCR lines as one quote with "\n" between them.
+    doc_id = await _two_line_page(session)
+    quote = "Bên A thanh toán mỗi khoản trong\nvòng 07 ngày."
+    span = await reconstruct_ocr_span(
+        session, document_id=doc_id, doc_char_start=0, doc_char_end=46
+    )
+    assert span == quote
+    result = await verify_citation(
+        session, document_id=doc_id, citation=_citation(quote=quote, start=0, end=46)
+    )
+    assert result.accepted is True, result.reason
+
+
+async def test_partial_span_does_not_invent_line_break(session: AsyncSession) -> None:
+    doc_id = await _two_line_page(session)
+    span = await reconstruct_ocr_span(
+        session, document_id=doc_id, doc_char_start=17, doc_char_end=32
+    )
+    assert span == "mỗi khoản trong"

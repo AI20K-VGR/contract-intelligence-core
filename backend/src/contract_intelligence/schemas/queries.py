@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class DossierQueryRequest(BaseModel):
@@ -17,6 +17,14 @@ class DossierQueryRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     query: str = Field(..., min_length=1, max_length=4000)
+
+    @field_validator("query")
+    @classmethod
+    def reject_blank_query(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("query must contain non-whitespace text")
+        return value
 
 
 class DossierQueryResponse(BaseModel):

@@ -46,7 +46,9 @@ Rows/timeline/coverage đều có review targets. SUCCEEDED không đồng nghĩ
 negotiated profile thiếu extension là SEMANTIC_NOT_MEASURED.
 
 Runtime duy nhất debit mọi HTTP attempt, retry, JSON-format fallback và alias proposal.
-`max_output_tokens` truyền vào cả SDK requests. Absolute operation deadline chặn retry/backoff và
+`max_output_tokens` là trần mỗi request, truyền vào cả SDK requests; batch nhiều frame cũng không
+được nhân trần theo số frame. Response thiếu/cắt giữ frame gốc và ghi lý do coverage.
+Absolute operation deadline chặn retry/backoff và
 late reservation sau deadline; context deadline không giả thành job deadline. UTF-8 byte count là
 upper bound bảo thủ cho input tokens. Node/frame/prompt/call/time caps tạo partial coverage với
 reason và giữ provenance. Chỉ slot từ source context được local extractor chứng minh cùng
