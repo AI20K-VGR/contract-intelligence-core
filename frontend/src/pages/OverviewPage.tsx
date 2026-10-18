@@ -404,7 +404,7 @@ export function OverviewPage() {
                           </p>
                           <p className="font-body-sm text-body-sm text-secondary max-w-md">
                             {membersError
-                              ? 'Danh sách hiện khi backend có API quản lý người dùng.'
+                              ? 'Chức năng xem danh sách người dùng chưa sẵn sàng.'
                               : 'Mời thành viên để họ nhận email đặt mật khẩu.'}
                           </p>
                         </div>
@@ -492,7 +492,7 @@ export function OverviewPage() {
                 </p>
                 <p className="font-body-sm text-body-sm text-secondary">
                   {activityMissing
-                    ? 'Backend chưa có API hoạt động toàn hệ thống. Nhật ký theo từng hồ sơ nằm ở màn rà soát.'
+                    ? 'Chưa xem được hoạt động toàn hệ thống. Nhật ký theo từng hồ sơ nằm ở màn rà soát.'
                     : 'Tạo hồ sơ, mời thành viên hoặc rà soát để sự kiện hiện ở đây.'}
                 </p>
               </div>
@@ -556,7 +556,7 @@ function StorageCard({
     quota && quota > 0 ? Math.min(100, Math.round((used / quota) * 100)) : null
   let emptyNote = 'Không tải được dung lượng lưu trữ.'
   if (loading) emptyNote = 'Đang tải dung lượng…'
-  else if (missing) emptyNote = 'Backend chưa có API dung lượng lưu trữ.'
+  else if (missing) emptyNote = 'Chưa xem được dung lượng lưu trữ.'
 
   return (
     <div className={`${CARD} px-space-lg py-space-md flex flex-col`}>

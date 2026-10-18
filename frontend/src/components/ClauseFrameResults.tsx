@@ -6,6 +6,35 @@ import {
   type SemanticResults,
   type SemanticSlot,
 } from '../api/semanticResults'
+import {
+  certaintyLabel,
+  conflictKindLabel,
+  dateRoleLabel,
+  dispositionLabel,
+  familyLabel,
+  isSystemCode,
+  issueLabel,
+  linesLabel,
+  relationLabel,
+  reviewStateLabel,
+  slotStateLabel,
+  tableCellLabel,
+  validationLabel,
+} from '../structure/displayLabels'
+import { TechnicalDetail } from './TechnicalDetail'
+import { userErrorMessage } from '../api/errorMessage'
+
+const OUTPUT_LABELS: Record<string, string> = {
+  rows: 'Điều khoản',
+  pairs: 'Cặp nghi vấn',
+  timeline: 'Dòng thời gian',
+}
+
+/** Câu chữ thì giữ; mã hệ thống thì dịch, không hiện nguyên văn. */
+function readable(text: unknown) {
+  const value = String(text ?? '').trim()
+  return isSystemCode(value) ? issueLabel(value) : value
+}
 
 const SLOT_LABELS: Record<string, string> = {
   actor: 'Bên thực hiện',
@@ -43,23 +72,28 @@ function Source({ source }: { source: SemanticEvidence }) {
     try {
       setUrl(URL.createObjectURL(await fetchSemanticSource(source)))
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Không tải được nguồn.')
+      setError(userErrorMessage(cause, 'Không tải được nguồn.'))
     } finally {
       setLoading(false)
     }
   }
   return (
     <div className="min-w-0 rounded border border-outline-variant/40 p-2">
-      <p className="break-all">
-        {source.document_id} · {source.snapshot_id} · {source.source_ref}
-      </p>
+      <TechnicalDetail
+        text={`${source.document_id} · ${source.snapshot_id} · ${source.source_ref}`}
+      />
       <blockquote className="whitespace-pre-wrap">{source.raw}</blockquote>
       <p>
-        Trang {source.citation.page ?? 'UNKNOWN'} ·{' '}
-        {source.citation.line_ids.join(', ')} · ký tự{' '}
-        {source.citation.char_start ?? '?'}–{source.citation.char_end ?? '?'}
+        {[
+          source.citation.page
+            ? `Trang ${source.citation.page}`
+            : 'Chưa rõ trang',
+          linesLabel(source.citation.line_ids),
+        ]
+          .filter(Boolean)
+          .join(', ')}
       </p>
-      <p>{source.citation.validation_status}</p>
+      <p>{validationLabel(source.citation.validation_status)}</p>
       <button
         type="button"
         onClick={() => void open()}
@@ -91,8 +125,8 @@ function Slot({ name, value }: { name: string; value: SemanticSlot }) {
     <div>
       <dt className="font-semibold">{SLOT_LABELS[name] ?? name}</dt>
       <dd className="break-words">
-        {value.value ?? 'Chưa xác định'} · {value.value_type} · {value.state}
-        {value.reason ? ` · ${value.reason}` : ''}
+        {value.value ?? 'Chưa xác định'} · {slotStateLabel(value.state)}
+        <TechnicalDetail text={value.reason} />
       </dd>
       <details>
         <summary>Nguồn của giá trị</summary>
@@ -129,9 +163,7 @@ export function ClauseFrameResults({
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted)
-          setError(
-            cause instanceof Error ? cause.message : 'Không đọc được kết quả.',
-          )
+          setError(userErrorMessage(cause, 'Không đọc được kết quả.'))
       })
     return () => controller.abort()
   }, [dossierId, initial, expectedRun])
@@ -150,12 +182,13 @@ export function ClauseFrameResults({
   }
   return (
     <section
-      aria-label="Kết quả điều khoản AI2"
+      aria-label="Kết quả điều khoản"
       className="max-w-full space-y-3 rounded border border-outline-variant/40 bg-surface-container-lowest p-3 text-sm"
     >
-      <p className="break-all">
-        Lần chạy: {model.runId ?? 'Chưa có'} · {model.state} · {model.reason}
-      </p>
+      <p>Trạng thái: {reviewStateLabel(model.state)}</p>
+      <TechnicalDetail
+        text={`Lần chạy ${model.runId ?? '—'} · ${model.state} · ${model.reason ?? ''}`}
+      />
       {!extension ? (
         <p>
           Ba đầu ra chưa được đo cho lần chạy này. Không có kết luận từ việc
@@ -163,11 +196,9 @@ export function ClauseFrameResults({
         </p>
       ) : (
         <>
-          <p className="break-all">
-            Profile {extension.profile_digest} · Alias v
-            {extension.alias_version} ·{' '}
-            {extension.alias_digest ?? 'Chưa có alias'}
-          </p>
+          <TechnicalDetail
+            text={`Profile ${extension.profile_digest} · Alias v${extension.alias_version} · ${extension.alias_digest ?? '—'}`}
+          />
           <nav
             aria-label="Ba đầu ra điều khoản"
             className="flex flex-wrap gap-3"
@@ -183,27 +214,43 @@ export function ClauseFrameResults({
             </a>
           </nav>
           <details>
-            <summary>Coverage · {extension.coverage.state}</summary>
+            <summary>
+              Mức độ phân tích · {reviewStateLabel(extension.coverage.state)}
+            </summary>
             <p>
-              Attempted {extension.coverage.attempted_nodes} · Frames{' '}
-              {extension.coverage.frames} · Grounded{' '}
-              {extension.coverage.grounded_slots} · Unresolved{' '}
-              {extension.coverage.unresolved_slots} · Invalid evidence{' '}
-              {extension.coverage.invalid_evidence} · Context calls{' '}
+              Đã xét {extension.coverage.attempted_nodes} điều khoản · Khung{' '}
+              {extension.coverage.frames} · Có căn cứ{' '}
+              {extension.coverage.grounded_slots} · Chưa xác định{' '}
+              {extension.coverage.unresolved_slots} · Căn cứ không hợp lệ{' '}
+              {extension.coverage.invalid_evidence} · Lượt tra ngữ cảnh{' '}
               {extension.coverage.context_calls}
             </p>
-            <p>{extension.coverage.reasons.join('; ')}</p>
-            {[
-              ['Family', extension.coverage.by_family],
-              ['Slot', extension.coverage.by_slot],
-              ['Output', extension.coverage.by_output],
-            ].map(([label, groups]) => (
-              <div key={String(label)}>
-                <h3>{String(label)}</h3>
+            <TechnicalDetail text={extension.coverage.reasons.join('; ')} />
+            {(
+              [
+                [
+                  'Theo loại điều khoản',
+                  extension.coverage.by_family,
+                  familyLabel,
+                ],
+                [
+                  'Theo trường dữ liệu',
+                  extension.coverage.by_slot,
+                  (name: string) => SLOT_LABELS[name] ?? 'Trường khác',
+                ],
+                [
+                  'Theo kết quả',
+                  extension.coverage.by_output,
+                  (name: string) => OUTPUT_LABELS[name] ?? 'Kết quả khác',
+                ],
+              ] as const
+            ).map(([label, groups, nameOf]) => (
+              <div key={label}>
+                <h3>{label}</h3>
                 {Object.entries(groups).map(([name, count]) => (
                   <p key={name}>
-                    {name}: attempted {count.attempted} / covered{' '}
-                    {count.covered} / review {count.review} / missing{' '}
+                    {nameOf(name)}: đã xét {count.attempted} · có kết quả{' '}
+                    {count.covered} · cần rà soát {count.review} · còn thiếu{' '}
                     {count.missing}
                   </p>
                 ))}
@@ -214,10 +261,10 @@ export function ClauseFrameResults({
           typedTableProjections.boq_checks.length ? (
             <section
               id="typed-table-projections"
-              aria-label="K?t qu? b?ng ??nh l??ng"
+              aria-label="Kết quả bảng định lượng"
               className="rounded border p-2"
             >
-              <h2 className="font-semibold">Ki?m tra b?ng ??nh l??ng</h2>
+              <h2 className="font-semibold">Kiểm tra bảng định lượng</h2>
               {typedTableProjections.payment_schedules.map(
                 (projection, index) => (
                   <article
@@ -225,24 +272,29 @@ export function ClauseFrameResults({
                     className="my-2 rounded border p-2"
                   >
                     <h3>
-                      L?ch thanh to?n ?{' '}
-                      {String(projection.review_state ?? 'NEEDS_REVIEW')}
+                      Lịch thanh toán ·{' '}
+                      {reviewStateLabel(
+                        String(projection.review_state ?? 'NEEDS_REVIEW'),
+                      )}
                     </h3>
                     <p>
-                      {String(projection.table_id ?? '')} ?{' '}
-                      {String(projection.total_percent ?? 'Ch?a ?? d? li?u')}
+                      {tableCellLabel(String(projection.table_id ?? ''), null)}{' '}
+                      · Tổng tỷ lệ{' '}
+                      {projection.total_percent != null
+                        ? `${String(projection.total_percent)}%`
+                        : 'chưa đủ dữ liệu'}
                     </p>
                     {Array.isArray(projection.issues) &&
                       projection.issues.map((issue, issueIndex) => (
-                        <p key={issueIndex}>{String(issue)}</p>
+                        <p key={issueIndex}>{readable(issue)}</p>
                       ))}
                     <p>
-                      Coverage:{' '}
-                      {String(
+                      Phạm vi:{' '}
+                      {readable(
                         (
                           projection.coverage as
                             Record<string, unknown> | undefined
-                        )?.reason ?? '?? ??c theo ph?m vi ngu?n',
+                        )?.reason ?? 'Đã đọc theo phạm vi nguồn',
                       )}
                     </p>
                   </article>
@@ -254,24 +306,26 @@ export function ClauseFrameResults({
                   className="my-2 rounded border p-2"
                 >
                   <h3>
-                    Ki?m tra s? h?c BOQ ?{' '}
-                    {String(projection.review_state ?? 'NEEDS_REVIEW')}
+                    Kiểm tra số học bảng khối lượng ·{' '}
+                    {reviewStateLabel(
+                      String(projection.review_state ?? 'NEEDS_REVIEW'),
+                    )}
                   </h3>
                   <p>
-                    {String(projection.table_id ?? '')} ? T?ng c?ng{' '}
-                    {String(projection.grand_total ?? 'UNKNOWN')}
+                    {tableCellLabel(String(projection.table_id ?? ''), null)} ·
+                    Tổng cộng {String(projection.grand_total ?? 'chưa rõ')}
                   </p>
                   {Array.isArray(projection.issues) &&
                     projection.issues.map((issue, issueIndex) => (
-                      <p key={issueIndex}>{String(issue)}</p>
+                      <p key={issueIndex}>{readable(issue)}</p>
                     ))}
                   <p>
-                    Coverage:{' '}
-                    {String(
+                    Phạm vi:{' '}
+                    {readable(
                       (
                         projection.coverage as
                           Record<string, unknown> | undefined
-                      )?.reason ?? '?? ??c theo ph?m vi ngu?n',
+                      )?.reason ?? 'Đã đọc theo phạm vi nguồn',
                     )}
                   </p>
                 </article>
@@ -285,13 +339,11 @@ export function ClauseFrameResults({
                 const frame = extension.frames.find((f) => f.frame_id === id)!
                 return (
                   <article key={id} className="min-w-0 rounded border p-2">
-                    <h3>
-                      {frame.family} · {frame.profile}
-                    </h3>
-                    <p className="break-all">
-                      {frame.frame_id} · {frame.key.certainty} ·{' '}
-                      {frame.key.method} · {frame.key.reason}
-                    </p>
+                    <h3>{familyLabel(frame.family)}</h3>
+                    <p>{certaintyLabel(frame.key.certainty)}</p>
+                    <TechnicalDetail
+                      text={`${frame.frame_id} · ${frame.profile} · ${frame.key.method} · ${frame.key.reason}`}
+                    />
                     <dl className="space-y-2">
                       {Object.entries(frame.slots).map(([name, value]) => (
                         <Slot key={name} name={name} value={value} />
@@ -321,7 +373,7 @@ export function ClauseFrameResults({
                   new Set(extension.pairs.map((p) => p.disposition)),
                 ).map((d) => (
                   <option key={d} value={d}>
-                    {d}
+                    {dispositionLabel(d)}
                   </option>
                 ))}
               </select>
@@ -331,19 +383,20 @@ export function ClauseFrameResults({
               .map((p) => (
                 <article key={p.pair_id} className="my-2 rounded border p-2">
                   <h3>
-                    {p.disposition} · {p.review_state}
+                    {dispositionLabel(p.disposition)} ·{' '}
+                    {reviewStateLabel(p.review_state)}
                   </h3>
-                  <p>
-                    {p.reason} · {p.method} · {p.candidate_sources.join(', ')}
-                  </p>
+                  <TechnicalDetail
+                    text={`${p.reason} · ${p.method} · ${p.candidate_sources.join(', ')}`}
+                  />
                   {p.conflict_kind ||
                   p.alignment_key?.length ||
                   p.slots_in_difference?.length ? (
                     <p>
-                      Kind: {p.conflict_kind ?? 'COMPARABLE_DIFFERENCE'} ·
-                      Alignment: {p.alignment_key?.join(' / ') ?? 'UNKNOWN'} ·
-                      Different slots:{' '}
-                      {p.slots_in_difference?.join(', ') || 'UNKNOWN'}
+                      Loại: {conflictKindLabel(p.conflict_kind)} · Khác nhau ở:{' '}
+                      {p.slots_in_difference
+                        ?.map((slot) => SLOT_LABELS[slot] ?? 'trường khác')
+                        .join(', ') || 'chưa rõ'}
                     </p>
                   ) : null}
                   <div className="grid gap-2 md:grid-cols-2">
@@ -361,7 +414,7 @@ export function ClauseFrameResults({
                 </article>
               ))}
             {!extension.pairs.length ? (
-              <p>Chưa có cặp; xem coverage và lý do.</p>
+              <p>Chưa có cặp nào; xem phần Mức độ phân tích.</p>
             ) : null}
           </section>
           <section id="semantic-timeline">
@@ -369,21 +422,22 @@ export function ClauseFrameResults({
             {extension.timeline.map((edge) => (
               <article key={edge.edge_id} className="my-2 rounded border p-2">
                 <h3>
-                  {edge.relation} · {edge.review_state}
+                  {relationLabel(edge.relation)} ·{' '}
+                  {reviewStateLabel(edge.review_state)}
                 </h3>
-                <p className="break-all">
-                  {edge.source_id} → {edge.target_id ?? 'Thiếu đích'}
-                </p>
                 <p>
-                  {edge.date_role} · {edge.date_value ?? 'Chưa xác định ngày'} ·{' '}
-                  {edge.reasons.join('; ')}
+                  {dateRoleLabel(edge.date_role)}:{' '}
+                  {edge.date_value ?? 'chưa xác định'}
                 </p>
+                <TechnicalDetail
+                  text={`${edge.source_id} → ${edge.target_id ?? '—'} · ${edge.reasons.join('; ')}`}
+                />
                 {edge.acceptance ? (
                   <dl>
                     <Slot name="acceptance" value={edge.acceptance} />
                   </dl>
                 ) : (
-                  <p>Chấp thuận: UNKNOWN</p>
+                  <p>Chấp thuận: chưa rõ</p>
                 )}
                 {edge.proposed_value ? (
                   <dl>
@@ -401,16 +455,17 @@ export function ClauseFrameResults({
               </article>
             ))}
             {!extension.timeline.length ? (
-              <p>Chuỗi chưa được dựng; xem lý do trong coverage.</p>
+              <p>Chưa dựng được dòng thời gian; xem phần Mức độ phân tích.</p>
             ) : null}
           </section>
           {extension.alias_drafts.length ? (
             <details>
-              <summary>Alias nháp cần chuyên viên tenant duyệt</summary>
+              <summary>Tên gọi khác đang chờ chuyên viên duyệt</summary>
               {extension.alias_drafts.map((a, i) => (
                 <p key={i}>
-                  {a.source} → {a.symbol} · {a.kind} · {a.status} ·{' '}
-                  {a.source_ref}
+                  {a.source} → {a.symbol} ·{' '}
+                  {a.kind === 'action' ? 'Hành động' : 'Loại vi phạm'} · Bản
+                  nháp
                 </p>
               ))}
             </details>
@@ -419,7 +474,7 @@ export function ClauseFrameResults({
       )}
       <p>
         Giữ nghi vấn để người duyệt kiểm tra. Thẩm định không tự thay quy tắc
-        alias hoặc lịch sử lần chạy.
+        tên gọi khác hoặc lịch sử lần chạy.
       </p>
     </section>
   )

@@ -122,6 +122,26 @@ export function CitationPane({
     needsReview(region.confidence),
   ).length
 
+  // Vùng khoanh có thể nằm ở nửa dưới trang, ngoài khung nhìn: vẽ trang xong
+  // thì cuộn tới vùng đầu tiên, để người dùng thấy ngay chỗ được trích.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const firstBoxRef = useRef<HTMLDivElement>(null)
+  const boxesKey = boxes.map((region) => region.bbox.join(',')).join('|')
+  useEffect(() => {
+    if (!ready || !showBoxes || !boxesKey) return
+    const container = scrollRef.current
+    const box = firstBoxRef.current
+    if (!container || !box) return
+    const offset =
+      box.getBoundingClientRect().top -
+      container.getBoundingClientRect().top +
+      container.scrollTop
+    container.scrollTo({
+      top: Math.max(0, offset - container.clientHeight / 3),
+      behavior: 'smooth',
+    })
+  }, [ready, showBoxes, boxesKey, pageNo])
+
   return (
     <aside
       className={
@@ -187,7 +207,7 @@ export function CitationPane({
       {boxes.length > 0 ? (
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-outline-variant/20 px-4 py-1.5 text-xs text-on-surface-variant">
           <ul
-            aria-label="Mức tin cậy OCR"
+            aria-label="Mức tin cậy khi đọc"
             className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${showBoxes ? '' : 'opacity-50'}`}
           >
             {LEGEND.map((item) => (
@@ -204,7 +224,7 @@ export function CitationPane({
             type="button"
             onClick={() => setShowBoxes((current) => !current)}
           >
-            Khung OCR
+            Khung chữ
             <span
               className={`relative h-4 w-7 rounded-full transition-colors ${showBoxes ? 'bg-brand-600' : 'bg-tone-300'}`}
             >
@@ -215,7 +235,10 @@ export function CitationPane({
           </button>
         </div>
       ) : null}
-      <div className="min-h-0 flex-1 overflow-auto bg-tone-100 p-4">
+      <div
+        ref={scrollRef}
+        className="min-h-0 flex-1 overflow-auto bg-tone-100 p-4"
+      >
         {error ? <p className="mb-3 text-sm text-red-700">{error}</p> : null}
         {!ready && !error ? (
           <p className="mb-3 text-sm text-tone-500">Đang mở trang hợp đồng…</p>
@@ -231,6 +254,7 @@ export function CitationPane({
             return (
               <div
                 key={`${region.pageNo}-${index}`}
+                ref={index === 0 ? firstBoxRef : undefined}
                 className={`absolute border-2 ${
                   level
                     ? confidenceBoxClasses[level]
@@ -238,7 +262,7 @@ export function CitationPane({
                 }`}
                 title={
                   level && confidence !== null
-                    ? `OCR ${formatConfidence(confidence)} · ${confidenceLabels[level]}`
+                    ? `Độ tin cậy ${formatConfidence(confidence)} · ${confidenceLabels[level]}`
                     : undefined
                 }
                 style={{

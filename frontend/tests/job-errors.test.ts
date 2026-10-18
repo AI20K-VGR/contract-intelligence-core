@@ -1,10 +1,66 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { normalizeAi2SearchResult } from '../src/api/ai2'
+import { ApiError } from '../src/api/client'
 import {
+  analysisRetryErrorMessage,
+  analysisRetryKind,
   isAi2Failure,
   isCancelledJob,
   jobErrorInfo,
 } from '../src/api/jobErrors'
+
+describe('analysisRetryKind (một nút "Chạy lại")', () => {
+  it('chỉ phân tích lại với lỗi tạm của AI2', () => {
+    expect(analysisRetryKind('failed', 'AI2_PROCESSING_FAILED')).toBe('ai2')
+    expect(analysisRetryKind('failed', 'AI2_TIMEOUT')).toBe('ai2')
+  })
+
+  it('chạy tiếp, giữ phần OCR đã đọc, khi phân tích bị huỷ', () => {
+    expect(analysisRetryKind('cancelled', 'RUN_CANCELLED')).toBe('resume')
+  })
+
+  it('chạy lại toàn bộ với lỗi AI2 khác', () => {
+    expect(analysisRetryKind('failed', 'AI2_BLOCKED')).toBe('reprocess')
+    expect(analysisRetryKind('failed', 'AI2_UNAVAILABLE')).toBe('reprocess')
+    expect(analysisRetryKind('failed', 'INSUFFICIENT_PAGES')).toBe('reprocess')
+  })
+
+  it('không có nút với hồ sơ sai cấu trúc, hay khi chưa dừng', () => {
+    expect(analysisRetryKind('failed', 'DOSSIER_CONTRACT_REQUIRED')).toBe(
+      'none',
+    )
+    expect(analysisRetryKind('failed', 'DOSSIER_TOO_MANY_DOCUMENTS')).toBe(
+      'none',
+    )
+    expect(analysisRetryKind('running', null)).toBe('none')
+    expect(analysisRetryKind('done', null)).toBe('none')
+  })
+
+  it('giải thích hồ sơ sai cấu trúc bằng câu tiếng Việt, không hiện mã', () => {
+    const info = jobErrorInfo('DOSSIER_SOMETHING_NEW')
+    expect(info.retry).toBe('none')
+    expect(info.message).toContain('không đúng cấu trúc')
+  })
+})
+
+describe('analysisRetryErrorMessage (PR #122 review)', () => {
+  it('words a failed "Chạy lại" for analysis, not for reading documents', () => {
+    expect(analysisRetryErrorMessage(new ApiError(403, 'Forbidden'))).toBe(
+      'Bạn không có quyền chạy lại phân tích hồ sơ này.',
+    )
+    expect(analysisRetryErrorMessage(new ApiError(409, 'Conflict'))).toBe(
+      'Hồ sơ đã được chạy lại hoặc đang chạy. Đang tải lại trạng thái.',
+    )
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(analysisRetryErrorMessage(new ApiError(500, 'Internal'))).toBe(
+      'Không chạy lại được phân tích. Vui lòng thử lại.',
+    )
+    warn.mockRestore()
+    expect(analysisRetryErrorMessage(new TypeError('Failed to fetch'))).toBe(
+      'Không kết nối được máy chủ. Vui lòng kiểm tra mạng rồi thử lại.',
+    )
+  })
+})
 
 describe('jobErrorInfo', () => {
   it('routes AI2 retryable codes to the AI2 retry', () => {

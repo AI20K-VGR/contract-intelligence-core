@@ -46,7 +46,7 @@ export function weakestConfidence(values: (number | null | undefined)[]) {
 export const confidenceLabels: Record<ConfidenceLevel, string> = {
   high: 'Tin được',
   medium: 'Nên xem',
-  low: 'Cần review',
+  low: 'Cần rà soát',
 }
 
 export const confidenceBoxClasses: Record<ConfidenceLevel, string> = {

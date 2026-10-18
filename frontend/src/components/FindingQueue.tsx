@@ -47,7 +47,7 @@ export function FindingQueue({
         setError(
           cause instanceof Error
             ? cause.message
-            : 'Không ghi nhận được action review.',
+            : 'Không ghi nhận được thao tác rà soát.',
         )
       }
     } finally {
@@ -62,7 +62,7 @@ export function FindingQueue({
           Finding queue
         </h2>
         <p className="mt-space-xs font-body-sm text-body-sm text-secondary">
-          Không có finding/review item mở.
+          Không còn mục nào cần rà soát.
         </p>
       </section>
     )
@@ -102,15 +102,15 @@ export function FindingQueue({
           <div className="mt-space-sm grid gap-space-sm md:grid-cols-2">
             <div className="rounded border border-outline-variant/20 bg-surface-container-low p-space-sm font-body-sm text-body-sm">
               <strong className="block font-label-sm text-label-sm text-secondary">
-                Evidence phía trái
+                Căn cứ bên trái
               </strong>
-              <span>{entry.leftEvidence || 'Chưa có evidence'}</span>
+              <span>{entry.leftEvidence || 'Chưa có căn cứ'}</span>
             </div>
             <div className="rounded border border-outline-variant/20 bg-surface-container-low p-space-sm font-body-sm text-body-sm">
               <strong className="block font-label-sm text-label-sm text-secondary">
-                Evidence phía phải
+                Căn cứ bên phải
               </strong>
-              <span>{entry.rightEvidence || 'Chưa có evidence'}</span>
+              <span>{entry.rightEvidence || 'Chưa có căn cứ'}</span>
             </div>
           </div>
           <div className="mt-space-sm flex flex-wrap gap-space-xs">

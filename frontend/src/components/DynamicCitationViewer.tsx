@@ -1,4 +1,10 @@
 import { apiBaseUrl } from '../api/client'
+import {
+  documentRoleLabel,
+  linesLabel,
+  tableCellLabel,
+} from '../structure/displayLabels'
+import { TechnicalDetail } from './TechnicalDetail'
 
 export type CitationViewerStatus = 'LOCATABLE' | 'PARTIAL' | 'UNRESOLVED'
 export type CitationViewerScope = 'body' | 'annex' | 'unknown'
@@ -80,7 +86,7 @@ export function normalizeCitationViewerModel(
 function scopeLabel(scope: CitationViewerScope) {
   if (scope === 'annex') return 'Phụ lục'
   if (scope === 'body') return 'Thân hồ sơ'
-  return 'Chưa xác định scope'
+  return 'Chưa xác định phần'
 }
 
 function statusLabel(status: CitationViewerStatus) {
@@ -98,10 +104,10 @@ export function DynamicCitationViewer({
     return (
       <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-space-md">
         <h2 className="font-title-sm text-title-sm font-semibold text-primary">
-          Citation viewer
+          Trích dẫn
         </h2>
         <p className="mt-space-xs font-body-sm text-body-sm text-secondary">
-          Chưa chọn citation từ dossier/document cụ thể.
+          Chưa chọn trích dẫn từ một hồ sơ hay tài liệu cụ thể.
         </p>
       </section>
     )
@@ -131,12 +137,11 @@ export function DynamicCitationViewer({
           </p>
           <h2 className="mt-1 font-title-sm text-title-sm font-semibold text-primary">
             {citation.documentName ||
-              citation.documentId ||
-              'Nguồn chưa xác định'}
+              documentRoleLabel(citation.documentRole ?? citation.scope)}
           </h2>
         </div>
         <span className="rounded bg-surface-container px-space-xs py-0.5 font-code-sm text-code-sm text-secondary">
-          {citation.documentRole || citation.scope}
+          {documentRoleLabel(citation.documentRole ?? citation.scope)}
         </span>
       </div>
 
@@ -145,55 +150,54 @@ export function DynamicCitationViewer({
           className="mt-space-sm flex items-start gap-space-xs rounded bg-error-container px-space-sm py-space-xs font-body-sm text-body-sm text-on-error-container"
           role="alert"
         >
-          Chưa xác minh được trích dẫn này với nguồn OCR. Kiểm tra lại trên
+          Chưa xác minh được trích dẫn này với tài liệu gốc. Kiểm tra lại trên
           trang gốc trước khi dùng.
         </p>
       ) : null}
 
-      <dl className="mt-space-sm grid gap-x-space-md gap-y-space-xs sm:grid-cols-2 font-code-sm text-code-sm">
+      <dl className="mt-space-sm grid gap-x-space-md gap-y-space-xs sm:grid-cols-2 font-body-sm text-body-sm">
         <div>
-          <dt className="text-secondary">dossier_id</dt>
-          <dd className="break-all text-on-surface">{citation.dossierId}</dd>
-        </div>
-        <div>
-          <dt className="text-secondary">document_id</dt>
-          <dd className="break-all text-on-surface">
-            {citation.documentId || '—'}
+          <dt className="text-secondary">Tài liệu</dt>
+          <dd className="break-words text-on-surface">
+            {citation.documentName ||
+              documentRoleLabel(citation.documentRole ?? citation.scope)}
           </dd>
         </div>
         <div>
-          <dt className="text-secondary">citation_id</dt>
-          <dd className="break-all text-on-surface">
-            {citation.citationId || '—'}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-secondary">location</dt>
+          <dt className="text-secondary">Vị trí</dt>
           <dd className="text-on-surface">
-            {citation.pageNo ? `Trang ${citation.pageNo}` : '—'}
-            {citation.lineId ? ` · ${citation.lineId}` : ''}
+            {[
+              citation.pageNo ? `Trang ${citation.pageNo}` : null,
+              citation.lineId ? linesLabel([citation.lineId]) : null,
+            ]
+              .filter(Boolean)
+              .join(', ') || 'Chưa xác định'}
           </dd>
         </div>
         {citation.tableId ? (
           <div>
-            <dt className="text-secondary">table / cell</dt>
-            <dd className="break-all text-on-surface">
-              {citation.tableId}
-              {citation.cellId ? ` · ${citation.cellId}` : ''}
+            <dt className="text-secondary">Bảng</dt>
+            <dd className="text-on-surface">
+              {tableCellLabel(citation.tableId, citation.cellId)}
             </dd>
           </div>
         ) : null}
       </dl>
 
       <blockquote className="mt-space-sm rounded border border-outline-variant/20 bg-surface-container-low p-space-sm font-body-sm text-body-sm leading-relaxed text-on-surface">
-        {citation.quote || 'Không có text span từ backend.'}
+        {citation.quote || 'Chưa có đoạn trích.'}
       </blockquote>
 
-      {citation.bbox ? (
-        <p className="mt-space-xs font-code-sm text-code-sm text-secondary">
-          bbox: {citation.bbox.join(', ')}
-        </p>
-      ) : null}
+      <TechnicalDetail
+        text={[
+          `Mã trích dẫn ${citation.citationId ?? '—'}`,
+          `tài liệu ${citation.documentId ?? '—'}`,
+          citation.lineId ? `dòng ${citation.lineId}` : null,
+          citation.bbox ? `bbox ${citation.bbox.join(', ')}` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')}
+      />
 
       {canOpenSource && previewUrl ? (
         <div className="mt-space-sm space-y-space-xs">
@@ -213,8 +217,8 @@ export function DynamicCitationViewer({
         </div>
       ) : (
         <div className="mt-space-sm rounded border border-amber-200 bg-amber-50 p-space-sm font-body-sm text-body-sm text-amber-950">
-          Khoảng trống evidence: citation này chưa đủ source scope/page/line để
-          xác minh. Không coi đây là liên kết nguồn hợp lệ.
+          Thiếu căn cứ: trích dẫn này chưa xác định được trang, dòng trong tài
+          liệu để xác minh. Không coi đây là liên kết nguồn hợp lệ.
         </div>
       )}
     </section>

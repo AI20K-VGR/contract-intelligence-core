@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { LOGIN_NETWORK_MESSAGE, userErrorMessage } from '../api/errorMessage'
 import { useAuth } from '../auth/useAuth'
 import { homePath } from '../auth/session'
 import { MaterialIcon } from '../components/icons'
@@ -15,7 +16,11 @@ export function AuthCallbackPage() {
     const params = new URLSearchParams(window.location.search)
     const ssoError = params.get('error_description') || params.get('error')
     if (ssoError) {
-      setError(ssoError)
+      // Keycloak trả mã/câu tiếng Anh (access_denied, Invalid redirect_uri...).
+      console.warn('[Lỗi kỹ thuật]', ssoError)
+      setError(
+        'Máy chủ đăng nhập từ chối yêu cầu. Vui lòng đăng nhập lại; nếu vẫn lỗi, báo quản trị viên.',
+      )
       return
     }
 
@@ -30,9 +35,11 @@ export function AuthCallbackPage() {
       .catch((cause: unknown) => {
         if (active) {
           setError(
-            cause instanceof Error
-              ? cause.message
-              : 'Không hoàn tất đăng nhập SSO.',
+            userErrorMessage(
+              cause,
+              'Chưa hoàn tất đăng nhập. Vui lòng đăng nhập lại.',
+              LOGIN_NETWORK_MESSAGE,
+            ),
           )
         }
       })

@@ -1,4 +1,5 @@
 import { ApiError } from '../api/client'
+import { userErrorMessage } from '../api/errorMessage'
 
 /*
  * Backend trả 403 vì ba lý do khác nhau, và câu chữ gốc có khi là tiếng Anh.
@@ -25,5 +26,5 @@ export function reviewErrorMessage(cause: unknown, fallback: string) {
     if (/chỉ có quyền xem/i.test(text)) return READ_ONLY_MESSAGE
     return text || READ_ONLY_MESSAGE
   }
-  return cause instanceof Error ? cause.message : fallback
+  return userErrorMessage(cause, fallback)
 }

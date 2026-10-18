@@ -63,6 +63,8 @@ export function progressPath(dossierId: string) {
 export function dossierOpenTo(dossier: Dossier) {
   const job = dossier.jobStatus
   if (dossier.splitPending && job === 'uploaded') return splitPath(dossier.id)
+  // OCR xong, AI2 đang chạy ngầm: cây đã xem được, không cần màn tiến trình.
+  if (job === 'extracted') return structurePath(dossier.id)
   if (
     dossier.status === 'processing' ||
     dossier.status === 'failed' ||
@@ -130,7 +132,7 @@ export const myDossiers: Dossier[] = [
     size: '96.5 MB',
     icon: 'folder_open',
     status: 'processing',
-    progressLabel: 'OCR (40%)',
+    progressLabel: 'Đang đọc (40%)',
     progress: 40,
     documents: 18,
     updated: 'Hôm nay, 11:20',
