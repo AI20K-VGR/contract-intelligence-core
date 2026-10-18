@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 import structlog
 from sqlalchemy import delete, select, text, update
@@ -162,6 +163,10 @@ class DossierDeletionService:
                 deleted_blobs += 1
 
         try:
+            ai2_evidence = await self._ai_client.purge_dossier(
+                tenant_id=self._tenant_id,
+                dossier_id=dossier_id,
+            )
             await self._purge_db_content(dossier_id)
             now = utcnow()
             orm = await self._load_dossier_orm(dossier_id, for_update=True)
@@ -178,7 +183,11 @@ class DossierDeletionService:
                 dossier_id,
                 purge_status="completed",
                 purged_at=now,
-                evidence={"blobs_deleted": deleted_blobs, "blob_count": len(blob_uris)},
+                evidence={
+                    "blobs_deleted": deleted_blobs,
+                    "blob_count": len(blob_uris),
+                    "ai2": ai2_evidence,
+                },
             )
             await self._session.flush()
             logger.info(
@@ -209,7 +218,7 @@ class DossierDeletionService:
         *,
         purge_status: str,
         purged_at: datetime | None,
-        evidence: dict[str, int],
+        evidence: dict[str, Any],
     ) -> None:
         result = await self._session.execute(
             select(DeletionLedgerORM).where(
@@ -523,7 +532,12 @@ async def run_dossier_purge(*, dossier_id: str, tenant_id: str) -> None:
             await svc.purge(dossier_id)
             await session.commit()
         except Exception:
-            await session.rollback()
+            # purge() records a retryable failed state in this dedicated session.
+            # Preserve it when the transaction is healthy; DB failures still roll back.
+            if session.is_active:
+                await session.commit()
+            else:
+                await session.rollback()
             logger.exception("dossier.purge_background_failed", dossier_id=dossier_id)
             raise
 

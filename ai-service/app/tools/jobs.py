@@ -493,13 +493,20 @@ class PostgresJobStore(SQLiteJobStore):
 
     def create_or_get(self, *, tenant_id, dossier_id, request_id, idempotency_key, attempt,
                       request, wire, nonce=None, request_fingerprint=None):
-        from sqlalchemy import select
+        from sqlalchemy import select, text
         from sqlalchemy.dialects.postgresql import insert
 
         from app.db.tables import jobs, service_nonces
         now = self._now_ms()
         job_id = f"job_{uuid4().hex}"
         with self.engine.begin() as cx:
+            from app.tools.dossier_deletion import DossierDeletedError
+
+            cx.execute(text("SELECT ai2.purge_write_lock()"))
+            if cx.execute(text("""SELECT 1 FROM ai2.dossier_tombstones
+                WHERE tenant_id=:tenant AND dossier_id=:dossier"""),
+                {"tenant": tenant_id, "dossier": dossier_id}).scalar():
+                raise DossierDeletedError("AI2_DOSSIER_DELETED")
             if nonce is not None:
                 prior = cx.execute(select(service_nonces).where(
                     service_nonces.c.tenant_id == tenant_id, service_nonces.c.nonce == nonce,
@@ -679,11 +686,12 @@ class PostgresJobStore(SQLiteJobStore):
         ))
 
     def _fail_matching(self, condition, update):
-        from sqlalchemy import select
+        from sqlalchemy import select, text
         from sqlalchemy import update as sql_update
 
         from app.db.tables import jobs
         with self.engine.begin() as cx:
+            cx.execute(text("SELECT ai2.purge_write_lock()"))
             rows = cx.execute(select(jobs).where(condition).with_for_update()).mappings().all()
             for row in rows:
                 wire = {**json.loads(row["wire_json"]), **update, "status": "FAILED"}

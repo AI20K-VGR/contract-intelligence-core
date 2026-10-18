@@ -275,6 +275,11 @@ def load_session(sid: str, store: InMemorySnapshotStore) -> dict | None:
             return None
         payload = json.loads(row[0])
     rec = record_from_dict(payload["record"])
+    if database_url():
+        from app.tools.dossier_deletion import is_dossier_deleted
+
+        if is_dossier_deleted(rec.tenant_id, rec.dossier_id):
+            return None
     env = ToolEnvelope.model_validate(payload["envelope"])
     store.put(rec)
     if not database_url():

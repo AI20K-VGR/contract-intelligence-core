@@ -4,6 +4,7 @@ import os
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
+from app.contracts.errors import DossierDeletedError
 from app.contracts.models import (
     ContractContext,
     ContractEvent,
@@ -291,6 +292,8 @@ def _run_idp(
                 )
             )
             continue
+        except DossierDeletedError:
+            raise
         except Exception as exc:
             unit_failures.append(
                 HandoffIssue(

@@ -225,6 +225,47 @@ def _canonical_ai2_base_url() -> str:
     return base
 
 
+async def purge_ai2_dossier(*, tenant_id: str, dossier_id: str) -> dict[str, Any]:
+    """Erase AI2 content before Backend's deletion ledger can complete (#131)."""
+    payload: dict[str, Any] = {"tenant_id": tenant_id, "dossier_id": dossier_id}
+    payload["service_envelope"] = _service_envelope(
+        payload,
+        tenant_id=tenant_id,
+        dossier_id=dossier_id,
+        actor_id="backend",
+        scopes=["ai2.dossier.delete"],
+    )
+    url = f"{_canonical_ai2_base_url()}/api/v1/dossiers/{quote(dossier_id, safe='')}"
+    try:
+        async with httpx.AsyncClient(timeout=_DEFAULT_TIMEOUT) as client:
+            response = await client.request("DELETE", url, json=payload)
+    except httpx.HTTPError as exc:
+        raise AiAdapterError("AI2 dossier purge transport failure") from exc
+    if not response.is_success:
+        # A remote error body must never put content or credentials into the ledger.
+        raise AiAdapterHTTPError(response.status_code, "AI2 dossier purge incomplete")
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise AiAdapterError("AI2 dossier purge returned invalid JSON") from exc
+    if not isinstance(data, dict) or data.get("status") != "completed":
+        raise AiAdapterError("AI2 dossier purge did not complete")
+    evidence = data.get("evidence")
+    if not isinstance(evidence, dict) or not isinstance(evidence.get("deleted"), dict):
+        raise AiAdapterError("AI2 dossier purge evidence is missing")
+    # Accept only metadata counts; never copy arbitrary remote JSON into the ledger.
+    counts = evidence["deleted"]
+    if any(
+        not isinstance(key, str) or type(value) is not int or value < 0
+        for key, value in counts.items()
+    ):
+        raise AiAdapterError("AI2 dossier purge evidence counts are invalid")
+    directories = evidence.get("blob_directories", 0)
+    if type(directories) is not int or directories < 0:
+        raise AiAdapterError("AI2 dossier purge file count is invalid")
+    return {"deleted": counts, "blob_directories": directories}
+
+
 async def submit_ai2_processing(
     payload: dict[str, Any], *, tenant_id: str, dossier_id: str, actor_id: str = "backend"
 ) -> dict[str, Any]:

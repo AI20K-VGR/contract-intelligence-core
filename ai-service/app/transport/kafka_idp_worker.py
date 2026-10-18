@@ -20,6 +20,7 @@ from uuid import uuid4
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 
 from app.contracts.wire import job_result_to_wire
+from app.db.engine import database_url
 from app.llm.client import NineRouterClient
 from app.pipeline.ai1_snapshot_adapter import (
     SnapshotContractError,
@@ -28,6 +29,7 @@ from app.pipeline.ai1_snapshot_adapter import (
 )
 from app.pipeline.idp import run_idp
 from app.pipeline.runtime import ProcessingRuntime
+from app.tools.dossier_deletion import DossierDeletedError, is_deleted_write, require_live_dossier
 from app.tools.query_store import save_query_snapshot
 from app.tools.store import DossierRecord, InMemorySnapshotStore
 
@@ -122,6 +124,19 @@ def _failed_wire(
 def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
     """Synchronously process one IDP command; return the result envelope."""
     event_id = str(message.get("event_id") or "")
+    # Check even before returning the process-local dedupe result: it can contain
+    # a successful result cached before a different process deleted the dossier.
+    raw = message.get("payload") or {}
+    if database_url() and isinstance(raw, dict):
+        tenant = str(message.get("tenant_id") or (raw.get("service_envelope") or {}).get("tenant_id") or "unknown")
+        dossier = str(raw.get("dossier_id") or "")
+        try:
+            require_live_dossier(tenant, dossier)
+        except DossierDeletedError:
+            _processed.pop(event_id, None)
+            return _build_result_envelope(event_type=EVENT_FAILED, command=message,
+                payload=_failed_wire(request_meta=raw, job_id="", code="AI2_DOSSIER_DELETED",
+                                     message="Dossier has been deleted"))
     if event_id and event_id in _processed:
         logger.info("ai2.kafka.duplicate_event event_id=%s", event_id)
         return _processed[event_id]
@@ -168,6 +183,8 @@ def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
             max_processing_seconds=request.policy_flags.budget_limits.max_processing_seconds,
             max_llm_calls=request.policy_flags.budget_limits.max_llm_calls,
             max_embedding_tokens=request.policy_flags.budget_limits.max_embedding_tokens,
+            check_cancelled=(lambda: require_live_dossier(tenant_id, request.dossier_id))
+            if database_url() else None,
         )
         store = InMemorySnapshotStore()
         # The HTTP query API is a separate process. Preserve the adapted
@@ -186,6 +203,8 @@ def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
             runtime=runtime,
         )
         wire = job_result_to_wire(result, request, query_snapshot_digest=query_snapshot_digest)
+        if database_url():
+            require_live_dossier(tenant_id, request.dossier_id)
         wire["job_id"] = job_id
         event_type = (
             EVENT_COMPLETED
@@ -197,6 +216,11 @@ def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
             command=message,
             payload=wire,
         )
+    except DossierDeletedError:
+        _processed.pop(event_id, None)
+        envelope = _build_result_envelope(event_type=EVENT_FAILED, command=message,
+            payload=_failed_wire(request_meta=raw_payload, job_id=job_id, code="AI2_DOSSIER_DELETED",
+                                 message="Dossier has been deleted"))
     except SnapshotContractError as exc:
         wire = _failed_wire(
             request_meta=raw_payload,
@@ -215,6 +239,11 @@ def _handle_command(message: dict[str, Any]) -> dict[str, Any]:
             payload=wire,
         )
     except Exception as exc:
+        if is_deleted_write(exc):
+            _processed.pop(event_id, None)
+            return _build_result_envelope(event_type=EVENT_FAILED, command=message,
+                payload=_failed_wire(request_meta=raw_payload, job_id=job_id, code="AI2_DOSSIER_DELETED",
+                                     message="Dossier has been deleted"))
         logger.exception("ai2.kafka.pipeline_failed event_id=%s", event_id)
         if _is_retryable_exception(exc):
             raise RetryableAI2Error(str(exc)) from exc
@@ -280,6 +309,11 @@ async def run_worker() -> None:
             key = str(dossier_id or "").encode("utf-8") or None
             try:
                 envelope = await asyncio.to_thread(_handle_command, message)
+                if database_url():
+                    payload = message.get("payload") or {}
+                    await asyncio.to_thread(require_live_dossier,
+                        str(message.get("tenant_id") or (payload.get("service_envelope") or {}).get("tenant_id") or "unknown"),
+                        str(payload.get("dossier_id") or ""))
                 await producer.send_and_wait(
                     results_topic,
                     json.dumps(envelope, default=str).encode("utf-8"),

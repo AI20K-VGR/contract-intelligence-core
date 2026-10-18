@@ -405,6 +405,28 @@ Giữ nguyên thì hồ sơ có hai hợp đồng không bao giờ tới đượ
 
 ## Việc của từng bên sau review AI2 (30/09)
 
+### Bổ sung issue #131 — xoá nội dung phía AI2 (19/10/2026)
+
+Trạng thái: AI2 và lời gọi purge từ Backend đã được triển khai và kiểm chứng local
+trong thay đổi #131; chưa deploy production. Đây không phải ghi nhận phê duyệt mới của Lead.
+
+- Theo D11/ADR-14, purge chỉ hỗ trợ PostgreSQL + pgvector; không xây luồng SQLite.
+- API `DELETE /api/v1/dossiers/{dossier_id}`, envelope scope `ai2.dossier.delete`,
+  request/response/lỗi và retry được định nghĩa tại §7 của
+  [BE-AI2-PROCESSING-CONTRACT](BE-AI2-PROCESSING-CONTRACT.vi.md).
+- Xoá cả graph receipts, processing traces và durable audit thuộc hồ sơ. Không giữ
+  các JSON có thể chứa nội dung chỉ vì bảng được gọi là audit. Append-only vẫn áp
+  dụng cho audit của run chưa xoá; chỉ có ngoại lệ DELETE khi owner đã tombstone.
+- Giữ lâu dài tombstone, ownership/digest history, số đếm evidence và nonce chống
+  replay; các metadata này không chứa hợp đồng hoặc bytes file.
+- DB fencing bảo vệ mọi writer đã có; query/session không được đọc cache cũ của
+  hồ sơ đã tombstone. Vector chỉ xoá khi không còn owner sống ở bất kỳ tenant nào.
+- Backend chỉ đánh dấu completed khi nhận `status=completed`; lỗi 503 phải retry.
+  Lưu `evidence` tích luỹ vào deletion ledger, không chỉ số xoá mới của lần retry.
+- Sau triển khai, purge lại 7 scope đã completed trước đây theo audit của Chương;
+  kiểm đếm lại mọi kho trước khi đóng issue. Không sửa ledger production hay xoá
+  dữ liệu production tự động trong thay đổi code này.
+
 Review của Văn Dũng ở PR #37 xác nhận D2, D4, D5, D7 (409 và cùng `job_id`) và D9 đã khớp code AI2. Các chỗ còn lệch được chốt như trên. Danh sách việc:
 
 **AI2**

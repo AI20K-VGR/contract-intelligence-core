@@ -186,7 +186,9 @@ class DurableRunStore:
             cx.close()
 
     def _begin_write(self, cx) -> None:
-        if not self._postgres:
+        if self._postgres:
+            cx.execute("SELECT ai2.purge_write_lock()")
+        else:
             cx.execute("BEGIN IMMEDIATE")
 
     def _locked(self, query: str) -> str:
@@ -761,6 +763,31 @@ class DurableRunStore:
             finally:
                 cx.close()
             try:
+                if self._postgres:
+                    # A claim can outlive a dossier purge. Recheck and publish
+                    # under the erasure gate, so DELETE cannot finish while a
+                    # previously claimed content event is still being emitted.
+                    cx = self._connect()
+                    try:
+                        self._begin_write(cx)
+                        current = cx.execute(
+                            "SELECT event_id FROM durable_outbox WHERE event_id=? AND lease_token=?",
+                            (item["event_id"], claim_token),
+                        ).fetchone()
+                        if current is None:
+                            cx.rollback()
+                            continue
+                        publish(item)
+                        cur = cx.execute(
+                            """UPDATE durable_outbox SET status='PUBLISHED', lease_token=NULL,
+                                lease_until_ms=NULL, published_ms=? WHERE event_id=? AND lease_token=?""",
+                            (self._now_ms(), item["event_id"], claim_token),
+                        )
+                        cx.commit()
+                        delivered += int(bool(cur.rowcount))
+                    finally:
+                        cx.close()
+                    continue
                 publish(item)
             except Exception:
                 cx = self._connect()
