@@ -24,7 +24,7 @@ Lấy token từ usage của từng lời gọi thực tế, cùng dữ liệu s
 
 USD là **chi phí quy đổi tham chiếu**, dùng giá cấu hình `gpt-5.5` trong `app/llm/observability.py`: input $5/triệu, cached input $0,50/triệu, output $30/triệu. Đây không phải hóa đơn hoặc cam kết chi phí production. Không có cached input trong các lượt đo này. Thời gian/output có thể thay đổi theo từng lần chạy; một lượt đo không đại diện phân phối latency hay độ chính xác toàn hệ thống.
 
-| C?u h?i | Input tr??c | Output tr??c | USD tr??c | Input sau | Output sau | USD sau |
+| Câu hỏi | Input trước | Output trước | USD trước | Input sau | Output sau | USD sau |
 |---|---:|---:|---:|---:|---:|---:|
 | BB01 đã giao đủ thiết bị chưa? | 11417 | 199 | 0.063055 | 11310 | 265 | 0.064500 |
 | Sự cố dữ liệu được thông báo có đúng hạn không? | 12736 | 429 | 0.076550 | 13547 | 376 | 0.079015 |
@@ -33,7 +33,7 @@ USD là **chi phí quy đổi tham chiếu**, dùng giá cấu hình `gpt-5.5` t
 | Phụ lục 02 sửa đổi thời hạn thanh toán như thế nào? | 6000 | 230 | 0.036900 | 6000 | 274 | 0.038220 |
 | Nêu đầy đủ thời gian phản hồi và khắc phục P1 P2 P3 P4 trong SLA. | 3051 | 244 | 0.022575 | 5281 | 467 | 0.040415 |
 
-| C?u h?i | Input t?t lexical | Output t?t lexical | USD t?t lexical | Input b?t lexical | Output b?t lexical | USD b?t lexical |
+| Câu hỏi | Input tắt lexical | Output tắt lexical | USD tắt lexical | Input bật lexical | Output bật lexical | USD bật lexical |
 |---|---:|---:|---:|---:|---:|---:|
 | BB01 đã giao đủ thiết bị chưa? | 2843 | 294 | 0.023035 | 11310 | 265 | 0.064500 |
 | Sự cố dữ liệu được thông báo có đúng hạn không? | 4089 | 361 | 0.031275 | 13547 | 376 | 0.079015 |
