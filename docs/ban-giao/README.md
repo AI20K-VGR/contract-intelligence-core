@@ -15,7 +15,7 @@ Bộ tài liệu bàn giao dự án Contract Intelligence. Số thứ tự theo 
 | 9 | Kịch bản kiểm thử | Đức Dũng | | Chưa có trong thư mục này |
 | 10 | Hướng dẫn sử dụng | Trang | | Chưa có trong thư mục này |
 | 11 | Tài liệu Quản trị viên | Chương | [11-admin-guide.md](11-admin-guide.md) | Xong |
-| 12 | Danh sách tài khoản | Chương | [12-danh-sach-tai-khoan.md](12-danh-sach-tai-khoan.md) | Đang viết |
+| 12 | Danh sách tài khoản | Chương | [12-danh-sach-tai-khoan.md](12-danh-sach-tai-khoan.md) | Xong, còn ô "Cần xác nhận" (người giữ) |
 | 13 | Thông tin Bản quyền | Trang | | Chưa có trong thư mục này |
 | 14 | Biên bản nghiệm thu & Bàn giao | Trang | | Chưa có trong thư mục này |
 
