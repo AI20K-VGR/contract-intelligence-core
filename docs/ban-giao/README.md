@@ -10,7 +10,7 @@ Bộ tài liệu bàn giao dự án Contract Intelligence. Số thứ tự theo 
 | 4 | Cấu trúc thư mục & Quy chuẩn Code | Văn Dũng | | Chưa có trong thư mục này |
 | 5 | Yêu cầu hệ thống | Đức Dũng | | Chưa có trong thư mục này |
 | 6 | Hướng dẫn cài đặt Local | Chương | [06-huong-dan-cai-dat-local.md](06-huong-dan-cai-dat-local.md) | Xong |
-| 7 | Hướng dẫn Deploy Server | Chương | [07-huong-dan-deploy.md](07-huong-dan-deploy.md) | Đang viết |
+| 7 | Hướng dẫn Deploy Server | Chương | [07-huong-dan-deploy.md](07-huong-dan-deploy.md) | Xong |
 | 8 | Tài liệu cấu hình (biến môi trường) | Văn Dũng | | Chưa có trong thư mục này |
 | 9 | Kịch bản kiểm thử | Đức Dũng | | Chưa có trong thư mục này |
 | 10 | Hướng dẫn sử dụng | Trang | | Chưa có trong thư mục này |
