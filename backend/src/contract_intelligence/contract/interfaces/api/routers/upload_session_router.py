@@ -205,10 +205,10 @@ _JOIN_CONCURRENCY = 8
 async def _join_chunks(paths: list[str]) -> bytes:
     """Download the chunk objects (in order) and join them.
 
-    Chunks are accumulated in a ``bytearray`` as they arrive, rather than holding
-    every byte in memory simultaneously (``b"".join(await asyncio.gather(...))``).
-    For a 6×50 MiB dossier (300 × 1 MiB chunks) this keeps resident memory
-    proportional to ``_JOIN_CONCURRENCY`` × chunk size instead of the full file.
+    Chunks are downloaded with bounded concurrency and accumulated into a
+    ``bytearray`` as they arrive, draining completed tasks eagerly so the
+    memory footprint is proportional to ``_JOIN_CONCURRENCY`` × chunk size
+    rather than the full file (6×50 MiB = 300 MiB otherwise).
     """
     gate = asyncio.Semaphore(_JOIN_CONCURRENCY)
     result = bytearray()
@@ -217,19 +217,17 @@ async def _join_chunks(paths: list[str]) -> bytes:
         async with gate:
             return await storage.download_object(path)
 
-    # Download concurrently (up to _JOIN_CONCURRENCY) but append in document order.
-    pending: set[asyncio.Task[bytes]] = set()
+    inflight: set[asyncio.Task[bytes]] = set()
     for path in paths:
-        pending.add(asyncio.create_task(fetch(path)))
-        if len(pending) >= _JOIN_CONCURRENCY:
-            done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
-            for t in done:
-                result.extend(t.result())
+        inflight.add(asyncio.create_task(fetch(path)))
+        if len(inflight) >= _JOIN_CONCURRENCY:
+            done, _ = await asyncio.wait(inflight, return_when=asyncio.FIRST_COMPLETED)
+            for task in done:
+                inflight.discard(task)
+                result.extend(task.result())
 
-    # Drain the remaining tasks.
-    if pending:
-        done = await asyncio.gather(*pending)
-        for chunk in done:
+    if inflight:
+        for chunk in await asyncio.gather(*inflight):
             result.extend(chunk)
 
     return bytes(result)
@@ -534,19 +532,21 @@ async def complete_upload_session(
         )
         # Dossier, documents and the completed session in one commit.
         await svc.commit()
+        # Past the commit: capture staged paths so we can clean up after
+        # background tasks / response serialization complete.
+        staged_paths: list[str] = [staged.contract_path, *staged.annex_paths]
     except BaseException:
         # Nothing of the dossier was committed: give the session back so the
         # client can fix the file (or retry) and complete again.
         # If svc.commit() failed after stage_new_dossier uploaded files to MinIO,
         # those objects are now orphans. Clean them up so they don't accumulate.
-        staged_paths = [staged.contract_path, *staged.annex_paths]
         await session.rollback()
         try:
             await store.reopen(upload_id)
             await session.commit()
         except Exception:
             logger.warning("upload.session.reopen_failed", upload_id=upload_id, exc_info=True)
-        if staged_paths:
+        if "staged_paths" in locals() and staged_paths:
             background_tasks.add_task(delete_objects_quietly, staged_paths)
         raise
 

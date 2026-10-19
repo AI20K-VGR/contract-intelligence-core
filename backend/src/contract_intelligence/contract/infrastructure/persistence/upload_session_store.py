@@ -167,7 +167,7 @@ class UploadSessionStore:
         return int((await self._session.execute(stmt)).scalar_one())
 
     async def oldest_open(self, user_id: str, *, limit: int) -> list[UploadSessionORM]:
-        """Up to ``limit`` of the user's ``open`` (not completing) sessions, least-recently active first.
+        """Open (not completing) sessions of ``user_id``, least-recently active first.
 
         Ordering by ``updated_at`` avoids evicting a session that is still sending
         chunks (the user's other tabs may be uploading in parallel).  A session that
