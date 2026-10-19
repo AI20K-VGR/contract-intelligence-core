@@ -112,6 +112,8 @@ Tổng này là lý do đặt mức tối thiểu 8 GB. Số đo thật sẽ ghi
 | Secret client backend là giá trị dev | Được thay bằng secret sinh ngẫu nhiên |
 | Dò mật khẩu trên trang đăng nhập công khai | Bật chống dò: khoá tạm sau 5 lần sai, tăng dần tới 15 phút |
 | Trang quản trị Keycloak | `/admin` bị chặn ở Caddy. Chỉ vào qua SSH tunnel |
+| Endpoint nội bộ nhận back-channel logout của Keycloak | `/api/v1/auth/backchannel-logout` trả 404 ở Caddy như `/admin`; Keycloak gọi qua mạng nội bộ `http://backend:8000`. Logout token phải được ký bằng khoá của realm |
+| Token còn dùng được sau khi đăng xuất hoặc bị khoá | Back-channel logout (#129): phiên Keycloak kết thúc thì backend chặn mọi access token của phiên đó ngay (`401 Session has ended`), không chờ tối đa 15 phút |
 | Dữ liệu ngoài quyền | Bộ test M-07 trên 31 endpoint: **0/132 request lộ dữ liệu** (PR #28). Chia sẻ có `read`/`edit` và hạn dùng |
 | Nghe lén | HTTPS ở ngoài. Nội bộ là mạng Docker riêng. Backend → AI2 ký HMAC. AI1 đọc và ghi file qua URL ký sẵn có hạn |
 | Đầy đĩa vì log | Docker xoay vòng log 5 × 20 MB mỗi container |
@@ -184,6 +186,9 @@ A1 chạy trong `deploy.sh` trên chính VPS. A2 chạy **từ máy khác**: Git
 | B4 | Thẩm định bởi reviewer (được chia sẻ `edit`) | Ghi được. Người được chia sẻ `read` nhận 403 khi sửa |
 | B5 | Hỏi đáp có trích dẫn | Trả lời có citation. Người ngoài quyền nhận 403 |
 | B6 | Chia sẻ có hạn, chờ quá hạn | Người được chia sẻ mất quyền (403, biến khỏi danh sách) |
+| B7 | Log deploy | Có dòng `[keycloak] back-channel logout: http://backend:8000/api/v1/auth/backchannel-logout` |
+| B8 | Đăng nhập rồi đăng xuất | Log `ci-backend` có `auth.backchannel_logout.revoked` (không có `auth.backchannel_logout.rejected`) |
+| B9 | Gọi API bằng access token lấy trước khi đăng xuất | `401` với body `{"detail": "Session has ended"}` |
 
 **C. Tải và lỗi (Sprint 3, ghi số đo):**
 

@@ -105,11 +105,13 @@ Header response: `X-API-Contract` (hiện `v3.2.0`). `X-Backend-Version` chỉ c
 
 | HTTP | Khi nào                                                        |
 | ---- | -------------------------------------------------------------- |
-| 401  | Token invalid / hết hạn / không phải Keycloak                  |
+| 401  | Token invalid / hết hạn / không phải Keycloak. **v4.1.0:** phiên Keycloak đã kết thúc (đăng xuất, quản trị khoá tài khoản) dù token chưa hết hạn |
 | 403  | Sai role (xem từng endpoint)                                   |
 | 404  | Không tìm thấy (đúng tenant)                                   |
 | 409  | Conflict nghiệp vụ (run đang chạy, version review, đã lock, …) |
 | 422  | Validation (Pydantic / FastAPI)                                |
+
+Body `401` là `{"detail": "..."}` của FastAPI, không theo envelope `error`: `Token has expired`, `Invalid token`, hoặc **`Session has ended`** (v4.1.0). Cả ba đều xử lý như hết phiên (về màn đăng nhập); không cần đọc nội dung `detail`.
 
 Role BE (JWT claim `role`): `OPERATOR` | `REVIEWER` | `ADMINISTRATOR`.
 
@@ -172,6 +174,10 @@ Map UI: `user.name` ← `display_name`, `user.role` ← map bảng trên, giữ 
 ### `POST /api/v1/auth/webhooks/keycloak`
 
 Webhook Keycloak → sync `app_user`. **Không gọi từ browser.** Header `X-Keycloak-Signature` (HMAC). 401 nếu signature sai.
+
+### `POST /api/v1/auth/backchannel-logout` (v4.1.0)
+
+**Chỉ Keycloak gọi**, trong mạng nội bộ (`http://backend:8000`); Caddy trả `404` cho đường dẫn này từ Internet, và nó không có trong OpenAPI. Khi một phiên kết thúc (người dùng đăng xuất, quản trị đăng xuất hộ hoặc khoá tài khoản), Keycloak gửi `logout_token` (form) và backend chặn mọi access token của phiên đó (`sid`): các request sau nhận `401` `{"detail": "Session has ended"}` thay vì chờ token hết hạn (tối đa 15 phút). Frontend **không gọi** endpoint này và không phải sửa gì: vẫn đăng xuất bằng `signoutRedirect()`, `401` vẫn mở hộp thoại hết phiên.
 
 ---
 
