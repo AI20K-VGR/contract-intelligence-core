@@ -19,7 +19,9 @@ services:
       context: ./frontend
       dockerfile: ../deploy/frontend.Dockerfile
       args:
-        VITE_API_BASE_URL: https://${API_HOST:?set in deploy/.env.prod}
+        # Same origin as the app: deploy/frontend.caddy proxies /api and /grafana
+        # to the backend, so no API call pays a CORS preflight.
+        VITE_API_BASE_URL: https://${APP_HOST:?set in deploy/.env.prod}
         VITE_KEYCLOAK_URL: https://${AUTH_HOST:?set in deploy/.env.prod}
         VITE_KEYCLOAK_REALM: contract-intelligence
         VITE_KEYCLOAK_CLIENT_ID: contract-intel-frontend

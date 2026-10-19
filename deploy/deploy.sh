@@ -243,6 +243,18 @@ if [ -n "$app_host" ]; then
   # A client-side route has no file behind it: 200 proves the index.html fallback.
   code=$(curl -s -o /dev/null -w '%{http_code}' "https://$app_host/dossiers")
   [ "$code" = 200 ] && echo "frontend served at https://$app_host: ok" || echo "WARNING: frontend answered $code"
+  # The SPA calls the API on its own origin (deploy/frontend.caddy), so the
+  # same checks hold there: the API answers, the back-channel path and anonymous
+  # Grafana stay closed.
+  code=$(curl -s -o /dev/null -w '%{http_code}' "https://$app_host/api/v1/health")
+  [ "$code" = 200 ] && echo "API on the app origin: ok" || echo "WARNING: https://$app_host/api/v1/health answered $code"
+  code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -d 'logout_token=x' "https://$app_host/api/v1/auth/backchannel-logout")
+  case "$code" in
+    404|403) echo "back-channel logout blocked on the app origin ($code): ok" ;;
+    *) echo "WARNING: back-channel logout answered $code on the app origin" ;;
+  esac
+  code=$(curl -s -o /dev/null -w '%{http_code}' -H 'X-WEBAUTH-USER: admin' "https://$app_host/grafana/")
+  [ "$code" = 401 ] && echo "grafana on the app origin refuses anonymous callers: ok" || echo "WARNING: https://$app_host/grafana/ answered $code"
 fi
 echo "Ports: run deploy/check_external.sh (or the deploy-external-check workflow) from"
 echo "another machine — probing this server's own public IP from here can bypass the"
