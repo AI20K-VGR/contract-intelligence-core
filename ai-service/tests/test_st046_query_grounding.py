@@ -5,7 +5,6 @@ from fastapi.testclient import TestClient
 from app.api import main
 from app.api.main import app
 from app.security.service_envelope import build_service_envelope
-from fixtures import mock_record
 
 
 def _signed_query(payload: dict) -> dict:
@@ -21,10 +20,10 @@ def _signed_query(payload: dict) -> dict:
     return wire
 
 
-def test_metadata_only_query_fails_closed_before_retrieval(monkeypatch) -> None:
+def test_metadata_only_query_fails_closed_before_retrieval(monkeypatch, seed_query_record) -> None:
     monkeypatch.setenv("AI2_SERVICE_HMAC_SECRET", "test-secret")
     main.STORE._dossiers.clear()
-    main.STORE.put(mock_record())
+    seed_query_record()
 
     response = TestClient(app).post(
         "/api/v1/query",
@@ -47,10 +46,10 @@ def test_metadata_only_query_fails_closed_before_retrieval(monkeypatch) -> None:
     assert body["reasoning_trace"][0]["code"] == "AI2_QUERY_EVIDENCE_CONTEXT_REQUIRED"
 
 
-def test_query_rejects_stale_snapshot_digest_before_reasoning(monkeypatch) -> None:
+def test_query_rejects_stale_snapshot_digest_before_reasoning(monkeypatch, seed_query_record) -> None:
     monkeypatch.setenv("AI2_SERVICE_HMAC_SECRET", "test-secret")
     main.STORE._dossiers.clear()
-    main.STORE.put(mock_record())
+    seed_query_record()
 
     response = TestClient(app).post(
         "/api/v1/query",
