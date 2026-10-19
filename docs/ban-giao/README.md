@@ -9,7 +9,7 @@ Bộ tài liệu bàn giao dự án Contract Intelligence. Số thứ tự theo 
 | 3 | Tài liệu API | Chương | [03-tai-lieu-api.md](03-tai-lieu-api.md), phụ lục [03b](03b-api-endpoints.md), [03c](03c-openapi-backend.json) | Xong (API `v4.1.0`) |
 | 4 | Cấu trúc thư mục & Quy chuẩn Code | Văn Dũng | | Chưa có trong thư mục này |
 | 5 | Yêu cầu hệ thống | Đức Dũng | | Chưa có trong thư mục này |
-| 6 | Hướng dẫn cài đặt Local | Chương | [06-huong-dan-cai-dat-local.md](06-huong-dan-cai-dat-local.md) | Đang viết |
+| 6 | Hướng dẫn cài đặt Local | Chương | [06-huong-dan-cai-dat-local.md](06-huong-dan-cai-dat-local.md) | Xong |
 | 7 | Hướng dẫn Deploy Server | Chương | [07-huong-dan-deploy.md](07-huong-dan-deploy.md) | Đang viết |
 | 8 | Tài liệu cấu hình (biến môi trường) | Văn Dũng | | Chưa có trong thư mục này |
 | 9 | Kịch bản kiểm thử | Đức Dũng | | Chưa có trong thư mục này |
