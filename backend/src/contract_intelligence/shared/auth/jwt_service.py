@@ -8,12 +8,15 @@ QUAN TRỌNG — Kiến trúc SSO:
     Frontend (React) xử lý toàn bộ auth flow với Keycloak:
         - Login:    frontend → Keycloak → nhận access_token + refresh_token
         - Refresh:  frontend → Keycloak (khi access_token hết hạn)
-        - Logout:   frontend → Keycloak (revoke session trên Keycloak)
+        - Logout:   frontend → Keycloak (revoke session trên Keycloak), rồi
+                    Keycloak → backend (back-channel logout token, ``sid``)
 
     Backend chỉ:
         - Decode access_token từ Authorization header
         - Verify chữ ký RS256 bằng public key lấy từ Keycloak JWKS
         - Map Keycloak claims (sub, realm_access.roles, tenant_id, ...) → AuthenticatedUser
+        - Từ chối token của phiên đã kết thúc (``revoked_sessions``)
+        - Verify logout token Keycloak gửi khi một phiên kết thúc
 
 Keycloak JWKS caching:
     - Fetch public key từ {keycloak_server_url}/realms/{realm}/protocol/openid-connect/certs
@@ -35,15 +38,20 @@ from contract_intelligence.config.settings import get_settings
 from contract_intelligence.shared.auth.exceptions import (
     AuthenticationError,
     InsufficientRoleError,
+    SessionRevokedError,
     TokenExpiredError,
 )
+from contract_intelligence.shared.auth.revoked_sessions import revoked_sessions
 from contract_intelligence.shared.auth.schemas import (
     AuthenticatedUser,
     KeycloakTokenClaims,
+    LogoutTokenClaims,
 )
 
 if TYPE_CHECKING:
     from jwt import PyJWK, PyJWKClient
+
+    from contract_intelligence.config.settings import Settings
 
 
 # -----------------------------------------------------------------------------
@@ -172,7 +180,49 @@ class JWTService:
                                   signing key không tìm thấy trong JWKS.
         """
         claims = self._decode_keycloak_token(token)
+        # A session that ended in Keycloak (logout, user disabled) is refused
+        # before its tokens expire.
+        if revoked_sessions.is_revoked(claims.sid):
+            raise SessionRevokedError
         return _map_keycloak_claims_to_user(claims)
+
+    def decode_logout_token(self, token: str) -> LogoutTokenClaims:
+        """Verify a Keycloak back-channel logout token (OIDC Back-Channel Logout 1.0 §2.6).
+
+        Signed by the realm key like an access token, issued by the same realm,
+        addressed (``aud``) to the frontend client. It must carry the logout
+        event, a ``sid`` and no ``nonce`` (which would make it an ID token).
+
+        Raises:
+            AuthenticationError: anything that makes it not a valid logout token.
+        """
+        settings = get_settings()
+        try:
+            raw: dict[str, Any] = jwt.decode(
+                token,
+                _signing_key(token).key,
+                algorithms=["RS256"],
+                issuer=_issuer(settings),
+                audience=settings.keycloak_logout_audience,
+                options={"require": ["iat", "iss", "aud"]},
+            )
+        except jwt.InvalidTokenError as exc:
+            raise AuthenticationError(f"Invalid logout token: {exc}") from exc
+
+        events = raw.get("events")
+        if not isinstance(events, dict) or _BACKCHANNEL_LOGOUT_EVENT not in events:
+            raise AuthenticationError("Logout token has no back-channel logout event")
+        if "nonce" in raw:
+            raise AuthenticationError("Logout token must not carry a nonce")
+        sid = raw.get("sid")
+        if not isinstance(sid, str) or not sid:
+            # Keycloak sends `sid` when the client requires it (session.required);
+            # a logout by `sub` alone would have to end every session of the user.
+            raise AuthenticationError("Logout token has no sid")
+        sub = raw.get("sub")
+        return LogoutTokenClaims(
+            sid=sid, sub=sub if isinstance(sub, str) else None, iat=int(raw["iat"])
+        )
 
     # -------------------------------------------------------------------------
     # Internal — Keycloak RS256 verify
@@ -182,29 +232,11 @@ class JWTService:
         """Decode + verify Keycloak JWT (RS256 via JWKS)."""
         # 0. Đọc settings LAZY (mỗi lần decode) để test có thể monkeypatch
         settings = get_settings()
-        server = (settings.keycloak_server_url or "").rstrip("/")
         realm = settings.keycloak_realm
-        issuer = f"{server}/realms/{realm}"
         audience = settings.keycloak_audience
 
-        # 1. Lấy header để biết kid
-        try:
-            unverified_header = jwt.get_unverified_header(token)
-        except jwt.exceptions.DecodeError as exc:
-            raise AuthenticationError("Malformed token header") from exc
-
-        kid = unverified_header.get("kid")
-        if not kid:
-            raise AuthenticationError("Token missing 'kid' in header")
-
-        # 2. Tra JWKS cache
-        key_data = _jwks_cache.get_signing_key(kid)
-        if not key_data:
-            # Force refresh (Keycloak có thể đã rotate key) rồi retry
-            _jwks_cache.force_refresh()
-            key_data = _jwks_cache.get_signing_key(kid)
-            if not key_data:
-                raise AuthenticationError(f"Signing key 'kid={kid}' not found in JWKS")
+        # 1-2. kid từ header → public key trong JWKS cache
+        key_data = _signing_key(token)
 
         # 3. Verify chữ ký + claims
         try:
@@ -212,7 +244,7 @@ class JWTService:
                 token,
                 key_data.key,  # PyJWK exposes .key for jwt.decode
                 algorithms=["RS256"],
-                issuer=issuer,
+                issuer=_issuer(settings),
                 audience=audience,  # None = skip aud check
                 options={"require": ["exp", "iat", "sub"]},
             )
@@ -254,6 +286,34 @@ class JWTService:
 # -----------------------------------------------------------------------------
 # Helpers — pure functions, dễ test
 # -----------------------------------------------------------------------------
+
+
+_BACKCHANNEL_LOGOUT_EVENT = "http://schemas.openid.net/event/backchannel-logout"
+
+
+def _issuer(settings: Settings) -> str:
+    server = (settings.keycloak_server_url or "").rstrip("/")
+    return f"{server}/realms/{settings.keycloak_realm}"
+
+
+def _signing_key(token: str) -> PyJWK:
+    """Public key for the token's ``kid``; refetch the JWKS once if unknown (key rotation)."""
+    try:
+        unverified_header = jwt.get_unverified_header(token)
+    except jwt.exceptions.DecodeError as exc:
+        raise AuthenticationError("Malformed token header") from exc
+
+    kid = unverified_header.get("kid")
+    if not kid:
+        raise AuthenticationError("Token missing 'kid' in header")
+
+    key_data = _jwks_cache.get_signing_key(kid)
+    if not key_data:
+        _jwks_cache.force_refresh()
+        key_data = _jwks_cache.get_signing_key(kid)
+        if not key_data:
+            raise AuthenticationError(f"Signing key 'kid={kid}' not found in JWKS")
+    return key_data
 
 
 _APP_ROLES = ("OPERATOR", "REVIEWER", "ADMINISTRATOR")
@@ -305,6 +365,7 @@ def _map_keycloak_claims_to_user(claims: KeycloakTokenClaims) -> AuthenticatedUs
         display_name=claims.display_name or "",
         role=claims.role or "OPERATOR",
         is_active=claims.is_active,
+        session_id=claims.sid,
     )
 
 

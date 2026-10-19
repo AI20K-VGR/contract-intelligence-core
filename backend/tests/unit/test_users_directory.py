@@ -96,7 +96,7 @@ def _as(role: str, tenant: str = TENANT) -> None:
 
 @pytest.mark.asyncio
 async def test_operator_sees_active_members_of_their_tenant(client: AsyncClient) -> None:
-    response = await client.get("/api/v1/users/directory")
+    response = await client.get("/api/v1/users/directory", params={"q": "example.com"})
 
     assert response.status_code == 200
     body = response.json()
@@ -106,7 +106,7 @@ async def test_operator_sees_active_members_of_their_tenant(client: AsyncClient)
 
 @pytest.mark.asyncio
 async def test_entries_carry_no_admin_fields(client: AsyncClient) -> None:
-    response = await client.get("/api/v1/users/directory")
+    response = await client.get("/api/v1/users/directory", params={"q": "example.com"})
 
     for item in response.json()["data"]:
         assert set(item) == {"id", "email", "display_name", "role"}
@@ -114,7 +114,9 @@ async def test_entries_carry_no_admin_fields(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_other_tenant_invited_and_disabled_users_are_hidden(client: AsyncClient) -> None:
-    response = await client.get("/api/v1/users/directory", params={"limit": 100})
+    response = await client.get(
+        "/api/v1/users/directory", params={"q": "example.com", "limit": 100}
+    )
 
     ids = {item["id"] for item in response.json()["data"]}
     assert ids.isdisjoint({"zoe", "ivy", "dan"})
@@ -122,7 +124,9 @@ async def test_other_tenant_invited_and_disabled_users_are_hidden(client: AsyncC
 
 @pytest.mark.asyncio
 async def test_role_filter_lists_the_reviewers_to_assign(client: AsyncClient) -> None:
-    response = await client.get("/api/v1/users/directory", params={"role": "REVIEWER"})
+    response = await client.get(
+        "/api/v1/users/directory", params={"q": "example.com", "role": "REVIEWER"}
+    )
 
     data = response.json()["data"]
     assert [item["id"] for item in data] == ["ray", "rita"]
@@ -132,7 +136,9 @@ async def test_role_filter_lists_the_reviewers_to_assign(client: AsyncClient) ->
 @pytest.mark.asyncio
 async def test_search_and_pagination(client: AsyncClient) -> None:
     found = await client.get("/api/v1/users/directory", params={"q": "RITA"})
-    paged = await client.get("/api/v1/users/directory", params={"limit": 2, "offset": 1})
+    paged = await client.get(
+        "/api/v1/users/directory", params={"q": "example.com", "limit": 2, "offset": 1}
+    )
 
     assert [item["id"] for item in found.json()["data"]] == ["rita"]
     assert [item["id"] for item in paged.json()["data"]] == ["olivia", "ray"]
@@ -143,16 +149,16 @@ async def test_search_and_pagination(client: AsyncClient) -> None:
 async def test_other_tenant_caller_sees_only_their_own_members(client: AsyncClient) -> None:
     _as("OPERATOR", "tenant_b")
 
-    response = await client.get("/api/v1/users/directory")
+    response = await client.get("/api/v1/users/directory", params={"q": "example.com"})
 
     assert [item["id"] for item in response.json()["data"]] == ["zoe"]
 
 
 @pytest.mark.asyncio
 async def test_user_without_a_tenant_is_listed_for_nobody(client: AsyncClient) -> None:
-    own = await client.get("/api/v1/users/directory", params={"limit": 100})
+    own = await client.get("/api/v1/users/directory", params={"q": "example.com", "limit": 100})
     _as("OPERATOR", "tenant_b")
-    other = await client.get("/api/v1/users/directory", params={"limit": 100})
+    other = await client.get("/api/v1/users/directory", params={"q": "example.com", "limit": 100})
 
     assert "nora" not in {item["id"] for item in own.json()["data"]}
     assert "nora" not in {item["id"] for item in other.json()["data"]}
@@ -162,7 +168,7 @@ async def test_user_without_a_tenant_is_listed_for_nobody(client: AsyncClient) -
 async def test_caller_without_a_tenant_sees_nobody(client: AsyncClient) -> None:
     _as("OPERATOR", "")
 
-    response = await client.get("/api/v1/users/directory")
+    response = await client.get("/api/v1/users/directory", params={"q": "example.com"})
 
     assert response.status_code == 200
     assert response.json()["data"] == []
@@ -175,7 +181,7 @@ async def test_administrator_user_list_still_shows_users_without_a_tenant(
 ) -> None:
     _as("ADMINISTRATOR")
 
-    response = await client.get("/api/v1/users", params={"limit": 100})
+    response = await client.get("/api/v1/users", params={"q": "example.com", "limit": 100})
 
     assert "nora" in {item["id"] for item in response.json()["data"]}
 
@@ -191,12 +197,14 @@ async def test_administrator_may_call_it(client: AsyncClient) -> None:
 async def test_reviewer_is_refused(client: AsyncClient) -> None:
     _as("REVIEWER")
 
-    assert (await client.get("/api/v1/users/directory")).status_code == 403
+    assert (
+        await client.get("/api/v1/users/directory", params={"q": "example.com"})
+    ).status_code == 403
 
 
 @pytest.mark.asyncio
 async def test_directory_does_not_read_login_events(client: AsyncClient, admin: _FakeAdmin) -> None:
-    await client.get("/api/v1/users/directory")
+    await client.get("/api/v1/users/directory", params={"q": "example.com"})
 
     assert admin.event_calls == 0
 
