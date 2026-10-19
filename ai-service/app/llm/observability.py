@@ -148,21 +148,23 @@ def query_trace(
         if client is None:
             yield trace
         else:
-            with client.start_as_current_observation(
-                name="ai2.query",
-                as_type="span",
-                input={"query_chars": query_chars, "task_type": task_type},
-                metadata={"tenant_id": tenant_id, "dossier_id": dossier_id},
-            ) as span:
-                trace.span = span
-                with propagate_attributes(
-                    trace_name="ai2.query",
-                    session_id=dossier_id,
-                    user_id=actor_id or None,
-                    tags=["ai2", "query"],
+            with _contained_errors() as caught:
+                with client.start_as_current_observation(
+                    name="ai2.query",
+                    as_type="span",
+                    input={"query_chars": query_chars, "task_type": task_type},
                     metadata={"tenant_id": tenant_id, "dossier_id": dossier_id},
-                ):
-                    yield trace
+                ) as span:
+                    trace.span = span
+                    with propagate_attributes(
+                        trace_name="ai2.query",
+                        session_id=dossier_id,
+                        user_id=actor_id or None,
+                        tags=["ai2", "query"],
+                        metadata={"tenant_id": tenant_id, "dossier_id": dossier_id},
+                    ):
+                        with caught.inside(span):
+                            yield trace
     finally:
         _IN_QUERY.reset(marker)
         record_query(trace.state or "FAILED", time.perf_counter() - started)
@@ -210,10 +212,43 @@ def llm_generation(
     if client is None:
         yield _Generation(None, kind, model) if metrics_enabled() else None
         return
-    with client.start_as_current_observation(
-        name=name, as_type=as_type, model=model, metadata=metadata
-    ) as generation:
-        yield _Generation(generation, kind, model)
+    with _contained_errors() as caught:
+        with client.start_as_current_observation(
+            name=name, as_type=as_type, model=model, metadata=metadata
+        ) as generation:
+            # record_completion/record_embedding already mark the call as an error.
+            with caught.inside(generation, mark=False):
+                yield _Generation(generation, kind, model)
+
+
+class _ErrorFence:
+    """Keeps an exception from crossing a Langfuse observation's context manager.
+
+    The SDK (OpenTelemetry) records a crossing exception's message, stacktrace and
+    status description, and a provider error can quote the request (contract text).
+    Inside the observation only the error type is recorded; the exception itself is
+    re-raised unchanged once the observation has closed (PR #135 review, P1).
+    """
+
+    def __init__(self) -> None:
+        self.error: Exception | None = None
+
+    @contextmanager
+    def inside(self, observation: Any, *, mark: bool = True) -> Iterator[None]:
+        try:
+            yield
+        except Exception as exc:
+            self.error = exc
+            if mark:
+                _update(observation, level="ERROR", status_message=type(exc).__name__)
+
+
+@contextmanager
+def _contained_errors() -> Iterator[_ErrorFence]:
+    fence = _ErrorFence()
+    yield fence
+    if fence.error is not None:
+        raise fence.error
 
 
 def record_completion(generation: Any | None, trace: dict[str, Any]) -> None:
