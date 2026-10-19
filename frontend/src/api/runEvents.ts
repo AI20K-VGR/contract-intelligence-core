@@ -76,6 +76,9 @@ const RETRY_MAX_MS = 10000
 // và heartbeat mỗi 15 giây, nên quá các mốc này là SSE không dùng được.
 const FIRST_BYTE_TIMEOUT_MS = 15000
 const STALL_TIMEOUT_MS = 40000
+// Chờ header tính cả lúc apiFetch gia hạn token qua iframe (tới 30 giây, #133):
+// phải dài hơn thế, không thì gia hạn chậm bị coi là SSE bị giữ.
+const HEADER_TIMEOUT_MS = 45000
 
 function wait(ms: number, signal: AbortSignal) {
   return new Promise<void>((resolve) => {
@@ -116,7 +119,7 @@ export async function watchRun(
       stalled = true
       connection.abort()
     }
-    let stallTimer = window.setTimeout(stall, FIRST_BYTE_TIMEOUT_MS)
+    let stallTimer = window.setTimeout(stall, HEADER_TIMEOUT_MS)
     try {
       const headers: Record<string, string> = { Accept: 'text/event-stream' }
       if (lastId) headers['Last-Event-ID'] = lastId
@@ -133,6 +136,9 @@ export async function watchRun(
       }
       if (!response.body) throw new Error('SSE không có body')
       opened = true
+      // Có header rồi: từ đây server phải gửi run.started gần như ngay.
+      window.clearTimeout(stallTimer)
+      stallTimer = window.setTimeout(stall, FIRST_BYTE_TIMEOUT_MS)
       delay = RETRY_MIN_MS
       const reader = response.body
         .pipeThrough(new TextDecoderStream())

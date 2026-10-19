@@ -154,6 +154,13 @@ async function run(id: string, input: DossierUploadInput) {
 
 /** Bắt đầu tải lên; trả mã để trang tiến trình theo dõi. */
 export function startDossierUpload(input: DossierUploadInput) {
+  // Lần lỗi/huỷ trước vẫn giữ tệp gốc (tới vài trăm MB): lần mới thay nó.
+  for (const [key, upload] of uploads) {
+    if (upload.status === 'failed' || upload.status === 'cancelled') {
+      uploads.delete(key)
+      controllers.delete(key)
+    }
+  }
   const id = crypto.randomUUID()
   uploads.set(id, {
     id,
@@ -190,6 +197,18 @@ export function cancelDossierUpload(id: string) {
   }
   controllers.get(id)?.abort()
   return true
+}
+
+/**
+ * Form đã lấy lại tệp của lần lỗi/huỷ để sửa rồi tải lại: bỏ entry đó, không
+ * giữ tệp trong bộ nhớ tới khi tải lại tab. Lần còn chạy hay đã xong thì giữ.
+ */
+export function releaseDossierUpload(id: string) {
+  const upload = uploads.get(id)
+  if (upload?.status !== 'failed' && upload?.status !== 'cancelled') return
+  uploads.delete(id)
+  controllers.delete(id)
+  for (const listener of listeners) listener()
 }
 
 export function getDossierUpload(id: string | null | undefined) {

@@ -1,9 +1,10 @@
-import { useRef, useState, type DragEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { MAX_DOSSIER_DOCUMENTS, TOO_MANY_DOCUMENTS } from '../api/dossiers'
 import {
   formatFileSize as formatSize,
   getDossierUpload,
+  releaseDossierUpload,
   startDossierUpload,
 } from '../api/dossierUpload'
 import { dossiersPath } from '../auth/session'
@@ -148,6 +149,10 @@ export function CreateDossierPage() {
       ) ?? null,
   )
   const previous = retry?.input ?? null
+  // Tệp đã nằm trong state của form: store không giữ thêm một bản nữa.
+  useEffect(() => {
+    if (retry) releaseDossierUpload(retry.id)
+  }, [retry])
   const [name, setName] = useState(previous?.name ?? '')
   const [code, setCode] = useState(previous?.code ?? '')
   const [structureMode, setStructureMode] = useState<StructureMode | null>(

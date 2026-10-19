@@ -139,3 +139,34 @@ describe('dossier upload stall', () => {
     expect(failed.input).not.toBeNull()
   })
 })
+
+describe('dossier upload memory', () => {
+  it('drops failed uploads when a new one starts, and when the form takes the files back', async () => {
+    const { releaseDossierUpload } = await import('../src/api/dossierUpload')
+    createDossier.mockReset()
+    createDossier.mockRejectedValue(new ApiError(500, 'boom'))
+
+    const first = startDossierUpload(input())
+    await settle()
+    expect(getDossierUpload(first)?.status).toBe('failed')
+
+    const second = startDossierUpload(input())
+    expect(getDossierUpload(first)).toBeNull()
+    await settle()
+    expect(getDossierUpload(second)?.status).toBe('failed')
+
+    releaseDossierUpload(second)
+    expect(getDossierUpload(second)).toBeNull()
+  })
+
+  it('keeps an upload that is still sending when asked to release it', async () => {
+    const { releaseDossierUpload } = await import('../src/api/dossierUpload')
+    createDossier.mockReset()
+    createDossier.mockReturnValue(new Promise(() => undefined))
+
+    const id = startDossierUpload(input())
+    await settle()
+    releaseDossierUpload(id)
+    expect(getDossierUpload(id)?.status).toBe('sending')
+  })
+})

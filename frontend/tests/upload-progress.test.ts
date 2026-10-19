@@ -16,10 +16,7 @@ import {
   UPLOAD_STALLED_MESSAGE,
   UploadStalledError,
 } from '../src/api/client'
-import {
-  createDossierErrorMessage,
-  uploadProgressLabel,
-} from '../src/api/dossiers'
+import { createDossierErrorMessage } from '../src/api/dossiers'
 import { notifySessionExpired } from '../src/auth/sessionExpired'
 
 type Handler = ((event: ProgressEvent) => void) | null
@@ -27,7 +24,10 @@ type Handler = ((event: ProgressEvent) => void) | null
 /** Minimal XMLHttpRequest the test drives by hand: progress, upload end, response. */
 class FakeXhr {
   static last: FakeXhr | null = null
-  upload: { onprogress: Handler; onload: Handler } = { onprogress: null, onload: null }
+  upload: { onprogress: Handler; onload: Handler } = {
+    onprogress: null,
+    onload: null,
+  }
   onload: (() => void) | null = null
   onerror: (() => void) | null = null
   onabort: (() => void) | null = null
@@ -57,7 +57,11 @@ class FakeXhr {
     this.onabort?.()
   }
   progress(loaded: number, total: number) {
-    this.upload.onprogress?.({ lengthComputable: true, loaded, total } as ProgressEvent)
+    this.upload.onprogress?.({
+      lengthComputable: true,
+      loaded,
+      total,
+    } as ProgressEvent)
   }
   uploadDone() {
     this.upload.onload?.({} as ProgressEvent)
@@ -107,7 +111,10 @@ describe('postMultipartWithProgress', () => {
     xhr.uploadDone()
     xhr.respond(202, { data: { dossier_id: 'dos_1' } })
 
-    await expect(pending).resolves.toEqual({ data: { dossier_id: 'dos_1' }, meta: undefined })
+    await expect(pending).resolves.toEqual({
+      data: { dossier_id: 'dos_1' },
+      meta: undefined,
+    })
     expect(onProgress.mock.calls).toEqual([
       [1_000, 4_000],
       [4_000, 4_000],
@@ -116,7 +123,10 @@ describe('postMultipartWithProgress', () => {
 
   it('aborts with the network message after 30 s without a byte sent', async () => {
     vi.useFakeTimers()
-    const pending = postMultipartWithProgress('/api/v1/dossiers', new FormData())
+    const pending = postMultipartWithProgress(
+      '/api/v1/dossiers',
+      new FormData(),
+    )
     const rejection = expect(pending).rejects.toBeInstanceOf(UploadStalledError)
     const xhr = await started()
     xhr.progress(500, 4_000)
@@ -132,7 +142,10 @@ describe('postMultipartWithProgress', () => {
 
   it('keeps going while bytes still move, however slowly', async () => {
     vi.useFakeTimers()
-    const pending = postMultipartWithProgress('/api/v1/dossiers', new FormData())
+    const pending = postMultipartWithProgress(
+      '/api/v1/dossiers',
+      new FormData(),
+    )
     const xhr = await started()
     for (let sent = 1; sent <= 5; sent += 1) {
       await vi.advanceTimersByTimeAsync(UPLOAD_STALL_TIMEOUT_MS - 1_000)
@@ -141,23 +154,33 @@ describe('postMultipartWithProgress', () => {
     expect(xhr.aborted).toBe(false)
     xhr.uploadDone()
     xhr.respond(202, { data: { dossier_id: 'dos_2' } })
-    await expect(pending).resolves.toMatchObject({ data: { dossier_id: 'dos_2' } })
+    await expect(pending).resolves.toMatchObject({
+      data: { dossier_id: 'dos_2' },
+    })
   })
 
   it('does not time out while the server works after the body is sent', async () => {
     vi.useFakeTimers()
-    const pending = postMultipartWithProgress('/api/v1/dossiers', new FormData())
+    const pending = postMultipartWithProgress(
+      '/api/v1/dossiers',
+      new FormData(),
+    )
     const xhr = await started()
     xhr.progress(500, 500)
     xhr.uploadDone()
     await vi.advanceTimersByTimeAsync(UPLOAD_STALL_TIMEOUT_MS * 3)
     expect(xhr.aborted).toBe(false)
     xhr.respond(202, { data: { dossier_id: 'dos_3' } })
-    await expect(pending).resolves.toMatchObject({ data: { dossier_id: 'dos_3' } })
+    await expect(pending).resolves.toMatchObject({
+      data: { dossier_id: 'dos_3' },
+    })
   })
 
   it('maps an error body like requestJson, and 401 ends the session', async () => {
-    const pending = postMultipartWithProgress('/api/v1/dossiers', new FormData())
+    const pending = postMultipartWithProgress(
+      '/api/v1/dossiers',
+      new FormData(),
+    )
     const xhr = await started()
     xhr.respond(401, { detail: 'Token has expired' })
     const error = await pending.catch((cause: unknown) => cause)
@@ -168,7 +191,10 @@ describe('postMultipartWithProgress', () => {
   })
 
   it('rejects a dropped connection as a TypeError, like fetch', async () => {
-    const pending = postMultipartWithProgress('/api/v1/dossiers', new FormData())
+    const pending = postMultipartWithProgress(
+      '/api/v1/dossiers',
+      new FormData(),
+    )
     const xhr = await started()
     xhr.onerror?.()
     await expect(pending).rejects.toBeInstanceOf(TypeError)
@@ -176,9 +202,13 @@ describe('postMultipartWithProgress', () => {
 
   it('stops when the caller aborts', async () => {
     const controller = new AbortController()
-    const pending = postMultipartWithProgress('/api/v1/dossiers', new FormData(), {
-      signal: controller.signal,
-    })
+    const pending = postMultipartWithProgress(
+      '/api/v1/dossiers',
+      new FormData(),
+      {
+        signal: controller.signal,
+      },
+    )
     const xhr = await started()
     controller.abort()
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
@@ -191,11 +221,5 @@ describe('upload messages', () => {
     expect(createDossierErrorMessage(new UploadStalledError())).toBe(
       'Mạng chậm hoặc bị ngắt, vui lòng thử lại.',
     )
-  })
-
-  it('labels the button with the percent sent, then processing', () => {
-    expect(uploadProgressLabel(null)).toBe('Đang tải lên…')
-    expect(uploadProgressLabel(42)).toBe('Đang tải lên… 42%')
-    expect(uploadProgressLabel(100)).toBe('Đang xử lý…')
   })
 })

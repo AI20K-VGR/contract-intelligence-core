@@ -162,4 +162,46 @@ describe('watchRun', () => {
     expect(h.onStalled).toHaveBeenCalledTimes(1)
     expect(apiFetch).toHaveBeenCalledTimes(1)
   })
+
+  it('does not count a slow token renewal as a held stream', async () => {
+    // apiFetch chờ gia hạn token qua iframe 20 giây rồi mới có header.
+    apiFetch.mockImplementation(
+      (_path: string, init: { signal: AbortSignal }) =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve(
+                sse('event: run.completed\ndata: {}\n\n', {
+                  signal: init.signal,
+                }),
+              ),
+            20000,
+          ),
+        ),
+    )
+    const h = handlers()
+    const done = watchRun('run_1', h, new AbortController().signal)
+    await vi.advanceTimersByTimeAsync(20000)
+    await done
+    expect(h.onStalled).not.toHaveBeenCalled()
+    expect(h.onEvent).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives up on SSE when the proxy holds back even the headers', async () => {
+    apiFetch.mockImplementation(
+      (_path: string, init: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) =>
+          init.signal.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          ),
+        ),
+    )
+    const h = handlers()
+    const done = watchRun('run_1', h, new AbortController().signal)
+    await vi.advanceTimersByTimeAsync(44000)
+    expect(h.onStalled).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1000)
+    await done
+    expect(h.onStalled).toHaveBeenCalledTimes(1)
+  })
 })

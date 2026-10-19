@@ -295,13 +295,6 @@ export function accessSaveErrorMessage(cause: unknown) {
 export const MAX_DOSSIER_DOCUMENTS = 6
 export const TOO_MANY_DOCUMENTS = `Hồ sơ tối đa ${MAX_DOSSIER_DOCUMENTS} tài liệu`
 
-/** Nhãn nút khi đang gửi: phần trăm đã gửi, rồi "Đang xử lý" khi chờ máy chủ. */
-export function uploadProgressLabel(percent: number | null) {
-  if (percent === null) return 'Đang tải lên…'
-  if (percent >= 100) return 'Đang xử lý…'
-  return `Đang tải lên… ${percent}%`
-}
-
 export function createDossierErrorMessage(error: unknown) {
   if (error instanceof DOMException && error.name === 'AbortError') {
     return null

@@ -176,7 +176,8 @@ export async function getJson<T>(
   return data
 }
 
-export const UPLOAD_STALLED_MESSAGE = 'Mạng chậm hoặc bị ngắt, vui lòng thử lại.'
+export const UPLOAD_STALLED_MESSAGE =
+  'Mạng chậm hoặc bị ngắt, vui lòng thử lại.'
 
 /** Không gửi thêm được byte nào trong `stallTimeoutMs`: tải lên đã bị huỷ. */
 export class UploadStalledError extends Error {
@@ -207,7 +208,11 @@ export async function postMultipartWithProgress<T>(
   formData: FormData,
   options: UploadOptions = {},
 ): Promise<{ data: T; meta?: ApiMeta }> {
-  const { onProgress, stallTimeoutMs = UPLOAD_STALL_TIMEOUT_MS, signal } = options
+  const {
+    onProgress,
+    stallTimeoutMs = UPLOAD_STALL_TIMEOUT_MS,
+    signal,
+  } = options
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
   const token = await getAccessToken()
   const headers = withApiHeaders(new Headers(), token)
@@ -250,7 +255,9 @@ export async function postMultipartWithProgress<T>(
       armStallTimer()
       if (event.lengthComputable) onProgress?.(event.loaded, event.total)
     }
-    // Gửi xong body: từ đây chỉ còn chờ máy chủ xử lý.
+    // Gửi xong body: từ đây chỉ còn chờ máy chủ xử lý. Cố ý không đặt
+    // timeout ở đây: máy chủ còn đọc PDF, lưu tệp; treo thật thì Cloudflare
+    // trả 524 (khoảng 100 s) và lỗi đó vẫn tới người dùng.
     xhr.upload.onload = stopStallTimer
     xhr.onload = () => {
       let body: unknown = null
