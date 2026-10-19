@@ -703,7 +703,7 @@ export function DossierStructurePage() {
   const [retryAnalysisError, setRetryAnalysisError] = useState<string | null>(
     null,
   )
-  // Sau "Chạy lại" AI2: 'waiting' khi chưa thấy job mở lại, 'timeout' khi đã
+  // Sau "Chạy lại" AI2 hoặc chạy tiếp sau huỷ: 'waiting' khi chưa thấy job mở lại, 'timeout' khi đã
   // chờ 5 phút (chưa nhận, hoặc AI2 đã lỗi lại).
   const [retryAnalysisInfo, setRetryAnalysisInfo] = useState<
     'waiting' | 'timeout' | null
@@ -741,11 +741,14 @@ export function DossierStructurePage() {
     setRetryingAnalysis(true)
     setRetryAnalysisError(null)
     try {
-      if (kind === 'ai2') {
-        await retryDossierFailed(id, 'ai2')
+      // Chạy tiếp sau huỷ: BE giữ phần OCR đã đọc (ai1_carried_from_run), job
+      // sang lại 'extracted' gần như ngay, nên chờ tại trang cây như /ai2/retry.
+      if (kind === 'ai2' || kind === 'resume') {
+        await retryDossierFailed(id, kind === 'ai2' ? 'ai2' : 'ocr')
         if (currentDossier.current !== id) return
-        // Cùng run cũ: mốc 10 phút tính lại từ lúc bấm.
-        restartAnalysisClock()
+        // /ai2/retry dùng lại run cũ: mốc 10 phút tính lại từ lúc bấm. Chạy
+        // tiếp mở run mới nên đã có mốc riêng.
+        if (kind === 'ai2') restartAnalysisClock()
         setAnalysisNudge(null)
         setRetryAnalysisInfo(null)
         // Bấm lại thì vòng chờ cũ dừng: chỉ một vòng chờ cho mỗi trang.
@@ -761,6 +764,12 @@ export function DossierStructurePage() {
         })
         if (result.kind === 'reopened') {
           setRetryAnalysisInfo(null)
+          // Có tài liệu chưa đọc xong ở lần trước: OCR chạy thật, theo dõi ở
+          // màn tiến trình.
+          if (!isOcrComplete(result.next.latestJobStatus)) {
+            navigate(progressPath(id))
+            return
+          }
           setStepStatuses({})
           setDetail(result.next)
         } else if (result.kind === 'timeout') {
@@ -768,9 +777,8 @@ export function DossierStructurePage() {
         }
         return
       }
-      if (kind === 'resume') await retryDossierFailed(id, 'ocr')
-      else await reprocessDossier(id)
-      // OCR chạy lại (hoặc chạy tiếp): theo dõi ở màn tiến trình.
+      await reprocessDossier(id)
+      // Chạy lại toàn bộ: OCR đọc lại từ đầu, theo dõi ở màn tiến trình.
       if (currentDossier.current === id) navigate(progressPath(id))
     } catch (cause: unknown) {
       if (currentDossier.current !== id) return
@@ -912,23 +920,36 @@ export function DossierStructurePage() {
     setCiteId(id)
   }, [])
 
-  const resolveGraphEvidenceText = useCallback(
+  const findGraphEndpoint = useCallback(
     (nodeId: string, sourceDocumentId?: string | null) => {
       const endpointDocumentId = sourceDocumentId ?? null
-      if (!endpointDocumentId) return ''
+      if (!endpointDocumentId) return null
       const line = (graphLines[endpointDocumentId] ?? []).find((item) => {
         const graphLineId = `line:${item.pageNo}:${item.id}`
         return nodeId === graphLineId || nodeId.startsWith(`${graphLineId}:`)
       })
-      if (!line) return ''
+      if (!line) return null
       const clauseTree =
         endpointDocumentId === documentId
           ? nodes
           : (graphClauses[endpointDocumentId] ?? [])
-      const clause = findClauseByQuote(clauseTree, line.text, line.pageNo)
-      return (clause?.text || line.text).replace(/\s+/g, ' ').trim()
+      return {
+        line,
+        clause: findClauseByQuote(clauseTree, line.text, line.pageNo),
+      }
     },
     [documentId, graphClauses, graphLines, nodes],
+  )
+
+  const resolveGraphEvidenceText = useCallback(
+    (nodeId: string, sourceDocumentId?: string | null) => {
+      const endpoint = findGraphEndpoint(nodeId, sourceDocumentId)
+      if (!endpoint) return ''
+      return (endpoint.clause?.text || endpoint.line.text)
+        .replace(/\s+/g, ' ')
+        .trim()
+    },
+    [findGraphEndpoint],
   )
 
   const resolveGraphNodeLabel = useCallback(
@@ -936,6 +957,23 @@ export function DossierStructurePage() {
       resolveGraphEvidenceText(nodeId, sourceDocumentId) ||
       'Không tải được nội dung điều khoản',
     [resolveGraphEvidenceText],
+  )
+
+  // Tên ngắn trên nút sơ đồ: số điều khoản (nếu đọc được) và tệp chứa nó.
+  const resolveGraphNodeTitle = useCallback(
+    (nodeId: string, sourceDocumentId?: string | null) => {
+      const label = findGraphEndpoint(nodeId, sourceDocumentId)
+        ?.clause?.label.replace(/\s+/g, ' ')
+        .replace(/[.:]+$/, '')
+        .trim()
+      const file = detail?.documents
+        .find((document) => document.id === sourceDocumentId)
+        ?.filename.replace(/\.[^.]+$/, '')
+      return [label && label.length <= 30 ? label : null, file]
+        .filter(Boolean)
+        .join(' · ')
+    },
+    [detail?.documents, findGraphEndpoint],
   )
 
   const resolveSelectedGraphEdgeEvidence = useCallback(
@@ -1494,7 +1532,7 @@ export function DossierStructurePage() {
               role="status"
             >
               {retryAnalysisInfo === 'waiting'
-                ? 'Đã gửi yêu cầu chạy lại. Trang sẽ cập nhật khi hệ thống nhận.'
+                ? 'Đang chạy lại phân tích. Trang sẽ cập nhật khi hệ thống bắt đầu.'
                 : 'Chưa thấy hệ thống chạy lại phân tích. Bấm Kiểm tra lại, hoặc báo quản trị viên nếu vẫn vậy.'}
               {retryAnalysisInfo === 'timeout' ? (
                 <button
@@ -1806,7 +1844,7 @@ export function DossierStructurePage() {
           detail &&
           !qaMode &&
           !reviewCiteId ? (
-            <div className="mb-space-md flex flex-wrap items-center justify-between gap-space-sm rounded-lg bg-surface-container-lowest px-space-lg py-space-sm shadow-sm">
+            <div className="mb-space-sm flex flex-wrap items-center justify-between gap-space-sm">
               {/* Cùng kiểu nhóm nút chọn loại cấu trúc / kiểu xem ở thanh trên. */}
               <div
                 className="inline-flex items-center gap-0.5 rounded-full bg-surface-container p-1"
@@ -1871,6 +1909,7 @@ export function DossierStructurePage() {
                     snapshotDigest={detail.snapshotDigest}
                     graphKind={ai2GraphKind}
                     resolveNodeLabel={resolveGraphNodeLabel}
+                    resolveNodeTitle={resolveGraphNodeTitle}
                     onOpenCitation={openAi2Citation}
                     onSelectRelation={clearAi2Citation}
                     onResolveEdgeEvidence={resolveSelectedGraphEdgeEvidence}

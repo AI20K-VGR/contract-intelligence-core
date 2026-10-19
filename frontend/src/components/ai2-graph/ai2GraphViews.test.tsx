@@ -6,7 +6,8 @@ import type {
   ContractGraphPage,
   ProcessingTrace,
 } from '../../api/contractGraph'
-import { ContractGraphCanvas } from './ContractGraphCanvas'
+import { ContractGraphCanvas, RelationFilter } from './ContractGraphCanvas'
+import { relationGroups } from './relationTone'
 import { ProcessingTimeline } from './ProcessingTimeline'
 import { processingTimelineOutcome, stageReasonText } from './timelineOutcome'
 import { RelationList } from './RelationList'
@@ -77,7 +78,7 @@ describe('AI2 graph accessible views', () => {
     expect(html).toContain('Quy định chung – riêng')
     expect(html).toContain('Hợp đồng gốc')
     expect(html).toContain('Phụ lục')
-    expect(html).toMatch(/<rect[^>]*width="260"[^>]*x="350"/)
+    expect(html).toContain('Điều 2.1 · Hợp đồng gốc')
     expect(html).not.toContain('1970')
   })
 
@@ -107,6 +108,22 @@ describe('AI2 graph accessible views', () => {
     )
     expect(html).toContain('doc-a:clause-1')
     expect(html).toContain('doc-b:clause-1')
+  })
+
+  it('shows one empty state for an empty graph whatever its status, naming only real problems', () => {
+    const empty = (status: ContractGraphPage['status']) =>
+      renderToStaticMarkup(
+        <ContractGraphCanvas
+          page={{ ...page([], null), total_count: 0, status }}
+          selectedId={null}
+          onSelectEdge={() => {}}
+        />,
+      )
+    const skipped = empty('SKIPPED')
+    expect(skipped).toContain('Chưa tìm thấy quan hệ nào giữa các điều khoản')
+    expect(skipped).not.toContain('Đã bỏ qua bước tìm quan hệ')
+    expect(skipped).not.toContain('role="group"')
+    expect(empty('PERSIST_FAILED')).toContain('Không lưu được quan hệ')
   })
 
   it('does not merge repeated node IDs when endpoint document identity is missing', () => {
@@ -413,5 +430,47 @@ describe('AI2 graph accessible views', () => {
       renderToStaticMarkup(<ProcessingTimeline trace={{ ...trace, status }} />),
     )
     expect(new Set(labels).size).toBe(outcomes.length)
+  })
+})
+
+describe('relation filter after loading more pages (PR #143 review)', () => {
+  it('lists a relation type that only appears on a later page', () => {
+    const conflict = { ...edge('two'), label: 'CONFLICT' }
+    let state = createRelationListState(page([edge('one')], 'cursor-2'))
+    expect([...relationGroups(state.edges).keys()]).toHaveLength(1)
+    state = appendRelationPage(state, page([conflict], null), 'cursor-2')
+    const groups = relationGroups(state.edges)
+    expect(groups.size).toBe(2)
+    expect([...groups.values()].map((group) => group.tone)).toContain(
+      'conflict',
+    )
+
+    const html = renderToStaticMarkup(
+      <RelationFilter
+        edges={state.edges}
+        exact={isRelationListComplete(state)}
+        totalCount={2}
+        value={null}
+        onChange={() => {}}
+      />,
+    )
+    for (const label of groups.keys()) expect(html).toContain(label)
+  })
+
+  it('shows per-type counts only once every page is loaded', () => {
+    const first = page([edge('one')], 'cursor-2')
+    const partial = renderToStaticMarkup(
+      <RelationFilter
+        edges={first.edges}
+        exact={false}
+        totalCount={5}
+        value={null}
+        onChange={() => {}}
+      />,
+    )
+    const label = [...relationGroups(first.edges).keys()][0]!
+    expect(partial).toContain(label)
+    // Tổng vẫn hiện; số riêng của loại chưa đúng thì không hiện.
+    expect(partial).toContain('>5<')
   })
 })

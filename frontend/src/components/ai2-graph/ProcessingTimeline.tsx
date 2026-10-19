@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from 'react'
+
 import type {
   ContractGraphKind,
   ProcessingTrace,
@@ -87,17 +89,16 @@ function stageResultText(stage: ProcessingTraceStage) {
     : `Tìm thấy ${stage.item_count} ${unit}`
 }
 
-export function ProcessingTimeline({
-  trace,
-  graphKind,
-}: {
+type TimelineInput = {
   trace: ProcessingTrace
   /**
    * Có thì chỉ hiện bước của loại sơ đồ này. Bước lạ vẫn hiện; bước trích
    * xuất và ngữ nghĩa thì không.
    */
   graphKind?: ContractGraphKind
-}) {
+}
+
+function summarizeTrace({ trace, graphKind }: TimelineInput) {
   const stages = graphKind
     ? trace.stages.filter(
         (stage) => stageKind(stage.stage_id, graphKind) === graphKind,
@@ -111,114 +112,177 @@ export function ProcessingTimeline({
     label: traceStatusLabels[trace.status],
     tone: 'neutral' as const,
   }
+  const notes = [
+    ...new Set(
+      stages
+        .map((stage) => stageReasonText(stage.reason_code))
+        .filter((note): note is string => Boolean(note)),
+    ),
+  ]
+  return { stages, unavailable, outcome, notes }
+}
+
+const toneIcons: Record<Tone, string> = {
+  done: 'check_circle',
+  warn: 'warning',
+  error: 'error',
+  running: 'progress_activity',
+  neutral: 'info',
+}
+
+/**
+ * Kết quả phân tích gọn trong một chip; bấm vào mới mở danh sách các bước.
+ * Người dùng chỉ cần biết phân tích xong hay có vấn đề, không cần đọc từng bước.
+ */
+export function AnalysisStatus(props: TimelineInput) {
+  const { stages, unavailable, outcome } = summarizeTrace(props)
+  const [open, setOpen] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (event: Event) => {
+      if (
+        event instanceof KeyboardEvent
+          ? event.key === 'Escape'
+          : !root.current?.contains(event.target as Node)
+      )
+        setOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', close)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', close)
+    }
+  }, [open])
   return (
-    <section
-      aria-labelledby="ai2-processing-title"
-      className="min-w-0 rounded-lg bg-surface-container-lowest p-space-lg shadow-sm"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-space-sm">
-        <div className="flex items-center gap-space-sm">
-          <MaterialIcon
-            name="checklist"
-            className="text-[20px] text-on-tertiary-container"
-          />
-          <h2
-            id="ai2-processing-title"
-            className="font-title-sm text-title-sm font-semibold text-on-surface"
-          >
-            Các bước phân tích
-          </h2>
-        </div>
-        <span
-          className={`rounded-full px-space-sm py-0.5 font-label-sm text-label-sm font-semibold ${toneClasses[outcome.tone]}`}
-          role="status"
+    <div ref={root} className="relative">
+      <button
+        aria-controls="ai2-processing-steps"
+        aria-expanded={open}
+        className={`inline-flex h-8 items-center gap-space-xs rounded-full px-space-sm font-label-sm text-label-sm font-semibold transition-colors hover:brightness-95 focus-visible:outline focus-visible:outline-2 ${toneClasses[outcome.tone]}`}
+        onClick={() => setOpen((value) => !value)}
+        title="Xem các bước phân tích"
+        type="button"
+      >
+        <MaterialIcon
+          name={toneIcons[outcome.tone]}
+          className={`text-[16px] ${outcome.tone === 'running' ? 'animate-spin' : ''}`}
+        />
+        <span role="status">{outcome.label}</span>
+        <MaterialIcon
+          name="expand_more"
+          className={`text-[16px] transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      <section
+        id="ai2-processing-steps"
+        aria-labelledby="ai2-processing-title"
+        className="absolute right-0 z-30 mt-space-xs w-[min(22rem,calc(100vw-2rem))] rounded-lg bg-surface-container-lowest p-space-md shadow-lg ring-1 ring-outline-variant/40"
+        hidden={!open}
+      >
+        <h3
+          id="ai2-processing-title"
+          className="font-label-md text-label-md font-semibold text-on-surface"
         >
-          {outcome.label}
-        </span>
-      </div>
-      {unavailable ? (
-        <p className="mt-space-sm font-body-sm text-body-sm text-on-surface-variant">
-          Chưa xem được các bước đã chạy của lần phân tích này.
-        </p>
-      ) : stages.length === 0 ? (
-        <p className="mt-space-sm font-body-sm text-body-sm text-on-surface-variant">
-          Chưa có bước nào được ghi nhận.
-        </p>
-      ) : (
-        <ol className="mt-space-md flex min-w-0 flex-col">
-          {stages.map((stage, index) => {
-            const note = stageReasonText(stage.reason_code)
-            // Thời gian chạy của bước (duration_ms) là số kỹ thuật, không hiện.
-            const meta = [
-              stageResultText(stage),
-              stage.started_ms === null
-                ? null
-                : new Date(stage.started_ms).toLocaleTimeString('vi-VN'),
-            ].filter(Boolean)
-            const last = index === stages.length - 1
-            return (
-              <li
-                key={`${stage.stage_id}-${index}`}
-                className="flex min-w-0 gap-space-md"
-              >
-                <div className="flex flex-col items-center">
+          Các bước phân tích
+        </h3>
+        {unavailable ? (
+          <p className="mt-space-sm font-body-sm text-body-sm text-on-surface-variant">
+            Chưa xem được các bước đã chạy của lần phân tích này.
+          </p>
+        ) : stages.length === 0 ? (
+          <p className="mt-space-sm font-body-sm text-body-sm text-on-surface-variant">
+            Chưa có bước nào được ghi nhận.
+          </p>
+        ) : (
+          <ol className="mt-space-sm flex min-w-0 flex-col gap-space-sm">
+            {stages.map((stage, index) => {
+              // Thời gian chạy của bước (duration_ms) là số kỹ thuật, không hiện.
+              const meta = [
+                stageResultText(stage),
+                stage.started_ms === null
+                  ? null
+                  : new Date(stage.started_ms).toLocaleTimeString('vi-VN'),
+              ].filter(Boolean)
+              return (
+                <li
+                  key={`${stage.stage_id}-${index}`}
+                  className="flex min-w-0 gap-space-sm"
+                >
                   <StageIcon status={stage.status} />
-                  {last ? null : (
-                    <div
-                      className={`min-h-4 w-px flex-1 ${
-                        stage.status === 'COMPLETED'
-                          ? 'bg-emerald-300'
-                          : 'bg-outline-variant'
-                      }`}
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-space-sm">
+                      <span className="min-w-0 break-words font-body-sm text-body-sm font-semibold text-on-surface">
+                        {stageLabels[stage.stage_id] ?? 'Bước phân tích'}
+                      </span>
+                      <span
+                        className={`shrink-0 font-label-sm text-label-sm font-semibold ${
+                          stage.status === 'COMPLETED'
+                            ? 'text-emerald-700'
+                            : stage.status === 'FAILED'
+                              ? 'text-error'
+                              : stage.status === 'RUNNING'
+                                ? 'text-on-tertiary-container'
+                                : 'text-on-surface-variant'
+                        }`}
+                      >
+                        {stageStatusLabels[stage.status]}
+                      </span>
+                    </div>
+                    {meta.length > 0 ? (
+                      <span className="font-label-sm text-label-sm text-on-surface-variant">
+                        {meta.join(' · ')}
+                      </span>
+                    ) : null}
+                    <TechnicalDetail
+                      text={
+                        stage.reason_code &&
+                        `${stage.stage_id}: ${stage.reason_code}`
+                      }
                     />
-                  )}
-                </div>
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5 pb-space-md">
-                  <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-space-sm">
-                    <span className="min-w-0 break-words font-body-sm text-body-sm font-semibold text-on-surface">
-                      {stageLabels[stage.stage_id] ?? 'Bước phân tích'}
-                    </span>
-                    <span
-                      className={`shrink-0 font-label-sm text-label-sm font-semibold ${
-                        stage.status === 'COMPLETED'
-                          ? 'text-emerald-700'
-                          : stage.status === 'FAILED'
-                            ? 'text-error'
-                            : stage.status === 'RUNNING'
-                              ? 'text-on-tertiary-container'
-                              : 'text-on-surface-variant'
-                      }`}
-                    >
-                      {stageStatusLabels[stage.status]}
-                    </span>
                   </div>
-                  {meta.length > 0 ? (
-                    <span className="font-label-sm text-label-sm text-on-surface-variant">
-                      {meta.join(' · ')}
-                    </span>
-                  ) : null}
-                  {note ? (
-                    <p className="mt-space-xs flex items-start gap-space-xs rounded-md bg-amber-50 px-space-sm py-space-xs font-body-sm text-body-sm text-amber-950">
-                      <MaterialIcon
-                        name="info"
-                        className="mt-0.5 shrink-0 text-[16px] text-amber-700"
-                      />
-                      <span className="min-w-0">{note}</span>
-                    </p>
-                  ) : null}
-                  <TechnicalDetail
-                    text={
-                      stage.reason_code &&
-                      `${stage.stage_id}: ${stage.reason_code}`
-                    }
-                  />
-                </div>
-              </li>
-            )
-          })}
-        </ol>
-      )}
-    </section>
+                </li>
+              )
+            })}
+          </ol>
+        )}
+      </section>
+    </div>
+  )
+}
+
+/** Lời giải thích của các bước (vì sao kết quả thiếu, bước nào lỗi). Không có thì không hiện gì. */
+export function AnalysisNotices(props: TimelineInput) {
+  const { notes } = summarizeTrace(props)
+  if (notes.length === 0) return null
+  return (
+    <div className="flex min-w-0 flex-col gap-space-xs">
+      {notes.map((note) => (
+        <p
+          key={note}
+          className="flex items-start gap-space-xs rounded-lg bg-amber-50 px-space-md py-space-sm font-body-sm text-body-sm text-amber-950"
+        >
+          <MaterialIcon
+            name="info"
+            className="mt-0.5 shrink-0 text-[16px] text-amber-700"
+          />
+          <span className="min-w-0">{note}</span>
+        </p>
+      ))}
+    </div>
+  )
+}
+
+/** Chip kết quả và lời giải thích đứng chung, cho trang mẫu và kiểm thử. */
+export function ProcessingTimeline(props: TimelineInput) {
+  return (
+    <div className="flex min-w-0 flex-col gap-space-sm">
+      <div className="flex justify-end">
+        <AnalysisStatus {...props} />
+      </div>
+      <AnalysisNotices {...props} />
+    </div>
   )
 }
 
@@ -227,18 +291,18 @@ function StageIcon({ status }: { status: ProcessingTraceStage['status'] }) {
     return (
       <MaterialIcon
         name="check_circle"
-        className="text-[22px] text-emerald-600"
+        className="text-[18px] text-emerald-600"
       />
     )
   }
   if (status === 'FAILED') {
-    return <MaterialIcon name="error" className="text-[22px] text-error" />
+    return <MaterialIcon name="error" className="text-[18px] text-error" />
   }
   if (status === 'RUNNING') {
     return (
       <MaterialIcon
         name="progress_activity"
-        className="animate-spin text-[22px] text-primary"
+        className="animate-spin text-[18px] text-primary"
       />
     )
   }
@@ -246,9 +310,9 @@ function StageIcon({ status }: { status: ProcessingTraceStage['status'] }) {
     return (
       <MaterialIcon
         name="do_not_disturb_on"
-        className="text-[22px] text-outline"
+        className="text-[18px] text-outline"
       />
     )
   }
-  return <MaterialIcon name="help" className="text-[22px] text-outline" />
+  return <MaterialIcon name="help" className="text-[18px] text-outline" />
 }

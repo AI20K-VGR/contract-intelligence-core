@@ -1,6 +1,7 @@
-import type { DossierStructure } from './structure'
+import { needsStepStatuses, type DossierStructure } from './structure'
 
-// /ai2/retry trả 202 rồi worker mới mở lại job sang 'extracted'. Trang hỏi lại
+// /ai2/retry (và /ocr/retry-failed khi chạy tiếp sau huỷ) trả 202 rồi worker
+// mới mở lại job. Trang hỏi lại
 // dày lúc đầu (15 lần × 2 giây), sau đó 10 giây một lần, tối đa 5 phút.
 export const REOPEN_FAST_MS = 2000
 export const REOPEN_FAST_TRIES = 15
@@ -9,7 +10,7 @@ export const REOPEN_LIMIT_MS = 5 * 60_000
 
 export type ReopenResult =
   | { kind: 'reopened'; next: DossierStructure }
-  /** Hết 5 phút mà job vẫn 'failed': chưa nhận, hoặc AI2 đã lỗi lại. */
+  /** Hết 5 phút mà job vẫn dừng: chưa nhận, hoặc AI2 đã lỗi lại. */
   | { kind: 'timeout' }
   /** Đã có vòng chờ mới, đổi hồ sơ hoặc rời trang. */
   | { kind: 'abandoned' }
@@ -23,7 +24,7 @@ export type ReopenDeps = {
 }
 
 /**
- * Chờ job rời 'failed' sau "Chạy lại". FE không biết job đã chạy lại rồi lỗi
+ * Chờ job rời 'failed'/'cancelled' sau "Chạy lại". FE không biết job đã chạy lại rồi lỗi
  * tiếp hay chưa (không có updated_at), nên chờ có giới hạn thay vì chờ mãi.
  */
 export async function waitForAnalysisReopen(
@@ -45,7 +46,8 @@ export async function waitForAnalysisReopen(
       continue
     }
     if (!deps.isCurrent()) return { kind: 'abandoned' }
-    if (next.latestJobStatus !== 'failed') return { kind: 'reopened', next }
+    if (!needsStepStatuses(next.latestJobStatus))
+      return { kind: 'reopened', next }
   }
   return { kind: 'timeout' }
 }
