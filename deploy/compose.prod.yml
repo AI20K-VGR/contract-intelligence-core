@@ -32,7 +32,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: "https://${API_HOST:?set in deploy/.env.prod}"
+        # Same origin as the app (deploy/frontend.caddy proxies /api); the API
+        # host when this server serves no frontend (APP_HOST empty).
+        VITE_API_BASE_URL: "https://${APP_HOST:-${API_HOST:?set in deploy/.env.prod}}"
         VITE_KEYCLOAK_URL: "https://${AUTH_HOST:?set in deploy/.env.prod}"
         VITE_KEYCLOAK_REALM: "${VITE_KEYCLOAK_REALM:-contract-intelligence}"
         VITE_KEYCLOAK_CLIENT_ID: "${VITE_KEYCLOAK_CLIENT_ID:-contract-intel-frontend}"
@@ -219,8 +221,9 @@ services:
 
   grafana:
     environment:
-      # Public URL of the backend's /grafana proxy (no Grafana host of its own).
-      GF_SERVER_ROOT_URL: https://${API_HOST:?set in deploy/.env.prod}/grafana/
+      # Public URL of the backend's /grafana proxy (no Grafana host of its own):
+      # the app host, which frames it same-origin (deploy/frontend.caddy), else the API host.
+      GF_SERVER_ROOT_URL: https://${APP_HOST:-${API_HOST:?set in deploy/.env.prod}}/grafana/
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set in deploy/.env.prod}
       GF_SECURITY_COOKIE_SECURE: "true"
 
