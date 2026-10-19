@@ -158,6 +158,34 @@ if [ "$caddy_changed" -eq 1 ]; then
   echo "[deploy] Caddy restarted with the new config"
 fi
 
+# Prometheus mounts prometheus.yml as a single file too, so a scrape job added
+# in git stays inactive the same way (#139's ai2-service job did until a manual
+# restart). Same check: when the mounted file differs, `promtool check config`
+# loads it in a throwaway container first, then Prometheus restarts. The data
+# lives in the prometheus_data volume and survives the restart.
+prometheus_changed=0
+if docker inspect ci-prometheus >/dev/null 2>&1; then
+  while IFS='|' read -r prometheus_source prometheus_target; do
+    [ -f "$prometheus_source" ] || continue
+    host_sum=$(sha256sum "$prometheus_source" | cut -d' ' -f1)
+    live_sum=$(docker exec ci-prometheus sha256sum "$prometheus_target" 2>/dev/null | cut -d' ' -f1 || true)
+    if [ "$host_sum" != "$live_sum" ]; then
+      echo "[deploy] Prometheus config changed: $prometheus_target"
+      prometheus_changed=1
+    fi
+  done < <(docker inspect -f '{{range .Mounts}}{{if eq .Type "bind"}}{{.Source}}|{{.Destination}}{{"\n"}}{{end}}{{end}}' ci-prometheus)
+fi
+if [ "$prometheus_changed" -eq 1 ]; then
+  if ! "${COMPOSE[@]}" run --rm --no-deps -T --entrypoint promtool prometheus \
+      check config /etc/prometheus/prometheus.yml >/tmp/prometheus-check.log 2>&1; then
+    echo "[deploy] the new Prometheus config does not load; Prometheus keeps the old one" >&2
+    tail -n 20 /tmp/prometheus-check.log >&2 || true
+    exit 1
+  fi
+  "${COMPOSE[@]}" restart prometheus
+  echo "[deploy] Prometheus restarted with the new config"
+fi
+
 echo "[deploy] waiting for backend health"
 for _ in $(seq 1 60); do
   status=$(docker inspect -f '{{.State.Health.Status}}' ci-backend 2>/dev/null || echo starting)
