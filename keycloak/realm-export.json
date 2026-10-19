@@ -166,7 +166,7 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "authorizationServicesEnabled": false,
-      "frontchannelLogout": true,
+      "frontchannelLogout": false,
       "protocol": "openid-connect",
       "fullScopeAllowed": true,
       "redirectUris": [
@@ -184,6 +184,9 @@
       "attributes": {
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://localhost:5173/*##http://127.0.0.1:5173/*",
+        "backchannel.logout.url": "http://backend:8000/api/v1/auth/backchannel-logout",
+        "backchannel.logout.session.required": "true",
+        "backchannel.logout.revoke.offline.tokens": "false",
         "client.use.lightweight.access.token.enabled": "false",
         "oauth2.device.authorization.grant.enabled": "false",
         "oidc.ciba.grant.enabled": "false"

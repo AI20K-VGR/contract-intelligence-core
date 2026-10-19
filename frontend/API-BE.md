@@ -2,13 +2,16 @@
 
 Spec: **Contract Intelligence API** `1.1.0+sprint4-ai-integration` (DOC-05b + DOC-05c).  
 Đã chốt theo OpenAPI backend (envelope `{ data, meta }`, header `X-Backend-Version`).
-Hợp đồng FE-BE: **DOC-05b `v3.2.0`**, header response `X-API-Contract: v3.2.0`. 4 endpoint `/notifications` của `v1.6.0` vẫn là đề xuất, backend chưa có ([24](#24-thông-báo-cá-nhân-đề-xuất-be-chưa-có)).
+Hợp đồng FE-BE: **DOC-05b `v4.1.0`**, header response `X-API-Contract: v4.1.0`. 4 endpoint `/notifications` của `v1.6.0` vẫn là đề xuất, backend chưa có ([24](#24-thông-báo-cá-nhân-đề-xuất-be-chưa-có)).
 
 Từ `v2.1.0`:
 
 - `v3.0.0` (siết quyền trước pentest): token không có role ứng dụng trả `403`; `/ai/jobs/{id}` chỉ `ADMINISTRATOR`; batch cancel/resume chỉ người tạo hoặc `ADMINISTRATOR`. Frontend không dùng các endpoint này.
 - `v3.1.0`: bật consent AI2 cho hồ sơ đã qua AI2 thì backend tự cho AI2 chạy lại; response consent thêm `ai2_reindex_queued` ([26](#26-đồ-thị-hợp-đồng-vết-xử-lý-và-consent-ai2-v210)).
 - `v3.2.0`: tiến độ trong bước `progress` trên `/runs/{id}/steps` và SSE `step.changed`; mã lỗi job `AI1_NO_READABLE_PAGE` ([mục steps](#steps-s0s10-get-apiv1runsrun_idsteps)).
+- `v3.3.0`: `GET /dossiers` thêm `document_counts`, `contract_ocr`; header `Server-Timing`. Frontend chưa đọc hai trường này (màn danh sách vẫn gọi `/documents`, `/pages` từng dòng).
+- `v4.0.0` (**breaking**): chia sẻ hồ sơ chỉ với người dùng có thật trong cùng tenant ([20](#20-chia-sẻ-hồ-sơ-chỉ-đọc--được-sửa-có-hạn)); thêm `GET /users/lookup`; OPERATOR gọi `/users/directory` phải có `q` từ 3 ký tự (frontend không gọi danh bạ); `POST /users`, `/invite` trả `422 email_domain_undeliverable` ([18](#18-quản-lý-người-dùng)).
+- `v4.1.0`: đăng xuất có hiệu lực ngay. Keycloak báo phiên kết thúc qua back-channel logout (`POST /api/v1/auth/backchannel-logout`, chỉ Keycloak gọi trong mạng nội bộ, Caddy trả 404 từ Internet); access token của phiên đó nhận `401` `{"detail": "Session has ended"}` thay vì chờ hết hạn. Frontend không phải sửa ([1](#1-auth)).
 
 Dùng file này khi bỏ mock: mở mục tương ứng màn hình / file `src/data/*`, copy endpoint + shape, nối `src/api/client.ts`.
 
@@ -105,11 +108,13 @@ Header response: `X-API-Contract` (hiện `v3.2.0`). `X-Backend-Version` chỉ c
 
 | HTTP | Khi nào                                                        |
 | ---- | -------------------------------------------------------------- |
-| 401  | Token invalid / hết hạn / không phải Keycloak                  |
+| 401  | Token invalid / hết hạn / không phải Keycloak. **v4.1.0:** phiên Keycloak đã kết thúc (đăng xuất, quản trị khoá tài khoản) dù token chưa hết hạn |
 | 403  | Sai role (xem từng endpoint)                                   |
 | 404  | Không tìm thấy (đúng tenant)                                   |
 | 409  | Conflict nghiệp vụ (run đang chạy, version review, đã lock, …) |
 | 422  | Validation (Pydantic / FastAPI)                                |
+
+Body `401` là `{"detail": "..."}` của FastAPI, không theo envelope `error`: `Token has expired`, `Invalid token`, hoặc **`Session has ended`** (v4.1.0). Cả ba đều xử lý như hết phiên (về màn đăng nhập); không cần đọc nội dung `detail`.
 
 Role BE (JWT claim `role`): `OPERATOR` | `REVIEWER` | `ADMINISTRATOR`.
 
@@ -172,6 +177,10 @@ Map UI: `user.name` ← `display_name`, `user.role` ← map bảng trên, giữ 
 ### `POST /api/v1/auth/webhooks/keycloak`
 
 Webhook Keycloak → sync `app_user`. **Không gọi từ browser.** Header `X-Keycloak-Signature` (HMAC). 401 nếu signature sai.
+
+### `POST /api/v1/auth/backchannel-logout` (v4.1.0)
+
+**Chỉ Keycloak gọi**, trong mạng nội bộ (`http://backend:8000`); Caddy trả `404` cho đường dẫn này từ Internet, và nó không có trong OpenAPI. Khi một phiên kết thúc (người dùng đăng xuất, quản trị đăng xuất hộ hoặc khoá tài khoản), Keycloak gửi `logout_token` (form) và backend chặn mọi access token của phiên đó (`sid`): các request sau nhận `401` `{"detail": "Session has ended"}` thay vì chờ token hết hạn (tối đa 15 phút). Frontend **không gọi** endpoint này và không phải sửa gì: vẫn đăng xuất bằng `signoutRedirect()`, `401` vẫn mở hộp thoại hết phiên.
 
 ---
 
@@ -1164,8 +1173,15 @@ Browser không gọi Keycloak Admin API. Mọi thao tác đi qua backend, kèm B
 | POST   | `/api/v1/users/{id}/disable` | Khóa                                                      |
 | POST   | `/api/v1/users/{id}/enable`  | Mở khóa                                                   |
 | POST   | `/api/v1/users/{id}/invite`  | Gửi lại email                                             |
+| GET    | `/api/v1/users/lookup`       | Một thành viên cùng tenant theo đúng email (v4.0.0)       |
 
-RBAC: **ADMINISTRATOR** only. `OPERATOR` và `REVIEWER` vẫn vào cùng giao diện user; chỉ `ADMINISTRATOR` vào trang này.
+RBAC: **ADMINISTRATOR** only, trừ `GET /users/lookup` (cả **OPERATOR**, để chia sẻ hồ sơ bằng email).
+
+**v4.0.0:** email thuộc tên miền không nhận thư (`.local`, `.test`, `.example`, `.invalid`, `localhost`, `example.com/net/org`) thì `POST /users` và `POST /users/{id}/invite` trả `422 email_domain_undeliverable`, không tạo người dùng, không gửi thư. FE hiện "Tên miền email không nhận được thư, vui lòng kiểm tra lại." (`userAdminErrorMessage`).
+
+### `GET /api/v1/users/lookup?email=` (v4.0.0)
+
+OPERATOR, ADMINISTRATOR. Trả `{ id, email, display_name, role }` khi có đúng một người **đã kích hoạt** cùng tenant trùng đúng email (không phân biệt hoa thường). Khác tenant, bị khoá, chưa kích hoạt (`invited`) hay không tồn tại đều trả `404 user_not_found` cùng một câu. FE: `lookupUserByEmail` (`src/api/users.ts`) trả `null` khi 404, màn Quyền truy cập báo "Không tìm thấy email này trong đơn vị của bạn, hoặc người này chưa kích hoạt tài khoản. Vui lòng kiểm tra lại." Chỉ chia sẻ bằng email với người đã kích hoạt (Lead chốt 18/10, PR #128). `OPERATOR` và `REVIEWER` vẫn vào cùng giao diện user; chỉ `ADMINISTRATOR` vào trang này.
 
 ---
 
@@ -1215,6 +1231,8 @@ Khi quyền hết hạn hoặc bị `disabled`:
 - Mọi API trên hồ sơ đó trả **403**, kể cả SSE `/runs/{id}/events`.
 
 Người có quyền `read` gọi API sửa thì nhận **403**, `detail`: "Bạn chỉ có quyền xem hồ sơ này, hoặc quyền đã hết hạn." Các API sửa gồm: `PATCH /dossiers/{id}`, `POST /dossiers/{id}/ocr`, `/ai2/retry`, `/runs`, `/reprocess`, `/manifest/confirm`, `POST /runs/{id}/cancel`, `POST /documents/{id}/re-ocr` và `POST /review-items/{id}/actions`.
+
+**v4.0.0, kiểm tra người nhận:** người nhận mới (`id` chưa có trong `shared_with` đang lưu) phải là người dùng đang bật cùng tenant với người gọi; `id`, `email`, `display_name`, `status` lấy từ Keycloak, không lấy từ body. Có người không hợp lệ thì trả `422 share_recipient_not_found` (`details.rejected_emails`), Keycloak không trả lời thì `503 keycloak_unavailable`; cả hai trường hợp đều không lưu gì, không gửi thư. Người đã được chia sẻ gửi lại thì giữ danh tính đã lưu, chỉ đổi `permission`/`expires_at`. Thư chia sẻ tới tên miền không nhận thư bị bỏ qua, quyền vẫn lưu. FE: `accessSaveErrorMessage` (`src/api/dossiers.ts`) hiện câu không tìm thấy kèm các email bị từ chối.
 
 `DELETE /dossiers/{id}` và `PUT /dossiers/{id}/access` chỉ chủ hồ sơ hoặc ADMINISTRATOR. `PATCH /dossiers/{id}` bỏ qua `created_by`, `access_scope`, `shared_with` trong `metadata`. Muốn đổi quyền thì dùng endpoint này.
 

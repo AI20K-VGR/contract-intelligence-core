@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
-import { ApiError } from '../api/client'
 import {
   listDossiers,
+  accessSaveErrorMessage,
   listDossiersErrorMessage,
+  SHARE_EMAIL_NOT_FOUND,
   updateDossierAccess,
 } from '../api/dossiers'
-import { listUsers, type ManagedUser } from '../api/users'
-import { homePath } from '../auth/session'
+import {
+  listUsers,
+  lookupUserByEmail,
+  type ManagedUser,
+  type ManagedUserStatus,
+} from '../api/users'
+import { homePath, validateWorkEmail } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
 import { dossierOpenTo, type Dossier } from '../data/dossiers'
@@ -33,6 +39,17 @@ type GrantOption = { permission: SharePermission; expires: string }
 
 const DEFAULT_OPTION: GrantOption = { permission: 'read', expires: '' }
 
+/** Người có thể được chia sẻ: từ danh sách người dùng, lượt chia sẻ cũ hoặc email vừa tra. */
+type SharePerson = {
+  id: string
+  email: string
+  display_name: string
+  role?: ShareRole
+  status?: ManagedUserStatus
+}
+
+const OWN_EMAIL = 'Đây là email của bạn. Hãy nhập email của người nhận.'
+
 const filters: { id: AccessFilter; label: string; dot?: string }[] = [
   { id: 'all', label: 'Tất cả' },
   { id: 'mine', label: 'Hồ sơ của tôi', dot: 'bg-emerald-600' },
@@ -42,7 +59,10 @@ const filters: { id: AccessFilter; label: string; dot?: string }[] = [
 
 export function AccessPage() {
   const { user } = useAuth()
-  const sharedOnly = user?.backendRole !== 'ADMINISTRATOR'
+  const isAdmin = user?.backendRole === 'ADMINISTRATOR'
+  // Vận hành chia sẻ được hồ sơ của chính mình (DOSSIER_MANAGE), nhưng không xem
+  // được danh sách người dùng: chỉ nhập email người nhận để hệ thống tra.
+  const sharedOnly = !isAdmin && user?.backendRole !== 'OPERATOR'
   usePageTitle('Quyền truy cập')
   const [params, setParams] = useSearchParams()
   const selectedId = params.get('dossier')
@@ -60,9 +80,36 @@ export function AccessPage() {
   const [notice, setNotice] = useState<{ text: string; icon: string } | null>(
     null,
   )
+  const [found, setFound] = useState<SharePerson[]>([])
+  const [emailInput, setEmailInput] = useState('')
+  const [emailError, setEmailError] = useState<string | null>(null)
+  const [checkingEmail, setCheckingEmail] = useState(false)
 
   const selected = dossiers.find((item) => item.id === selectedId) ?? null
-  const tenants = people.filter((person) => person.id !== user?.id)
+  const tenants = useMemo(
+    () => people.filter((person) => person.id !== user?.id),
+    [people, user?.id],
+  )
+  // Ai cũng chọn được: danh sách người dùng (chỉ Quản trị tải được), người đang
+  // được chia sẻ hồ sơ này, và người vừa tra bằng email. Lúc lưu dựng lại từ
+  // danh sách này, nên không làm rơi lượt chia sẻ cũ khi không có danh sách người dùng.
+  const candidates = useMemo(() => {
+    const byId = new Map<string, SharePerson>()
+    for (const person of tenants) byId.set(person.id, person)
+    for (const grant of selected?.shares ?? []) {
+      if (grant.id === user?.id || byId.has(grant.id)) continue
+      byId.set(grant.id, {
+        id: grant.id,
+        email: grant.email,
+        display_name: grant.display_name || grant.email,
+        status: grant.status,
+      })
+    }
+    for (const person of found) {
+      if (!byId.has(person.id)) byId.set(person.id, person)
+    }
+    return [...byId.values()]
+  }, [found, selected?.shares, tenants, user?.id])
   const visible = useMemo(
     () =>
       filter === 'all'
@@ -91,15 +138,18 @@ export function AccessPage() {
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
       })
-    listUsers({ limit: 100, offset: 0, signal: controller.signal })
-      .then((result) => {
-        if (!controller.signal.aborted) setPeople(result.users)
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setPeople([])
-      })
+    // Danh sách người dùng chỉ Quản trị xem được; Vận hành nhập email để tra.
+    if (isAdmin) {
+      listUsers({ limit: 100, offset: 0, signal: controller.signal })
+        .then((result) => {
+          if (!controller.signal.aborted) setPeople(result.users)
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setPeople([])
+        })
+    }
     return () => controller.abort()
-  }, [user?.id, user?.email])
+  }, [isAdmin, user?.id, user?.email])
 
   useEffect(() => {
     setChosen(selected?.shares?.map((item) => item.id) ?? [])
@@ -115,6 +165,9 @@ export function AccessPage() {
       ),
     )
     setSaveError(null)
+    setFound([])
+    setEmailInput('')
+    setEmailError(null)
   }, [selected])
 
   useEffect(() => {
@@ -125,6 +178,58 @@ export function AccessPage() {
 
   function select(id: string) {
     setParams({ dossier: id })
+  }
+
+  function choose(id: string) {
+    setChosen((current) => (current.includes(id) ? current : [...current, id]))
+  }
+
+  // Kiểm tra email có trong đơn vị trước, rồi mới thêm vào danh sách chia sẻ:
+  // email sai không được lưu, không có thư nào gửi đi, không báo "đã lưu".
+  async function addByEmail() {
+    if (!emailInput.trim() || checkingEmail) return
+    setEmailError(null)
+    let normalized = ''
+    try {
+      normalized = validateWorkEmail(emailInput)
+    } catch (cause) {
+      setEmailError(
+        cause instanceof Error ? cause.message : 'Email không hợp lệ.',
+      )
+      return
+    }
+    const email = normalized
+    if (normalized === user?.email?.trim().toLowerCase()) {
+      setEmailError(OWN_EMAIL)
+      return
+    }
+    const known = candidates.find(
+      (person) => person.email.trim().toLowerCase() === normalized,
+    )
+    if (known) {
+      choose(known.id)
+      setEmailInput('')
+      return
+    }
+    setCheckingEmail(true)
+    try {
+      const person = await lookupUserByEmail(email)
+      if (!person) {
+        setEmailError(SHARE_EMAIL_NOT_FOUND)
+        return
+      }
+      if (person.id === user?.id) {
+        setEmailError(OWN_EMAIL)
+        return
+      }
+      setFound((current) => [...current, person])
+      choose(person.id)
+      setEmailInput('')
+    } catch {
+      setEmailError('Chưa kiểm tra được email. Vui lòng thử lại.')
+    } finally {
+      setCheckingEmail(false)
+    }
   }
 
   async function saveAccess(
@@ -138,7 +243,7 @@ export function AccessPage() {
     const shares =
       nextScope === 'mine'
         ? []
-        : people
+        : candidates
             .filter((person) => shareIds.includes(person.id))
             .map((person) => ({
               id: person.id,
@@ -171,11 +276,7 @@ export function AccessPage() {
         icon: 'check_circle',
       })
     } catch (cause: unknown) {
-      setSaveError(
-        cause instanceof ApiError && cause.message
-          ? cause.message
-          : 'Chưa lưu được quyền truy cập.',
-      )
+      setSaveError(accessSaveErrorMessage(cause))
     } finally {
       setSavingId(null)
     }
@@ -420,14 +521,69 @@ export function AccessPage() {
                                   Chia sẻ với
                                 </p>
                                 <AccessLegend />
+                                <form
+                                  className="flex flex-col gap-1"
+                                  onSubmit={(event) => {
+                                    event.preventDefault()
+                                    void addByEmail()
+                                  }}
+                                >
+                                  <label
+                                    className="font-label-sm text-label-sm text-on-surface-variant"
+                                    htmlFor={`share-email-${item.id}`}
+                                  >
+                                    Thêm người nhận bằng email
+                                  </label>
+                                  <div className="flex gap-space-xs">
+                                    <input
+                                      aria-invalid={
+                                        emailError ? true : undefined
+                                      }
+                                      autoComplete="off"
+                                      className={`h-9 min-w-0 flex-1 rounded bg-surface-container-lowest px-2 font-body-sm text-body-sm text-on-surface ring-1 ${
+                                        emailError
+                                          ? 'ring-error'
+                                          : 'ring-surface-container-high'
+                                      }`}
+                                      id={`share-email-${item.id}`}
+                                      placeholder="ten@congty.vn"
+                                      type="email"
+                                      value={emailInput}
+                                      onChange={(event) => {
+                                        setEmailInput(event.target.value)
+                                        setEmailError(null)
+                                      }}
+                                    />
+                                    <button
+                                      className="h-9 shrink-0 rounded bg-brand-100 px-space-md font-label-sm text-label-sm font-semibold text-brand-700 hover:bg-brand-200 disabled:opacity-50"
+                                      disabled={
+                                        checkingEmail || !emailInput.trim()
+                                      }
+                                      type="submit"
+                                    >
+                                      {checkingEmail
+                                        ? 'Đang kiểm tra…'
+                                        : 'Thêm'}
+                                    </button>
+                                  </div>
+                                  {emailError ? (
+                                    <p
+                                      className="font-label-sm text-label-sm text-error"
+                                      role="alert"
+                                    >
+                                      {emailError}
+                                    </p>
+                                  ) : null}
+                                </form>
                                 <div className="flex max-h-72 flex-col gap-space-xs overflow-auto">
-                                  {tenants.length === 0 ? (
+                                  {candidates.length === 0 ? (
                                     <p className="px-1 font-body-sm text-body-sm text-secondary">
-                                      Chưa có người dùng nào khác trong hệ
-                                      thống.
+                                      {isAdmin
+                                        ? 'Chưa có người dùng nào khác trong hệ thống.'
+                                        : 'Nhập email người nhận ở trên để thêm vào danh sách chia sẻ.'}
                                     </p>
                                   ) : (
-                                    tenants.map((person) => {
+                                    candidates.map((person) => {
                                       const isChosen = chosen.includes(
                                         person.id,
                                       )
@@ -469,7 +625,9 @@ export function AccessPage() {
                                                 {person.email}
                                               </span>
                                             </span>
-                                            <RoleBadge role={person.role} />
+                                            {person.role ? (
+                                              <RoleBadge role={person.role} />
+                                            ) : null}
                                           </label>
                                           {isChosen ? (
                                             <div className="mt-space-sm grid grid-cols-2 gap-space-sm pl-7">
