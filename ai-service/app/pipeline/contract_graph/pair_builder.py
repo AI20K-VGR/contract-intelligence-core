@@ -91,9 +91,25 @@ def build_pair_relations(
     nodes = list(record.evidence_nodes())
     by_id = {n.node_id: n for n in nodes}
     index = StructureIndex.build(nodes, {s.file_id: s.role for s in record.source_files})
-    excluded = frozenset(
+    excluded_pairs = {
         frozenset((edge.source_node_id, edge.target_node_id)) for edge in luong1_edges
-    )
+    }
+    # A graph edge may target an article heading while pair candidates use its
+    # specific clause. Exclude those projected descendants too, or a known
+    # amendment is misreported again as a contradiction (e.g. PL04 vs 10.1).
+    for edge in luong1_edges:
+        try:
+            target_start, target_end = index.span(edge.target_node_id)
+            target_part = index.part_of(edge.target_node_id)
+        except (KeyError, ValueError):
+            continue
+        for node in nodes:
+            if node.node_id == edge.target_node_id or index.part_of(node.node_id) != target_part:
+                continue
+            position = index.position(node.node_id)
+            if target_start < position <= target_end:
+                excluded_pairs.add(frozenset((edge.source_node_id, node.node_id)))
+    excluded = frozenset(excluded_pairs)
     candidate_set = (
         candidates
         if candidates is not None
@@ -119,6 +135,7 @@ def build_pair_relations(
         "excluded_same_article_unrelated": 0,
         "near_duplicate_kept": 0,
         "group_pairs_windowed": 0,
+        "verbatim_repeated_group_collapsed": 0,
         "value_mismatch_terms": 0,
         "value_mismatch_pair_comparisons": 0,
     }

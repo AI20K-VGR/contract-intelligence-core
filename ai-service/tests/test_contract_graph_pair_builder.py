@@ -56,6 +56,32 @@ def runtime():
     return ProcessingRuntime(egress_allowed=True, max_llm_calls=10, max_processing_seconds=1000)
 
 
+def test_article_amendment_excludes_descendant_conflict_pairs(monkeypatch):
+    rec = dossier([
+        ("body", "body", [
+            Spec("d10", "Điều 10", "Tiến độ"),
+            Spec("milestone", "1.", "Mốc giao thiết bị ngày 31/03/2026.", "d10"),
+            Spec("d11", "Điều 11", "Bảo hành"),
+            Spec("warranty", "1.", "Bảo hành trong 24 tháng.", "d11"),
+        ]),
+        ("annex", "annex", [Spec("amendment", "Phụ lục 4", "Thay mốc giao thành 15/04/2026.")]),
+    ], [])
+    captured = {}
+
+    def capture(index, nodes, **kwargs):
+        captured.update(kwargs)
+        return PairCandidateSet((), {})
+
+    monkeypatch.setattr(builder, "generate_pair_candidates", capture)
+    builder.build_pair_relations(
+        rec, [SimpleNamespace(source_node_id="amendment", target_node_id="d10")],
+        llm=None, runtime=runtime(), model="test",
+    )
+
+    assert frozenset(("amendment", "milestone")) in captured["excluded_pairs"]
+    assert frozenset(("amendment", "warranty")) not in captured["excluded_pairs"]
+
+
 def build(rec=None, **kwargs):
     return builder.build_pair_relations(rec or record(), [], llm=kwargs.pop("llm", Client()),
                                        runtime=kwargs.pop("runtime", runtime()), model="claude-test", **kwargs)
