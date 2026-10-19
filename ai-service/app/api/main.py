@@ -38,8 +38,11 @@ from app.contracts.models import (
 )
 from app.contracts.wire import BeAi2ProcessingRequest, job_result_to_wire
 from app.db.engine import database_url, ensure_database, get_engine, validate_database_config
+from app.llm import usage_ledger
 from app.llm.client import DeadlineLLM, NineRouterClient, llm_status, query_llm_timeout_seconds
 from app.llm.embeddings import OpenAICompatibleEmbeddingClient
+from app.llm.metrics import record_idp_job, start_metrics_server
+from app.llm.observability import flush_langfuse, query_trace
 from app.ops.memory import release_memory
 from app.pipeline.ai1_ingest import ingest_files
 from app.pipeline.ai1_snapshot_adapter import (
@@ -53,6 +56,7 @@ from app.pipeline.ai1_snapshot_adapter import (
 from app.pipeline.citations import CitationResolver
 from app.pipeline.grounding import repair_active_nodes
 from app.pipeline.idp import run_idp
+from app.pipeline.job_metrics import build_idp_summary
 from app.pipeline.ocr_json_demo_adapter import is_ocr_json_demo, normalize_ocr_json
 from app.pipeline.outline import build_tree, locate
 from app.pipeline.runtime import ISSUE_MESSAGES_VI, ProcessingRuntime
@@ -112,6 +116,8 @@ async def _lifespan(_app: FastAPI):
     if database_url():
         await asyncio.to_thread(ensure_database, get_engine())
     await asyncio.to_thread(hydrate_canonical_store)
+    # Question counts, tokens and cost for Grafana (AI2_METRICS_PORT; unset = off).
+    start_metrics_server()
     sweeper = asyncio.create_task(_periodic_job_sweep())
     try:
         yield
@@ -119,6 +125,8 @@ async def _lifespan(_app: FastAPI):
         sweeper.cancel()
         with suppress(asyncio.CancelledError):
             await sweeper
+        # Send the questions' Langfuse traces still buffered before the process exits.
+        await asyncio.to_thread(flush_langfuse)
 
 
 app = FastAPI(title="VSF AI2 IDP", version="0.1.0", lifespan=_lifespan)
@@ -130,6 +138,8 @@ app.include_router(dossier_deletion_router)
 @app.exception_handler(DossierDeletedError)
 async def dossier_deleted_error(_request: Request, _exc: Exception):
     return JSONResponse(status_code=410, content={"detail": {"code": "AI2_DOSSIER_DELETED"}})
+
+
 if STATIC.exists():
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
@@ -378,12 +388,41 @@ def _payload_budget_seconds(payload: dict) -> float:
         return 900.0
 
 
+# Tag of the job child's last pipe message: its cost/speed summary (app.llm.metrics).
+_METRICS_MESSAGE = "ai2.metrics"
+
+
+def _is_metrics_message(message: object) -> bool:
+    return isinstance(message, tuple) and len(message) == 2 and message[0] == _METRICS_MESSAGE
+
+
 def _read_claim(receiver) -> tuple | None:
+    """Next claim on the pipe; a metrics summary read on the way is recorded, not returned."""
     try:
         # On Linux a killed child leaves the pipe readable at EOF: poll() is True, recv() raises.
-        return receiver.recv() if receiver.poll() else None
+        while receiver.poll():
+            message = receiver.recv()
+            if _is_metrics_message(message):
+                record_idp_job(message[1])
+                continue
+            return message
+        return None
     except (EOFError, OSError):
         return None
+
+
+def _drain_metrics(receiver) -> bool:
+    """Record a summary still on the pipe after the child ended; True when one came."""
+    seen = False
+    try:
+        while receiver.poll():
+            message = receiver.recv()
+            if _is_metrics_message(message):
+                record_idp_job(message[1])
+                seen = True
+    except (EOFError, OSError):
+        pass
+    return seen
 
 
 def _await_claim(receiver, child, limit: float) -> tuple[tuple | None, bool]:
@@ -405,6 +444,7 @@ def _run_isolated_job(job_id: str, payload: dict, *, target=_job_process_entry) 
     child = ctx.Process(target=target, args=(job_id, payload, sender), daemon=True)
     child.start()
     sender.close()
+    spawned = time.monotonic()
     limit = _payload_budget_seconds(payload) + _JOB_KILL_GRACE_SECONDS
     # The job budget starts in the child after import, envelope check and adapt; a 200-page
     # snapshot spends ~70 s there. The child reports its claim (budget start) over the pipe
@@ -419,7 +459,11 @@ def _run_isolated_job(job_id: str, payload: dict, *, target=_job_process_entry) 
         child.join(5)
     if claim is None:
         claim = _read_claim(receiver)
+    summarized = _drain_metrics(receiver)
     receiver.close()
+    if child.exitcode != 0 and not summarized:
+        # Killed or crashed before its summary: count the job and its wall time.
+        record_idp_job({"status": "FAILED", "duration_seconds": time.monotonic() - spawned})
     if child.exitcode == 0:
         WIRE_JOBS.pop(job_id, None)
         _refresh_query_store(job_id)
@@ -514,6 +558,9 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
     )
     status: str | None = None
     accepted: bool | None = None
+    usage_mark = usage_ledger.snapshot()
+    runtime: ProcessingRuntime | None = None
+    wire: dict | None = None
     try:
         started = time.monotonic()
         service_envelope = verify_service_envelope(payload)
@@ -571,7 +618,8 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
             max_embedding_tokens=request.policy_flags.budget_limits.max_embedding_tokens,
             on_progress=_progress_writer(job_id, tenant_id, request.dossier_id, worker_token),
             check_cancelled=(lambda: require_live_dossier(tenant_id, request.dossier_id))
-            if hasattr(JOB_STORE, "engine") else None,
+            if hasattr(JOB_STORE, "engine")
+            else None,
         )
         query_snapshot_digest = adapted.record.pins.source_snapshot_digest
         trace_writer = ProcessingTraceWriter(
@@ -673,6 +721,29 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
             status,
             accepted,
         )
+        _report_job_metrics(status, timing, runtime, usage_mark, wire)
+
+
+def _report_job_metrics(status, timing, runtime, usage_mark, wire) -> None:
+    """Cost and speed of this job to Prometheus; in a job child, via the pipe."""
+    if status in (None, "UNCLAIMED"):
+        return
+    try:
+        summary = build_idp_summary(
+            status=status,
+            timing=timing,
+            llm_timing=runtime.llm_timing() if runtime is not None else None,
+            chat_usage=usage_ledger.usage_since(usage_mark),
+            embedding_tokens=runtime.embedding_tokens_used if runtime is not None else 0,
+            wire=wire,
+        )
+        if _CLAIM_REPORT is not None:
+            _CLAIM_REPORT.send((_METRICS_MESSAGE, summary))
+        else:
+            record_idp_job(summary)
+    except Exception:
+        # Metrics are advisory: never change how a job ends.
+        logger.warning("ai2.job_metrics_failed", exc_info=True)
 
 
 def _sweep_stale_jobs(
@@ -1443,23 +1514,33 @@ def query_from_backend(payload: dict) -> dict:
             query_store.put(record)
             task = classify_ask(query)
             task["pair_relations"] = _query_pair_relations(record, expected_digest)
-            result = QueryRouter(
-                query_store,
-                ToolGateway(query_store, signed_principal=service_envelope is not None),
-                llm=llm,
-                vector_recall=_vector_service(
-                    policy_flags["use_vector"],
-                    ProcessingRuntime(
-                        egress_allowed=policy_flags["egress_allowed"],
-                        max_embedding_tokens=query_embedding_token_cap(),
+            # One Langfuse trace and one Prometheus count per question; its LLM and
+            # embedding calls carry the cost.
+            with query_trace(
+                dossier_id=dossier_id,
+                tenant_id=record.tenant_id,
+                actor_id=service_envelope.actor_id if service_envelope is not None else None,
+                task_type=task.get("type"),
+                query_chars=len(query),
+            ) as question:
+                result = QueryRouter(
+                    query_store,
+                    ToolGateway(query_store, signed_principal=service_envelope is not None),
+                    llm=llm,
+                    vector_recall=_vector_service(
+                        policy_flags["use_vector"],
+                        ProcessingRuntime(
+                            egress_allowed=policy_flags["egress_allowed"],
+                            max_embedding_tokens=query_embedding_token_cap(),
+                        ),
                     ),
-                ),
-            ).query(
-                envelope,
-                query,
-                task,
-                policy_flags=policy_flags,
-            )
+                ).query(
+                    envelope,
+                    query,
+                    task,
+                    policy_flags=policy_flags,
+                )
+                question.done(result)
             citations = _enrich_citations(result.get("citations") or [], record)
             answer = result.get("answer")
             if answer is not None and not isinstance(answer, str):

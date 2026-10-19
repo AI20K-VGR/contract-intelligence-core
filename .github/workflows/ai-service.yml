@@ -82,3 +82,13 @@ jobs:
             --ignore=tests/test_hd_gold.py \
             --ignore=tests/test_structure_reconstruction.py \
             --deselect=tests/test_ingest.py::test_hd_tong_hop_sample_pdf_extracts_and_answers_dieu_9
+
+      # The AI2 image (Dockerfile.ai2) ships app/ and fixtures/ only, with the web
+      # and openai extras. Tests run with AI1's src/ installed, so an AI2 import of
+      # AI1 code passed CI and stopped the production deploy (#137). Import AI2 in
+      # the image it really runs in.
+      - name: AI2 image imports its modules without AI1 code
+        run: |
+          docker build -f Dockerfile.ai2 -t ai2-import-check .
+          docker run --rm -e AI2_REQUIRE_DATABASE=false ai2-import-check \
+            uv run --no-sync python -c "import app.llm.client, app.llm.observability, app.llm.metrics, app.llm.embeddings, app.pipeline.job_metrics, app.api.main; print('AI2 image imports: ok')"
