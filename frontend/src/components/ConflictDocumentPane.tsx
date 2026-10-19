@@ -37,6 +37,7 @@ export function ConflictDocumentPane({
   quote,
   title,
   sourceLabel,
+  boxLabel,
   mark = 'amber',
   locked = false,
   locating = false,
@@ -56,6 +57,8 @@ export function ConflictDocumentPane({
   quote: string
   title: string
   sourceLabel?: string
+  /** Chữ ghi ngay trên vùng khoanh đầu tiên (vd. "Nguồn", "Đích"). */
+  boxLabel?: string
   mark?: 'amber' | 'sky'
   locked?: boolean
   locating?: boolean
@@ -215,7 +218,8 @@ export function ConflictDocumentPane({
       const delta =
         target.getBoundingClientRect().top -
         scroller.getBoundingClientRect().top
-      scroller.scrollTop += delta - 8
+      // Chừa chỗ cho nhãn nằm ngay trên vùng khoanh.
+      scroller.scrollTop += delta - (boxLabel ? 32 : 8)
     }
     const frame = requestAnimationFrame(() => {
       align()
@@ -225,7 +229,18 @@ export function ConflictDocumentPane({
       cancelAnimationFrame(frame)
       window.clearTimeout(timer)
     }
-  }, [alignToken, localPage, pageNo, ready, regions])
+  }, [alignToken, boxLabel, localPage, pageNo, ready, regions])
+
+  // Nhãn chỉ gắn lên vùng khoanh đầu tiên (trang nhỏ nhất, rồi trên cùng).
+  const labelled = boxLabel
+    ? regions
+        .filter((region) => {
+          const [x0, y0, x1, y1] = region.bbox
+          const area = Math.max(0, x1 - x0) * Math.max(0, y1 - y0)
+          return area > 0 && area <= 1
+        })
+        .sort((a, b) => a.pageNo - b.pageNo || a.bbox[1] - b.bbox[1])[0]
+    : undefined
 
   async function download() {
     if (!documentId) return
@@ -480,7 +495,19 @@ export function ConflictDocumentPane({
                               width: `${(region.bbox[2] - region.bbox[0]) * 100}%`,
                               height: `${(region.bbox[3] - region.bbox[1]) * 100}%`,
                             }}
-                          />
+                          >
+                            {region === labelled ? (
+                              <span
+                                className={`absolute bottom-full left-[-2px] whitespace-nowrap rounded-t px-1.5 py-0.5 font-label-sm text-label-sm font-bold text-white ${
+                                  (region.accent ?? mark) === 'sky'
+                                    ? 'bg-sky-600'
+                                    : 'bg-amber-500'
+                                }`}
+                              >
+                                {boxLabel}
+                              </span>
+                            ) : null}
+                          </div>
                         ))
                       : null}
                   </div>

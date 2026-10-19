@@ -248,6 +248,16 @@ export type DossierShareGrant = {
   expires_at?: string | null
 }
 
+/**
+ * Người nhận mới không nhận được thư báo nên backend đã gỡ khỏi danh sách
+ * chia sẻ (DOC-05b v5.0.0: không gửi được thư thì không có quyền).
+ */
+export type ShareEmailNotSent = {
+  email: string
+  /** send_failed: gửi bị lỗi. undeliverable: tên miền không nhận thư. */
+  reason: 'undeliverable' | 'send_failed'
+}
+
 export async function updateDossierAccess(
   dossierId: string,
   scope: DossierAccessScope,
@@ -257,6 +267,8 @@ export async function updateDossierAccess(
     dossier_id: string
     scope: DossierAccessScope
     shared_with: DossierShareGrant[]
+    /** Backend cũ hơn v5.0.0 không trả trường này. */
+    email_not_sent?: ShareEmailNotSent[]
   }>(`${DOSSIERS_PATH}/${encodeURIComponent(dossierId)}/access`, {
     method: 'PUT',
     json: { scope, shared_with: sharedWith },
@@ -264,25 +276,62 @@ export async function updateDossierAccess(
   return data
 }
 
+/**
+ * Câu báo sau khi lưu quyền mà có người không nhận được thư; null khi ai cũng
+ * nhận được. Những người đó chưa có quyền, các thay đổi khác đã lưu.
+ */
+export function shareEmailNotice(notSent: ShareEmailNotSent[] | undefined) {
+  const emailsOf = (reason: ShareEmailNotSent['reason']) =>
+    (notSent ?? [])
+      .filter((item) => item.reason === reason)
+      .map((item) => item.email)
+  const notFound = emailsOf('undeliverable')
+  const failed = emailsOf('send_failed')
+  const parts: string[] = []
+  if (notFound.length > 0) {
+    parts.push(
+      `Không gửi được email tới ${notFound.join(', ')} vì không tìm thấy email này.`,
+    )
+  }
+  if (failed.length > 0) {
+    parts.push(
+      `Không gửi được email tới ${failed.join(', ')} vì máy chủ email bị lỗi, vui lòng thử lại sau.`,
+    )
+  }
+  return parts.length > 0 ? parts.join(' ') : null
+}
+
+/** rejected_emails của lỗi 422 PUT /access; ApiError.details là cả body. */
+function rejectedEmails(cause: ApiError) {
+  const body = cause.details as {
+    error?: { details?: { rejected_emails?: unknown } }
+  } | null
+  const rejected = body?.error?.details?.rejected_emails
+  return Array.isArray(rejected)
+    ? rejected.filter((item): item is string => typeof item === 'string')
+    : []
+}
+
 export const SHARE_EMAIL_NOT_FOUND =
   'Không tìm thấy email này trong đơn vị của bạn, hoặc người này chưa kích hoạt tài khoản. Vui lòng kiểm tra lại.'
 
 /**
  * Câu báo khi lưu quyền không được. Backend kiểm tra người nhận mới trong
- * Keycloak trước khi lưu (DOC-05b v4.0.0): có người không hợp lệ hay Keycloak
- * không trả lời thì không lưu gì, không gửi thư nào.
+ * Keycloak trước khi lưu (DOC-05b v4.0.0), và từ v5.0.0 từ chối người nhận có
+ * tên miền email không nhận thư: những lỗi này không lưu gì, không gửi thư nào.
  */
 export function accessSaveErrorMessage(cause: unknown) {
   if (cause instanceof ApiError) {
     if (cause.code === 'share_recipient_not_found') {
-      const rejected = (cause.details as { rejected_emails?: unknown } | null)
-        ?.rejected_emails
-      const emails = Array.isArray(rejected)
-        ? rejected.filter((item): item is string => typeof item === 'string')
-        : []
+      const emails = rejectedEmails(cause)
       return emails.length > 0
         ? `${SHARE_EMAIL_NOT_FOUND} (${emails.join(', ')})`
         : SHARE_EMAIL_NOT_FOUND
+    }
+    if (cause.code === 'share_recipient_undeliverable') {
+      const emails = rejectedEmails(cause).filter(Boolean)
+      const who = emails.length > 0 ? ` tới ${emails.join(', ')}` : ''
+      return `Không gửi được email${who} vì không tìm thấy email này.`
     }
     if (cause.code === 'keycloak_unavailable') {
       return 'Chưa kiểm tra được người nhận vì dịch vụ đăng nhập không phản hồi. Chưa lưu gì, vui lòng thử lại.'

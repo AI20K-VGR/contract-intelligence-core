@@ -14,6 +14,7 @@ import {
 import { MaterialIcon } from '../icons'
 import { RelationBadge, ReviewBadge } from './RelationBadges'
 import { RelationInspector } from './RelationInspector'
+import { hasSeveralRelationTypes } from './relationTone'
 
 type NodeLabelResolver = (nodeId: string, documentId?: string | null) => string
 
@@ -21,25 +22,21 @@ export function RelationList({
   page,
   filter = null,
   onLoadPage,
-  onOpenCitation,
+  onOpenEvidence,
+  evidenceEdgeId = null,
   resolveNodeLabel,
   resolveNodeTitle,
   selectedId: controlledSelectedId,
   onSelectEdge,
   onResolveEdgeEvidence,
-  citationRecord,
-  citationError,
-  citationLoading,
 }: {
   page: ContractGraphPage
   /** Chỉ hiện loại quan hệ này (tên hiển thị); null là hiện tất cả. */
   filter?: string | null
   onLoadPage?: (cursor: string) => Promise<ContractGraphPage>
-  onOpenCitation: (
-    citationRef: string,
-    nodeId: string,
-    sourceDocumentId?: string | null,
-  ) => void
+  onOpenEvidence: (edge: ContractGraphEdge) => void
+  /** Quan hệ đang mở khung bằng chứng. */
+  evidenceEdgeId?: string | null
   resolveNodeLabel?: NodeLabelResolver
   resolveNodeTitle?: NodeLabelResolver
   selectedId?: string | null
@@ -48,9 +45,6 @@ export function RelationList({
     sourceText?: string
     targetText?: string
   } | null>
-  citationRecord?: Record<string, unknown> | null
-  citationError?: boolean
-  citationLoading?: boolean
 }) {
   const [state, setState] = useState(() => createRelationListState(page))
   const [internalSelectedId, setInternalSelectedId] = useState<string | null>(
@@ -108,6 +102,7 @@ export function RelationList({
     ? state.edges.filter((edge) => relationLabel(edge.label) === filter)
     : state.edges
   const selectedEdge = edges.find((edge) => edge.id === selectedId) ?? null
+  const showLabel = hasSeveralRelationTypes(state.edges, state.hasMore)
 
   return (
     <div className="grid min-w-0 items-start gap-gutter lg:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
@@ -118,6 +113,7 @@ export function RelationList({
               <RelationRow
                 edge={edge}
                 selected={edge.id === selectedId}
+                showLabel={showLabel}
                 onSelect={(id) => {
                   setInternalSelectedId(id)
                   onSelectEdge?.(id)
@@ -172,12 +168,11 @@ export function RelationList({
         {selectedEdge ? (
           <RelationInspector
             edge={selectedEdge}
-            onOpenCitation={onOpenCitation}
+            showLabel={showLabel}
+            onOpenEvidence={onOpenEvidence}
+            evidenceOpen={evidenceEdgeId === selectedEdge.id}
             resolveNodeLabel={resolveNodeLabel}
             resolveNodeTitle={resolveNodeTitle}
-            citationRecord={citationRecord}
-            citationError={citationError}
-            citationLoading={citationLoading}
           />
         ) : (
           <div className="flex flex-col items-center gap-space-xs rounded-lg bg-surface-container-low px-space-lg py-space-xl text-center font-body-sm text-body-sm text-on-surface-variant">
@@ -199,10 +194,12 @@ function RelationRow({
   onSelect,
   resolveNodeLabel = (nodeId) => `Mã điều khoản ${nodeId}`,
   resolveNodeTitle,
+  showLabel = true,
 }: {
   edge: ContractGraphEdge
   selected: boolean
   onSelect: (id: string) => void
+  showLabel?: boolean
   resolveNodeLabel?: NodeLabelResolver
   resolveNodeTitle?: NodeLabelResolver
 }) {
@@ -229,7 +226,7 @@ function RelationRow({
       type="button"
     >
       <span className="flex flex-wrap items-center gap-space-xs">
-        <RelationBadge label={edge.label} />
+        {showLabel ? <RelationBadge label={edge.label} /> : null}
         <ReviewBadge state={edge.review_state} />
       </span>
       <span className="mt-space-xs grid min-w-0 gap-space-xs font-body-sm text-body-sm sm:grid-cols-[1fr_auto_1fr] sm:items-start">

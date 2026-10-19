@@ -19,7 +19,6 @@ export type DossierUploadInput = {
   structureMode: StructureMode
   contract: File
   annexes: File[]
-  splitPending: boolean
 }
 
 export type DossierUploadStatus =
@@ -37,7 +36,6 @@ export type DossierUpload = {
   id: string
   name: string
   structureMode: StructureMode
-  splitPending: boolean
   fileCount: number
   /** Giữ tệp đã chọn để quay lại trang Tải lên khi lỗi; bỏ khi đã xong. */
   input: DossierUploadInput | null
@@ -96,9 +94,7 @@ async function run(id: string, input: DossierUploadInput) {
     const created = await createDossier(
       {
         contract,
-        metadata: input.splitPending
-          ? { name: input.name, split_pending: true }
-          : { name: input.name },
+        metadata: { name: input.name },
         annexes,
       },
       {
@@ -166,7 +162,6 @@ export function startDossierUpload(input: DossierUploadInput) {
     id,
     name: input.name,
     structureMode: input.structureMode,
-    splitPending: input.splitPending,
     fileCount: 1 + input.annexes.length,
     input,
     status: 'preparing',

@@ -192,7 +192,14 @@ export function UsersPage() {
       setNotice(`Đã gửi lại email đặt mật khẩu tới ${updated.email}.`)
     } catch (err) {
       const message = userAdminErrorMessage(err)
-      if (message) setError(message)
+      // 409: người này đã đặt mật khẩu sau lúc tải danh sách. Không phải lỗi:
+      // báo thường và tải lại để thôi hiện "Đã mời".
+      if (err instanceof ApiError && err.status === 409) {
+        if (message) setNotice(message)
+        setReloadKey((key) => key + 1)
+      } else if (message) {
+        setError(message)
+      }
     } finally {
       setPendingId(null)
     }

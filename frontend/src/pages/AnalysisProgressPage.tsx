@@ -36,6 +36,7 @@ import {
 import {
   cancelDossierUpload,
   formatFileSize,
+  startDossierUpload,
   uploadPercent,
   useDossierUpload,
   type DossierUpload,
@@ -52,7 +53,13 @@ import { useAuth } from '../auth/useAuth'
 import { TechnicalDetail } from '../components/TechnicalDetail'
 import { useDossierPermissions } from '../auth/dossierPermissions'
 import { MaterialIcon } from '../components/icons'
-import { progressPath, splitPath, structurePath } from '../data/dossiers'
+import {
+  awaitsSplit,
+  progressPath,
+  splitPath,
+  structurePath,
+  UPLOAD_PROGRESS_PATH,
+} from '../data/dossiers'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { parseStructureMode, type StructureMode } from '../structure'
 
@@ -161,7 +168,7 @@ function uploadHeadline(upload: DossierUpload) {
     case 'preparing':
       return 'Đang chuẩn bị tệp'
     case 'sending':
-      return 'Đang gửi tệp lên máy chủ'
+      return 'Đang tải tệp lên'
     case 'saving':
       return 'Máy chủ đang kiểm tra và lưu tệp'
     case 'done':
@@ -182,11 +189,15 @@ function uploadLogRow(upload: DossierUpload): LogRowModel {
     return {
       id,
       status: 'done',
-      text: `Đã gửi ${files} lên máy chủ (${seconds.toFixed(1)}s)`,
+      text: `Đã tải lên ${files} (${seconds.toFixed(1)}s)`,
     }
   }
   if (upload.status === 'failed') {
-    return { id, status: 'failed', text: `Gửi tệp lỗi: ${upload.error ?? ''}` }
+    return {
+      id,
+      status: 'failed',
+      text: `Tải tệp lên lỗi: ${upload.error ?? ''}`,
+    }
   }
   if (upload.status === 'cancelled') {
     return { id, status: 'failed', text: 'Đã hủy tải lên' }
@@ -195,14 +206,14 @@ function uploadLogRow(upload: DossierUpload): LogRowModel {
     return {
       id,
       status: 'active',
-      text: `Đã gửi ${files}, máy chủ đang kiểm tra`,
+      text: `Đã tải lên ${files}, máy chủ đang kiểm tra`,
     }
   }
   const percent = uploadPercent(upload)
   return {
     id,
     status: 'active',
-    text: `Đang gửi ${files} lên máy chủ${percent === null ? '' : `: ${percent}%`}`,
+    text: `Đang tải lên ${files}${percent === null ? '' : `: ${percent}%`}`,
   }
 }
 
@@ -255,16 +266,15 @@ export function AnalysisProgressPage() {
 
   // Máy chủ đã tạo hồ sơ: sang đúng trang của hồ sơ đó.
   const createdId = pending?.status === 'done' ? pending.dossierId : null
-  const createdSplit = pending?.splitPending ?? false
   const createdMode = pending?.structureMode
   const createdName = pending?.name
   useEffect(() => {
     if (!createdId) return
-    navigate(createdSplit ? splitPath(createdId) : progressPath(createdId), {
+    navigate(progressPath(createdId), {
       replace: true,
       state: { structureMode: createdMode, name: createdName },
     })
-  }, [createdId, createdMode, createdName, createdSplit, navigate])
+  }, [createdId, createdMode, createdName, navigate])
 
   // Lỗi hoặc hủy: quay lại trang Tải lên với tệp đã chọn để sửa rồi tải lại.
   function backToUpload() {
@@ -272,6 +282,21 @@ export function AnalysisProgressPage() {
     navigate(CREATE_PATH, {
       replace: true,
       state: { retryUpload: pending.id },
+    })
+  }
+
+  // Tải lại ngay với đúng tệp và thông tin đã chọn, không phải chọn lại.
+  function retryUpload() {
+    if (!pending?.input) return
+    const { input } = pending
+    const next = startDossierUpload(input)
+    navigate(UPLOAD_PROGRESS_PATH, {
+      replace: true,
+      state: {
+        upload: next,
+        structureMode: input.structureMode,
+        name: input.name,
+      },
     })
   }
 
@@ -572,6 +597,23 @@ export function AnalysisProgressPage() {
       if (timer !== undefined) window.clearTimeout(timer)
     }
   }, [attempt, dossierId])
+
+  // File trộn chưa xác nhận phần hợp đồng, phụ lục: chưa có gì để theo dõi,
+  // người sửa được hồ sơ sang trang tách file.
+  const splitWaiting =
+    detail !== null &&
+    canManageRun &&
+    awaitsSplit({
+      splitPending: detail.metadata?.split_pending === true,
+      jobStatus: detail.latestJobStatus,
+    })
+  useEffect(() => {
+    if (!splitWaiting) return
+    navigate(splitPath(dossierId), {
+      replace: true,
+      state: { name: detail?.name },
+    })
+  }, [detail?.name, dossierId, navigate, splitWaiting])
 
   const documents = useMemo(() => detail?.documents ?? [], [detail])
   const jobStatus = detail?.latestJobStatus ?? null
@@ -926,132 +968,138 @@ export function AnalysisProgressPage() {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-gutter">
-        <section className="xl:col-span-7 bg-surface-container-lowest rounded-lg p-space-lg shadow-sm">
-          <div className="flex items-center gap-space-sm mb-space-md">
-            <MaterialIcon
-              name="checklist"
-              className="text-on-tertiary-container text-[20px]"
-            />
-            <span className="font-title-sm text-title-sm text-on-surface font-semibold">
-              Các bước xử lý
-            </span>
-          </div>
-          <ol className="flex flex-col">
-            {upload ? <UploadStepRow upload={upload} /> : null}
-            {OCR_RUN_STEPS.map(({ code, ocr }, index) => {
-              const row = shownSteps[code]
-              const rawStatus = row?.status ?? 'queued'
-              // Run đã kết thúc mà BE không ghi nhận bước này thì không để xoay/chờ mãi.
-              const status =
-                finished && rawStatus !== 'succeeded' && rawStatus !== 'failed'
-                  ? 'unrecorded'
-                  : rawStatus
-              const last = index === OCR_RUN_STEPS.length - 1
-              return (
-                <li key={code} className="flex gap-space-md">
-                  <div className="flex flex-col items-center">
-                    <StepDot status={status} />
-                    {last ? null : (
-                      <div
-                        className={`w-px flex-1 min-h-4 ${
-                          status === 'succeeded'
-                            ? 'bg-emerald-300'
-                            : 'bg-outline-variant'
-                        }`}
-                      />
-                    )}
-                  </div>
-                  <div className="flex flex-1 items-start justify-between gap-space-sm pb-space-md">
-                    <div className="flex flex-col">
-                      <span
-                        className={`font-body-sm text-body-sm ${
-                          status === 'queued'
-                            ? 'text-on-surface-variant'
-                            : 'text-on-surface font-semibold'
-                        }`}
-                      >
-                        {RUN_STEP_LABELS[code]}
-                      </span>
-                      {row?.pages != null ? (
-                        <span className="font-label-sm text-label-sm text-on-surface-variant">
-                          {row.pages} trang
-                        </span>
-                      ) : null}
-                    </div>
-                    <span
-                      className={`font-label-sm text-label-sm font-semibold shrink-0 ${
-                        status === 'succeeded'
-                          ? 'text-emerald-700'
-                          : status === 'failed'
-                            ? 'text-error'
-                            : status === 'running'
-                              ? 'text-on-tertiary-container'
-                              : 'text-on-surface-variant'
-                      }`}
-                    >
-                      {status === 'succeeded' ? (
-                        row?.durationMs != null ? (
-                          `Xong · ${(row.durationMs / 1000).toFixed(1)}s`
-                        ) : (
-                          'Xong'
-                        )
-                      ) : status === 'running' ? (
-                        <StepProgress
-                          percent={
-                            row?.progress
-                              ? stepProgressPercent(row.progress)
-                              : ocr
-                                ? ocrPercent
-                                : null
-                          }
-                          detail={
-                            row?.progress
-                              ? formatStepProgress(row.progress)
-                              : null
-                          }
-                        />
-                      ) : status === 'failed' ? (
-                        'Lỗi'
-                      ) : status === 'unrecorded' ? (
-                        'Không ghi nhận'
-                      ) : (
-                        'Chờ'
-                      )}
-                    </span>
-                  </div>
-                </li>
-              )
-            })}
-          </ol>
-        </section>
-
-        <div className="xl:col-span-5 flex flex-col gap-gutter">
-          <section className="bg-surface-container-lowest rounded-lg p-space-lg shadow-sm">
+      {/* Hai cột theo bề rộng vùng nội dung, không theo cửa sổ: màn zoom 125–150%
+          vẫn đủ chỗ để các bước và nhật ký nằm cạnh nhau. */}
+      <div className="@container">
+        <div className="grid grid-cols-1 @4xl:grid-cols-12 gap-gutter">
+          <section className="@4xl:col-span-7 bg-surface-container-lowest rounded-lg p-space-lg shadow-sm">
             <div className="flex items-center gap-space-sm mb-space-md">
               <MaterialIcon
-                name="history"
+                name="checklist"
                 className="text-on-tertiary-container text-[20px]"
               />
               <span className="font-title-sm text-title-sm text-on-surface font-semibold">
-                Nhật ký xử lý
-              </span>
-              <span className="ml-auto font-label-sm text-label-sm text-on-surface-variant">
-                Mới nhất ở trên
+                Các bước xử lý
               </span>
             </div>
-            <div className="flex flex-col gap-space-xs max-h-80 overflow-y-auto">
-              {logs.length === 0 ? (
-                <p className="font-body-sm text-body-sm text-on-surface-variant">
-                  Chưa có bước nào được ghi nhận.
-                </p>
-              ) : (
-                [...logs]
-                  .reverse()
-                  .map((log) => <LogRow key={log.id} log={log} />)
-              )}
-            </div>
+            <ol className="flex flex-col">
+              {upload ? <UploadStepRow upload={upload} /> : null}
+              {OCR_RUN_STEPS.map(({ code, ocr }, index) => {
+                const row = shownSteps[code]
+                const rawStatus = row?.status ?? 'queued'
+                // Run đã kết thúc mà BE không ghi nhận bước này thì không để xoay/chờ mãi.
+                const status =
+                  finished &&
+                  rawStatus !== 'succeeded' &&
+                  rawStatus !== 'failed'
+                    ? 'unrecorded'
+                    : rawStatus
+                const last = index === OCR_RUN_STEPS.length - 1
+                return (
+                  <li key={code} className="flex gap-space-md">
+                    <div className="flex flex-col items-center">
+                      <StepDot status={status} />
+                      {last ? null : (
+                        <div
+                          className={`w-px flex-1 min-h-4 ${
+                            status === 'succeeded'
+                              ? 'bg-emerald-300'
+                              : 'bg-outline-variant'
+                          }`}
+                        />
+                      )}
+                    </div>
+                    <div className="flex flex-1 items-start justify-between gap-space-sm pb-space-md">
+                      <div className="flex flex-col">
+                        <span
+                          className={`font-body-sm text-body-sm ${
+                            status === 'queued'
+                              ? 'text-on-surface-variant'
+                              : 'text-on-surface font-semibold'
+                          }`}
+                        >
+                          {RUN_STEP_LABELS[code]}
+                        </span>
+                        {row?.pages != null ? (
+                          <span className="font-label-sm text-label-sm text-on-surface-variant">
+                            {row.pages} trang
+                          </span>
+                        ) : null}
+                      </div>
+                      <span
+                        className={`font-label-sm text-label-sm font-semibold shrink-0 ${
+                          status === 'succeeded'
+                            ? 'text-emerald-700'
+                            : status === 'failed'
+                              ? 'text-error'
+                              : status === 'running'
+                                ? 'text-on-tertiary-container'
+                                : 'text-on-surface-variant'
+                        }`}
+                      >
+                        {status === 'succeeded' ? (
+                          row?.durationMs != null ? (
+                            `Xong · ${(row.durationMs / 1000).toFixed(1)}s`
+                          ) : (
+                            'Xong'
+                          )
+                        ) : status === 'running' ? (
+                          <StepProgress
+                            percent={
+                              row?.progress
+                                ? stepProgressPercent(row.progress)
+                                : ocr
+                                  ? ocrPercent
+                                  : null
+                            }
+                            detail={
+                              row?.progress
+                                ? formatStepProgress(row.progress)
+                                : null
+                            }
+                          />
+                        ) : status === 'failed' ? (
+                          'Lỗi'
+                        ) : status === 'unrecorded' ? (
+                          'Không ghi nhận'
+                        ) : (
+                          'Chờ'
+                        )}
+                      </span>
+                    </div>
+                  </li>
+                )
+              })}
+            </ol>
           </section>
+
+          <div className="@4xl:col-span-5 flex flex-col gap-gutter">
+            <section className="bg-surface-container-lowest rounded-lg p-space-lg shadow-sm">
+              <div className="flex items-center gap-space-sm mb-space-md">
+                <MaterialIcon
+                  name="history"
+                  className="text-on-tertiary-container text-[20px]"
+                />
+                <span className="font-title-sm text-title-sm text-on-surface font-semibold">
+                  Nhật ký xử lý
+                </span>
+                <span className="ml-auto font-label-sm text-label-sm text-on-surface-variant">
+                  Mới nhất ở trên
+                </span>
+              </div>
+              <div className="flex flex-col gap-space-xs max-h-80 overflow-y-auto">
+                {logs.length === 0 ? (
+                  <p className="font-body-sm text-body-sm text-on-surface-variant">
+                    Chưa có bước nào được ghi nhận.
+                  </p>
+                ) : (
+                  [...logs]
+                    .reverse()
+                    .map((log) => <LogRow key={log.id} log={log} />)
+                )}
+              </div>
+            </section>
+          </div>
         </div>
       </div>
 
@@ -1066,6 +1114,16 @@ export function AnalysisProgressPage() {
             >
               <MaterialIcon name="close" className="text-[16px]" />
               <span>Hủy tải lên</span>
+            </button>
+          ) : null}
+          {pendingStopped && pending?.input ? (
+            <button
+              className="font-body-sm text-body-sm text-primary hover:underline flex items-center gap-space-xs"
+              type="button"
+              onClick={retryUpload}
+            >
+              <MaterialIcon name="refresh" className="text-[16px]" />
+              <span>Tải lại</span>
             </button>
           ) : null}
           {pendingStopped ? (
@@ -1248,7 +1306,7 @@ function UploadStepRow({ upload }: { upload: DossierUpload }) {
       <div className="flex flex-1 items-start justify-between gap-space-sm pb-space-md">
         <div className="flex flex-col">
           <span className="font-body-sm text-body-sm text-on-surface font-semibold">
-            Gửi tệp lên máy chủ
+            Đang tải tệp lên
           </span>
           <span className="font-label-sm text-label-sm text-on-surface-variant">
             {upload.fileCount} tệp · {formatFileSize(upload.total)}

@@ -12,13 +12,14 @@ import {
   splitErrorMessage,
   type SplitResult,
 } from '../api/dossiers'
+import { startDossierUpload } from '../api/dossierUpload'
 import { getDossierStructure, type DossierStructure } from '../api/structure'
 import { dossiersLabel, dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { useDossierPermissions } from '../auth/dossierPermissions'
 import { MaterialIcon } from '../components/icons'
 import { SplitPageStrip } from '../components/SplitPageStrip'
-import { progressPath } from '../data/dossiers'
+import { progressPath, UPLOAD_PROGRESS_PATH } from '../data/dossiers'
 import {
   useHeaderShowsPageTitle,
   usePageBreadcrumb,
@@ -35,11 +36,16 @@ import {
   type DraftPart,
   type SplitRole,
 } from '../split/parts'
+import { dropSplitDraft, getSplitDraft } from '../split/draft'
+import { asUploadPdf } from '../pdf/imageToPdf'
+import { countPdfPages, splitPdf } from '../pdf/splitPdf'
 
 const roleLabels: Record<SplitRole, string> = {
   contract: 'Hợp đồng chính',
   annex: 'Phụ lục',
 }
+
+const CREATE_PATH = '/tao-ho-so'
 
 export function SplitConfirmPage() {
   const { dossierId = '' } = useParams()
@@ -59,11 +65,25 @@ export function SplitConfirmPage() {
   const [done, setDone] = useState<SplitResult | null>(null)
   const [warn, setWarn] = useState(false)
 
-  usePageTitle(dossier?.name ?? 'Xác nhận tách file')
+  // Chưa có mã hồ sơ: file trộn từ trang Tải lên, chưa gửi lên máy chủ. Chọn
+  // các phần trên máy, xác nhận xong mới cắt và tải từng phần lên.
+  const [draftId] = useState(() =>
+    dossierId
+      ? null
+      : ((location.state as { splitDraft?: string } | null)?.splitDraft ??
+        null),
+  )
+  const [draft] = useState(() => getSplitDraft(draftId))
+  const [local, setLocal] = useState<{ file: File; pageCount: number } | null>(
+    null,
+  )
+  const name = dossier?.name ?? draft?.name
+
+  usePageTitle(name ?? 'Xác nhận tách file')
   usePageBreadcrumb([
     { label: backLabel, to: backTo },
     { label: 'Xác nhận tách file' },
-    ...(dossier?.name ? [{ label: dossier.name }] : []),
+    ...(name ? [{ label: name }] : []),
   ])
   const titleInHeader = useHeaderShowsPageTitle()
 
@@ -75,7 +95,28 @@ export function SplitConfirmPage() {
       null,
     [dossier],
   )
-  const pageCount = source?.pageCount ?? 0
+  const filename = local?.file.name ?? source?.filename ?? null
+  const pdfSource = local?.file ?? source?.id ?? null
+  const pageCount = local?.pageCount ?? source?.pageCount ?? 0
+
+  useEffect(() => {
+    if (!draft) return
+    let cancelled = false
+    asUploadPdf(draft.contract)
+      .then(async (file) => {
+        const count = await countPdfPages(file)
+        if (cancelled) return
+        setLocal({ file, pageCount: count })
+        setParts(initialParts(count))
+      })
+      .catch(() => {
+        if (cancelled) return
+        setLoadError(`Không đọc được file "${draft.contract.name}".`)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [draft])
 
   useEffect(() => {
     if (!dossierId) return
@@ -133,6 +174,10 @@ export function SplitConfirmPage() {
   }
 
   async function confirm() {
+    if (draft) {
+      await uploadDraft()
+      return
+    }
     if (!source || saving || problem) return
     setSaving(true)
     setSaveError(null)
@@ -155,9 +200,42 @@ export function SplitConfirmPage() {
     }
   }
 
+  // Cắt file trên máy, rồi tải các phần lên như khi chọn từng tệp riêng.
+  async function uploadDraft() {
+    if (!draft || !local || saving || problem) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const ranges = resolveParts(parts, pageCount)
+      const files =
+        ranges.length > 1 ? await splitPdf(local.file, ranges) : [local.file]
+      const contractIndex = ranges.findIndex((part) => part.role === 'contract')
+      const upload = startDossierUpload({
+        ...draft,
+        contract: files[contractIndex],
+        annexes: files.filter((_, index) => index !== contractIndex),
+      })
+      dropSplitDraft(draftId)
+      navigate(UPLOAD_PROGRESS_PATH, {
+        replace: true,
+        state: { upload, structureMode: draft.structureMode, name: draft.name },
+      })
+    } catch (cause: unknown) {
+      setSaveError(
+        cause instanceof Error ? cause.message : 'Không tách được file.',
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (!user) return null
   if (!canEdit) {
     return <Navigate to={backTo} replace />
+  }
+  // Mở thẳng /tach-file hoặc đã tải lại trang: tệp chưa tải lên đã mất, chọn lại.
+  if (!dossierId && !draft) {
+    return <Navigate to={CREATE_PATH} replace />
   }
   // Hồ sơ không chờ tách (đã tách hoặc không phải file trộn): sang tiến trình.
   if (dossier && dossier.metadata?.split_pending !== true && !done) {
@@ -179,13 +257,13 @@ export function SplitConfirmPage() {
         </div>
       ) : null}
 
-      {!dossier && !loadError ? (
+      {!dossier && !local && !loadError ? (
         <p className="font-body-sm text-body-sm text-on-surface-variant">
-          Đang tải hồ sơ…
+          {draft ? 'Đang đọc file…' : 'Đang tải hồ sơ…'}
         </p>
       ) : null}
 
-      {dossier && source ? (
+      {filename && pdfSource ? (
         // Tách xong thì giữ trang, khóa thao tác trong lúc chờ chuyển sang OCR.
         <div
           aria-disabled={done ? true : undefined}
@@ -198,7 +276,7 @@ export function SplitConfirmPage() {
               </span>
               <div className="min-w-0">
                 <p className="truncate font-title-sm text-title-sm font-semibold text-on-surface">
-                  {source.filename}
+                  {filename}
                 </p>
                 <p className="font-code-sm text-code-sm text-on-surface-variant">
                   {pageCount > 0 ? `${pageCount} trang` : 'Chưa biết số trang'}
@@ -208,7 +286,7 @@ export function SplitConfirmPage() {
 
             <SplitPageStrip
               disabled={saving}
-              documentId={source.id}
+              source={pdfSource}
               pageCount={pageCount}
               parts={resolved}
               onStartAnnex={(page) => setParts(splitAtPage(page, pageCount))}
@@ -379,10 +457,14 @@ export function SplitConfirmPage() {
                 {saving
                   ? 'Đang tách…'
                   : warn
-                    ? 'Vẫn tách'
+                    ? draft
+                      ? 'Vẫn tách và tải lên'
+                      : 'Vẫn tách'
                     : parts.length > 1
-                      ? `Xác nhận tách thành ${parts.length} tài liệu`
-                      : 'Xác nhận, không cần tách'}
+                      ? `Xác nhận tách thành ${parts.length} tài liệu${draft ? ' và tải lên' : ''}`
+                      : draft
+                        ? 'Xác nhận, tải lên không tách'
+                        : 'Xác nhận, không cần tách'}
               </button>
               {warn ? (
                 <button
@@ -393,6 +475,15 @@ export function SplitConfirmPage() {
                 >
                   Quay lại chỉnh
                 </button>
+              ) : draft ? (
+                // Chưa tải gì lên: quay lại trang Tải lên với đúng thông tin đã điền.
+                <Link
+                  className="flex h-11 items-center justify-center rounded-lg px-space-lg font-body-sm text-body-sm text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
+                  state={{ splitDraft: draftId }}
+                  to={CREATE_PATH}
+                >
+                  Quay lại
+                </Link>
               ) : (
                 <Link
                   className="flex h-11 items-center justify-center rounded-lg px-space-lg font-body-sm text-body-sm text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"

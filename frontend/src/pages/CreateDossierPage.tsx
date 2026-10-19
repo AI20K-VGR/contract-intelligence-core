@@ -10,9 +10,10 @@ import {
 import { dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
-import { UPLOAD_PROGRESS_PATH } from '../data/dossiers'
+import { SPLIT_DRAFT_PATH, UPLOAD_PROGRESS_PATH } from '../data/dossiers'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 import { isImageFile, isUploadable, UPLOAD_ACCEPT } from '../pdf/imageToPdf'
+import { dropSplitDraft, getSplitDraft, stashSplitDraft } from '../split/draft'
 import { structureModes, type StructureMode } from '../structure'
 
 type UploadStatus = 'idle' | 'uploading'
@@ -139,8 +140,8 @@ export function CreateDossierPage() {
   const annexInputRef = useRef<HTMLInputElement>(null)
   const replaceKeyRef = useRef<string | null>(null)
 
-  // Quay lại từ trang tiến trình sau khi tải lên lỗi hoặc bị hủy: điền lại
-  // đúng những gì đã chọn để sửa rồi tải lại.
+  // Quay lại từ trang tiến trình sau khi tải lên lỗi hoặc bị hủy, hoặc từ
+  // trang tách file chưa xác nhận: điền lại đúng những gì đã chọn.
   const location = useLocation()
   const [retry] = useState(
     () =>
@@ -148,11 +149,18 @@ export function CreateDossierPage() {
         (location.state as { retryUpload?: string } | null)?.retryUpload,
       ) ?? null,
   )
-  const previous = retry?.input ?? null
+  const [draftId] = useState(
+    () => (location.state as { splitDraft?: string } | null)?.splitDraft,
+  )
+  const [draft] = useState(() => getSplitDraft(draftId))
+  const previous = retry?.input ?? draft
   // Tệp đã nằm trong state của form: store không giữ thêm một bản nữa.
   useEffect(() => {
     if (retry) releaseDossierUpload(retry.id)
   }, [retry])
+  useEffect(() => {
+    dropSplitDraft(draftId)
+  }, [draftId])
   const [name, setName] = useState(previous?.name ?? '')
   const [code, setCode] = useState(previous?.code ?? '')
   const [structureMode, setStructureMode] = useState<StructureMode | null>(
@@ -164,7 +172,7 @@ export function CreateDossierPage() {
   const [annexes, setAnnexes] = useState<PickedFile[]>(() =>
     previous ? previous.annexes.map(pickedAnnex) : [],
   )
-  const [mixedFile, setMixedFile] = useState(previous?.splitPending ?? false)
+  const [mixedFile, setMixedFile] = useState(draft !== null)
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle')
   const [error, setError] = useState<string | null>(retry?.error ?? null)
   const [dragOver, setDragOver] = useState(false)
@@ -307,17 +315,24 @@ export function CreateDossierPage() {
     }
 
     setError(null)
-    setUploadStatus('uploading')
-    // Sang trang tiến trình ngay; % gửi tệp hiện ở đó, tạo xong hồ sơ thì
-    // trang đó tự chuyển sang mã hồ sơ (hoặc trang tách file).
-    const upload = startDossierUpload({
+    const input = {
       name: trimmedName,
       code: code.trim(),
       structureMode,
       contract: contract.file,
       annexes: annexes.map((item) => item.file),
-      splitPending,
-    })
+    }
+    // File trộn: chọn hợp đồng và phụ lục trước, xác nhận xong mới cắt và tải lên.
+    if (splitPending) {
+      navigate(SPLIT_DRAFT_PATH, {
+        state: { splitDraft: stashSplitDraft(input), name: trimmedName },
+      })
+      return
+    }
+    setUploadStatus('uploading')
+    // Sang trang tiến trình ngay; % gửi tệp hiện ở đó, tạo xong hồ sơ thì
+    // trang đó tự chuyển sang mã hồ sơ.
+    const upload = startDossierUpload(input)
     navigate(UPLOAD_PROGRESS_PATH, {
       state: { upload, structureMode, name: trimmedName },
     })
@@ -652,9 +667,9 @@ export function CreateDossierPage() {
                     </span>
                   </span>
                   <span className="font-body-sm text-body-sm text-on-surface">
-                    Tick nếu hợp đồng và phụ lục nằm chung trong một file. Sau
-                    khi tải lên, bạn chia file thành từng phần và xác nhận. Mỗi
-                    phần thành một tài liệu riêng rồi mới đọc.
+                    Tick nếu hợp đồng và phụ lục nằm chung trong một file. Bấm
+                    Upload để chia file thành từng phần và xác nhận trước. Mỗi
+                    phần thành một tài liệu riêng rồi mới tải lên.
                   </span>
                 </span>
               </label>

@@ -17,8 +17,10 @@ import { ApiError } from '../api/client'
 import { isRunFinished } from '../api/structure'
 import { MaterialIcon } from '../components/icons'
 import {
+  awaitsSplit,
   dossierOpenTo,
   progressPath,
+  splitPath,
   type Dossier,
   type DossierStatus,
 } from '../data/dossiers'
@@ -288,6 +290,34 @@ function StatusCell({
           <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
           Đang đọc
         </Link>
+        {note}
+      </div>
+    )
+  }
+
+  // Chưa xác nhận phần hợp đồng, phụ lục: dẫn về trang tách file, không đọc.
+  if (awaitsSplit(dossier)) {
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <div className="flex flex-wrap items-center gap-1">
+          <Link
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-label-sm text-label-sm font-semibold bg-amber-100 text-amber-950 hover:opacity-80"
+            to={splitPath(dossier.id)}
+          >
+            Chờ tách file
+          </Link>
+          {onRetry ? (
+            <Link
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-label-sm text-label-sm font-semibold bg-surface-container text-on-surface hover:bg-surface-container-high"
+              state={{ name: dossier.title }}
+              to={splitPath(dossier.id)}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <MaterialIcon name="call_split" className="text-[14px]" />
+              Xác nhận tách file
+            </Link>
+          ) : null}
+        </div>
         {note}
       </div>
     )

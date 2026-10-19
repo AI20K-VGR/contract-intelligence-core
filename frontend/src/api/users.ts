@@ -61,6 +61,27 @@ export type TenantUser = {
 }
 
 /**
+ * Thành viên đang bật cùng tenant để chọn người nhận (GET /users/directory).
+ * Khác GET /users: không có người bị khoá hay thiếu tenant_id trong Keycloak,
+ * đúng tập người PUT /dossiers/{id}/access chấp nhận.
+ */
+export async function listUserDirectory(query: {
+  limit: number
+  offset: number
+  signal?: AbortSignal
+}) {
+  const params = new URLSearchParams({
+    limit: String(query.limit),
+    offset: String(query.offset),
+  })
+  const { data } = await requestJson<TenantUser[]>(
+    `${USERS_PATH}/directory?${params.toString()}`,
+    { signal: query.signal },
+  )
+  return data
+}
+
+/**
  * Tra đúng một email trong đơn vị (GET /users/lookup), để chia sẻ hồ sơ mà
  * không cần xem cả danh sách người dùng. Chỉ có người đã kích hoạt tài khoản.
  * null khi không có ai (404 user_not_found: khác đơn vị, bị khoá, chưa kích
@@ -131,8 +152,18 @@ export function userAdminErrorMessage(error: unknown) {
     if (error.code === 'cannot_change_own_role') {
       return 'Không đổi được vai trò của tài khoản đang đăng nhập.'
     }
-    if (error.code === 'invite_not_applicable') {
-      return 'Chỉ gửi lại email khi người dùng còn ở trạng thái đã mời.'
+    // Backend trả invalid_invite_state (409); invite_not_applicable là tên cũ.
+    if (
+      error.code === 'invalid_invite_state' ||
+      error.code === 'invite_not_applicable'
+    ) {
+      return 'Người này đã đặt mật khẩu và kích hoạt tài khoản nên không cần gửi lại lời mời. Danh sách đã được cập nhật.'
+    }
+    if (error.code === 'keycloak_forbidden') {
+      return 'Dịch vụ đăng nhập từ chối thao tác này. Vui lòng báo quản trị viên.'
+    }
+    if (error.code === 'keycloak_error') {
+      return 'Dịch vụ đăng nhập gặp lỗi nên chưa thực hiện được. Thử lại sau.'
     }
     if (error.code === 'email_domain_undeliverable') {
       return 'Tên miền email không nhận được thư, vui lòng kiểm tra lại.'

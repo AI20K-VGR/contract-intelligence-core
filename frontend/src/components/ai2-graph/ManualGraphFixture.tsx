@@ -106,8 +106,10 @@ export function ManualGraphFixture() {
         page={page}
         selectedId={selectedId}
         onSelectEdge={setSelectedId}
-        onOpenCitation={(ref, node) =>
-          setAction(`Bằng chứng minh họa: ${ref} · Điều ${node}`)
+        onOpenEvidence={(edge) =>
+          setAction(
+            `Bằng chứng minh họa: ${edge.source_citation_ref} → ${edge.target_citation_ref}`,
+          )
         }
         resolveNodeLabel={resolveNodeLabel}
         resolveNodeTitle={resolveNodeTitle}

@@ -1,6 +1,21 @@
 // Màu theo loại quan hệ, dùng chung cho nhãn trong danh sách và đường nối trên
 // sơ đồ: cùng một loại thì cùng một màu ở mọi chỗ.
 
+import { relationLabel } from '../../structure/displayLabels'
+
+/**
+ * Hồ sơ chỉ có một loại quan hệ thì thanh lọc trên đã ghi tên loại: không cần
+ * lặp nhãn loại ở từng quan hệ. Chưa tải hết thì chưa biết, nên vẫn hiện.
+ */
+export function hasSeveralRelationTypes(
+  edges: ReadonlyArray<{ label: string }>,
+  hasMore: boolean,
+) {
+  return (
+    hasMore || new Set(edges.map((edge) => relationLabel(edge.label))).size > 1
+  )
+}
+
 export type RelationTone =
   'reference' | 'conflict' | 'duplicate' | 'scope' | 'add' | 'remove' | 'other'
 

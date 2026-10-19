@@ -63,9 +63,25 @@ export function progressPath(dossierId: string) {
 /** Trang tiến trình lúc tệp còn đang gửi lên, hồ sơ chưa có mã. */
 export const UPLOAD_PROGRESS_PATH = '/tien-trinh-phan-tich'
 
+/**
+ * Trang tách file lúc tệp trộn hợp đồng và phụ lục chưa tải lên: chọn các phần
+ * trước, xác nhận xong mới cắt và tải lên.
+ */
+export const SPLIT_DRAFT_PATH = '/tach-file'
+
+/**
+ * File trộn chưa xác nhận phần hợp đồng, phụ lục ("Để sau" ở trang tách file):
+ * chưa đọc trang nào, phải qua trang tách file trước, không chạy OCR thẳng.
+ */
+export function awaitsSplit(
+  dossier: Pick<Dossier, 'splitPending' | 'jobStatus'>,
+) {
+  return dossier.splitPending === true && dossier.jobStatus === 'uploaded'
+}
+
 export function dossierOpenTo(dossier: Dossier) {
   const job = dossier.jobStatus
-  if (dossier.splitPending && job === 'uploaded') return splitPath(dossier.id)
+  if (awaitsSplit(dossier)) return splitPath(dossier.id)
   // OCR xong, AI2 đang chạy ngầm: cây đã xem được, không cần màn tiến trình.
   if (job === 'extracted') return structurePath(dossier.id)
   if (

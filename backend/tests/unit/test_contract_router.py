@@ -1224,10 +1224,11 @@ class TestSearchDossierEndpoint:
 class TestDossierAccessPermissions:
     @pytest.fixture(autouse=True)
     def _known_recipients(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Every new recipient is an enabled member of the caller's tenant (no mail sent).
+        """Every new recipient is an enabled member of the caller's tenant and gets mail.
 
-        Recipient checks themselves: tests/unit/test_share_recipient_validation.py.
+        Recipient and mail checks: tests/unit/test_share_recipient_validation.py.
         """
+        from contract_intelligence.contract.interfaces.api.routers import contract_router
         from contract_intelligence.infrastructure import keycloak_admin
 
         async def resolve(
@@ -1235,12 +1236,13 @@ class TestDossierAccessPermissions:
         ) -> list[keycloak_admin.TenantMember]:
             return [
                 keycloak_admin.TenantMember(
-                    id=user_id, email="", display_name=user_id, status="active"
+                    id=user_id, email=f"{user_id}@lexis.vn", display_name=user_id, status="active"
                 )
                 for user_id, _ in recipients
             ]
 
         monkeypatch.setattr(keycloak_admin, "resolve_tenant_members", resolve)
+        monkeypatch.setattr(contract_router, "_send_share_emails", lambda **_: [])
 
     @staticmethod
     def _body(**grant: Any) -> dict[str, Any]:

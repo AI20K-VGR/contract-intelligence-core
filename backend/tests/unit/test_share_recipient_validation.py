@@ -5,6 +5,8 @@
 - GET /users/lookup finds exactly one active tenant member by email
 - GET /users/directory needs a query from an OPERATOR
 - no mail goes to reserved domains (.local, .test, ...): share, invite, resend
+- no mail, no access (v5.0.0): PUT /dossiers/{id}/access refuses a new recipient on a
+  reserved domain, and takes back the grant of one whose mail failed (``email_not_sent``)
 """
 
 from __future__ import annotations
@@ -122,7 +124,7 @@ def kc(monkeypatch: pytest.MonkeyPatch) -> _FakeAdmin:
 
 @pytest.fixture
 def mailer(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
-    send = MagicMock()
+    send = MagicMock(return_value=[])
     monkeypatch.setattr(contract_router, "_send_share_emails", send)
     monkeypatch.setattr(contract_router, "_record", AsyncMock())
     return send
@@ -194,6 +196,83 @@ async def test_valid_recipient_is_stored_with_keycloak_identity(
         }
     ]
     assert mailer.call_args.kwargs["recipients"][0]["email"] == "rita@lexis.vn"
+    assert response.json()["data"]["email_not_sent"] == []
+
+
+@pytest.mark.asyncio
+async def test_recipient_on_a_reserved_domain_is_refused(
+    client: AsyncClient, mock_svc: AsyncMock, mailer: MagicMock
+) -> None:
+    response = await _put(client, _share({"id": "u-rita"}, {"id": "u-demo"}))
+
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "share_recipient_undeliverable"
+    assert error["details"] == {"rejected_emails": ["reviewer@ci.local"]}
+    mock_svc.patch_dossier.assert_not_awaited()
+    mailer.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_existing_grant_on_a_reserved_domain_is_kept(
+    client: AsyncClient, mock_svc: AsyncMock, mailer: MagicMock
+) -> None:
+    mock_svc.get_dossier.return_value = Dossier(
+        id="dos_1",
+        name="Hồ sơ A",
+        batch_id=None,
+        has_conflicts=False,
+        metadata={
+            "created_by": "u-owner",
+            "access_scope": "shared_out",
+            "shared_with": [
+                {"id": "u-demo", "email": "reviewer@ci.local", "display_name": "Reviewer"}
+            ],
+        },
+    )
+
+    response = await _put(client, _share({"id": "u-demo", "permission": "read"}))
+
+    assert response.status_code == 200, response.text
+    assert [g["id"] for g in response.json()["data"]["shared_with"]] == ["u-demo"]
+    mailer.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_recipient_whose_mail_failed_gets_no_access(
+    client: AsyncClient, mock_svc: AsyncMock, mailer: MagicMock, kc: _FakeAdmin
+) -> None:
+    kc.users.append(_kc_user("u-sam", "sam@lexis.vn"))
+    mailer.return_value = [{"email": "rita@lexis.vn", "reason": "send_failed"}]
+
+    response = await _put(client, _share({"id": "u-rita"}, {"id": "u-sam"}))
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["scope"] == "shared_out"
+    assert [g["id"] for g in data["shared_with"]] == ["u-sam"]
+    assert data["email_not_sent"] == [{"email": "rita@lexis.vn", "reason": "send_failed"}]
+    assert mock_svc.patch_dossier.await_count == 2
+    stored = mock_svc.patch_dossier.await_args.kwargs["metadata"]
+    assert [g["id"] for g in stored["shared_with"]] == ["u-sam"]
+
+
+@pytest.mark.asyncio
+async def test_a_mailer_crash_takes_back_every_new_grant(
+    client: AsyncClient, mock_svc: AsyncMock, mailer: MagicMock
+) -> None:
+    mailer.side_effect = RuntimeError("boom")
+
+    response = await _put(client, _share({"id": "u-rita"}))
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["email_not_sent"] == [{"email": "rita@lexis.vn", "reason": "send_failed"}]
+    assert data["shared_with"] == []
+    assert data["scope"] == "mine"
+    stored = mock_svc.patch_dossier.await_args.kwargs["metadata"]
+    assert stored["shared_with"] == []
+    assert stored["access_scope"] == "mine"
 
 
 @pytest.mark.asyncio
@@ -501,7 +580,7 @@ def test_share_mail_skips_reserved_domains_without_smtp(
     smtp = MagicMock()
     monkeypatch.setattr("smtplib.SMTP", smtp)
 
-    contract_router._send_share_emails(
+    not_sent = contract_router._send_share_emails(
         dossier_name="Hồ sơ A",
         dossier_id="dos_1",
         sender_name="Owner",
@@ -513,6 +592,59 @@ def test_share_mail_skips_reserved_domains_without_smtp(
 
     smtp.assert_not_called()
     assert kc.sent == []
+    assert not_sent == [
+        {"email": "reviewer@ci.local", "reason": "undeliverable"},
+        {"email": "guest@foo.local", "reason": "undeliverable"},
+    ]
+
+
+def test_share_mail_reports_an_smtp_failure(
+    monkeypatch: pytest.MonkeyPatch, kc: _FakeAdmin
+) -> None:
+    monkeypatch.setattr("smtplib.SMTP", MagicMock(side_effect=OSError("connection refused")))
+
+    not_sent = contract_router._send_share_emails(
+        dossier_name="Hồ sơ A",
+        dossier_id="dos_1",
+        sender_name="Owner",
+        recipients=[
+            {"id": "u-rita", "email": "rita@lexis.vn", "status": "active"},
+            {"id": "u-demo", "email": "reviewer@ci.local", "status": "active"},
+        ],
+    )
+
+    assert not_sent == [
+        {"email": "reviewer@ci.local", "reason": "undeliverable"},
+        {"email": "rita@lexis.vn", "reason": "send_failed"},
+    ]
+
+
+def test_share_mail_reports_a_refused_recipient(
+    monkeypatch: pytest.MonkeyPatch, kc: _FakeAdmin
+) -> None:
+    import smtplib
+
+    smtp = MagicMock()
+    session = smtp.return_value.__enter__.return_value
+    session.send_message.side_effect = [
+        smtplib.SMTPRecipientsRefused({"rita@lexis.vn": (550, b"no such user")}),
+        None,
+    ]
+    monkeypatch.setattr("smtplib.SMTP", smtp)
+    kc.users.append(_kc_user("u-sam", "sam@lexis.vn"))
+
+    not_sent = contract_router._send_share_emails(
+        dossier_name="Hồ sơ A",
+        dossier_id="dos_1",
+        sender_name="Owner",
+        recipients=[
+            {"id": "u-rita", "email": "rita@lexis.vn", "status": "active"},
+            {"id": "u-sam", "email": "sam@lexis.vn", "status": "active"},
+        ],
+    )
+
+    assert session.send_message.call_count == 2
+    assert not_sent == [{"email": "rita@lexis.vn", "reason": "send_failed"}]
 
 
 def test_share_login_mail_skips_a_reserved_keycloak_address(kc: _FakeAdmin) -> None:

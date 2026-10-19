@@ -2,7 +2,7 @@
 
 Spec: **Contract Intelligence API** `1.1.0+sprint4-ai-integration` (DOC-05b + DOC-05c).  
 Đã chốt theo OpenAPI backend (envelope `{ data, meta }`, header `X-Backend-Version`).
-Hợp đồng FE-BE: **DOC-05b `v4.1.0`**, header response `X-API-Contract: v4.1.0`. 4 endpoint `/notifications` của `v1.6.0` vẫn là đề xuất, backend chưa có ([24](#24-thông-báo-cá-nhân-đề-xuất-be-chưa-có)).
+Hợp đồng FE-BE: **DOC-05b `v5.0.0`**, header response `X-API-Contract: v5.0.0`. 4 endpoint `/notifications` của `v1.6.0` vẫn là đề xuất, backend chưa có ([24](#24-thông-báo-cá-nhân-đề-xuất-be-chưa-có)).
 
 Từ `v2.1.0`:
 
@@ -12,6 +12,7 @@ Từ `v2.1.0`:
 - `v3.3.0`: `GET /dossiers` thêm `document_counts`, `contract_ocr`; header `Server-Timing`. Frontend chưa đọc hai trường này (màn danh sách vẫn gọi `/documents`, `/pages` từng dòng).
 - `v4.0.0` (**breaking**): chia sẻ hồ sơ chỉ với người dùng có thật trong cùng tenant ([20](#20-chia-sẻ-hồ-sơ-chỉ-đọc--được-sửa-có-hạn)); thêm `GET /users/lookup`; OPERATOR gọi `/users/directory` phải có `q` từ 3 ký tự (frontend không gọi danh bạ); `POST /users`, `/invite` trả `422 email_domain_undeliverable` ([18](#18-quản-lý-người-dùng)).
 - `v4.1.0`: đăng xuất có hiệu lực ngay. Keycloak báo phiên kết thúc qua back-channel logout (`POST /api/v1/auth/backchannel-logout`, chỉ Keycloak gọi trong mạng nội bộ, Caddy trả 404 từ Internet); access token của phiên đó nhận `401` `{"detail": "Session has ended"}` thay vì chờ hết hạn. Frontend không phải sửa ([1](#1-auth)).
+- `v5.0.0` (**breaking**): không gửi được thư thì không có quyền. `PUT /dossiers/{id}/access` trả `422 share_recipient_undeliverable` khi người nhận mới có tên miền không nhận thư (không lưu gì), và gỡ người gửi thư lỗi, trả họ trong `email_not_sent: [{email, reason}]` ([20](#20-chia-sẻ-hồ-sơ-chỉ-đọc--được-sửa-có-hạn)).
 
 Dùng file này khi bỏ mock: mở mục tương ứng màn hình / file `src/data/*`, copy endpoint + shape, nối `src/api/client.ts`.
 
@@ -1233,6 +1234,8 @@ Khi quyền hết hạn hoặc bị `disabled`:
 Người có quyền `read` gọi API sửa thì nhận **403**, `detail`: "Bạn chỉ có quyền xem hồ sơ này, hoặc quyền đã hết hạn." Các API sửa gồm: `PATCH /dossiers/{id}`, `POST /dossiers/{id}/ocr`, `/ai2/retry`, `/runs`, `/reprocess`, `/manifest/confirm`, `POST /runs/{id}/cancel`, `POST /documents/{id}/re-ocr` và `POST /review-items/{id}/actions`.
 
 **v4.0.0, kiểm tra người nhận:** người nhận mới (`id` chưa có trong `shared_with` đang lưu) phải là người dùng đang bật cùng tenant với người gọi; `id`, `email`, `display_name`, `status` lấy từ Keycloak, không lấy từ body. Có người không hợp lệ thì trả `422 share_recipient_not_found` (`details.rejected_emails`), Keycloak không trả lời thì `503 keycloak_unavailable`; cả hai trường hợp đều không lưu gì, không gửi thư. Người đã được chia sẻ gửi lại thì giữ danh tính đã lưu, chỉ đổi `permission`/`expires_at`. Thư chia sẻ tới tên miền không nhận thư bị bỏ qua, quyền vẫn lưu. FE: `accessSaveErrorMessage` (`src/api/dossiers.ts`) hiện câu không tìm thấy kèm các email bị từ chối.
+
+**v5.0.0, không gửi được thư thì không có quyền** (`scope=shared_out`, người nhận mới): email trống hoặc thuộc tên miền không nhận thư (`.local`, `.test`…) trả `422 share_recipient_undeliverable` (`details.rejected_emails`), không lưu gì. Gửi thư lỗi (Keycloak/SMTP) thì backend gỡ người đó khỏi `shared_with` sau khi gửi và trả `email_not_sent: { email: string; reason: 'undeliverable' | 'send_failed' }[]` (rỗng khi ai cũng nhận được); gỡ hết thì `scope` là `mine`. Lượt chia sẻ cũ giữ nguyên. FE: `accessSaveErrorMessage` hiện lỗi 422 trong hộp chia sẻ; `shareEmailNotice` (`src/api/dossiers.ts`) dựng cảnh báo cho `email_not_sent`, `AccessPage` hiện và không tự đóng.
 
 `DELETE /dossiers/{id}` và `PUT /dossiers/{id}/access` chỉ chủ hồ sơ hoặc ADMINISTRATOR. `PATCH /dossiers/{id}` bỏ qua `created_by`, `access_scope`, `shared_with` trong `metadata`. Muốn đổi quyền thì dùng endpoint này.
 

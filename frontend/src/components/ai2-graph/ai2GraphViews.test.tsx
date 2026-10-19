@@ -157,7 +157,7 @@ describe('AI2 graph accessible views', () => {
     const html = renderToStaticMarkup(
       <RelationList
         page={addressed}
-        onOpenCitation={() => {}}
+        onOpenEvidence={() => {}}
         resolveNodeLabel={(nodeId, documentId) => `${documentId}:${nodeId}`}
       />,
     )
@@ -333,13 +333,13 @@ describe('AI2 graph accessible views', () => {
     const empty = renderToStaticMarkup(
       <RelationList
         page={{ ...page([], null), total_count: 0 }}
-        onOpenCitation={() => {}}
+        onOpenEvidence={() => {}}
       />,
     )
     const failed = renderToStaticMarkup(
       <RelationList
         page={{ ...page([], null), total_count: 0, status: 'PERSIST_FAILED' }}
-        onOpenCitation={() => {}}
+        onOpenEvidence={() => {}}
       />,
     )
     expect(empty).toContain('Đã xác nhận: không có quan hệ')
@@ -350,13 +350,13 @@ describe('AI2 graph accessible views', () => {
     const html = renderToStaticMarkup(
       <RelationList
         page={page([edge('one')], 'cursor-2')}
-        onOpenCitation={() => {}}
+        onOpenEvidence={() => {}}
       />,
     )
     expect(html).toContain('Đã tải 1/3 quan hệ')
     expect(html).toContain('Danh sách chưa tải hết')
     expect(html).toContain('Tải thêm quan hệ')
-    expect(html).toContain('Mở bằng chứng nguồn')
+    expect(html).toContain('Mở bằng chứng')
     expect(html).toContain('cần rà soát')
   })
 

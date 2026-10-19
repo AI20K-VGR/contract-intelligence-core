@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { relationLabel, reviewStateLabel } from '../../structure/displayLabels'
 import {
   getContractGraphPage,
@@ -12,10 +13,12 @@ import { MaterialIcon } from '../icons'
 import { loadAi2GraphDataIfVisible } from './contractGraphRuntime'
 import { graphStatusLabel } from './contractGraphViewModel'
 import { AnalysisNotices, AnalysisStatus } from './ProcessingTimeline'
+import { ReviewBadge } from './RelationBadges'
 import { RelationInspector } from './RelationInspector'
 import { RelationList } from './RelationList'
 import {
   RELATION_TONES,
+  hasSeveralRelationTypes,
   relationDotClasses,
   relationFillClasses,
   relationStrokeClasses,
@@ -47,12 +50,10 @@ export function Ai2GraphDossierView({
   graphKind,
   resolveNodeLabel,
   resolveNodeTitle,
-  onOpenCitation,
+  onOpenEvidence,
+  evidenceEdgeId = null,
   onSelectRelation,
   onResolveEdgeEvidence,
-  citationRecord,
-  citationError,
-  citationLoading,
 }: {
   enabled: boolean
   dossierId: string
@@ -62,15 +63,16 @@ export function Ai2GraphDossierView({
   resolveNodeLabel: NodeLabelResolver
   /** Tên ngắn của điều khoản (số điều, tên tệp) để đặt trên nút sơ đồ. */
   resolveNodeTitle?: NodeLabelResolver
-  onOpenCitation: (citationRef: string, nodeId: string) => void
-  onSelectRelation: (edgeId: string) => void
+  /** Mở hai tài liệu của quan hệ như màn đối soát (nguồn và đích). */
+  onOpenEvidence: (edge: ContractGraphEdge) => void
+  /** Quan hệ đang mở khung bằng chứng. */
+  evidenceEdgeId?: string | null
+  /** null: bỏ chọn, khung bên phải về tổng hợp tất cả quan hệ. */
+  onSelectRelation: (edgeId: string | null) => void
   onResolveEdgeEvidence?: (edge: ContractGraphEdge) => Promise<{
     sourceText?: string
     targetText?: string
   } | null>
-  citationRecord?: Record<string, unknown> | null
-  citationError?: boolean
-  citationLoading?: boolean
 }) {
   const [data, setData] = useState<{
     page: ContractGraphPage | null
@@ -78,6 +80,8 @@ export function Ai2GraphDossierView({
     graphError: boolean
   } | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Chỗ trên thanh đầu (trái "Phân tích hoàn tất") để sơ đồ đặt nút phóng to.
+  const [toolbarSlot, setToolbarSlot] = useState<HTMLDivElement | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [retry, setRetry] = useState(0)
@@ -125,8 +129,8 @@ export function Ai2GraphDossierView({
     load(controller.signal)
       .then((result) => {
         if (cancelled || !result) return
+        // Chưa chọn quan hệ nào: khung bên phải tổng hợp cả hồ sơ.
         setData(result)
-        setSelectedId(result.page?.edges[0]?.id ?? null)
       })
       .catch(() => {
         if (!cancelled && !controller.signal.aborted) setError(true)
@@ -207,11 +211,15 @@ export function Ai2GraphDossierView({
     [dossierId, graphKind, jobId, snapshotDigest],
   )
   const selectRelation = useCallback(
-    (edgeId: string) => {
+    (edgeId: string | null) => {
       setSelectedId(edgeId)
       onSelectRelation(edgeId)
     },
     [onSelectRelation],
+  )
+  const clearRelation = useCallback(
+    () => selectRelation(null),
+    [selectRelation],
   )
 
   function changeView(next: GraphView) {
@@ -263,6 +271,10 @@ export function Ai2GraphDossierView({
   const selectedEdge =
     page?.edges.find((edge) => edge.id === selectedId) ?? null
   const showResults = !data.graphError && page !== null && !nothingFound
+  // Đang mở bằng chứng của quan hệ được chọn: ẩn sơ đồ (giữ nguyên trạng thái
+  // phóng to, điều khoản đang chọn), chỉ để khung chi tiết cạnh hai tài liệu.
+  const evidenceShown =
+    selectedEdge !== null && evidenceEdgeId === selectedEdge.id
   return (
     <section
       aria-label={
@@ -277,6 +289,9 @@ export function Ai2GraphDossierView({
           <span />
         )}
         <div className="flex items-center gap-space-sm">
+          {showResults && view === 'diagram' && !evidenceShown ? (
+            <div ref={setToolbarSlot} className="contents" />
+          ) : null}
           <AnalysisStatus trace={data.trace} graphKind={graphKind} />
           {showResults ? (
             <ViewSwitch value={view} onChange={changeView} />
@@ -293,28 +308,43 @@ export function Ai2GraphDossierView({
       ) : nothingFound ? (
         <EmptyGraph kind={graphKind} status={page.status} />
       ) : view === 'diagram' ? (
-        <div className="grid min-w-0 items-start gap-gutter lg:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
-          <ContractGraphCanvas
-            page={page}
-            filter={filter}
-            selectedId={selectedId}
-            onSelectEdge={selectRelation}
-            resolveNodeLabel={resolveVisibleNodeLabel}
-            resolveNodeTitle={resolveNodeTitle}
-          />
-          <div className="min-w-0 lg:sticky lg:top-0">
+        <div
+          className={
+            evidenceShown
+              ? 'grid min-w-0 items-start'
+              : 'grid min-w-0 items-start gap-gutter lg:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_400px]'
+          }
+        >
+          <div className={evidenceShown ? 'hidden' : 'contents'}>
+            <ContractGraphCanvas
+              page={page}
+              filter={filter}
+              selectedId={selectedId}
+              onSelectEdge={selectRelation}
+              onClearSelection={clearRelation}
+              toolbarSlot={evidenceShown ? null : toolbarSlot}
+              resolveNodeLabel={resolveVisibleNodeLabel}
+              resolveNodeTitle={resolveNodeTitle}
+            />
+          </div>
+          <div className="min-w-0 lg:sticky lg:top-0" data-graph-keep-pin>
             {selectedEdge ? (
               <RelationInspector
                 edge={selectedEdge}
-                onOpenCitation={onOpenCitation}
+                onBack={clearRelation}
+                showLabel={hasSeveralRelationTypes(page.edges, page.has_more)}
+                onOpenEvidence={onOpenEvidence}
+                evidenceOpen={evidenceEdgeId === selectedEdge.id}
                 resolveNodeLabel={resolveVisibleNodeLabel}
                 resolveNodeTitle={resolveNodeTitle}
-                citationRecord={citationRecord}
-                citationError={citationError}
-                citationLoading={citationLoading}
               />
             ) : (
-              <InspectorPlaceholder />
+              <RelationOverview
+                page={page}
+                filter={filter}
+                resolveNodeTitle={resolveNodeTitle}
+                onSelect={selectRelation}
+              />
             )}
           </div>
         </div>
@@ -324,14 +354,12 @@ export function Ai2GraphDossierView({
           page={page}
           filter={filter}
           onLoadPage={loadNextPage}
-          onOpenCitation={onOpenCitation}
+          onOpenEvidence={onOpenEvidence}
+          evidenceEdgeId={evidenceEdgeId}
           onResolveEdgeEvidence={resolveAndStoreEdgeEvidence}
           onSelectEdge={selectRelation}
           resolveNodeLabel={resolveVisibleNodeLabel}
           resolveNodeTitle={resolveNodeTitle}
-          citationRecord={citationRecord}
-          citationError={citationError}
-          citationLoading={citationLoading}
           selectedId={selectedId}
         />
       )}
@@ -358,6 +386,22 @@ function RelationFilter({
   }
   // Còn trang chưa tải thì số theo loại chưa đúng, chỉ hiện tổng.
   const exact = !page.has_more
+  // Chỉ một loại quan hệ thì "Tất cả" và loại đó là một: không cần lọc, chỉ
+  // giữ chú thích màu.
+  const only = exact && groups.size === 1 ? [...groups][0] : null
+  if (only) {
+    const [label, group] = only
+    return (
+      <span className="inline-flex h-8 items-center gap-space-xs rounded-full bg-surface-container px-space-md font-body-sm text-body-sm font-semibold text-on-surface-variant">
+        <span
+          aria-hidden
+          className={`h-2 w-2 rounded-full ${relationDotClasses[group.tone]}`}
+        />
+        {label}
+        <span className="tabular-nums opacity-70">{page.total_count}</span>
+      </span>
+    )
+  }
   const chip = (active: boolean) =>
     `inline-flex h-8 items-center gap-space-xs rounded-full px-space-md font-body-sm text-body-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 ${
       active
@@ -445,12 +489,75 @@ function ViewSwitch({
   )
 }
 
-function InspectorPlaceholder() {
+/**
+ * Khung bên phải khi chưa chọn quan hệ: rà soát của tất cả quan hệ đang hiện
+ * (theo bộ lọc), kèm danh sách quan hệ còn cần rà soát để bấm mở.
+ */
+function RelationOverview({
+  page,
+  filter,
+  resolveNodeTitle,
+  onSelect,
+}: {
+  page: ContractGraphPage
+  filter: string | null
+  resolveNodeTitle?: NodeLabelResolver
+  onSelect: (edgeId: string) => void
+}) {
+  const edges = filter
+    ? page.edges.filter((edge) => relationLabel(edge.label) === filter)
+    : page.edges
+  const pending = edges.filter((edge) => edge.review_state === 'NEEDS_REVIEW')
+  const showLabel = hasSeveralRelationTypes(page.edges, page.has_more)
+  const endpoint = (nodeId: string, documentId: string | null) =>
+    resolveNodeTitle?.(nodeId, documentId).split(' · ')[0] || 'Điều khoản'
   return (
-    <div className="flex flex-col items-center gap-space-xs rounded-lg bg-surface-container-low px-space-lg py-space-xl text-center font-body-sm text-body-sm text-on-surface-variant">
-      <MaterialIcon name="ads_click" className="text-[28px] text-outline" />
-      Chọn một đường nối trên sơ đồ để xem hai điều khoản liên quan.
-    </div>
+    <aside
+      aria-label="Tổng hợp rà soát quan hệ"
+      className="flex min-w-0 flex-col gap-space-sm rounded-lg bg-surface-container-low p-space-md"
+    >
+      <span className="inline-flex items-center gap-1">
+        <ReviewBadge state="NEEDS_REVIEW" />
+        <span className="font-body-sm text-body-sm font-semibold tabular-nums text-on-surface">
+          {pending.length}
+        </span>
+      </span>
+      {pending.length > 0 ? (
+        <>
+          <ul className="flex max-h-[50vh] flex-col gap-1 overflow-auto">
+            {pending.map((edge) => (
+              <li key={edge.id}>
+                <button
+                  className="flex w-full items-center gap-space-xs rounded-md bg-white px-space-sm py-1.5 text-left font-body-sm text-body-sm text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] hover:bg-brand-50 hover:text-primary"
+                  type="button"
+                  onClick={() => onSelect(edge.id)}
+                >
+                  <span
+                    aria-hidden
+                    className={`h-2 w-2 shrink-0 rounded-full ${relationDotClasses[relationTone(edge.label)]}`}
+                  />
+                  <span className="min-w-0 flex-1 truncate">
+                    {endpoint(edge.source_node_id, edge.source_document_id)}
+                    {edge.directed ? ' → ' : ' ↔ '}
+                    {endpoint(edge.target_node_id, edge.target_document_id)}
+                  </span>
+                  {showLabel ? (
+                    <span className="shrink-0 font-label-sm text-label-sm text-on-surface-variant">
+                      {relationLabel(edge.label)}
+                    </span>
+                  ) : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="font-body-sm text-body-sm text-on-surface-variant">
+          Không còn quan hệ nào cần rà soát. Chọn một đường nối trên sơ đồ để
+          xem chi tiết.
+        </p>
+      )}
+    </aside>
   )
 }
 
@@ -515,6 +622,10 @@ function GraphLoadError({
 const ZOOM_BUTTON =
   'inline-flex h-8 w-8 items-center justify-center rounded-full text-on-surface hover:bg-surface-container-high focus-visible:outline focus-visible:outline-2'
 
+/** Bấm vào những chỗ này thì sơ đồ giữ nguyên điều khoản đang chọn. */
+const KEEP_PIN_SELECTOR =
+  '[data-graph-keep-pin], button, a, input, select, textarea, label, summary, [role="button"], [role="dialog"], [contenteditable="true"]'
+
 const MIN_ZOOM = 0.5
 const MAX_ZOOM = 2.5
 
@@ -543,6 +654,8 @@ export function ContractGraphCanvas({
   page,
   selectedId,
   onSelectEdge,
+  onClearSelection,
+  toolbarSlot = null,
   filter = null,
   resolveNodeLabel = (nodeId) => `Mã điều khoản ${nodeId}`,
   resolveNodeTitle,
@@ -550,6 +663,10 @@ export function ContractGraphCanvas({
   page: ContractGraphPage
   selectedId: string | null
   onSelectEdge: (edgeId: string) => void
+  /** Bấm ra chỗ trống trong sơ đồ hoặc Esc: bỏ chọn quan hệ. */
+  onClearSelection?: () => void
+  /** Có thì nút phóng to nằm ở đây (thanh đầu của khung đồ thị), không thì nằm trên sơ đồ. */
+  toolbarSlot?: HTMLElement | null
   /** Chỉ vẽ loại quan hệ này (tên hiển thị); null là vẽ tất cả. */
   filter?: string | null
   resolveNodeLabel?: NodeLabelResolver
@@ -558,10 +675,44 @@ export function ContractGraphCanvas({
   const [zoom, setZoom] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [focus, setFocus] = useState<string | null>(null)
+  // Điều khoản hoặc đường nối vừa bấm: giữ làm nổi cho tới khi bấm ra chỗ trống.
+  const [pinState, setPinned] = useState<
+    { kind: 'node'; key: string } | { kind: 'edge'; id: string } | null
+  >(null)
+  // Bỏ chọn từ khung chi tiết (nút "Tất cả quan hệ") thì cũng thôi làm nổi.
+  // Chọn quan hệ từ bên ngoài sơ đồ (danh sách ở khung chi tiết…) thì làm nổi
+  // quan hệ đó như khi bấm vào đường nối; đang ghim điều khoản là một đầu của
+  // nó thì giữ điều khoản đó.
+  const selectedData = page.edges.find((edge) => edge.id === selectedId)
+  const pinCovers =
+    selectedData !== undefined &&
+    pinState !== null &&
+    (pinState.kind === 'edge'
+      ? pinState.id === selectedData.id
+      : pinState.key ===
+          nodeKey(
+            selectedData.source_node_id,
+            selectedData.source_document_id,
+            `${selectedData.id}:source`,
+          ) ||
+        pinState.key ===
+          nodeKey(
+            selectedData.target_node_id,
+            selectedData.target_document_id,
+            `${selectedData.id}:target`,
+          ))
+  const pinned = !selectedData
+    ? null
+    : pinCovers
+      ? pinState
+      : ({ kind: 'edge', id: selectedData.id } as const)
+  const clearSelectionRef = useRef(onClearSelection)
+  clearSelectionRef.current = onClearSelection
   const drag = useRef<{
     pointerId: number
     x: number
     y: number
+    moved: boolean
   } | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
@@ -578,6 +729,26 @@ export function ContractGraphCanvas({
     svg.addEventListener('wheel', onWheel, { passive: false })
     return () => svg.removeEventListener('wheel', onWheel)
   }, [page.edges.length])
+
+  // Trong sơ đồ ít chỗ trống, nên bấm ra chỗ trống ngoài sơ đồ cũng bỏ chọn.
+  // Bấm vào nút, liên kết, ô nhập hay khung đang xem chi tiết thì giữ.
+  const hasPin = pinned !== null
+  useEffect(() => {
+    if (!hasPin) return
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      // Sơ đồ đang ẩn (đang xem bằng chứng) thì không bỏ chọn.
+      if (!svgRef.current || svgRef.current.getClientRects().length === 0)
+        return
+      if (svgRef.current.contains(target)) return
+      if (target.closest(KEEP_PIN_SELECTOR)) return
+      setPinned(null)
+      clearSelectionRef.current?.()
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [hasPin])
 
   const edges = filter
     ? page.edges.filter((edge) => relationLabel(edge.label) === filter)
@@ -607,15 +778,36 @@ export function ContractGraphCanvas({
     Math.max(1, columnSize('left'), columnSize('right')) * ROW -
     (ROW - NODE_H)
   const selected = rows.find((row) => row.edge.id === selectedId)
-  // Đang trỏ vào một đường nối hay một điều khoản thì làm mờ phần không liên quan.
-  const focusedRows = focus
-    ? rows.filter(
-        (row) =>
-          row.edge.id === focus ||
-          row.source.key === focus ||
-          row.target.key === focus,
-      )
-    : null
+  // Đã bấm chọn thì hiện mọi quan hệ của điều khoản được bấm (đường nối: của cả
+  // hai đầu), làm mờ phần còn lại. Chưa chọn gì thì trỏ chuột vào đâu làm nổi
+  // đó. Bộ lọc làm mất mục đang chọn thì coi như chưa chọn.
+  const pinnedEdge =
+    pinned?.kind === 'edge'
+      ? rows.find((row) => row.edge.id === pinned.id)
+      : undefined
+  const pinnedKeys =
+    pinned?.kind === 'node'
+      ? nodes.has(pinned.key)
+        ? [pinned.key]
+        : []
+      : pinnedEdge
+        ? [pinnedEdge.source.key, pinnedEdge.target.key]
+        : []
+  const focusedRows =
+    pinnedKeys.length > 0
+      ? rows.filter(
+          (row) =>
+            pinnedKeys.includes(row.source.key) ||
+            pinnedKeys.includes(row.target.key),
+        )
+      : focus
+        ? rows.filter(
+            (row) =>
+              row.edge.id === focus ||
+              row.source.key === focus ||
+              row.target.key === focus,
+          )
+        : null
   const isDimmedEdge = (edgeId: string) =>
     focusedRows !== null && !focusedRows.some((row) => row.edge.id === edgeId)
   const isDimmedNode = (key: string) =>
@@ -624,15 +816,30 @@ export function ContractGraphCanvas({
   const isSelectedNode = (key: string) =>
     selected !== undefined &&
     (selected.source.key === key || selected.target.key === key)
-  // Đường được chọn vẽ sau cùng để nằm trên các đường khác.
-  const ordered = [
-    ...rows.filter((row) => row.edge.id !== selectedId),
-    ...rows.filter((row) => row.edge.id === selectedId),
-  ]
+  const selectEdge = (edgeId: string) => {
+    setPinned({ kind: 'edge', id: edgeId })
+    onSelectEdge(edgeId)
+  }
+  // Đường mờ vẽ trước, đường đang hiện rồi đến đường được chọn vẽ sau để nằm
+  // trên các đường khác.
+  const rank = (row: (typeof rows)[number]) =>
+    row.edge.id === selectedId ? 2 : isDimmedEdge(row.edge.id) ? 0 : 1
+  const ordered = [...rows].sort((a, b) => rank(a) - rank(b))
 
   if (page.edges.length === 0) {
     return <EmptyGraph kind={page.graph_kind} status={page.status} />
   }
+
+  const zoomControls = (
+    <ZoomControls
+      zoom={zoom}
+      setZoom={setZoom}
+      onReset={() => {
+        setZoom(1)
+        setOffset({ x: 0, y: 0 })
+      }}
+    />
+  )
 
   return (
     <div className="flex min-w-0 flex-col gap-space-sm">
@@ -641,17 +848,10 @@ export function ContractGraphCanvas({
           {page.edges.length < page.total_count
             ? `Sơ đồ đang vẽ ${page.edges.length}/${page.total_count} quan hệ, xem đủ ở kiểu Danh sách. `
             : ''}
-          Kéo để di chuyển · Ctrl + cuộn để phóng to · Bấm vào đường nối để xem
-          chi tiết
+          Kéo để di chuyển · Ctrl + cuộn để phóng to · Bấm vào điều khoản hoặc
+          đường nối để xem các quan hệ, bấm ra chỗ trống hoặc Esc để bỏ chọn
         </p>
-        <ZoomControls
-          zoom={zoom}
-          setZoom={setZoom}
-          onReset={() => {
-            setZoom(1)
-            setOffset({ x: 0, y: 0 })
-          }}
-        />
+        {toolbarSlot ? createPortal(zoomControls, toolbarSlot) : zoomControls}
       </div>
       <div className="min-w-0 overflow-hidden rounded-lg bg-surface-container-low">
         <div className="max-h-[68vh] min-w-0 overflow-auto">
@@ -670,6 +870,7 @@ export function ContractGraphCanvas({
                 pointerId: event.pointerId,
                 x: event.clientX,
                 y: event.clientY,
+                moved: false,
               }
               event.currentTarget.setPointerCapture(event.pointerId)
             }}
@@ -680,6 +881,7 @@ export function ContractGraphCanvas({
               const scaleY = height / Math.max(bounds.height, 1) / zoom
               const deltaX = (event.clientX - drag.current.x) * scaleX
               const deltaY = (event.clientY - drag.current.y) * scaleY
+              if (deltaX !== 0 || deltaY !== 0) drag.current.moved = true
               drag.current.x = event.clientX
               drag.current.y = event.clientY
               setOffset((current) => ({
@@ -689,6 +891,11 @@ export function ContractGraphCanvas({
             }}
             onPointerUp={(event) => {
               if (drag.current?.pointerId !== event.pointerId) return
+              // Bấm (không kéo) vào chỗ trống: bỏ chọn, hiện lại cả sơ đồ.
+              if (!drag.current.moved) {
+                setPinned(null)
+                onClearSelection?.()
+              }
               drag.current = null
               event.currentTarget.releasePointerCapture(event.pointerId)
             }}
@@ -696,6 +903,10 @@ export function ContractGraphCanvas({
               drag.current = null
             }}
             onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                setPinned(null)
+                onClearSelection?.()
+              }
               if (event.target !== event.currentTarget) return
               if (event.key === '+' || event.key === '=')
                 setZoom((value) => clampZoom(value + 0.1))
@@ -743,12 +954,12 @@ export function ContractGraphCanvas({
                     aria-pressed={isSelected}
                     className="cursor-pointer outline-none transition-opacity focus-visible:outline focus-visible:outline-2"
                     data-graph-hit="true"
-                    opacity={isDimmedEdge(edge.id) ? 0.15 : 1}
-                    onClick={() => onSelectEdge(edge.id)}
+                    opacity={isDimmedEdge(edge.id) ? 0.08 : 1}
+                    onClick={() => selectEdge(edge.id)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault()
-                        onSelectEdge(edge.id)
+                        selectEdge(edge.id)
                       }
                     }}
                     onPointerEnter={() => setFocus(edge.id)}
@@ -784,7 +995,9 @@ export function ContractGraphCanvas({
                           : undefined
                       }
                       className={relationStrokeClasses[tone]}
-                      strokeWidth={isSelected ? 3 : 1.75}
+                      strokeWidth={
+                        isSelected ? 3 : pinnedKeys.length > 0 ? 2.25 : 1.75
+                      }
                     />
                     <rect
                       className={
@@ -813,7 +1026,8 @@ export function ContractGraphCanvas({
                 )
               })}
               {[...nodes.values()].map((node) => {
-                const highlighted = isSelectedNode(node.key)
+                const highlighted =
+                  isSelectedNode(node.key) || pinnedKeys.includes(node.key)
                 const firstEdge = rows.find(
                   (row) =>
                     row.source.key === node.key || row.target.key === node.key,
@@ -826,8 +1040,17 @@ export function ContractGraphCanvas({
                     aria-label={node.label}
                     className="cursor-pointer transition-opacity"
                     data-graph-hit="true"
-                    opacity={isDimmedNode(node.key) ? 0.35 : 1}
-                    onClick={() => firstEdge && onSelectEdge(firstEdge)}
+                    opacity={isDimmedNode(node.key) ? 0.25 : 1}
+                    onClick={() => {
+                      setPinned({ kind: 'node', key: node.key })
+                      // Khung chi tiết đang xem quan hệ khác của điều khoản này
+                      // thì giữ nguyên, không thì mở quan hệ đầu tiên.
+                      const keepSelected =
+                        selected &&
+                        (selected.source.key === node.key ||
+                          selected.target.key === node.key)
+                      if (!keepSelected && firstEdge) onSelectEdge(firstEdge)
+                    }}
                     onPointerEnter={() => setFocus(node.key)}
                     onPointerLeave={() => setFocus(null)}
                   >
