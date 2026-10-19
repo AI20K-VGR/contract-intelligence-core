@@ -1,8 +1,9 @@
-"""Langfuse cost tracking for AI2 questions (``/query``).
+"""Cost tracking for AI2 questions (``/query``): Langfuse per question, Prometheus totals.
 
 One question is one Langfuse trace (``ai2.query``); every LLM and embedding call
 it makes is a child generation with token usage and USD cost, so Langfuse sums
-the cost per question, per dossier (session) and per user.
+the cost per question, per dossier (session) and per user. The same usage and
+cost also feed ``app.llm.metrics`` for Grafana; either side works without the other.
 
 Calls are recorded only inside :func:`query_trace`: processing jobs make hundreds
 of calls per dossier and are not traced here. The privacy rule is AI1's
@@ -16,10 +17,12 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, Iterator
 
+from app.llm.metrics import metrics_enabled, record_model_call, record_query
 from contract_ocr.infrastructure.observability import flush_langfuse, get_langfuse
 
 try:
@@ -99,6 +102,29 @@ def cost_details(model: str | None, usage: dict[str, int]) -> dict[str, float] |
     return {**costs, "total": sum(costs.values())} if costs else None
 
 
+class QueryTrace:
+    """The question being answered: its Langfuse span (``None`` when Langfuse is off)."""
+
+    def __init__(self) -> None:
+        self.span: Any | None = None
+        self.state: str | None = None
+
+    def done(self, result: dict[str, Any]) -> None:
+        """Record the answer's state (as ``/query`` reports it) and its counts."""
+
+        state = result.get("review_state") or result.get("state") or "INSUFFICIENT_EVIDENCE"
+        self.state = "ANSWERED" if state == "PASS" else str(state)
+        if self.span is not None:
+            _update(
+                self.span,
+                output={
+                    "state": self.state,
+                    "used_llm": bool(result.get("used_llm", False)),
+                    "citations": len(result.get("citations") or []),
+                },
+            )
+
+
 @contextmanager
 def query_trace(
     *,
@@ -107,31 +133,61 @@ def query_trace(
     actor_id: str | None,
     task_type: str | None,
     query_chars: int,
-) -> Iterator[Any | None]:
-    """One Langfuse trace per question; a no-op when Langfuse is not configured."""
+) -> Iterator[QueryTrace]:
+    """One Langfuse trace and one Prometheus count per question; no-op when both are off."""
 
-    client = get_langfuse()
-    if client is None or propagate_attributes is None:
-        yield None
+    trace = QueryTrace()
+    client = get_langfuse() if propagate_attributes is not None else None
+    metered = metrics_enabled()
+    if client is None and not metered:
+        yield trace
         return
     marker = _IN_QUERY.set(True)
+    started = time.perf_counter()
     try:
-        with client.start_as_current_observation(
-            name="ai2.query",
-            as_type="span",
-            input={"query_chars": query_chars, "task_type": task_type},
-            metadata={"tenant_id": tenant_id, "dossier_id": dossier_id},
-        ) as span:
-            with propagate_attributes(
-                trace_name="ai2.query",
-                session_id=dossier_id,
-                user_id=actor_id or None,
-                tags=["ai2", "query"],
+        if client is None:
+            yield trace
+        else:
+            with client.start_as_current_observation(
+                name="ai2.query",
+                as_type="span",
+                input={"query_chars": query_chars, "task_type": task_type},
                 metadata={"tenant_id": tenant_id, "dossier_id": dossier_id},
-            ):
-                yield span
+            ) as span:
+                trace.span = span
+                with propagate_attributes(
+                    trace_name="ai2.query",
+                    session_id=dossier_id,
+                    user_id=actor_id or None,
+                    tags=["ai2", "query"],
+                    metadata={"tenant_id": tenant_id, "dossier_id": dossier_id},
+                ):
+                    yield trace
     finally:
         _IN_QUERY.reset(marker)
+        record_query(trace.state or "FAILED", time.perf_counter() - started)
+
+
+class _Generation:
+    """A question's call: the same usage and cost go to Prometheus and to Langfuse."""
+
+    __slots__ = ("_inner", "_kind", "_model")
+
+    def __init__(self, inner: Any | None, kind: str, model: str | None) -> None:
+        self._inner = inner
+        self._kind = kind
+        self._model = model
+
+    def update(self, **fields: Any) -> None:
+        record_model_call(
+            self._kind,
+            fields.get("model") or self._model,
+            fields.get("usage_details"),
+            fields.get("cost_details"),
+            failed=fields.get("level") == "ERROR",
+        )
+        if self._inner is not None:
+            self._inner.update(**fields)
 
 
 @contextmanager
@@ -142,16 +198,20 @@ def llm_generation(
     as_type: str = "generation",
     metadata: dict[str, Any] | None = None,
 ) -> Iterator[Any | None]:
-    """A child generation of the current question, or ``None`` outside one."""
+    """A child call of the current question, or ``None`` outside one."""
 
-    client = get_langfuse() if _IN_QUERY.get() else None
-    if client is None:
+    if not _IN_QUERY.get():
         yield None
+        return
+    kind = "embedding" if as_type == "embedding" else "chat"
+    client = get_langfuse()
+    if client is None:
+        yield _Generation(None, kind, model) if metrics_enabled() else None
         return
     with client.start_as_current_observation(
         name=name, as_type=as_type, model=model, metadata=metadata
     ) as generation:
-        yield generation
+        yield _Generation(generation, kind, model)
 
 
 def record_completion(generation: Any | None, trace: dict[str, Any]) -> None:
@@ -233,6 +293,7 @@ def _update(generation: Any, **fields: Any) -> None:
 
 
 __all__ = [
+    "QueryTrace",
     "cost_details",
     "flush_langfuse",
     "llm_generation",

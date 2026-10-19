@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 
 import pytest
+from prometheus_client import REGISTRY
 
 import app.llm.observability as obs
 from app.llm.client import DeadlineLLM, NineRouterClient
@@ -41,6 +42,7 @@ def langfuse(monkeypatch):
     monkeypatch.setattr(obs, "get_langfuse", lambda: fake)
     monkeypatch.setattr(obs, "propagate_attributes", lambda **_kw: _nullcontext())
     monkeypatch.delenv("AI2_LLM_PRICES_JSON", raising=False)
+    monkeypatch.delenv("AI2_METRICS_PORT", raising=False)
     return fake
 
 
@@ -189,8 +191,64 @@ def test_question_embedding_cost(langfuse):
     assert update["cost_details"]["total"] == pytest.approx(12 * 0.02 / 1e6)
 
 
-def test_unconfigured_langfuse_is_a_no_op(monkeypatch):
+def test_unconfigured_langfuse_and_metrics_is_a_no_op(monkeypatch):
     monkeypatch.setattr(obs, "get_langfuse", lambda: None)
-    with _query() as span:
-        assert span is None
+    monkeypatch.delenv("AI2_METRICS_PORT", raising=False)
+    with _query() as question:
+        assert question.span is None
         assert _llm().complete_json("system json", "user") == {"answer": "x"}
+        question.done({"state": "PASS"})
+
+
+def _sample(name: str, **labels: str) -> float:
+    return REGISTRY.get_sample_value(name, labels) or 0.0
+
+
+def test_grafana_metrics_count_a_question_without_langfuse(monkeypatch):
+    """Prometheus (Grafana) gets the question's cost even with Langfuse off."""
+
+    monkeypatch.setattr(obs, "get_langfuse", lambda: None)
+    monkeypatch.setenv("AI2_METRICS_PORT", "9109")  # no server is started here
+    chat = {"kind": "chat", "model": "gpt-5.5-2026-09-01"}
+    before = {
+        "answered": _sample("ai2_query_requests_total", state="ANSWERED"),
+        "calls": _sample("ai2_query_model_calls_total", **chat, status="ok"),
+        "output": _sample("ai2_query_tokens_total", **chat, type="output"),
+        "cached": _sample("ai2_query_tokens_total", **chat, type="input_cached"),
+        "cost": _sample("ai2_query_cost_usd_total", **chat),
+        "seconds": _sample("ai2_query_duration_seconds_count"),
+    }
+    with _query() as question:
+        _llm().complete_json("system json", "user")
+        question.done({"review_state": "PASS", "citations": []})
+
+    assert _sample("ai2_query_requests_total", state="ANSWERED") - before["answered"] == 1
+    assert _sample("ai2_query_model_calls_total", **chat, status="ok") - before["calls"] == 1
+    assert _sample("ai2_query_tokens_total", **chat, type="output") - before["output"] == 400
+    assert _sample("ai2_query_tokens_total", **chat, type="input_cached") - before["cached"] == 200
+    assert _sample("ai2_query_cost_usd_total", **chat) - before["cost"] == pytest.approx(
+        (1000 * 5 + 200 * 0.5 + 400 * 30) / 1e6
+    )
+    assert _sample("ai2_query_duration_seconds_count") - before["seconds"] == 1
+
+
+def test_grafana_metrics_count_failed_calls_and_questions(monkeypatch):
+    monkeypatch.setattr(obs, "get_langfuse", lambda: None)
+    monkeypatch.setenv("AI2_METRICS_PORT", "9109")
+    errors = _sample("ai2_query_model_calls_total", kind="chat", model="gpt-5.5", status="error")
+    failed = _sample("ai2_query_requests_total", state="FAILED")
+    with pytest.raises(RuntimeError), _query():
+        _llm(error=RuntimeError("provider down")).complete_json("system json", "user")
+    assert (
+        _sample("ai2_query_model_calls_total", kind="chat", model="gpt-5.5", status="error")
+        - errors
+        == 1
+    )
+    assert _sample("ai2_query_requests_total", state="FAILED") - failed == 1
+
+
+def test_question_trace_output_is_the_answer_state(langfuse):
+    with _query() as question:
+        question.done({"state": "PASS", "used_llm": True, "citations": [{}, {}]})
+    (root,) = langfuse.observations
+    assert root["updates"] == [{"output": {"state": "ANSWERED", "used_llm": True, "citations": 2}}]
