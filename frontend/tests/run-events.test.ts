@@ -37,14 +37,38 @@ describe('OCR and AI2 steps', () => {
   })
 
   it('counts finished steps and the done share of the running one', () => {
-    // 2 bước xong + nửa bước S6 trên 6 bước AI2 = 41%.
+    // S4 (2) + S5 (2) xong + nửa S6 (6) = 7%.
     expect(
       ai2ProgressPercent({
         S4: runStep('S4', 'succeeded'),
         S5: runStep('S5', 'succeeded'),
         S6: runStep('S6', 'running', { done: 5, total: 10, unit: 'clause' }),
       }),
-    ).toBe(41)
+    ).toBe(7)
+  })
+
+  it('weights steps by run time, so the quick first steps stay small', () => {
+    // Hồ sơ dos_01M59JJJ...: S4–S6 xong cùng lúc với mốc S7 đầu tiên. Chia đều
+    // thì hiện 51%; theo trọng số chỉ 10% + 9/143 của S7 (40) = 12%.
+    const quickSteps = {
+      S4: runStep('S4', 'succeeded'),
+      S5: runStep('S5', 'succeeded'),
+      S6: runStep('S6', 'succeeded'),
+    }
+    expect(
+      ai2ProgressPercent({
+        ...quickSteps,
+        S7: runStep('S7', 'running', { done: 9, total: 143, unit: 'clause' }),
+      }),
+    ).toBe(12)
+    // S7 xong, S9 đang chạy nửa chừng: 10 + 40 + 22.5.
+    expect(
+      ai2ProgressPercent({
+        ...quickSteps,
+        S7: runStep('S7', 'succeeded'),
+        S9: runStep('S9', 'running', { done: 50, total: 100, unit: 'pair' }),
+      }),
+    ).toBe(72)
   })
 
   it('never gives NaN or more than a step for bad progress (PR #122 review)', () => {
@@ -53,12 +77,12 @@ describe('OCR and AI2 steps', () => {
         S4: runStep('S4', 'running', { done: 0, total: 0, unit: 'clause' }),
       }),
     ).toBe(0)
-    // done vượt total: tính tối đa một bước (1/6 = 16%).
+    // done vượt total: tính tối đa trọn bước S7 (40%).
     expect(
       ai2ProgressPercent({
-        S4: runStep('S4', 'running', { done: 12, total: 10, unit: 'clause' }),
+        S7: runStep('S7', 'running', { done: 12, total: 10, unit: 'clause' }),
       }),
-    ).toBe(16)
+    ).toBe(40)
   })
 
   it('stays under 100 until the run itself is finished', () => {
