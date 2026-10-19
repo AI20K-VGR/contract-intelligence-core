@@ -231,7 +231,7 @@ Mỗi lần cập nhật báo trước trong nhóm. Không cập nhật trong l�
 - Log ở `docker compose … logs`.
 - Backup 02:00 mỗi đêm.
 
-**Chi phí câu hỏi AI2 (`/query`)** (DEC-BE-AI2-01 D6, PR #135):
+**Chi phí và tốc độ AI2** (DEC-BE-AI2-01 D6, PR #135 và #139):
 
 - **Grafana:** `/admin/monitoring` → tab **"AI2: chi phí & tốc độ"** (dashboard `ai2-cost`, tách khỏi `ci-overview` của hệ thống và AI1). Hai phần:
   - **Hỏi đáp** (`ai2_query_*`): số câu hỏi, tổng chi phí, chi phí mỗi câu, thời gian trả lời P50/P95, số lần gọi LLM mỗi câu, chi phí và token theo model.
@@ -242,7 +242,7 @@ Mỗi lần cập nhật báo trước trong nhóm. Không cập nhật trong l�
   2. `sudo deploy/deploy.sh`.
   3. Hỏi một câu trong app, rồi lọc `name = ai2.query` trên Langfuse. Session là hồ sơ, user là người hỏi; mỗi lời gọi LLM/embedding có token và chi phí USD.
 - Model có giá chưa ghi trong code thì đặt `AI2_LLM_PRICES_JSON` (USD mỗi 1M token), ví dụ `{"gpt-5.6": {"input": 2, "output": 12}}`.
-- Chưa đo chi phí xử lý hồ sơ (`/jobs/idp`).
+- Chi phí và thời gian job tìm conflict (`/jobs/idp`) chỉ có ở Grafana (`ai2_idp_*`), không gửi Langfuse. Ở `AI2_JOB_ISOLATION=thread`, câu hỏi chạy cùng lúc với job có thể bị tính vào chi phí job; production dùng `process` nên số đúng theo job.
 
 **Người chịu trách nhiệm:**
 
