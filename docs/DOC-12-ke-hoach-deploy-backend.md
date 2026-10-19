@@ -67,6 +67,7 @@ flowchart LR
 |---|---|---|
 | Caddy | **Có: 80, 443** | Tự lấy và gia hạn chứng chỉ Let's Encrypt |
 | backend | Qua Caddy: `https://api-<ip>.sslip.io` | API cho frontend, `/docs`, SSE tiến độ |
+| backend (cùng origin với app) | Qua Caddy: `https://$APP_HOST/api/*` và `/grafana/*` (`deploy/frontend.caddy`) | Đường frontend dùng trên bản online (`VITE_API_BASE_URL=https://$APP_HOST`). Cùng origin nên trình duyệt không gửi CORS preflight trước mỗi request có `Authorization`: mỗi request bớt một lượt đi-về tới Cloudflare (≈0,5 s từ Việt Nam ở gói Free, đo 19/10). `/api/v1/auth/backchannel-logout` vẫn trả 404, CSP chỉ áp cho trang SPA. Host API vẫn mở cho máy dev và script |
 | Keycloak | Qua Caddy: `https://auth-<ip>.sslip.io` | Trang đăng nhập, OIDC. **`/admin` trả 404**, quản trị qua SSH tunnel |
 | backend-worker, ai1-worker, ai2-service | Không | AI1 ↔ backend qua Kafka. Backend → AI2 qua HTTP nội bộ có chữ ký HMAC |
 | backend-db, keycloak-db, Kafka, MinIO, mailpit | Không | Chỉ trong mạng Docker |
@@ -112,6 +113,7 @@ Tổng này là lý do đặt mức tối thiểu 8 GB. Số đo thật sẽ ghi
 | Secret client backend là giá trị dev | Được thay bằng secret sinh ngẫu nhiên |
 | Dò mật khẩu trên trang đăng nhập công khai | Bật chống dò: khoá tạm sau 5 lần sai, tăng dần tới 15 phút |
 | Trang quản trị Keycloak | `/admin` bị chặn ở Caddy. Chỉ vào qua SSH tunnel |
+| Grafana cùng origin với SPA (#140) | Cookie `/grafana` theo host nhận request, nên khi API về `APP_HOST` thì iframe Grafana cũng phải về theo. Hệ quả: Grafana được phục vụ **không có CSP**, và `sandbox="allow-scripts allow-same-origin"` của iframe (`MonitoringPage.tsx`) **không còn tác dụng khi cùng origin**: script trong Grafana tự gỡ được sandbox và chạm `window.parent`, tức trang SPA và access token trong bộ nhớ tab (#133). Trước đây Grafana ở `api.<domain>` nên bị cách ly. Lead chấp nhận (review #140) vì rủi ro thấp, với biện pháp: chỉ `ADMINISTRATOR` vào được `/grafana` (backend kiểm role trước khi proxy, Caddy bỏ header `X-Webauth-*` của client); vai trò Grafana luôn là `Viewer` và proxy chỉ cho `GET/HEAD/POST` (`grafana_proxy.py`); dashboard dựng từ repo (`infra/monitoring/grafana/dashboards`, `allowUiUpdates: false`), không tạo hay sửa được trên UI; giữ image Grafana cập nhật bản vá. Nếu cần cách ly lại: đưa Grafana về một origin riêng (ví dụ `grafana.<domain>`) và để iframe lấy cookie ở đó |
 | Endpoint nội bộ nhận back-channel logout của Keycloak | `/api/v1/auth/backchannel-logout` trả 404 ở Caddy như `/admin`; Keycloak gọi qua mạng nội bộ `http://backend:8000`. Logout token phải được ký bằng khoá của realm |
 | Token còn dùng được sau khi đăng xuất hoặc bị khoá | Back-channel logout (#129): phiên Keycloak kết thúc thì backend chặn mọi access token của phiên đó ngay (`401 Session has ended`), không chờ tối đa 15 phút |
 | Refresh token bị script trên trang lấy cắp (XSS) | Client `contract-intel-frontend` không được cấp refresh token (`use.refresh.tokens=false`, `keycloak_configure.py` đặt mỗi lần deploy). Frontend giữ access token trong bộ nhớ tab và gia hạn bằng iframe `prompt=none` theo cookie SSO HttpOnly (#133) |
