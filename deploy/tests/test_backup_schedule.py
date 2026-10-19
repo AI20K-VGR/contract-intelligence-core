@@ -24,7 +24,9 @@ def _between(path: str, start: str, end: str) -> str:
     return start + source.split(start, 1)[1].split(end, 1)[0]
 
 
-def _run(tmp_path: Path, script: str, env_lines: list[str], env: dict[str, str] | None = None):
+def _run(
+    tmp_path: Path, script: str, env_lines: list[str], env: dict[str, str] | None = None
+):
     env_file = tmp_path / ".env.prod"
     env_file.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
     prelude = f"""
@@ -99,7 +101,9 @@ def test_off_removes_the_schedule(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(BASH is None, reason="Bash is required")
-@pytest.mark.parametrize("value", ["0 19 * *", "0 19 * * * *", "@daily", "0 19 * * *; rm -rf /"])
+@pytest.mark.parametrize(
+    "value", ["0 19 * *", "0 19 * * * *", "@daily", "0 19 * * *; rm -rf /"]
+)
 def test_a_value_that_is_not_a_five_field_expression_stops_the_deploy(
     tmp_path: Path, value: str
 ) -> None:
@@ -143,3 +147,72 @@ def test_the_schedule_is_installed_before_the_smoke_test() -> None:
     source = (ROOT / "deploy/deploy.sh").read_text(encoding="utf-8")
     assert source.index("configuring Keycloak") < source.index(DEPLOY_START)
     assert source.index(DEPLOY_START) < source.index('echo "[deploy] smoke test"')
+
+
+OFFSITE_START = "# ---- Off-site copy (optional)"
+
+
+def _offsite(
+    tmp_path: Path, remote_keep: str
+) -> tuple[subprocess.CompletedProcess, list[str]]:
+    """Run backup.sh's off-site block with a fake docker (rclone) that logs its arguments."""
+    dest = tmp_path / "backups"
+    (dest / "20261019T190000Z").mkdir(parents=True)
+    (dest / "20261019T190000Z" / "backend.dump").write_bytes(b"dump")
+    calls = tmp_path / "calls"
+    block = (
+        (ROOT / "deploy/backup.sh")
+        .read_text(encoding="utf-8")
+        .split(OFFSITE_START, 1)[1]
+    )
+    script = f"""
+DEST="{dest.as_posix()}"
+stamp=20261019T190000Z
+KEEP_DAYS=3
+docker() {{ echo "docker $*" >> "{calls.as_posix()}"; }}
+# {OFFSITE_START}{block}
+"""
+    proc = _run(
+        tmp_path,
+        script,
+        [
+            "BACKUP_S3_ENDPOINT=https://s3.ap-southeast-2.amazonaws.com",
+            "BACKUP_S3_REGION=ap-southeast-2",
+            "BACKUP_S3_BUCKET=ci-backups-test",
+            "BACKUP_S3_ACCESS_KEY_ID=AKIATEST",
+            "BACKUP_S3_SECRET_ACCESS_KEY=test-secret",
+            "BACKUP_ENCRYPTION_PASSPHRASE=" + "p" * 24,
+            f"BACKUP_REMOTE_KEEP_DAYS={remote_keep}",
+        ],
+    )
+    lines = calls.read_text(encoding="utf-8").splitlines() if calls.exists() else []
+    return proc, lines
+
+
+@pytest.mark.skipif(BASH is None, reason="Bash is required")
+def test_remote_keep_zero_leaves_deletion_to_the_bucket_lifecycle(
+    tmp_path: Path,
+) -> None:
+    proc, calls = _offsite(tmp_path, "0")
+
+    assert proc.returncode == 0, proc.stderr
+    assert any(" copy /upload dst:ci-backups-test/20261019T190000Z" in c for c in calls)
+    assert not any(" delete " in c for c in calls)
+    assert "[backup] off-site: ci-backups-test/20261019T190000Z" in proc.stdout
+
+
+@pytest.mark.skipif(BASH is None, reason="Bash is required")
+def test_remote_keep_days_still_deletes_old_copies_from_here(tmp_path: Path) -> None:
+    proc, calls = _offsite(tmp_path, "7")
+
+    assert proc.returncode == 0, proc.stderr
+    assert any(" delete dst:ci-backups-test --min-age 7d" in c for c in calls)
+
+
+@pytest.mark.skipif(BASH is None, reason="Bash is required")
+def test_remote_keep_days_must_be_a_number(tmp_path: Path) -> None:
+    proc, calls = _offsite(tmp_path, "a week")
+
+    assert proc.returncode == 1
+    assert "BACKUP_REMOTE_KEEP_DAYS must be a number of days" in proc.stderr
+    assert calls == []

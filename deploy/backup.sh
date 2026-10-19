@@ -48,8 +48,15 @@ echo "[backup] $DEST/$stamp $(du -sh "$DEST/$stamp" | cut -f1)"
 # bucket's per-file limit, under <bucket>/<stamp>/. Credentials reach rclone
 # and openssl through the environment, never the command line.
 REMOTE_ENDPOINT=$(envval BACKUP_S3_ENDPOINT || true)
+# Days an off-site backup is kept. 0 = never delete from here: the bucket's own
+# lifecycle rule expires old backups, and the key needs no delete permission, so
+# whoever takes over this server cannot erase the off-site copies (AWS S3 setup,
+# deploy/README.md "Backup ra ngoài máy").
 REMOTE_KEEP_DAYS=$(envval BACKUP_REMOTE_KEEP_DAYS || true)
 REMOTE_KEEP_DAYS=${REMOTE_KEEP_DAYS:-$KEEP_DAYS}
+case $REMOTE_KEEP_DAYS in
+  ''|*[!0-9]*) echo "[backup] BACKUP_REMOTE_KEEP_DAYS must be a number of days: $REMOTE_KEEP_DAYS" >&2; exit 1 ;;
+esac
 PART_SIZE=$(envval BACKUP_PART_SIZE || true)
 PART_SIZE=${PART_SIZE:-45M}
 RCLONE_IMAGE=rclone/rclone:latest
@@ -94,8 +101,8 @@ offsite_copy() {
     && (cd "$staging" && sha256sum backup.tar.enc.part-* > SHA256SUMS) \
     && rclone_remote -v "$staging:/upload:ro" "$RCLONE_IMAGE" \
       copy /upload "dst:$bucket/$stamp" --s3-no-check-bucket --quiet \
-    && rclone_remote "$RCLONE_IMAGE" \
-      delete "dst:$bucket" --min-age "${REMOTE_KEEP_DAYS}d" --quiet \
+    && { [ "$REMOTE_KEEP_DAYS" = 0 ] || rclone_remote "$RCLONE_IMAGE" \
+      delete "dst:$bucket" --min-age "${REMOTE_KEEP_DAYS}d" --quiet; } \
     && echo "[backup] off-site: $bucket/$stamp $(du -sh "$staging" | cut -f1) in $(find "$staging" -name 'backup.tar.enc.part-*' | wc -l) part(s)"
 }
 

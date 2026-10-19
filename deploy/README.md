@@ -604,7 +604,72 @@ Kiểm tra và bật trên realm đang chạy:
 
 Chỉ các lần đăng nhập sau khi bật mới được ghi. Ai không đăng nhập quá 30 ngày thì cột trống.
 
-### Backup ra ngoài máy (Supabase Storage)
+### Backup ra ngoài máy: AWS S3 (Lead chốt 19/10/2026)
+
+Bản ngoài máy nằm ở bucket S3 riêng, trong cùng tài khoản AWS và cùng vùng Sydney. Một bản backup khoảng 1,8 GB, lớn hơn cả gói miễn phí của Supabase (1 GB). Thiết kế **chống xoá**:
+- Khoá trên server chỉ **ghi và đọc** được, không có quyền xoá.
+- Bucket bật versioning, nên ghi đè cũng không mất bản cũ.
+- Bản cũ do **lifecycle của bucket** tự xoá sau 7 ngày (`BACKUP_REMOTE_KEEP_DAYS=0`: `backup.sh` không tự xoá trên bucket).
+
+Ai chiếm được `ci-app` cũng không xoá được các bản ngoài máy.
+
+**Chi phí:** khoảng 7 × 1,8 GB ≈ 13 GB × 0,025 USD ≈ **0,3 USD/tháng**; truyền dữ liệu vào S3 miễn phí.
+
+**Dựng một lần.** Chạy bằng AWS CLI đã đăng nhập (`aws login --region ap-southeast-2`) trên máy người vận hành:
+
+```bash
+B=ci-backups-706421610602
+R=ap-southeast-2
+aws s3api create-bucket --bucket $B --region $R --create-bucket-configuration LocationConstraint=$R
+aws s3api put-public-access-block --bucket $B --public-access-block-configuration \
+  BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+aws s3api put-bucket-encryption --bucket $B --server-side-encryption-configuration \
+  '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+aws s3api put-bucket-versioning --bucket $B --versioning-configuration Status=Enabled
+aws s3api put-bucket-lifecycle-configuration --bucket $B --lifecycle-configuration '{"Rules":[
+  {"ID":"expire-backups-7d","Status":"Enabled","Filter":{},"Expiration":{"Days":7},
+   "NoncurrentVersionExpiration":{"NoncurrentDays":1},"AbortIncompleteMultipartUpload":{"DaysAfterInitiation":1}},
+  {"ID":"remove-expired-delete-markers","Status":"Enabled","Filter":{},"Expiration":{"ExpiredObjectDeleteMarker":true}}]}'
+
+aws iam create-user --user-name ci-backup-writer
+aws iam put-user-policy --user-name ci-backup-writer --policy-name write-ci-backups --policy-document '{
+  "Version":"2012-10-17",
+  "Statement":[
+    {"Sid":"ListBackups","Effect":"Allow","Action":["s3:ListBucket","s3:ListBucketMultipartUploads"],
+     "Resource":"arn:aws:s3:::ci-backups-706421610602"},
+    {"Sid":"WriteBackups","Effect":"Allow",
+     "Action":["s3:PutObject","s3:GetObject","s3:AbortMultipartUpload","s3:ListMultipartUploadParts"],
+     "Resource":"arn:aws:s3:::ci-backups-706421610602/*"}]}'
+```
+
+Policy **không có** `s3:DeleteObject`.
+
+**Tạo access key và điền cấu hình:**
+
+1. Tạo access key **trong terminal của chính mình**, không qua chat hay công cụ ghi log, vì lệnh in secret ra màn hình:
+   ```bash
+   aws iam create-access-key --user-name ci-backup-writer
+   ```
+2. Trên server, sao lưu `deploy/.env.prod` sang `/root/ci-env-backups/`, rồi mở bằng `sudo nano deploy/.env.prod` và điền:
+
+   ```env
+   BACKUP_S3_ENDPOINT=https://s3.ap-southeast-2.amazonaws.com
+   BACKUP_S3_REGION=ap-southeast-2
+   BACKUP_S3_BUCKET=ci-backups-706421610602
+   BACKUP_S3_ACCESS_KEY_ID=<AccessKeyId>
+   BACKUP_S3_SECRET_ACCESS_KEY=<SecretAccessKey>
+   BACKUP_ENCRYPTION_PASSPHRASE=<chạy `openssl rand -base64 32` trên server rồi dán vào>
+   BACKUP_REMOTE_KEEP_DAYS=0
+   ```
+
+3. **Lưu `BACKUP_ENCRYPTION_PASSPHRASE` ở một nơi ngoài server** (trình quản lý mật khẩu của nhóm). Mất passphrase thì không giải mã được bản ngoài máy. Người giữ: xem `docs/ban-giao/12-danh-sach-tai-khoan.md`.
+4. Chạy thử `sudo deploy/backup.sh`. Log phải có dòng `[backup] off-site: ci-backups-706421610602/<thời điểm> … part(s)`. Kiểm trên bucket: `aws s3 ls s3://ci-backups-706421610602/`.
+
+**Khôi phục từ S3:**
+- Dùng **tài khoản quản trị AWS**, không dùng `ci-backup-writer`: `aws s3 cp --recursive s3://ci-backups-706421610602/<thời điểm>/ .`
+- Sau đó làm như đoạn "Khôi phục từ bucket" bên dưới.
+
+### Backup ra ngoài máy (Supabase Storage, phương án cũ)
 
 Mặc định `deploy/backup.sh` chỉ lưu backup trên chính máy chủ; máy hỏng thì backup mất theo. Khi `BACKUP_S3_ENDPOINT` có giá trị trong `deploy/.env.prod`, mỗi lần chạy script còn làm thêm:
 
