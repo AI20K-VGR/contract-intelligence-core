@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 from prometheus_client import REGISTRY
 
+import app.llm.metrics as metrics
 import app.llm.observability as obs
 from app.llm.client import DeadlineLLM, NineRouterClient
 from app.llm.embeddings import OpenAICompatibleEmbeddingClient
@@ -209,7 +210,8 @@ def test_grafana_metrics_count_a_question_without_langfuse(monkeypatch):
 
     monkeypatch.setattr(obs, "get_langfuse", lambda: None)
     monkeypatch.setenv("AI2_METRICS_PORT", "9109")  # no server is started here
-    chat = {"kind": "chat", "model": "gpt-5.5-2026-09-01"}
+    # The provider serves gpt-5.5-2026-09-01; Prometheus keys by the configured model.
+    chat = {"kind": "chat", "model": "gpt-5.5"}
     before = {
         "answered": _sample("ai2_query_requests_total", state="ANSWERED"),
         "calls": _sample("ai2_query_model_calls_total", **chat, status="ok"),
@@ -230,6 +232,32 @@ def test_grafana_metrics_count_a_question_without_langfuse(monkeypatch):
         (1000 * 5 + 200 * 0.5 + 400 * 30) / 1e6
     )
     assert _sample("ai2_query_duration_seconds_count") - before["seconds"] == 1
+
+
+def test_served_snapshot_grows_the_series_made_at_startup(monkeypatch, langfuse):
+    """PR #135 review: a call answered by gpt-5.5-2026-04-23 must grow the
+    model="gpt-5.5" series _create_zero_series made, or increase() misses the
+    first call after every restart. Langfuse still gets the served snapshot."""
+
+    monkeypatch.setenv("AI2_METRICS_PORT", "9109")
+    monkeypatch.delenv("AI2_LLM_MODEL", raising=False)
+    monkeypatch.delenv("AI2_LLM_STRONG_MODEL", raising=False)
+    metrics._create_zero_series()
+    configured = {"kind": "chat", "model": "gpt-5.5"}
+    snapshot = {"kind": "chat", "model": "gpt-5.5-2026-04-23"}
+    assert REGISTRY.get_sample_value("ai2_query_cost_usd_total", configured) is not None
+    calls = _sample("ai2_query_model_calls_total", **configured, status="ok")
+    snapshot_calls = _sample("ai2_query_model_calls_total", **snapshot, status="ok")
+    response = _chat_response()
+    response.model = "gpt-5.5-2026-04-23"
+
+    with _query():
+        _llm(response).complete_json("system json", "user")
+
+    assert _sample("ai2_query_model_calls_total", **configured, status="ok") - calls == 1
+    assert _sample("ai2_query_model_calls_total", **snapshot, status="ok") == snapshot_calls
+    (generation,) = _generations(langfuse)
+    assert generation["updates"][0]["model"] == "gpt-5.5-2026-04-23"
 
 
 def test_grafana_metrics_count_failed_calls_and_questions(monkeypatch):

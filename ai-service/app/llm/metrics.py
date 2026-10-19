@@ -79,18 +79,25 @@ def start_metrics_server() -> None:
 def _create_zero_series() -> None:
     """Expose the usual series at 0 so the first question after a restart is counted
     (``increase()`` only sees growth between two samples of one series)."""
-    for state in ("ANSWERED", "INSUFFICIENT_EVIDENCE", "NEEDS_REVIEW"):
+    for state in ("ANSWERED", "INSUFFICIENT_EVIDENCE", "NEEDS_REVIEW", "FAILED"):
         QUERIES.labels(state)
-    for kind, env, default in (
-        ("chat", "AI2_LLM_MODEL", "gpt-5.5"),
-        ("embedding", "AI2_EMBEDDING_MODEL", "text-embedding-3-small"),
-    ):
-        model = _model(os.environ.get(env) or default)
+    for kind, model in _configured_models():
         for status in ("ok", "error"):
             MODEL_CALLS.labels(kind, model, status)
         for token_type in _TOKEN_TYPES:
             TOKENS.labels(kind, model, token_type)
         COST.labels(kind, model)
+
+
+def _configured_models() -> list[tuple[str, str]]:
+    """``(kind, model label)`` of the models ``/query`` is configured to call."""
+    chat = os.environ.get("AI2_LLM_MODEL") or "gpt-5.5"
+    pairs = [
+        ("chat", chat),
+        ("chat", os.environ.get("AI2_LLM_STRONG_MODEL") or chat),
+        ("embedding", os.environ.get("AI2_EMBEDDING_MODEL") or "text-embedding-3-small"),
+    ]
+    return sorted({(kind, _model(model)) for kind, model in pairs})
 
 
 def _model(value: Any) -> str:
