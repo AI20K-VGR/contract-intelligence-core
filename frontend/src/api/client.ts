@@ -215,6 +215,9 @@ export async function postMultipartWithProgress<T>(
   } = options
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
   const token = await getAccessToken()
+  // Renewing the token can take up to 30 s (silent SSO iframe): a cancel in that
+  // window must still stop the upload, or the server creates the dossier and runs OCR.
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
   const headers = withApiHeaders(new Headers(), token)
 
   const { status, payload } = await new Promise<{

@@ -17,6 +17,7 @@ import {
   UploadStalledError,
 } from '../src/api/client'
 import { createDossierErrorMessage } from '../src/api/dossiers'
+import { getAccessToken } from '../src/auth/oidc'
 import { notifySessionExpired } from '../src/auth/sessionExpired'
 
 type Handler = ((event: ProgressEvent) => void) | null
@@ -213,6 +214,25 @@ describe('postMultipartWithProgress', () => {
     controller.abort()
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
     expect(xhr.aborted).toBe(true)
+  })
+
+  it('a cancel while the token is still being renewed sends nothing', async () => {
+    // PR #138 review: getAccessToken() can wait on a silent SSO iframe; a cancel
+    // there must not let the upload start, or the server creates the dossier.
+    let renewed: (token: string) => void = () => {}
+    vi.mocked(getAccessToken).mockImplementationOnce(
+      () => new Promise<string>((resolve) => (renewed = resolve)),
+    )
+    const controller = new AbortController()
+    const pending = postMultipartWithProgress(
+      '/api/v1/dossiers',
+      new FormData(),
+      { signal: controller.signal },
+    )
+    controller.abort()
+    renewed('token')
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(FakeXhr.last).toBeNull()
   })
 })
 
