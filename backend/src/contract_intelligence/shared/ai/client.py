@@ -99,6 +99,10 @@ class AiServiceClient(ABC):
     @abstractmethod
     async def cancel_job(self, job_id: str) -> JobStatusReport: ...
 
+    async def purge_dossier(self, *, tenant_id: str, dossier_id: str) -> dict[str, Any]:
+        """Return cumulative erasure evidence; implementations must not silently skip."""
+        raise NotImplementedError("AI2 dossier purge is not implemented by this client")
+
     @abstractmethod
     async def healthcheck(self) -> bool: ...
 
@@ -129,6 +133,9 @@ class StubAiServiceClient(AiServiceClient):
     def __init__(self) -> None:
         # In-memory state cho cancel/healthcheck demo
         self._jobs: dict[str, JobStatusReport] = {}
+
+    async def purge_dossier(self, *, tenant_id: str, dossier_id: str) -> dict[str, Any]:
+        return {"deleted": {}, "blob_directories": 0}
 
     async def submit_ocr(
         self,
@@ -295,6 +302,11 @@ class HttpAiServiceClient(AiServiceClient):
             timeout=httpx.Timeout(settings.ai_service_timeout_seconds),
             headers=headers,
         )
+
+    async def purge_dossier(self, *, tenant_id: str, dossier_id: str) -> dict[str, Any]:
+        from contract_intelligence.infrastructure.ai_adapters import purge_ai2_dossier
+
+        return await purge_ai2_dossier(tenant_id=tenant_id, dossier_id=dossier_id)
 
     def _common_headers(self, *, task_id: int, attempt_id: int, tenant_id: str) -> dict[str, str]:
         return {

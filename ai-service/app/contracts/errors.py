@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 
+class DossierDeletedError(ValueError):
+    """A permanently deleted dossier cannot be processed or written again."""
+
+
 class ContractValidationError(ValueError):
     """Low-level validation error shared by the canonical contract boundary."""
 

@@ -168,6 +168,7 @@ A job may be retried **only if** `status` is `FAILED` and at least one entry of 
 | `PROCESSING_TIMEOUT` | true | `max_processing_seconds` hit (AI2's own code, `idp.py`); the job is `FAILED` with `review_state=NEEDS_REVIEW`, which Backend ignores |
 | `AI2_RESULT_UPLOAD_FAILED` | true | Result too large to inline and the upload failed |
 | `AI2_WORKER_FAILED` | false | Unexpected pipeline exception |
+| `AI2_DOSSIER_DELETED` | false | Dossier was deleted before processing or result publication; never retry |
 
 ## 6. Large payloads: MinIO by reference
 

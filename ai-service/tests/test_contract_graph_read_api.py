@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -219,7 +220,7 @@ def test_postgres_completion_records_verified_empty_and_failed_graph_writes(pg_u
 
     store = PostgresJobStore(pg_url)
     record = graph_record()
-    record.dossier_id = "read-api-" + record.dossier_id
+    record.dossier_id = "read-api-" + uuid4().hex
     env = make_envelope()
     env.auth.dossier_id = record.dossier_id
     record.contract_graph_ran = True

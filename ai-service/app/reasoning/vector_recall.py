@@ -230,7 +230,7 @@ class PostgresVectorIndex:
                 ).scalar()
             )
 
-    def upsert(self, segments, vectors, *, model, dimensions):
+    def upsert(self, segments, vectors, *, model, dimensions, tenant_id=None, dossier_id=None):
         from dataclasses import asdict
 
         from sqlalchemy import text
@@ -240,6 +240,10 @@ class PostgresVectorIndex:
         if len(segments) != len(vectors):
             raise ValueError("segments and vectors must have equal length")
         with self.engine.begin() as cx:
+            if tenant_id is not None and dossier_id is not None:
+                cx.execute(text("SELECT set_config('ai2.vector_tenant', :tenant, true), "
+                                "set_config('ai2.vector_dossier', :dossier, true)"),
+                           {"tenant": tenant_id, "dossier": dossier_id})
             for segment, vector in zip(segments, vectors):
                 if len(vector) != dimensions:
                     raise ValueError("vector dimension mismatch")
@@ -407,6 +411,8 @@ class VectorRecallService:
                     vectors,
                     model=capability.selected_model,
                     dimensions=capability.dimensions,
+                    **({"tenant_id": record.tenant_id, "dossier_id": record.dossier_id}
+                       if isinstance(self.index, PostgresVectorIndex) else {}),
                 )
             except Exception as exc:
                 return VectorRecallResult(

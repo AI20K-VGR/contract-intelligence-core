@@ -409,6 +409,33 @@ Giữ nguyên thì hồ sơ có hai hợp đồng không bao giờ tới đượ
 
 ---
 
+## Bổ sung issue #131 — xoá nội dung phía AI2 (19/10/2026)
+
+Trạng thái: AI2 và lời gọi purge từ Backend đã được triển khai và kiểm chứng local
+trong thay đổi #131; chưa deploy production. Đây không phải ghi nhận phê duyệt mới của Lead.
+
+- [x] Backend (Chương) duyệt bổ sung #131 và §7 BE-AI2 ngày 19/10/2026
+  ([review PR #132](https://github.com/AI20K-VGR/contract-intelligence-core/pull/132#pullrequestreview-5566790702)).
+
+§7 BE-AI2 đã chốt với Backend theo review trên; triển khai production và audit sau rollout vẫn còn phải thực hiện.
+
+- Theo D11/ADR-14, purge chỉ hỗ trợ PostgreSQL + pgvector; không xây luồng SQLite.
+- API `DELETE /api/v1/dossiers/{dossier_id}`, envelope scope `ai2.dossier.delete`,
+  request/response/lỗi và retry được định nghĩa tại §7 của
+  [BE-AI2-PROCESSING-CONTRACT](BE-AI2-PROCESSING-CONTRACT.vi.md).
+- Xoá cả graph receipts, processing traces và durable audit thuộc hồ sơ. Không giữ
+  các JSON có thể chứa nội dung chỉ vì bảng được gọi là audit. Append-only vẫn áp
+  dụng cho audit của run chưa xoá; chỉ có ngoại lệ DELETE khi owner đã tombstone.
+- Giữ lâu dài tombstone, ownership/digest history, số đếm evidence và nonce chống
+  replay; các metadata này không chứa hợp đồng hoặc bytes file.
+- DB fencing bảo vệ mọi writer đã có; query/session không được đọc cache cũ của
+  hồ sơ đã tombstone. Vector chỉ xoá khi không còn owner sống ở bất kỳ tenant nào.
+- Backend chỉ đánh dấu completed khi nhận `status=completed`; lỗi 503 phải retry.
+  Lưu `evidence` tích luỹ vào deletion ledger, không chỉ số xoá mới của lần retry.
+- Sau triển khai, sweeper tự gọi AI2 cho ledger completed thiếu evidence `ai2`,
+  kể cả 7 scope cũ theo audit của Chương; chỉ bổ sung evidence, không dọn lại Backend.
+  Lỗi được giữ failed để retry. Kiểm đếm lại mọi kho trước khi đóng issue.
+
 ## Việc của từng bên sau review AI2 (30/09)
 
 Review của Văn Dũng ở PR #37 xác nhận D2, D4, D5, D7 (409 và cùng `job_id`) và D9 đã khớp code AI2. Các chỗ còn lệch được chốt như trên. Danh sách việc:
