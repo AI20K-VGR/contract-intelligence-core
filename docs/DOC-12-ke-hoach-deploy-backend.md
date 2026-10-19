@@ -212,6 +212,8 @@ A1 chạy trong `deploy.sh` trên chính VPS. A2 chạy **từ máy khác**: Git
 4. `git fetch && git checkout <tag>`.
 5. `sudo deploy/deploy.sh`.
 
+Caddy đọc cấu hình qua từng file mount riêng (`Caddyfile`, `frontend.caddy`, file TLS), nên `git checkout` không làm container đang chạy thấy bản mới. `deploy.sh` so sha256 từng file với bản trong `ci-caddy`; nếu khác thì nạp thử cấu hình mới bằng `caddy validate` trong container tạm (cùng image, mount và biến môi trường) rồi `restart caddy` (gián đoạn vài giây). `validate` nạp cả module, nên file TLS sai đường dẫn hay giá trị module sai cũng bị bắt; khi đó deploy dừng và Caddy giữ cấu hình cũ. Smoke test cuối deploy kiểm `POST /api/v1/auth/backchannel-logout` từ Internet phải trả 404 (403 nếu Cloudflare chặn trước). Kiểm tra tay: `sha256sum deploy/Caddyfile` so với `docker exec ci-caddy sha256sum /etc/caddy/Caddyfile`.
+
 Mỗi lần cập nhật báo trước trong nhóm. Không cập nhật trong lúc mentor đang xem demo.
 
 **Quay lại bản cũ:**
