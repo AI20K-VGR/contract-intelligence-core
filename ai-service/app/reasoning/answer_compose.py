@@ -214,13 +214,14 @@ def lexical_evidence(
 
 def document_codes(text: str) -> set[str]:
     """Candidate identifiers, without assuming a dossier's numbering prefixes."""
-    candidates = re.findall(
-        r"\b[a-z]+(?:[-/][a-z]+)*[\s/-]*\d+[a-z]?(?:[-/][a-z0-9]+)*\b", fold(text)
-    )
-    # Structural references and prose dates are parsed elsewhere. They are
-    # not document identifiers just because a word precedes a number.
-    prose_number = r"^(?:dieu|khoan|muc|luc|article|annex|trang|page|ngay|thang|nam)\s+\d"
-    return {code for code in candidates if not re.match(prose_number, code)}
+    return set(re.findall(r"\b[a-z]+(?:[-/][a-z]+)*[-/]*\d+[a-z]?(?:[-/][a-z0-9]+)*\b", fold(text)))
+
+
+def _page_heading(page: Any) -> str:
+    lines = [line.strip() for line in (page.text or "").splitlines() if line.strip()]
+    if not lines:
+        lines = [line.strip() for line in page.line_texts.values() if line.strip()]
+    return "\n".join(line[:180] for line in lines[:3])
 
 
 def document_evidence(gateway: ToolGateway, envelope: Any, query: str) -> list[dict[str, Any]]:
@@ -241,48 +242,24 @@ def document_evidence(gateway: ToolGateway, envelope: Any, query: str) -> list[d
             {compact(code) for code in codes} & {compact(code) for code in document_codes(value)}
         )
 
-    files = {
+    metadata_files = {
         source.file_id
         for source in record.source_files
         if matches(f"{source.filename.replace('_', ' ')} {source.document_number or ''}")
     }
-    # The upload may combine several signed records into one PDF whose filename
-    # only has a page range. Resolve identifiers from OCR headings, then scope to
-    # that source file so adjacent records cannot be mistaken for one another.
-    files.update(
-        node.source_file_id
-        for node in record.evidence_nodes()
-        if node.source_file_id and matches(f"{node.raw_label or ''} {node.text or ''}")
-    )
-    files.update(
-        page.source_file_id
-        for page in record.pages
-        if page.source_file_id and matches(page.text + " " + " ".join(page.line_texts.values()))
-    )
+    # A mention in body text is not a document identity. Combined scans are
+    # resolved per page heading so neighbouring records cannot leak into scope.
     matching_pages = []
     for page in record.pages:
-        page_text = page.text + " " + " ".join(page.line_texts.values())
-        normalized = fold(page_text)
-        matching_codes = [
-            code
-            for code in document_codes(page_text)
-            if compact(code) in {compact(c) for c in codes}
-        ]
-        if page.source_file_id not in files or not matching_codes:
-            continue
-        # A code repeated in a contents page is weaker evidence than the page
-        # headed by that record's code. Prefer the record itself for direct
-        # questions such as "BB01 đã giao đủ chưa?".
-        heading = any(
-            re.search(rf"\b{re.escape(code)}\b\s*[.:-]\s*\S", normalized) for code in matching_codes
-        )
-        matching_pages.append((not heading, page.page_number, page.page_revision_id))
+        heading_match = matches(_page_heading(page))
+        if heading_match or page.source_file_id in metadata_files:
+            matching_pages.append((not heading_match, page.page_number, page.page_revision_id))
     matching_pages.sort()
     page_ids = [f"page:{revision_id}" for _, _, revision_id in matching_pages]
     ids = [
         n.node_id
         for n in sorted(record.evidence_nodes(), key=lambda n: n.order)
-        if n.source_file_id in files
+        if n.source_file_id in metadata_files
     ]
     selected = page_ids or ids
     return evidence_from_citations(

@@ -490,3 +490,103 @@ def test_comparison_citing_sub_clauses_of_both_headings_keeps_the_model_sentence
     )
 
     assert "Mô hình:" in str(result.get("answer"))
+
+
+NUMBERED_QUESTIONS = [
+    "Thanh toán trong 30 ngày hay 45 ngày?",
+    "Thời hạn bảo hành 24 tháng hay 12 tháng?",
+    "Tỷ lệ tạm ứng 30% là đúng không?",
+    "Phạt chậm tiến độ 0,1% mỗi ngày tối đa bao nhiêu?",
+    "Giá trị hợp đồng là 1.250.000.000 đồng phải không?",
+]
+
+
+@pytest.mark.parametrize("query", NUMBERED_QUESTIONS)
+def test_prose_numbers_do_not_enable_document_scoping(query: str) -> None:
+    assert answer_compose.document_codes(query) == set()
+    assert not answer_compose.needs_scoped_evidence({"query": query})
+
+
+@pytest.mark.parametrize("code", ["BB01", "PL-06A", "HĐ/2026-15", "ZXQ17"])
+def test_contiguous_document_codes_remain_supported(code: str) -> None:
+    assert answer_compose.document_codes(code)
+
+
+@pytest.mark.parametrize("query", NUMBERED_QUESTIONS)
+def test_no_llm_numbered_question_preserves_core_answer(query: str) -> None:
+    from app.reasoning.stack import FourLayerReasoner
+
+    record = mock_record()
+    text = "Điều 5. Bên A thanh toán trong 30 ngày. Bên B bảo hành 24 tháng. " + query
+    record.pages[0] = record.pages[0].model_copy(
+        update={
+            "source_file_id": "hd",
+            "text": text,
+            "line_texts": {"line": text},
+        }
+    )
+    store = InMemorySnapshotStore()
+    store.put(record)
+    reasoner = FourLayerReasoner(ToolGateway(store))
+    task = {"type": "unscoped", "query": query, "policy_flags": {"use_llm": False}}
+    baseline = reasoner._run_core(envelope(), task)
+    result = reasoner.run(envelope(), task)
+    assert "DOCUMENT_SOURCE" not in result["layers_used"]
+    assert result["answer"] == baseline["answer"]
+    assert result["citations"] == baseline["citations"]
+
+
+@pytest.mark.parametrize("metadata", ["filename", "document_number"])
+def test_document_metadata_resolves_page_without_repeating_code(metadata: str) -> None:
+    record = mock_record()
+    record.source_files = [
+        SourceFile(
+            file_id="custom",
+            filename="ZXQ17.pdf" if metadata == "filename" else "attachment.pdf",
+            document_number="ZXQ17" if metadata == "document_number" else None,
+        )
+    ]
+    page = record.pages[0].model_copy(
+        update={
+            "source_file_id": "custom",
+            "text": "Delivery remains incomplete.",
+            "line_texts": {"line": "Delivery remains incomplete."},
+        }
+    )
+    record.pages = [page]
+    store = InMemorySnapshotStore()
+    store.put(record)
+    evidence = answer_compose.document_evidence(ToolGateway(store), envelope(), "ZXQ17?")
+    assert [item["node_id"] for item in evidence] == [f"page:{page.page_revision_id}"]
+
+
+@pytest.mark.parametrize("location", ["body", "node"])
+def test_document_code_body_mention_does_not_identify_document(location: str) -> None:
+    from app.reasoning.stack import FourLayerReasoner
+
+    record = mock_record()
+    record.source_files = [SourceFile(file_id="hd", filename="contract.pdf")]
+    text = "HỢP ĐỒNG\nCác bên ký kết\nĐiều khoản chung\nTham khảo ZXQ17 để đối chiếu."
+    record.pages[0] = record.pages[0].model_copy(
+        update={
+            "source_file_id": "hd",
+            "text": text,
+            "line_texts": {"line": text},
+        }
+    )
+    if location == "node":
+        record.nodes[0].source_file_id = "hd"
+        record.nodes[0].text = "Tham khảo ZXQ17 để đối chiếu."
+    store = InMemorySnapshotStore()
+    store.put(record)
+    gateway = ToolGateway(store)
+    assert answer_compose.document_evidence(gateway, envelope(), "ZXQ17 ghi gì?") == []
+    result = FourLayerReasoner(gateway).run(
+        envelope(),
+        {
+            "type": "unscoped",
+            "query": "ZXQ17 ghi gì?",
+            "policy_flags": {"use_llm": False},
+        },
+    )
+    assert "DOCUMENT_SOURCE" not in result["layers_used"]
