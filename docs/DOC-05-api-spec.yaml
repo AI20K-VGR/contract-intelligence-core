@@ -125,7 +125,8 @@ paths:
       description: |
         Khai báo các file (đúng một `contract`, tối đa 6 file) và `metadata` như `POST /dossiers`.
         Kiểm ngay, trước khi gửi byte nào: số file, một hợp đồng, kích thước (≤ 50 MiB mỗi file), metadata.
-        Mỗi người dùng tối đa 3 phiên chưa xong. Phiên hết hạn sau 24 giờ.
+        Mỗi người dùng tối đa 3 phiên chưa xong; mở phiên thứ 4 thì phiên `open` cũ nhất bị huỷ.
+        Phiên hết hạn sau 24 giờ. Lỗi 409/410 có `error.code` dạng `UPLOAD_*` (DOC-05b §3.3).
       operationId: openUploadSession
       x-rbac: [OPERATOR, ADMINISTRATOR]
       requestBody:
@@ -150,7 +151,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
         '429':
-          description: Người dùng đang có quá nhiều phiên chưa xong
+          description: |
+            Mọi phiên chưa xong của người dùng đều đang hoàn tất. Đủ 3 phiên mà có phiên `open`
+            thì backend tự huỷ phiên `open` cũ nhất rồi mở phiên mới, không trả 429.
 
   /uploads/{upload_id}:
     parameters:

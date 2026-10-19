@@ -110,6 +110,11 @@ def headers(make_keycloak_token: Any) -> Any:
     return _headers
 
 
+def _code(response: Any) -> str:
+    """The domain error code of a failed call ({"error": {"code": ...}})."""
+    return response.json()["error"]["code"]
+
+
 def _chunks(data: bytes) -> list[bytes]:
     return [data[i : i + CHUNK] for i in range(0, len(data), CHUNK)]
 
@@ -299,7 +304,8 @@ class TestChunks:
             await _put(client, h, session["upload_id"], 0, n, part)
         done = await client.post(f"/api/v1/uploads/{session['upload_id']}/complete", headers=h)
         assert done.status_code == 409
-        assert done.json()["detail"]["missing_chunks"] == {"0": [len(parts) - 1]}
+        assert _code(done) == "UPLOAD_MISSING_CHUNKS"
+        assert done.json()["error"]["details"]["missing_chunks"] == {"0": [len(parts) - 1]}
         # Still open: send the last chunk and complete.
         await _put(client, h, session["upload_id"], 0, len(parts) - 1, parts[-1])
         again = await client.post(f"/api/v1/uploads/{session['upload_id']}/complete", headers=h)
@@ -361,20 +367,54 @@ class TestOpening:
         assert response.status_code == 422
 
     @pytest.mark.asyncio
-    async def test_open_sessions_per_user_are_capped(
-        self, client: AsyncClient, headers: Any
+    async def test_at_the_cap_the_oldest_abandoned_session_makes_room(
+        self, client: AsyncClient, headers: Any, db: async_sessionmaker[AsyncSession]
+    ) -> None:
+        """Three uploads cut off (tab closed, reload) must not lock the user out for 24 h."""
+        h = headers()
+        pdf = make_pdf()
+        oldest = await _open(client, h, [("contract", "a.pdf", pdf)])
+        await _put(client, h, oldest["upload_id"], 0, 0, _chunks(pdf)[0])
+        async with db() as s:
+            path = (await s.execute(select(UploadChunkORM.object_path))).scalar_one()
+        kept = [await _open(client, h, [("contract", "c.pdf", b"x" * 10)]) for _ in range(2)]
+
+        newest = await _open(client, h, [("contract", "d.pdf", b"x" * 10)])
+
+        old_state = (await client.get(f"/api/v1/uploads/{oldest['upload_id']}", headers=h)).json()
+        assert old_state["data"]["status"] == "cancelled"
+        with pytest.raises(FileNotFoundError):
+            await storage.download_object(path)
+        for session in [*kept, newest]:
+            state = (await client.get(f"/api/v1/uploads/{session['upload_id']}", headers=h)).json()
+            assert state["data"]["status"] == "open"
+        # Sending into the evicted session says why.
+        late = await _put(client, h, oldest["upload_id"], 0, 1, _chunks(pdf)[1])
+        assert late.status_code == 409
+        assert _code(late) == "UPLOAD_CANCELLED"
+        # Another user is not affected.
+        await _open(client, headers(user_id="usr_other"), [("contract", "c.pdf", b"x" * 10)])
+
+    @pytest.mark.asyncio
+    async def test_sessions_being_completed_are_never_evicted(
+        self, client: AsyncClient, headers: Any, db: async_sessionmaker[AsyncSession]
     ) -> None:
         h = headers()
         for _ in range(3):
             await _open(client, h, [("contract", "c.pdf", b"x" * 10)])
+        async with db() as s:
+            await s.execute(update(UploadSessionORM).values(status="completing"))
+            await s.commit()
+
         response = await client.post(
             "/api/v1/uploads",
             json={"metadata": {}, "files": [{"role": "contract", "filename": "c.pdf", "size": 10}]},
             headers=h,
         )
         assert response.status_code == 429
-        # Another user is not affected.
-        await _open(client, headers(user_id="usr_other"), [("contract", "c.pdf", b"x" * 10)])
+        async with db() as s:
+            statuses = set((await s.execute(select(UploadSessionORM.status))).scalars())
+        assert statuses == {"completing"}
 
     @pytest.mark.asyncio
     async def test_reviewer_cannot_upload(self, client: AsyncClient, headers: Any) -> None:
@@ -418,10 +458,12 @@ class TestOwnershipAndLifecycle:
         assert (await client.delete(f"/api/v1/uploads/{upload_id}", headers=h)).status_code == 204
         with pytest.raises(FileNotFoundError):
             await storage.download_object(path)
-        assert (await _put(client, h, upload_id, 0, 0, _chunks(pdf)[0])).status_code == 409
-        assert (
-            await client.post(f"/api/v1/uploads/{upload_id}/complete", headers=h)
-        ).status_code == 409
+        late = await _put(client, h, upload_id, 0, 0, _chunks(pdf)[0])
+        assert late.status_code == 409
+        assert _code(late) == "UPLOAD_CANCELLED"
+        done = await client.post(f"/api/v1/uploads/{upload_id}/complete", headers=h)
+        assert done.status_code == 409
+        assert _code(done) == "UPLOAD_CANCELLED"
         state = (await client.get(f"/api/v1/uploads/{upload_id}", headers=h)).json()["data"]
         assert state["status"] == "cancelled"
 
@@ -436,6 +478,31 @@ class TestOwnershipAndLifecycle:
         await client.post(f"/api/v1/uploads/{session['upload_id']}/complete", headers=h)
         response = await client.delete(f"/api/v1/uploads/{session['upload_id']}", headers=h)
         assert response.status_code == 409
+        assert _code(response) == "UPLOAD_COMPLETED"
+        assert response.json()["error"]["details"]["dossier_id"].startswith("dos_")
+        late = await _put(client, h, session["upload_id"], 0, 0, _chunks(pdf)[0])
+        assert _code(late) == "UPLOAD_COMPLETED"
+
+    @pytest.mark.asyncio
+    async def test_a_chunk_changed_in_storage_is_a_size_mismatch(
+        self, client: AsyncClient, headers: Any, db: async_sessionmaker[AsyncSession]
+    ) -> None:
+        h = headers()
+        pdf = make_pdf()
+        session = await _open(client, h, [("contract", "a.pdf", pdf)])
+        await _send_all(client, h, session["upload_id"], [pdf])
+        async with db() as s:
+            path = (
+                await s.execute(
+                    select(UploadChunkORM.object_path).where(UploadChunkORM.chunk_no == 0)
+                )
+            ).scalar_one()
+        await storage.upload_file(path.removeprefix("s3://dossiers/"), b"short")
+
+        done = await client.post(f"/api/v1/uploads/{session['upload_id']}/complete", headers=h)
+        assert done.status_code == 409
+        assert _code(done) == "UPLOAD_SIZE_MISMATCH"
+        assert done.json()["error"]["details"]["declared_bytes"] == len(pdf)
 
     @pytest.mark.asyncio
     async def test_not_a_pdf_is_422_and_the_session_stays_open(
@@ -467,7 +534,9 @@ class TestOwnershipAndLifecycle:
             )
             await s.commit()
 
-        assert (await _put(client, h, upload_id, 0, 1, _chunks(pdf)[1])).status_code == 410
+        gone = await _put(client, h, upload_id, 0, 1, _chunks(pdf)[1])
+        assert gone.status_code == 410
+        assert _code(gone) == "UPLOAD_EXPIRED"
         assert (await client.get(f"/api/v1/uploads/{upload_id}", headers=h)).status_code == 410
         # Expired sessions no longer count toward the per-user cap.
         for _ in range(3):
@@ -498,6 +567,7 @@ class TestOwnershipAndLifecycle:
             await s.commit()
         busy = await client.post(f"/api/v1/uploads/{upload_id}/complete", headers=h)
         assert busy.status_code == 409  # another request may still be building it
+        assert _code(busy) == "UPLOAD_COMPLETING"
 
         async with db() as s:
             await s.execute(

@@ -184,6 +184,13 @@ Mọi phản hồi lỗi (HTTP status >= 400) đều tuân theo chuẩn RFC 7807
 | `422` | `email_domain_undeliverable` | **v4.0.0.** `POST /users`, `POST /users/{id}/invite`: email thuộc tên miền không nhận thư (`.local`, `.test`, `.example`, `.invalid`, `localhost`, `example.com/net/org`). Không tạo người dùng, không gửi thư. `details`: `{ field }` ở `POST /users`, `{ email }` ở `/invite` | Hiện `error.message` ("Tên miền email không nhận được thư, vui lòng kiểm tra lại.") ở ô email |
 | `422` | `directory_query_required` | **v4.0.0.** `GET /users/directory` do OPERATOR gọi mà không có `q` hoặc `q` dưới 3 ký tự. `details`: `{ min_length: 3 }` | Chỉ gọi khi người dùng đã gõ đủ 3 ký tự; chia sẻ theo email thì dùng `GET /users/lookup` |
 | `422` | `contract_required` / `contract_not_unique` | **v1.2.0.** Hồ sơ không có, hoặc có nhiều hơn một, hợp đồng chính (`POST /dossiers/{id}/split`, `POST /dossiers/{id}/manifest/confirm`) | Yêu cầu chọn đúng một phần hoặc tài liệu là hợp đồng |
+| `409` | `UPLOAD_MISSING_CHUNKS` | **v4.2.0.** `POST /uploads/{id}/complete` khi còn khúc chưa gửi. `details.missing_chunks`: `{ "<file_index>": [chunk_no, …] }` | Gửi các khúc trong danh sách rồi gọi lại `complete` |
+| `409` | `UPLOAD_SIZE_MISMATCH` | **v4.2.0.** `complete`: số byte ghép được khác `size` đã khai. `details`: `file_index`, `received_bytes`, `declared_bytes` | Huỷ phiên (`DELETE /uploads/{id}`) rồi tải lại |
+| `409` | `UPLOAD_COMPLETING` | **v4.2.0.** Phiên đang được một request khác `complete` (gửi khúc, `complete`, `DELETE`) | Chờ vài giây rồi gọi lại `complete` hoặc `GET /uploads/{id}` |
+| `409` | `UPLOAD_COMPLETED` | **v4.2.0.** Phiên đã thành hồ sơ (gửi khúc, `DELETE`). `details.dossier_id` | Mở hồ sơ `details.dossier_id` |
+| `409` | `UPLOAD_CANCELLED` | **v4.2.0.** Phiên đã huỷ: người dùng huỷ, hoặc backend huỷ phiên cũ nhất khi mở phiên thứ 4 (gửi khúc, `complete`) | Dừng gửi; muốn tải tiếp thì mở phiên mới |
+| `409` | `UPLOAD_NOT_OPEN` | **v4.2.0.** Phiên ở trạng thái khác (dự phòng; `details.status`) | Như `UPLOAD_CANCELLED` |
+| `410` | `UPLOAD_EXPIRED` | **v4.2.0.** Phiên quá `expires_at` (24 giờ) mà chưa `complete` | Mở phiên mới và tải lại |
 | `500` | `INTERNAL_ERROR` | Lỗi phía server / database / AI service | Hiển thị toast lỗi và mã `X-Request-Id` để liên hệ IT |
 
 ---
@@ -337,19 +344,30 @@ Màn hình khởi tạo hồ sơ, tải lên các file PDF (hợp đồng gốc 
      ```
      - `metadata` giống trường `metadata` của `POST /dossiers` (JSON object, không phải chuỗi).
      - `files`: đúng **một** `contract`; tối đa 6 file. `size` là số byte của file **đúng như sẽ gửi** (sau khi ảnh đã gói thành PDF).
-     - Kiểm ngay khi mở phiên, trước khi gửi byte nào: quá 6 file → `422 DOSSIER_TOO_MANY_DOCUMENTS`; không đúng một hợp đồng hoặc `metadata` sai → `422`; một file quá 50 MiB → `413`; người dùng đang có 3 phiên chưa xong → `429`.
+     - Kiểm ngay khi mở phiên, trước khi gửi byte nào: quá 6 file → `422 DOSSIER_TOO_MANY_DOCUMENTS`; không đúng một hợp đồng hoặc `metadata` sai → `422`; một file quá 50 MiB → `413`.
+     - **Mỗi người tối đa 3 phiên chưa xong.**
+       - Mở phiên thứ 4 thì backend **tự huỷ phiên `open` cũ nhất** của người đó (xoá khúc của phiên đó) rồi mở phiên mới. Nhờ vậy, upload bị bỏ dở (đóng tab, F5) không khoá người dùng tới khi hết hạn.
+       - Phiên bị huỷ như vậy, nếu tab cũ còn gửi khúc vào, nhận `409 UPLOAD_CANCELLED`.
+       - Phiên đang `completing` không bao giờ bị huỷ. Cả 3 phiên đều đang `completing` thì `429`.
      - Trả về `upload_id`, `chunk_size` (mặc định 1 MiB), `expires_at` (24 giờ), và `files[]` theo thứ tự hợp đồng trước (`index` 0), phụ lục sau, mỗi file có `chunks` (số khúc) và `received` (các khúc đã nhận, lúc đầu rỗng).
   2. Với mỗi file `index`, mỗi khúc `n` từ `0` tới `chunks - 1`: `PUT /uploads/{upload_id}/files/{index}/chunks/{n}`, body là byte thô (`Content-Type: application/octet-stream`) của đoạn `[n × chunk_size, (n + 1) × chunk_size)`. → `204`.
      - Mọi khúc dài đúng `chunk_size`, trừ khúc cuối (phần còn lại). Sai độ dài → `422`. `index` hoặc `n` ngoài phạm vi → `404`.
      - **Gửi lại cùng một khúc thì ghi đè**, nên khúc lỗi mạng cứ gửi lại. Thứ tự gửi không quan trọng.
      - Ở 35 KB/s, một khúc 1 MiB mất khoảng 30 giây, xa mốc 125 giây.
   3. `POST /uploads/{upload_id}/complete` → `202` với **đúng** `{dossier_id, job_id}` như `POST /dossiers`. Backend ghép các khúc rồi chạy cùng luồng tạo hồ sơ (kiểm PDF, số trang, `split_pending`, tự xác nhận vai trò, gửi OCR).
-     - Thiếu khúc → `409`, `detail.missing_chunks` là `{ "<index>": [n, …] }`. Gửi các khúc đó rồi gọi lại.
+     - Thiếu khúc → `409 UPLOAD_MISSING_CHUNKS`, `error.details.missing_chunks` là `{ "<index>": [n, …] }`. Gửi các khúc đó rồi gọi lại.
+     - Số byte ghép được khác `size` đã khai → `409 UPLOAD_SIZE_MISMATCH` (`details`: `file_index`, `received_bytes`, `declared_bytes`). Chỉ xảy ra khi dữ liệu lưu bị hỏng: huỷ phiên rồi tải lại.
      - File không phải PDF đọc được → `422` (như `POST /dossiers`). Phiên **vẫn mở**: có thể huỷ và tải file khác.
-     - **Gọi lại sau khi đã thành công trả cùng hồ sơ**, nên mất response lần đầu thì cứ gọi lại, không tạo hồ sơ thứ hai. Hai lần gọi cùng lúc: một lần tạo hồ sơ, lần kia nhận `409` (gọi lại sau vài giây sẽ nhận hồ sơ).
+     - **Gọi lại sau khi đã thành công trả cùng hồ sơ**, nên mất response lần đầu thì cứ gọi lại, không tạo hồ sơ thứ hai. Hai lần gọi cùng lúc: một lần tạo hồ sơ, lần kia nhận `409 UPLOAD_COMPLETING`.
+     - **`524` hoặc `409 UPLOAD_COMPLETING`: chờ rồi gọi lại, đừng tải lại từ đầu.**
+       - `complete` ghép cả bộ hồ sơ rồi tạo hồ sơ trong cùng một request. Với bộ hồ sơ rất lớn, request này có thể vượt 100 giây chờ của Cloudflare, và Cloudflare trả `524` trong khi backend vẫn đang làm tiếp.
+       - Khi đó chờ vài giây rồi gọi lại `complete`, hoặc `GET /uploads/{upload_id}`: thấy `status: "completed"` kèm `dossier_id` là xong.
+       - Phiên kẹt ở `completing` quá 10 phút (backend khởi động lại giữa chừng) thì gọi lại `complete` sẽ làm lại từ đầu.
   - `GET /uploads/{upload_id}` trả lại trạng thái như bước 1 (`status`: `open`, `completing`, `completed` kèm `dossier_id`, hoặc `cancelled`). Mất mạng hoặc tải lại trang thì đọc `received` và chỉ gửi khúc còn thiếu.
-  - `DELETE /uploads/{upload_id}` → `204` (huỷ hai lần không lỗi); phiên đã thành hồ sơ → `409`, xoá hồ sơ bằng `DELETE /dossiers/{id}`.
-  - Phiên chỉ của người mở: người khác (kể cả cùng tenant) nhận `404`. Quá `expires_at` mà chưa `complete` → `410`, backend xoá phiên và các khúc.
+  - `DELETE /uploads/{upload_id}` → `204` (huỷ hai lần không lỗi); phiên đã thành hồ sơ → `409 UPLOAD_COMPLETED` (`details.dossier_id`), xoá hồ sơ bằng `DELETE /dossiers/{id}`; đang hoàn tất → `409 UPLOAD_COMPLETING`.
+  - Gửi khúc vào phiên không còn mở → `409` với mã theo trạng thái: `UPLOAD_COMPLETING`, `UPLOAD_COMPLETED` (`details.dossier_id`) hoặc `UPLOAD_CANCELLED`.
+  - Phiên chỉ của người mở: người khác (kể cả cùng tenant) nhận `404`. Quá `expires_at` mà chưa `complete` → `410 UPLOAD_EXPIRED`, backend xoá phiên và các khúc.
+  - Lỗi của `/uploads` dùng khung `{"error": {"code", "message", "details"}}` như các lỗi nghiệp vụ khác (§3.3). `message` bằng tiếng Anh: frontend hiển thị theo `code`. Riêng `404`, `413`, `422` (sai độ dài khúc, PDF hỏng) và `429` vẫn là `{"detail": …}` như `POST /dossiers`.
   - `POST /dossiers` **không đổi**. Frontend có thể giữ nó cho hồ sơ nhỏ (ví dụ tổng dưới 4 MB) và dùng `/uploads` cho hồ sơ lớn hơn. Giới hạn 100 MB mỗi request của Cloudflare không còn áp lên cả bộ hồ sơ khi gửi theo khúc; giới hạn 50 MiB mỗi file và 6 file vẫn giữ.
 
 - **Tách file trộn (v1.1.0):**

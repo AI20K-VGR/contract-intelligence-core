@@ -77,6 +77,11 @@ from contract_intelligence.infrastructure import storage
 from contract_intelligence.shared.auth import AuthenticatedUser, require_role
 from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.shared.base import utcnow
+from contract_intelligence.shared.exceptions import (
+    DomainErrorCode,
+    UploadSessionConflict,
+    UploadSessionExpired,
+)
 from contract_intelligence.shared.persistence import get_async_session
 from contract_intelligence.shared.responses import ApiResponse
 
@@ -143,9 +148,17 @@ def _expired(row: UploadSessionORM) -> bool:
     return row.status != COMPLETED and aware(row.expires_at) <= utcnow()
 
 
-def _gone() -> HTTPException:
-    return HTTPException(
-        status_code=410, detail="Phiên tải lên đã hết hạn. Vui lòng tải tệp lên lại."
+def _not_open(row: UploadSessionORM) -> UploadSessionConflict:
+    """409 for a session that no longer takes chunks, with a code per state."""
+    codes = {
+        COMPLETING: DomainErrorCode.UPLOAD_COMPLETING,
+        COMPLETED: DomainErrorCode.UPLOAD_COMPLETED,
+        CANCELLED: DomainErrorCode.UPLOAD_CANCELLED,
+    }
+    return UploadSessionConflict(
+        codes.get(row.status, DomainErrorCode.UPLOAD_NOT_OPEN),
+        f"Upload session is {row.status}",
+        details={"upload_id": row.id, "status": row.status, "dossier_id": row.dossier_id},
     )
 
 
@@ -233,7 +246,12 @@ def _created(row: UploadSessionORM) -> ApiResponse[DossierCreatedDTO]:
                 "(`DOSSIER_TOO_MANY_DOCUMENTS`)"
             )
         },
-        429: {"description": "Too many open upload sessions for this user"},
+        429: {
+            "description": (
+                "Every open session of the user is completing (older open ones are "
+                "cancelled to make room instead)"
+            )
+        },
     },
 )
 async def open_upload_session(
@@ -241,6 +259,7 @@ async def open_upload_session(
     user: Uploader,
     tenant_id: TenantId,
     session: Session,
+    background_tasks: BackgroundTasks,
 ) -> ApiResponse[UploadSessionDTO]:
     """Declare the files and metadata; nothing is stored until the chunks come.
 
@@ -258,13 +277,26 @@ async def open_upload_session(
     parse_upload_metadata(body.metadata)  # 422 now rather than at /complete
 
     store = UploadSessionStore(session, tenant_id)
-    if await store.count_open(user.user_id) >= settings.upload_sessions_per_user:
-        raise HTTPException(
-            status_code=429,
-            detail=(
-                "Bạn đang có quá nhiều lượt tải lên chưa xong. Hoàn tất hoặc huỷ bớt rồi thử lại."
-            ),
-        )
+    # A session left behind (tab closed, reload: the frontend keeps upload_id in
+    # memory only) must not lock the user out until it expires. At the cap, the
+    # oldest open sessions are cancelled to make room; sessions in the middle of
+    # /complete are never taken away (429 when all of them are).
+    open_count = await store.count_open(user.user_id)
+    cap = settings.upload_sessions_per_user
+    if open_count >= cap:
+        evicted: list[str] = []
+        for old in await store.oldest_open(user.user_id, limit=open_count - cap + 1):
+            paths = await store.finish(old, status=CANCELLED, dossier_id=None, job_id=None)
+            background_tasks.add_task(delete_objects_quietly, paths)
+            evicted.append(old.id)
+        await session.commit()
+        if evicted:
+            logger.info("upload.session.evicted", upload_ids=evicted, user_cap=cap)
+        if await store.count_open(user.user_id) >= cap:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many uploads are being completed; try again in a moment.",
+            )
 
     chunk_bytes = settings.upload_chunk_bytes
     ordered = contracts + [f for f in body.files if f.role == "annex"]
@@ -302,8 +334,8 @@ async def open_upload_session(
     summary="Gửi một khúc của một tệp (byte thô)",
     responses={
         404: {"description": "No such session for this user, or no such file/chunk"},
-        409: {"description": "Session already completed, completing or cancelled"},
-        410: {"description": "Session expired"},
+        409: {"description": "`UPLOAD_COMPLETING`, `UPLOAD_COMPLETED` or `UPLOAD_CANCELLED`"},
+        410: {"description": "`UPLOAD_EXPIRED`"},
         422: {"description": "Chunk size differs from the expected size"},
     },
 )
@@ -322,9 +354,9 @@ async def put_chunk(
     if row is None:
         raise _not_found()
     if _expired(row):
-        raise _gone()
+        raise UploadSessionExpired(row.id)
     if row.status != OPEN:
-        raise HTTPException(status_code=409, detail=f"Upload session is {row.status}")
+        raise _not_open(row)
     file = next((f for f in declared_files(row) if f.index == file_index), None)
     if file is None or chunk_no >= file.chunks:
         raise HTTPException(status_code=404, detail="No such file or chunk in this upload")
@@ -364,7 +396,7 @@ async def put_chunk(
     summary="Trạng thái phiên tải lên: các khúc đã nhận",
     responses={
         404: {"description": "No such session for this user"},
-        410: {"description": "Expired"},
+        410: {"description": "`UPLOAD_EXPIRED`"},
     },
 )
 async def get_upload_session(
@@ -379,7 +411,7 @@ async def get_upload_session(
     if row is None:
         raise _not_found()
     if _expired(row):
-        raise _gone()
+        raise UploadSessionExpired(row.id)
     return ApiResponse(data=await _session_dto(store, row))
 
 
@@ -390,8 +422,13 @@ async def get_upload_session(
     summary="Ghép các khúc và tạo hồ sơ (như POST /dossiers)",
     responses={
         404: {"description": "No such session for this user"},
-        409: {"description": "Chunks missing, session completing, or cancelled"},
-        410: {"description": "Session expired"},
+        409: {
+            "description": (
+                "`UPLOAD_MISSING_CHUNKS` (details.missing_chunks), `UPLOAD_SIZE_MISMATCH`, "
+                "`UPLOAD_COMPLETING` (call again later) or `UPLOAD_CANCELLED`"
+            )
+        },
+        410: {"description": "`UPLOAD_EXPIRED`"},
         413: {"description": "A file is larger than upload_max_file_bytes"},
         422: {"description": "A file is not a readable PDF, or invalid metadata"},
     },
@@ -416,19 +453,18 @@ async def complete_upload_session(
     if row.status == COMPLETED:
         return _created(row)
     if _expired(row):
-        raise _gone()
-    if row.status == CANCELLED:
-        raise HTTPException(status_code=409, detail="Upload session was cancelled")
-    if row.status == COMPLETING and not stale_completing(row):
-        raise HTTPException(status_code=409, detail="Upload session is already completing")
+        raise UploadSessionExpired(row.id)
+    if row.status == CANCELLED or (row.status == COMPLETING and not stale_completing(row)):
+        raise _not_open(row)
 
     files = declared_files(row)
     chunks = await store.chunks(row.id)
     missing = _missing_chunks(files, {(c.file_index, c.chunk_no) for c in chunks})
     if missing:
-        raise HTTPException(
-            status_code=409,
-            detail={"message": "Chưa nhận đủ các khúc của tệp.", "missing_chunks": missing},
+        raise UploadSessionConflict(
+            DomainErrorCode.UPLOAD_MISSING_CHUNKS,
+            "Some chunks have not been received",
+            details={"upload_id": row.id, "missing_chunks": missing},
         )
 
     # Hold the session so a concurrent /complete cannot build a second dossier.
@@ -438,7 +474,11 @@ async def complete_upload_session(
         row = await store.get(upload_id, user.user_id)
         if row is not None and row.status == COMPLETED:
             return _created(row)
-        raise HTTPException(status_code=409, detail="Upload session is already completing")
+        raise UploadSessionConflict(
+            DomainErrorCode.UPLOAD_COMPLETING,
+            "Upload session is completing",
+            details={"upload_id": upload_id, "status": COMPLETING, "dossier_id": None},
+        )
 
     try:
         uploads: list[PdfUpload] = []
@@ -446,9 +486,15 @@ async def complete_upload_session(
             parts = [c.object_path for c in chunks if c.file_index == f.index]
             data = await _join_chunks(parts)
             if len(data) != f.size:
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"{f.filename}: received {len(data)} bytes, declared {f.size}",
+                raise UploadSessionConflict(
+                    DomainErrorCode.UPLOAD_SIZE_MISMATCH,
+                    f"File {f.index} has {len(data)} bytes, {f.size} were declared",
+                    details={
+                        "upload_id": upload_id,
+                        "file_index": f.index,
+                        "received_bytes": len(data),
+                        "declared_bytes": f.size,
+                    },
                 )
             uploads.append(await check_pdf(f.filename, data))
 
@@ -498,7 +544,9 @@ async def complete_upload_session(
     summary="Huỷ phiên tải lên và xoá các khúc đã gửi",
     responses={
         404: {"description": "No such session for this user"},
-        409: {"description": "Already completed (the dossier exists) or completing"},
+        409: {
+            "description": "`UPLOAD_COMPLETED` (delete the dossier instead) or `UPLOAD_COMPLETING`"
+        },
     },
 )
 async def cancel_upload_session(
@@ -514,10 +562,7 @@ async def cancel_upload_session(
     if row is None:
         raise _not_found()
     if row.status in (COMPLETED, COMPLETING):
-        raise HTTPException(
-            status_code=409,
-            detail=f"Upload session is {row.status}; delete the dossier instead",
-        )
+        raise _not_open(row)
     if row.status == OPEN:
         paths = await store.finish(row, status=CANCELLED, dossier_id=None, job_id=None)
         await session.commit()

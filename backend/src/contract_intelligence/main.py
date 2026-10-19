@@ -479,6 +479,8 @@ _domain_exc_to_http: dict[str, int] = {
     "ValidationError": 422,
     "ManifestValidationError": 422,
     "DossierTooManyDocuments": 422,
+    "UploadSessionConflict": 409,
+    "UploadSessionExpired": 410,
     "ManifestVersionConflict": 409,
     "ReviewVersionConflict": 409,
     "InvalidStateTransition": 409,

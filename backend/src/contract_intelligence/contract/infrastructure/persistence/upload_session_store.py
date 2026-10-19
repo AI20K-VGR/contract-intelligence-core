@@ -166,6 +166,21 @@ class UploadSessionStore:
         )
         return int((await self._session.execute(stmt)).scalar_one())
 
+    async def oldest_open(self, user_id: str, *, limit: int) -> list[UploadSessionORM]:
+        """Up to ``limit`` of the user's ``open`` (not completing) sessions, oldest first."""
+        stmt = (
+            select(UploadSessionORM)
+            .where(
+                UploadSessionORM.tenant_id == self._tenant_id,
+                UploadSessionORM.user_id == user_id,
+                UploadSessionORM.status == OPEN,
+                UploadSessionORM.expires_at > utcnow(),
+            )
+            .order_by(UploadSessionORM.created_at, UploadSessionORM.id)
+            .limit(max(limit, 0))
+        )
+        return list((await self._session.execute(stmt)).scalars())
+
     async def create(
         self,
         *,
