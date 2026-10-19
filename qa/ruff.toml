@@ -1,0 +1,5 @@
+# QA test suite is allowed slightly longer lines than the app code.
+line-length = 140
+
+[lint]
+select = ["E", "F", "W", "B"]
