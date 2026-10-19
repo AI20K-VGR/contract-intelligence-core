@@ -1,6 +1,8 @@
 // Màu theo loại quan hệ, dùng chung cho nhãn trong danh sách và đường nối trên
 // sơ đồ: cùng một loại thì cùng một màu ở mọi chỗ.
 
+import { relationLabel } from '../../structure/displayLabels'
+
 export type RelationTone =
   'reference' | 'conflict' | 'duplicate' | 'scope' | 'add' | 'remove' | 'other'
 
@@ -76,3 +78,18 @@ export const RELATION_TONES: RelationTone[] = [
   'remove',
   'other',
 ]
+
+/**
+ * Các loại quan hệ (tên hiển thị) có trong `edges` cùng màu và số lượng, cho
+ * chú thích và bộ lọc. Truyền mọi cạnh đã tải, không chỉ trang đầu (PR #143).
+ */
+export function relationGroups(edges: readonly { label: string }[]) {
+  const groups = new Map<string, { tone: RelationTone; count: number }>()
+  for (const edge of edges) {
+    const label = relationLabel(edge.label)
+    const group = groups.get(label)
+    if (group) group.count += 1
+    else groups.set(label, { tone: relationTone(edge.label), count: 1 })
+  }
+  return groups
+}

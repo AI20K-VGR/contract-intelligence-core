@@ -6,7 +6,8 @@ import type {
   ContractGraphPage,
   ProcessingTrace,
 } from '../../api/contractGraph'
-import { ContractGraphCanvas } from './ContractGraphCanvas'
+import { ContractGraphCanvas, RelationFilter } from './ContractGraphCanvas'
+import { relationGroups } from './relationTone'
 import { ProcessingTimeline } from './ProcessingTimeline'
 import { processingTimelineOutcome, stageReasonText } from './timelineOutcome'
 import { RelationList } from './RelationList'
@@ -429,5 +430,47 @@ describe('AI2 graph accessible views', () => {
       renderToStaticMarkup(<ProcessingTimeline trace={{ ...trace, status }} />),
     )
     expect(new Set(labels).size).toBe(outcomes.length)
+  })
+})
+
+describe('relation filter after loading more pages (PR #143 review)', () => {
+  it('lists a relation type that only appears on a later page', () => {
+    const conflict = { ...edge('two'), label: 'CONFLICT' }
+    let state = createRelationListState(page([edge('one')], 'cursor-2'))
+    expect([...relationGroups(state.edges).keys()]).toHaveLength(1)
+    state = appendRelationPage(state, page([conflict], null), 'cursor-2')
+    const groups = relationGroups(state.edges)
+    expect(groups.size).toBe(2)
+    expect([...groups.values()].map((group) => group.tone)).toContain(
+      'conflict',
+    )
+
+    const html = renderToStaticMarkup(
+      <RelationFilter
+        edges={state.edges}
+        exact={isRelationListComplete(state)}
+        totalCount={2}
+        value={null}
+        onChange={() => {}}
+      />,
+    )
+    for (const label of groups.keys()) expect(html).toContain(label)
+  })
+
+  it('shows per-type counts only once every page is loaded', () => {
+    const first = page([edge('one')], 'cursor-2')
+    const partial = renderToStaticMarkup(
+      <RelationFilter
+        edges={first.edges}
+        exact={false}
+        totalCount={5}
+        value={null}
+        onChange={() => {}}
+      />,
+    )
+    const label = [...relationGroups(first.edges).keys()][0]!
+    expect(partial).toContain(label)
+    // Tổng vẫn hiện; số riêng của loại chưa đúng thì không hiện.
+    expect(partial).toContain('>5<')
   })
 })
