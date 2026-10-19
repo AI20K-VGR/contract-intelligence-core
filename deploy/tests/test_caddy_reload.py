@@ -86,7 +86,7 @@ def test_changed_caddyfile_is_checked_then_caddy_restarts(tmp_path: Path) -> Non
 
     assert proc.returncode == 0, proc.stderr
     calls = _calls(tmp_path)
-    assert calls[0].startswith("compose run --rm --no-deps -T caddy caddy adapt")
+    assert calls[0].startswith("compose run --rm --no-deps -T caddy caddy validate")
     assert calls[1:] == ["compose restart caddy"]
     assert "Caddy config changed: /etc/caddy/Caddyfile" in proc.stdout
     assert "frontend.caddy" not in proc.stdout
@@ -103,7 +103,7 @@ def test_file_missing_in_the_container_counts_as_changed(tmp_path: Path) -> None
 
 
 @pytest.mark.skipif(BASH is None, reason="Bash is required")
-def test_a_config_that_does_not_parse_stops_the_deploy_without_restarting(tmp_path: Path) -> None:
+def test_a_config_that_does_not_load_stops_the_deploy_without_restarting(tmp_path: Path) -> None:
     proc = _run(tmp_path, live={**SAME, "Caddyfile": "old\n"}, adapt_ok=False)
 
     assert proc.returncode == 1
@@ -119,3 +119,18 @@ def test_block_runs_right_after_up_and_before_the_health_checks() -> None:
     health = source.index(END)
     smoke = source.index("[deploy] smoke test")
     assert up < block < health < smoke
+
+
+def test_validate_is_used_not_adapt() -> None:
+    """adapt only parses; a missing TLS file would pass it and break the restart."""
+    block = _block()
+    assert "caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile" in block
+    assert "caddy adapt" not in block
+
+
+def test_smoke_test_checks_the_backchannel_path_is_blocked_publicly() -> None:
+    source = (ROOT / "deploy/deploy.sh").read_text(encoding="utf-8")
+    smoke = source.split("[deploy] smoke test", 1)[1]
+    assert """-X POST -d 'logout_token=x' "$api/api/v1/auth/backchannel-logout\"""" in smoke
+    assert "back-channel logout blocked publicly ($code): ok" in smoke
+    assert "404|403)" in smoke.split("backchannel-logout", 1)[1]
