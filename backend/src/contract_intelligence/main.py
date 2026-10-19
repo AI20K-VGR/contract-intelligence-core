@@ -54,6 +54,9 @@ from contract_intelligence.extraction.interfaces.api.routers.reocr_router import
 from contract_intelligence.identity.interfaces.api.auth_router import (
     router as auth_router,
 )
+from contract_intelligence.identity.interfaces.api.backchannel_logout_router import (
+    router as backchannel_logout_router,
+)
 from contract_intelligence.identity.interfaces.api.webhook_router import (
     router as webhook_router,
 )
@@ -96,6 +99,7 @@ from contract_intelligence.shared.middleware import BackendHeadersMiddleware
 from contract_intelligence.shared.persistence import (
     bind_engine,
     create_async_engine,
+    get_session_factory,
     reset_engine,
 )
 from contract_intelligence.shared.persistence.base import Base
@@ -107,6 +111,7 @@ from contract_intelligence.shared.run_events import (
     listen_dsn,
 )
 from contract_intelligence.shared.server_timing import ServerTimingMiddleware
+from contract_intelligence.shared.session_revocation import load_revoked_sessions
 from contract_intelligence.shared.versioning import full_version
 
 logger = get_logger(__name__)
@@ -171,6 +176,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
             logger.info("db.create_all.fallback_ok")
+
+    # Sessions ended in Keycloak before this start stay refused (back-channel
+    # logout). A failure only logs: those tokens expire within 15 minutes.
+    if settings.env != "test":
+        try:
+            async with get_session_factory()() as db:
+                loaded = await load_revoked_sessions(db)
+            logger.info("auth.revoked_sessions.loaded", count=loaded)
+        except Exception as exc:
+            logger.warning("auth.revoked_sessions.load_failed", error=str(exc))
 
     # Initialize AI service client (singleton) — verify connectivity
     ai_client = get_ai_service_client()
@@ -412,6 +427,8 @@ def create_app() -> FastAPI:
     app.include_router(
         webhook_router, prefix="/api/v1/auth", tags=["Authentication"]
     )  # → /api/v1/auth/webhooks/keycloak
+    # → /api/v1/auth/backchannel-logout (Keycloak only; Caddy blocks it from the Internet)
+    app.include_router(backchannel_logout_router, prefix="/api/v1/auth")
     app.include_router(users_router, prefix="/api/v1")  # → /api/v1/users*
     app.include_router(admin_overview_router, prefix="/api/v1")  # → /api/v1/admin/*
     app.include_router(monitoring_router, prefix="/api/v1")  # → /api/v1/admin/monitoring/*

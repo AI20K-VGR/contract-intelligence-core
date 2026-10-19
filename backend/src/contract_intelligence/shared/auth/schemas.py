@@ -42,6 +42,8 @@ class AuthenticatedUser:
               (OPERATOR | REVIEWER | ADMINISTRATOR).
         is_active: False khi admin disable user. Backend-side protection
               bổ sung cho Keycloak session. Defaults to True if not in token.
+        session_id: Keycloak session (`sid` claim). A session that ended
+              (back-channel logout) makes every token carrying it invalid.
 
     Usage trong router:
         @router.get("/items")
@@ -60,6 +62,7 @@ class AuthenticatedUser:
     display_name: str
     role: str
     is_active: bool = True
+    session_id: str | None = None
 
     def has_role(self, *roles: str) -> bool:
         """Kiểm tra user có một trong các vai trò được phép."""
@@ -97,8 +100,17 @@ class KeycloakTokenClaims(BaseModel):
     is_active: bool = True
     preferred_username: str | None = None
     realm_access_roles: list[str] = Field(default_factory=list)
+    sid: str | None = None
     iat: int = 0
     exp: int = 0
+
+
+class LogoutTokenClaims(BaseModel):
+    """A verified Keycloak back-channel logout token (OIDC Back-Channel Logout 1.0)."""
+
+    sid: str
+    sub: str | None = None
+    iat: int
 
 
 # -----------------------------------------------------------------------------

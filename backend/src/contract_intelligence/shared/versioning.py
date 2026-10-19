@@ -63,7 +63,9 @@ __version__ = "2.0.0"
 # v4.0.0: PUT /dossiers/{id}/access kiểm tra người nhận mới trong Keycloak (422
 #         share_recipient_not_found); GET /users/lookup; /users/directory bắt OPERATOR
 #         gửi q; không gửi thư tới tên miền dành riêng. Thu hẹp hành vi nên MAJOR.
-__api_contract__ = "v4.0.0"
+# v4.1.0: phiên Keycloak đã kết thúc (back-channel logout) → token của phiên đó
+#         nhận 401 "Session has ended" ngay, không chờ hết hạn.
+__api_contract__ = "v4.1.0"
 
 # AI service contract version (DOC-05c) — wrap khi AI service sẵn sàng
 __ai_contract__ = "v1.0.0"

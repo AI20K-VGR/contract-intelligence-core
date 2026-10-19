@@ -18,9 +18,16 @@ class TokenExpiredError(AuthenticationError):
         super().__init__("Token has expired")
 
 
+class SessionRevokedError(AuthenticationError):
+    """The Keycloak session of this token ended (logout, user disabled)."""
+
+    def __init__(self) -> None:
+        super().__init__("Session has ended")
+
+
 def client_auth_message(exc: AuthenticationError) -> str:
-    """What a 401 tells the caller: expired, or just invalid — never which check failed."""
-    return str(exc) if isinstance(exc, TokenExpiredError) else "Invalid token"
+    """What a 401 tells the caller: expired, ended, or just invalid — never which check failed."""
+    return str(exc) if isinstance(exc, TokenExpiredError | SessionRevokedError) else "Invalid token"
 
 
 class TenantMismatchError(Exception):

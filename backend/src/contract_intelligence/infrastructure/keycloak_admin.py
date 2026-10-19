@@ -722,6 +722,20 @@ def _update_role_sync(*, user_id: str, new_role: UserRole) -> UserDTO:
         raise KeycloakUnavailableError(str(exc)) from exc
 
 
+def _end_sessions(admin: KeycloakAdmin, user_id: str) -> None:
+    """End every Keycloak session of a disabled user.
+
+    Disabling alone stops new logins and refreshes, but the access tokens
+    already issued stay valid until they expire. Ending the sessions makes
+    Keycloak send a back-channel logout for each one, and the API refuses
+    their tokens at once. A failure only logs: the user is disabled either way.
+    """
+    try:
+        admin.user_logout(user_id)
+    except (KeycloakError, KeycloakConnectionError) as exc:
+        logger.warning("keycloak.disable.logout_failed", user_id=user_id, error=str(exc))
+
+
 def _set_enabled_sync(*, user_id: str, enabled: bool) -> UserDTO:
     admin = _build_keycloak_admin()
     try:
@@ -737,6 +751,7 @@ def _set_enabled_sync(*, user_id: str, enabled: bool) -> UserDTO:
             admin.enable_user(user_id)
         else:
             admin.disable_user(user_id)
+            _end_sessions(admin, user_id)
         user = _get_user_or_raise(admin, user_id)
         logger.info("keycloak.set_enabled.ok", user_id=user_id, enabled=enabled)
         return _to_user_dto(

@@ -4067,7 +4067,11 @@ components:
 
   responses:
     Unauthorized:
-      description: Token JWT không hợp lệ, đã hết hạn hoặc không được cung cấp (401)
+      description: |
+        Token JWT không hợp lệ, đã hết hạn hoặc không được cung cấp (401).
+        **v4.1.0:** cũng trả khi phiên Keycloak của token đã kết thúc (đăng xuất, quản trị
+        đăng xuất hộ hoặc khoá tài khoản), dù token chưa hết hạn. Body thực tế là
+        `{"detail": "Token has expired" | "Invalid token" | "Session has ended"}` của FastAPI.
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }

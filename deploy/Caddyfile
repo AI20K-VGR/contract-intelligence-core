@@ -47,6 +47,11 @@
 		max_size 320MiB
 	}
 
+	# Keycloak reports ended sessions here from inside ci-network
+	# (http://backend:8000); nobody on the Internet has a reason to call it.
+	@backchannel_logout path /api/v1/auth/backchannel-logout
+	respond @backchannel_logout 404
+
 	reverse_proxy backend:8000 {
 		# SSE (/api/v1/runs/{id}/events): pass each event through at once.
 		flush_interval -1

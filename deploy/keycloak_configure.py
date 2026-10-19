@@ -11,7 +11,9 @@ Runs inside the running backend container on ci-network (deploy/deploy.sh does i
 - frontend client: add FRONTEND_ORIGINS to redirect URIs, web origins and
   post-logout redirects, and drop the localhost / 127.0.0.1 ones realm-export.json
   brings for local work (a token must not be sent to a page on the user's own
-  machine). KEYCLOAK_KEEP_LOCAL_REDIRECTS=true keeps them;
+  machine). KEYCLOAK_KEEP_LOCAL_REDIRECTS=true keeps them. Back-channel logout
+  points at the backend (KEYCLOAK_BACKCHANNEL_LOGOUT_URL, default
+  http://backend:8000/api/v1/auth/backchannel-logout);
 - backend client: replace the repo's dev secret with BACKEND_KEYCLOAK_ADMIN_SECRET;
 - seeded demo users: replace the passwords committed in realm-export.json with
   DEMO_*_PASSWORD from deploy/.env.prod;
@@ -34,6 +36,7 @@ BASE = os.environ.get("KEYCLOAK_INTERNAL_URL", "http://keycloak:8080").rstrip("/
 REALM = os.environ.get("KEYCLOAK_REALM", "contract-intelligence")
 FRONTEND_CLIENT = "contract-intel-frontend"
 BACKEND_CLIENT = "contract-intel-backend"
+DEFAULT_BACKCHANNEL_LOGOUT_URL = "http://backend:8000/api/v1/auth/backchannel-logout"
 DEMO_USERS = {
     "admin@ci.local": "DEMO_ADMIN_PASSWORD",
     "reviewer@ci.local": "DEMO_REVIEWER_PASSWORD",
@@ -77,9 +80,7 @@ def _admin_token() -> str:
     deadline = time.monotonic() + 300
     while True:
         try:
-            payload = _request(
-                "POST", "/realms/master/protocol/openid-connect/token", body=form
-            )
+            payload = _request("POST", "/realms/master/protocol/openid-connect/token", body=form)
             token = payload.get("access_token") if isinstance(payload, dict) else None
             if not token:
                 sys.exit("[keycloak] admin token response did not contain access_token")
@@ -157,10 +158,28 @@ def configure_frontend(token: str, origins: list[str]) -> None:
     attributes["post.logout.redirect.uris"] = "##".join(
         _merge(_online(logout, keep_local), [f"{o}/*" for o in origins])
     )
+    attributes.update(_backchannel_logout_attributes())
     client["attributes"] = attributes
+    # Keycloak skips the back-channel call for a client marked front-channel
+    # on a browser logout; this client has no front-channel URL anyway.
+    client["frontchannelLogout"] = False
     _request("PUT", f"/admin/realms/{REALM}/clients/{client['id']}", token, client)
     local = "kept" if keep_local else "removed"
     print(f"[keycloak] frontend client allows {', '.join(origins)}; localhost redirects {local}")
+    print(f"[keycloak] back-channel logout: {attributes['backchannel.logout.url']}")
+
+
+def _backchannel_logout_attributes() -> dict[str, str]:
+    """Keycloak POSTs a logout token here when a session ends, so the API stops
+    accepting that session's access tokens at once instead of up to 15 minutes later.
+    The backend is reached inside ci-network; Caddy refuses the path from outside.
+    """
+    url = _env("KEYCLOAK_BACKCHANNEL_LOGOUT_URL", required=False) or DEFAULT_BACKCHANNEL_LOGOUT_URL
+    return {
+        "backchannel.logout.url": url,
+        "backchannel.logout.session.required": "true",
+        "backchannel.logout.revoke.offline.tokens": "false",
+    }
 
 
 def configure_frontend_url(token: str, public_url: str) -> None:
