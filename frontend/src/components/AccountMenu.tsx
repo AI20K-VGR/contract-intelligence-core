@@ -18,11 +18,15 @@ export function AccountMenu({
 
   return (
     <div className={`flex items-center ${gapClassName}`}>
-      <div className="flex flex-col items-end text-right">
+      {/* Laptop nhỏ: chỉ còn avatar, nhường chỗ cho tiêu đề và đường dẫn. */}
+      <div className="hidden flex-col items-end whitespace-nowrap text-right xl:flex">
         <span className={nameClassName}>{user.name}</span>
         <span className={emailClassName}>{user.email}</span>
       </div>
-      <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+      <div
+        className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center shrink-0"
+        title={`${user.name} · ${user.email}`}
+      >
         <MaterialIcon name="person" className="text-brand-700 text-[18px]" />
       </div>
     </div>

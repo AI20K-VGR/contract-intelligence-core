@@ -33,6 +33,13 @@ import {
   type DossierStructure,
   type StructureDocument,
 } from '../api/structure'
+import {
+  cancelDossierUpload,
+  formatFileSize,
+  uploadPercent,
+  useDossierUpload,
+  type DossierUpload,
+} from '../api/dossierUpload'
 import { isCancelledJob, jobErrorInfo } from '../api/jobErrors'
 import {
   cancelRun,
@@ -45,11 +52,14 @@ import { useAuth } from '../auth/useAuth'
 import { TechnicalDetail } from '../components/TechnicalDetail'
 import { useDossierPermissions } from '../auth/dossierPermissions'
 import { MaterialIcon } from '../components/icons'
-import { structurePath } from '../data/dossiers'
+import { progressPath, splitPath, structurePath } from '../data/dossiers'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { parseStructureMode, type StructureMode } from '../structure'
 
 const POLL_INTERVAL_MS = 2000
+// Sau khi bấm chạy lại, chờ worker nhận lệnh tối đa chừng này trước khi coi
+// job vẫn lỗi là kết quả thật.
+const RESTART_WAIT_MS = 30000
 // BE phát lại step.changed khi chỉ `progress` đổi (khoảng 20 lần mỗi bước):
 // tin đó tự cập nhật vòng tiến độ, chỉ tải lại hồ sơ cách nhau ít nhất chừng này.
 const PROGRESS_RELOAD_INTERVAL_MS = 10000
@@ -144,6 +154,58 @@ function fileModel(
   }
 }
 
+const CREATE_PATH = '/tao-ho-so'
+
+function uploadHeadline(upload: DossierUpload) {
+  switch (upload.status) {
+    case 'preparing':
+      return 'Đang chuẩn bị tệp'
+    case 'sending':
+      return 'Đang gửi tệp lên máy chủ'
+    case 'saving':
+      return 'Máy chủ đang kiểm tra và lưu tệp'
+    case 'done':
+      return 'Đã tạo hồ sơ, đang mở tiến trình'
+    case 'failed':
+      return 'Tải lên thất bại'
+    case 'cancelled':
+      return 'Đã hủy tải lên'
+  }
+}
+
+function uploadLogRow(upload: DossierUpload): LogRowModel {
+  const files = `${upload.fileCount} tệp (${formatFileSize(upload.total)})`
+  const id = `upload-${upload.id}`
+  if (upload.status === 'done') {
+    const seconds =
+      ((upload.finishedAt ?? upload.startedAt) - upload.startedAt) / 1000
+    return {
+      id,
+      status: 'done',
+      text: `Đã gửi ${files} lên máy chủ (${seconds.toFixed(1)}s)`,
+    }
+  }
+  if (upload.status === 'failed') {
+    return { id, status: 'failed', text: `Gửi tệp lỗi: ${upload.error ?? ''}` }
+  }
+  if (upload.status === 'cancelled') {
+    return { id, status: 'failed', text: 'Đã hủy tải lên' }
+  }
+  if (upload.status === 'saving') {
+    return {
+      id,
+      status: 'active',
+      text: `Đã gửi ${files}, máy chủ đang kiểm tra`,
+    }
+  }
+  const percent = uploadPercent(upload)
+  return {
+    id,
+    status: 'active',
+    text: `Đang gửi ${files} lên máy chủ${percent === null ? '' : `: ${percent}%`}`,
+  }
+}
+
 function stateStructureMode(state: unknown): StructureMode | null {
   if (!state || typeof state !== 'object') return null
   return parseStructureMode(
@@ -167,16 +229,58 @@ export function AnalysisProgressPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [attempt, setAttempt] = useState(0)
+  // Đã gửi lệnh chạy lại, job chưa rời trạng thái lỗi: không hiện lỗi cũ.
+  const [restarting, setRestarting] = useState(false)
+  const restartedAt = useRef<number | null>(null)
   const [steps, setSteps] = useState<Record<string, RunStep>>({})
   const [liveLog, setLiveLog] = useState<LogRowModel[]>([])
   const passedName = (location.state as { name?: string } | null)?.name
+  const uploadId =
+    (location.state as { upload?: string } | null)?.upload ?? null
+  // Chưa có mã hồ sơ: lần tải lên vừa bấm. Có mã: lần tải lên trong tab này
+  // đã tạo ra hồ sơ, để giữ dòng gửi tệp trong danh sách bước.
+  const upload = useDossierUpload(
+    dossierId ? null : uploadId,
+    dossierId || null,
+  )
+  const pending = dossierId ? null : upload
 
   usePageTitle(detail?.name ?? passedName ?? 'Tiến trình phân tích')
 
+  const hasPending = pending !== null
   useEffect(() => {
-    if (dossierId) return
+    if (dossierId || hasPending) return
     navigate(backTo, { replace: true })
-  }, [backTo, dossierId, navigate])
+  }, [backTo, dossierId, hasPending, navigate])
+
+  // Máy chủ đã tạo hồ sơ: sang đúng trang của hồ sơ đó.
+  const createdId = pending?.status === 'done' ? pending.dossierId : null
+  const createdSplit = pending?.splitPending ?? false
+  const createdMode = pending?.structureMode
+  const createdName = pending?.name
+  useEffect(() => {
+    if (!createdId) return
+    navigate(createdSplit ? splitPath(createdId) : progressPath(createdId), {
+      replace: true,
+      state: { structureMode: createdMode, name: createdName },
+    })
+  }, [createdId, createdMode, createdName, createdSplit, navigate])
+
+  // Lỗi hoặc hủy: quay lại trang Tải lên với tệp đã chọn để sửa rồi tải lại.
+  function backToUpload() {
+    if (!pending) return
+    navigate(CREATE_PATH, {
+      replace: true,
+      state: { retryUpload: pending.id },
+    })
+  }
+
+  function cancelUpload() {
+    if (!pending) return
+    if (!window.confirm('Hủy tải lên? Hồ sơ chưa được tạo.')) return
+    // Đã gửi hết tệp thì máy chủ vẫn tạo hồ sơ: ở lại chờ chuyển trang.
+    if (cancelDossierUpload(pending.id)) backToUpload()
+  }
 
   // Một lần điều hướng chỉ gửi một lệnh chạy lại. StrictMode chạy effect hai
   // lần khi mở trang, và state.restart chưa kịp xóa ở lần thứ hai: không có cờ
@@ -193,7 +297,11 @@ export function AnalysisProgressPage() {
     setBusy(true)
     setError(null)
     void rerunDossierOcr(dossierId)
-      .then(() => setAttempt((value) => value + 1))
+      .then(() => {
+        restartedAt.current = Date.now()
+        setRestarting(true)
+        setAttempt((value) => value + 1)
+      })
       .catch((cause: unknown) => setError(restartOcrErrorMessage(cause)))
       .finally(() => setBusy(false))
   }, [dossierId, location.key, location.pathname, location.state, navigate])
@@ -210,6 +318,7 @@ export function AnalysisProgressPage() {
     let loading = false
     let reloadQueued = false
     let finishedRunId: string | null = null
+    let watchedRunId: string | null = null
     let polling = false
     // Trang OCR và điều khoản không đổi khi job đã 'extracted': tải một lần.
     let settled = false
@@ -277,6 +386,7 @@ export function AnalysisProgressPage() {
           startPolling()
           return
         }
+        watchedRunId = runId
         if (runId === finishedRunId) {
           // Stream đã đóng mà job chưa kết thúc: hỏi định kỳ, không thì trang đứng im.
           startPolling()
@@ -306,15 +416,15 @@ export function AnalysisProgressPage() {
                 const label = RUN_STEP_LABELS[step.step] ?? step.step
                 const text =
                   step.status === 'succeeded'
-                    ? `${step.step} · ${label}: xong${
+                    ? `${label}: xong${
                         step.durationMs !== null
                           ? ` (${(step.durationMs / 1000).toFixed(1)}s)`
                           : ''
                       }`
                     : step.status === 'running'
-                      ? `${step.step} · ${label}: đang chạy`
+                      ? `${label}: đang chạy`
                       : step.status === 'failed'
-                        ? `${step.step} · ${label}: lỗi`
+                        ? `${label}: lỗi`
                         : null
                 if (text) {
                   setLiveLog((rows) => [
@@ -340,6 +450,8 @@ export function AnalysisProgressPage() {
               setError('Không nhận được tiến độ trực tiếp từ máy chủ.')
               startPolling()
             },
+            // Không có tin trực tiếp: hỏi định kỳ, không báo lỗi vì trang vẫn chạy đúng.
+            onStalled: startPolling,
           },
           stream.signal,
         )
@@ -405,12 +517,27 @@ export function AnalysisProgressPage() {
           return
         }
         if (isStoppedJob(next.latestJobStatus)) {
+          // Vừa bấm chạy lại: worker chưa kịp nhận lệnh nên job còn lỗi. Hỏi
+          // lại tới khi job rời trạng thái lỗi, không thì trang đứng ở lỗi cũ.
+          const since = restartedAt.current
+          if (since !== null && Date.now() - since < RESTART_WAIT_MS) {
+            if (timer !== undefined) window.clearTimeout(timer)
+            timer = window.setTimeout(requestReload, POLL_INTERVAL_MS)
+            return
+          }
+          restartedAt.current = null
+          setRestarting(false)
           void syncSteps()
           return
         }
+        restartedAt.current = null
+        setRestarting(false)
         setClauseCount(null)
-        if (polling) schedulePoll()
-        else void watch()
+        if (polling) {
+          // Không có SSE thì trạng thái bước chỉ tới từ đây.
+          void syncSteps(watchedRunId)
+          schedulePoll()
+        } else void watch()
       } catch (cause) {
         if (controller.signal.aborted || stopped) return
         const message = structureErrorMessage(cause)
@@ -448,7 +575,7 @@ export function AnalysisProgressPage() {
 
   const documents = useMemo(() => detail?.documents ?? [], [detail])
   const jobStatus = detail?.latestJobStatus ?? null
-  const stopped = isStoppedJob(jobStatus)
+  const stopped = isStoppedJob(jobStatus) && !restarting
   const failure = useMemo(
     () => jobErrorInfo(detail?.latestJobErrorCode),
     [detail?.latestJobErrorCode],
@@ -498,18 +625,17 @@ export function AnalysisProgressPage() {
     pageTotals.total > 0
       ? Math.min(99, Math.round((pageTotals.done / pageTotals.total) * 100))
       : null
+  // S3 phân loại từng trang ngay trước khi đọc trang đó (S2), nhưng BE chỉ ghi
+  // S3 khi đã đọc xong hết: S2 đang chạy thì S3 cũng hiện đang chạy, cùng tiến độ.
+  const shownSteps: Record<string, RunStep> =
+    steps.S2?.status === 'running' &&
+    (!steps.S3 || steps.S3.status === 'queued')
+      ? { ...steps, S3: { ...steps.S2, step: 'S3', durationMs: null } }
+      : steps
   const stepList = OCR_RUN_STEP_ORDER.flatMap((code) =>
-    steps[code] ? [steps[code]] : [],
+    shownSteps[code] ? [shownSteps[code]] : [],
   )
   const stepsDone = stepList.filter((row) => row.status === 'succeeded').length
-  // Bước đang chạy có `progress` thì góp phần đã xong vào thanh tổng.
-  const runningShare = stepList.reduce(
-    (sum, row) =>
-      row.status === 'running' && row.progress
-        ? sum + row.progress.done / row.progress.total
-        : sum,
-    0,
-  )
   // Trang đã OCR chỉ được lưu khi cả tài liệu xong; S2 `progress` (đơn vị trang)
   // đếm theo từng trang AI1 báo về (DOC-05d `ai1.ocr.progress`).
   const ocrProgress = steps.S2?.progress
@@ -520,21 +646,47 @@ export function AnalysisProgressPage() {
   const pagesTotal =
     pageTotals.total || (ocrProgress?.unit === 'page' ? ocrProgress.total : 0)
   const hasSteps = stepList.length > 0
-  const percent = hasSteps
-    ? Math.min(
+  const uploadDone = upload?.status === 'done' ? 1 : 0
+  const totalSteps = OCR_RUN_STEP_ORDER.length + (upload ? 1 : 0)
+
+  // Phần đã xong của một bước, 0..1: đúng số % trên vòng của bước đó.
+  function stepShare(code: string) {
+    const row = shownSteps[code]
+    const ocr = code === 'S2' || code === 'S3'
+    // Không có số liệu bước (không SSE): bước đọc trang lấy theo số trang đã lưu.
+    if (!row) {
+      return !hasSteps && ocr && pageTotals.total > 0
+        ? pageTotals.done / pageTotals.total
+        : 0
+    }
+    if (row.status === 'succeeded') return 1
+    if (row.status !== 'running') return 0
+    if (row.progress) return row.progress.done / row.progress.total
+    return ocr ? (ocrPercent ?? 0) / 100 : 0
+  }
+
+  // Thanh tổng chia đều cho từng dòng bước, mỗi dòng góp đúng % trên vòng của
+  // nó. Gửi tệp lên (khi tải trong tab này) là dòng đầu, nên thanh đi liền từ
+  // lúc bấm tải lên. Dòng chạy cùng lúc (S2, S3) cùng tăng một lúc.
+  const shares = OCR_RUN_STEP_ORDER.map(stepShare)
+  if (upload) {
+    shares.unshift(
+      upload.status === 'done' ? 1 : (uploadPercent(upload) ?? 0) / 100,
+    )
+  }
+  // Chưa tới 100 khi AI1 chưa báo đọc xong.
+  const percent = ready
+    ? 100
+    : Math.min(
         99,
         Math.round(
-          ((stepsDone + runningShare) / OCR_RUN_STEP_ORDER.length) * 100,
+          (shares.reduce((sum, share) => sum + share, 0) / shares.length) * 100,
         ),
       )
-    : ocrPercent !== null
-      ? ocrPercent
-      : ready
-        ? 100
-        : 0
 
   const logs = useMemo(() => {
-    const rows: LogRowModel[] = []
+    const uploadRows = upload ? [uploadLogRow(upload)] : []
+    const rows: LogRowModel[] = [...uploadRows]
     if (documents.length > 0) {
       rows.push({
         id: 'received',
@@ -582,8 +734,8 @@ export function AnalysisProgressPage() {
         ? { ...row, status: 'done' as const }
         : row,
     )
-    return [...received, ...live, ...finish]
-  }, [documents.length, failed, files, liveLog, ready, steps])
+    return [...uploadRows, ...received, ...live, ...finish]
+  }, [documents.length, failed, files, liveLog, ready, steps, upload])
 
   const mode = detail?.structureMode ?? stateStructureMode(location.state)
 
@@ -641,6 +793,8 @@ export function AnalysisProgressPage() {
         return
       }
       await retryDossierFailed(dossierId, failure.retry)
+      restartedAt.current = Date.now()
+      setRestarting(true)
       setAttempt((value) => value + 1)
       setBusy(false)
     } catch (cause) {
@@ -653,16 +807,35 @@ export function AnalysisProgressPage() {
   const finished = ready || failed
   // OCR xong nhưng job còn 'extracted' là AI2 đang chạy: vẫn huỷ được.
   const cancellable = !finished || jobStatus === 'extracted'
-  const runningStep = finished
-    ? undefined
-    : stepList.find((row) => row.status === 'running')
+  // Các bước chạy cùng lúc (đọc trang và phân loại trang) cùng hiện ở đây.
+  const runningLabels = finished
+    ? []
+    : stepList
+        .filter((row) => row.status === 'running')
+        .map((row) => RUN_STEP_LABELS[row.step] ?? row.step)
   const activeLabel = failed
     ? failedLabel
     : ready
       ? 'Đã đọc xong tài liệu. Có thể mở hồ sơ.'
-      : runningStep
-        ? `Đang chạy: ${runningStep.step} · ${RUN_STEP_LABELS[runningStep.step] ?? ''}`
-        : 'Đang chờ máy chủ nhận tệp'
+      : runningLabels.length > 0
+        ? `Đang chạy: ${runningLabels.join('; ')}`
+        : restarting
+          ? 'Đang gửi lệnh chạy lại'
+          : 'Đang chờ máy chủ nhận tệp'
+
+  // Lúc chưa có mã hồ sơ, phần đầu trang là tiến độ gửi tệp lên.
+  const pendingStopped =
+    pending?.status === 'failed' || pending?.status === 'cancelled'
+  const headline = pending ? uploadHeadline(pending) : activeLabel
+  const barFailed = pending ? pendingStopped : failed
+  const barPercent = ready ? 100 : percent
+  const subline = pending
+    ? `Đã gửi ${formatFileSize(Math.min(pending.loaded, pending.total))}/${formatFileSize(pending.total)} · ${pending.fileCount} tệp`
+    : `${
+        finished
+          ? 'Đã kết thúc'
+          : `${uploadDone + stepsDone}/${totalSteps} bước hoàn thành`
+      } · cập nhật trực tiếp từ máy chủ`
 
   return (
     <div className="flex flex-col w-full pt-space-md pb-margin-lg">
@@ -672,6 +845,15 @@ export function AnalysisProgressPage() {
           role="alert"
         >
           {error}
+        </p>
+      ) : null}
+
+      {pending?.status === 'failed' ? (
+        <p
+          className="mb-gutter rounded-lg bg-error-container px-space-md py-space-sm font-body-sm text-body-sm text-on-error-container"
+          role="alert"
+        >
+          {pending.error}
         </p>
       ) : null}
 
@@ -709,32 +891,32 @@ export function AnalysisProgressPage() {
             <div className="flex items-baseline justify-between gap-space-md mb-space-sm">
               <span
                 className={`font-title-sm text-title-sm font-semibold ${
-                  failed ? 'text-error' : 'text-on-surface'
+                  barFailed ? 'text-error' : 'text-on-surface'
                 }`}
               >
-                {activeLabel}
+                {headline}
               </span>
               <span className="font-headline-md text-headline-md text-primary font-bold">
-                {ready ? '100%' : `${percent}%`}
+                {barPercent}%
               </span>
             </div>
             <div className="h-2 w-full rounded-full bg-surface-container overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${
-                  failed ? 'bg-error' : 'bg-primary'
+                  barFailed ? 'bg-error' : 'bg-primary'
                 }`}
-                style={{ width: `${ready ? 100 : percent}%` }}
+                style={{ width: `${barPercent}%` }}
               />
             </div>
             <span className="font-label-sm text-label-sm text-on-surface-variant mt-space-xs block">
-              {finished
-                ? 'Đã kết thúc'
-                : `${stepsDone}/${OCR_RUN_STEP_ORDER.length} bước hoàn thành`}{' '}
-              · cập nhật trực tiếp từ máy chủ
+              {subline}
             </span>
           </div>
           <div className="grid grid-cols-3 gap-space-sm lg:w-[420px] shrink-0">
-            <Stat label="Tài liệu" value={String(documents.length)} />
+            <Stat
+              label="Tài liệu"
+              value={String(pending ? pending.fileCount : documents.length)}
+            />
             <Stat
               label="Trang đã đọc"
               value={`${pagesRead}/${pagesTotal || '—'}`}
@@ -756,8 +938,9 @@ export function AnalysisProgressPage() {
             </span>
           </div>
           <ol className="flex flex-col">
+            {upload ? <UploadStepRow upload={upload} /> : null}
             {OCR_RUN_STEPS.map(({ code, ocr }, index) => {
-              const row = steps[code]
+              const row = shownSteps[code]
               const rawStatus = row?.status ?? 'queued'
               // Run đã kết thúc mà BE không ghi nhận bước này thì không để xoay/chờ mãi.
               const status =
@@ -790,10 +973,11 @@ export function AnalysisProgressPage() {
                       >
                         {RUN_STEP_LABELS[code]}
                       </span>
-                      <span className="font-label-sm text-label-sm text-on-surface-variant">
-                        {code}
-                        {row?.pages != null ? ` · ${row.pages} trang` : ''}
-                      </span>
+                      {row?.pages != null ? (
+                        <span className="font-label-sm text-label-sm text-on-surface-variant">
+                          {row.pages} trang
+                        </span>
+                      ) : null}
                     </div>
                     <span
                       className={`font-label-sm text-label-sm font-semibold shrink-0 ${
@@ -873,7 +1057,28 @@ export function AnalysisProgressPage() {
 
       <div className="mt-gutter pt-space-md flex flex-col md:flex-row items-center justify-between gap-space-md">
         <div className="flex items-center gap-space-md">
-          {!cancellable || !canManageRun ? null : (
+          {pending &&
+          (pending.status === 'preparing' || pending.status === 'sending') ? (
+            <button
+              className="font-body-sm text-body-sm text-error hover:underline flex items-center gap-space-xs"
+              type="button"
+              onClick={cancelUpload}
+            >
+              <MaterialIcon name="close" className="text-[16px]" />
+              <span>Hủy tải lên</span>
+            </button>
+          ) : null}
+          {pendingStopped ? (
+            <button
+              className="font-body-sm text-body-sm text-primary hover:underline flex items-center gap-space-xs"
+              type="button"
+              onClick={backToUpload}
+            >
+              <MaterialIcon name="arrow_back" className="text-[16px]" />
+              <span>Quay lại tải lên</span>
+            </button>
+          ) : null}
+          {pending || !cancellable || !canManageRun ? null : (
             <button
               className="font-body-sm text-body-sm text-error hover:underline flex items-center gap-space-xs disabled:opacity-60"
               disabled={busy || !dossierId}
@@ -905,7 +1110,7 @@ export function AnalysisProgressPage() {
           ) : null}
         </div>
         <div className="flex items-center gap-space-sm">
-          {canDelete ? (
+          {canDelete && !pending ? (
             <button
               className="flex items-center gap-space-sm px-gutter py-space-sm bg-white text-on-surface border border-error/70 rounded-lg font-title-sm text-title-sm shadow-sm transition-all hover:bg-error/5 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={busy || !dossierId}
@@ -1015,6 +1220,74 @@ function StepProgress({
         <span className="tabular-nums text-brand-700">{percent}%</span>
       ) : null}
     </span>
+  )
+}
+
+/** Bước gửi tệp lên, đứng trước S0: chạy ở trình duyệt nên BE không ghi nhận. */
+function UploadStepRow({ upload }: { upload: DossierUpload }) {
+  const status =
+    upload.status === 'done'
+      ? 'succeeded'
+      : upload.status === 'failed'
+        ? 'failed'
+        : upload.status === 'cancelled'
+          ? 'cancelled'
+          : 'running'
+  const seconds =
+    ((upload.finishedAt ?? upload.startedAt) - upload.startedAt) / 1000
+  return (
+    <li className="flex gap-space-md">
+      <div className="flex flex-col items-center">
+        <StepDot status={status} />
+        <div
+          className={`w-px flex-1 min-h-4 ${
+            status === 'succeeded' ? 'bg-emerald-300' : 'bg-outline-variant'
+          }`}
+        />
+      </div>
+      <div className="flex flex-1 items-start justify-between gap-space-sm pb-space-md">
+        <div className="flex flex-col">
+          <span className="font-body-sm text-body-sm text-on-surface font-semibold">
+            Gửi tệp lên máy chủ
+          </span>
+          <span className="font-label-sm text-label-sm text-on-surface-variant">
+            {upload.fileCount} tệp · {formatFileSize(upload.total)}
+          </span>
+        </div>
+        <span
+          className={`font-label-sm text-label-sm font-semibold shrink-0 ${
+            status === 'succeeded'
+              ? 'text-emerald-700'
+              : status === 'failed'
+                ? 'text-error'
+                : status === 'running'
+                  ? 'text-on-tertiary-container'
+                  : 'text-on-surface-variant'
+          }`}
+        >
+          {status === 'succeeded' ? (
+            `Xong · ${seconds.toFixed(1)}s`
+          ) : status === 'failed' ? (
+            'Lỗi'
+          ) : status === 'cancelled' ? (
+            'Đã hủy'
+          ) : (
+            <StepProgress
+              percent={
+                upload.status === 'sending' ? uploadPercent(upload) : null
+              }
+              detail={
+                upload.status === 'saving'
+                  ? 'Đã gửi hết, máy chủ đang kiểm tra và lưu tệp'
+                  : upload.status === 'preparing'
+                    ? 'Đang chuẩn bị tệp'
+                    : `Đã gửi ${formatFileSize(upload.loaded)}/${formatFileSize(upload.total)}`
+              }
+            />
+          )}
+        </span>
+      </div>
+    </li>
   )
 }
 
