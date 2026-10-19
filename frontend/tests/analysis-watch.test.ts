@@ -90,7 +90,8 @@ describe('startAnalysisWatch', () => {
         progress: { done: 3, total: 6, unit: 'clause' },
       },
     })
-    expect(handlers.onPercent).toHaveBeenLastCalledWith(8)
+    // Nửa bước S6 (trọng số 6) = 3%.
+    expect(handlers.onPercent).toHaveBeenLastCalledWith(3)
     job.status = 'pending_review'
     push!({ id: '2', event: 'run.completed', data: {} })
     await vi.advanceTimersByTimeAsync(0)

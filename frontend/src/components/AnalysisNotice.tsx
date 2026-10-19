@@ -177,7 +177,7 @@ export function AnalysisNotice({
           type="button"
           onClick={onRetry}
         >
-          {retrying ? 'Đang gửi…' : 'Chạy lại'}
+          {retrying ? 'Đang chạy lại…' : 'Chạy lại'}
         </button>
       ) : null}
     </div>
