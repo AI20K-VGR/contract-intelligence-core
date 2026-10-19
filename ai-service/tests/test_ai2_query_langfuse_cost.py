@@ -153,8 +153,10 @@ def test_question_trace_records_usage_cost_and_no_text(langfuse):
     assert update["cost_details"]["total"] == pytest.approx((1000 * 5 + 200 * 0.5 + 400 * 30) / 1e6)
     assert update["metadata"]["reasoning_tokens"] == 150
     assert "level" not in update
-    # Only counts and ids reach Langfuse, never the prompt or the contract text.
+    # Only counts and ids reach Langfuse, never the prompt or the contract text,
+    # nor a fingerprint of it (PR #139 review).
     assert "PRIVATE" not in repr(langfuse.observations)
+    assert "request_digest" not in update["metadata"]
 
 
 def test_question_deadline_thread_still_belongs_to_the_question(langfuse):

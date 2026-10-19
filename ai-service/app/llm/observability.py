@@ -283,7 +283,8 @@ def record_completion(generation: Any | None, trace: dict[str, Any]) -> None:
             "system_chars",
             "user_chars",
             "response_chars",
-            "request_digest",
+            # Not request_digest: a fixed hash of the prompt (contract or question
+            # text) links repeated calls and can be guessed for short inputs.
             "error_type",
         )
         if key in trace
