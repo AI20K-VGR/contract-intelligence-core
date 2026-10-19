@@ -266,7 +266,7 @@ def test_document_heading_outranks_a_contents_page_code_mention() -> None:
     assert "24/25" in evidence[0]["text"]
 
 
-@pytest.mark.parametrize("code", ["ZXQ17", "RPT/2026/007", "PRJ-QA-042", "NV-93"])
+@pytest.mark.parametrize("code", ["ZXQ17", "RPT/2026/007", "PRJ-QA-042", "NV-93", "X42"])
 def test_document_identifiers_are_discovered_without_a_prefix_allowlist(code: str) -> None:
     record = mock_record()
     record.source_files = [
@@ -288,6 +288,17 @@ def test_document_code_matches_whole_identifier_not_a_longer_number() -> None:
     store = InMemorySnapshotStore()
     store.put(record)
     assert answer_compose.document_evidence(ToolGateway(store), envelope(), "ZXQ17 ghi gì?") == []
+
+
+def test_clause_references_and_dates_are_not_document_identifiers() -> None:
+    assert (
+        answer_compose.document_codes(
+            "Điều 1, khoản 2, phụ lục 03, trang 5, ngày 15 tháng 10 năm 2026"
+        )
+        == set()
+    )
+    result = _router(None).query(envelope(), "Điều 1", policy_flags={"use_llm": False})
+    assert "DOCUMENT_SOURCE" not in result.get("layers_used", [])
 
 
 @pytest.mark.parametrize("query", ["Sự cố dữ liệu xử lý thế nào?", "Thanh lý và đối soát ra sao?"])

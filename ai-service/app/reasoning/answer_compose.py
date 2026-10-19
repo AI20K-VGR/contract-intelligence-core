@@ -214,9 +214,13 @@ def lexical_evidence(
 
 def document_codes(text: str) -> set[str]:
     """Candidate identifiers, without assuming a dossier's numbering prefixes."""
-    return set(
-        re.findall(r"\b[a-z]{2,}(?:[-/][a-z]+)*[\s/-]*\d+[a-z]?(?:[-/][a-z0-9]+)*\b", fold(text))
+    candidates = re.findall(
+        r"\b[a-z]+(?:[-/][a-z]+)*[\s/-]*\d+[a-z]?(?:[-/][a-z0-9]+)*\b", fold(text)
     )
+    # Structural references and prose dates are parsed elsewhere. They are
+    # not document identifiers just because a word precedes a number.
+    prose_number = r"^(?:dieu|khoan|muc|luc|article|annex|trang|page|ngay|thang|nam)\s+\d"
+    return {code for code in candidates if not re.match(prose_number, code)}
 
 
 def document_evidence(gateway: ToolGateway, envelope: Any, query: str) -> list[dict[str, Any]]:
