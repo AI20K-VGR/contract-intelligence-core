@@ -33,6 +33,8 @@ _TOKEN_TYPES = ("input", "input_cached", "output")
 _STATE = re.compile(r"^[A-Z0-9_]{1,40}$")
 _OPERATION = re.compile(r"^[a-z0-9_.:-]{1,48}$")
 _PHASES = ("snapshot_load", "claim", "pipeline", "persist")
+# The ``operation=`` names job code passes to ``PipelineRuntime.complete_json``.
+_OPERATIONS = ("alias", "fact_normalize", "pairs", "slot_context", "table")
 _FINDING_KINDS = ("finding", "context_finding")
 _MODEL = re.compile(r"^[A-Za-z0-9._:/-]{1,64}$")
 
@@ -138,6 +140,9 @@ def _create_zero_series() -> None:
         IDP_JOBS.labels(status)
     for phase in _PHASES:
         IDP_PHASE_SECONDS.labels(phase)
+    for operation in _OPERATIONS:
+        IDP_LLM_CALLS.labels(operation)
+        IDP_LLM_SECONDS.labels(operation)
     for finding_kind in _FINDING_KINDS:
         IDP_FINDINGS.labels(finding_kind)
     for kind, model in _configured_models():
