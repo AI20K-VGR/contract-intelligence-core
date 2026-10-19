@@ -346,9 +346,9 @@ Màn hình khởi tạo hồ sơ, tải lên các file PDF (hợp đồng gốc 
      - `files`: đúng **một** `contract`; tối đa 6 file. `size` là số byte của file **đúng như sẽ gửi** (sau khi ảnh đã gói thành PDF).
      - Kiểm ngay khi mở phiên, trước khi gửi byte nào: quá 6 file → `422 DOSSIER_TOO_MANY_DOCUMENTS`; không đúng một hợp đồng hoặc `metadata` sai → `422`; một file quá 50 MiB → `413`.
      - **Mỗi người tối đa 3 phiên chưa xong.**
-       - Mở phiên thứ 4 thì backend **tự huỷ phiên `open` cũ nhất** của người đó (xoá khúc của phiên đó) rồi mở phiên mới. Nhờ vậy, upload bị bỏ dở (đóng tab, F5) không khoá người dùng tới khi hết hạn.
+       - Mở phiên thứ 4 thì backend **tự huỷ phiên `open` đã không nhận khúc nào trong 5 phút**, ít hoạt động nhất trước, và xoá khúc của phiên đó, rồi mở phiên mới. Nhờ vậy, upload bị bỏ dở (đóng tab, F5) không khoá người dùng tới khi hết hạn.
+       - Phiên **còn đang gửi khúc** (nhiều hồ sơ tải cùng lúc) và phiên đang `completing` thì không bao giờ bị huỷ. Không có phiên nào bỏ dở đủ 5 phút thì `429`: chờ một lượt tải xong, hoặc huỷ một lượt, rồi mở lại.
        - Phiên bị huỷ như vậy, nếu tab cũ còn gửi khúc vào, nhận `409 UPLOAD_CANCELLED`.
-       - Phiên đang `completing` không bao giờ bị huỷ. Cả 3 phiên đều đang `completing` thì `429`.
      - Trả về `upload_id`, `chunk_size` (mặc định 1 MiB), `expires_at` (24 giờ), và `files[]` theo thứ tự hợp đồng trước (`index` 0), phụ lục sau, mỗi file có `chunks` (số khúc) và `received` (các khúc đã nhận, lúc đầu rỗng).
   2. Với mỗi file `index`, mỗi khúc `n` từ `0` tới `chunks - 1`: `PUT /uploads/{upload_id}/files/{index}/chunks/{n}`, body là byte thô (`Content-Type: application/octet-stream`) của đoạn `[n × chunk_size, (n + 1) × chunk_size)`. → `204`.
      - Mọi khúc dài đúng `chunk_size`, trừ khúc cuối (phần còn lại). Sai độ dài → `422`. `index` hoặc `n` ngoài phạm vi → `404`.

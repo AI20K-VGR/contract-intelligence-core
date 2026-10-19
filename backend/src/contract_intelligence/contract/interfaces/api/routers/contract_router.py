@@ -86,6 +86,7 @@ from contract_intelligence.contract.interfaces.api.dependencies import (
 from contract_intelligence.contract.interfaces.api.dossier_intake import (
     PdfUpload,
     check_document_count,
+    discard_uploaded,
     ingest_upload_file,
     parse_upload_metadata,
     publish_dossier_uploaded,
@@ -592,12 +593,23 @@ async def create_dossier(
     contract_upload = await read_pdf_upload(contract)
     annex_uploads = [await read_pdf_upload(annex_file) for annex_file in annex_files]
 
-    staged = await stage_new_dossier(
-        svc=svc, user=user, meta=meta, contract=contract_upload, annexes=annex_uploads
-    )
-    # Commit before the 202 is sent. Otherwise the next GET/PATCH and the
-    # dossier.uploaded consumer race an uncommitted transaction.
-    await svc.commit()
+    uploaded: list[str] = []
+    try:
+        staged = await stage_new_dossier(
+            svc=svc,
+            user=user,
+            meta=meta,
+            contract=contract_upload,
+            annexes=annex_uploads,
+            uploaded=uploaded,
+        )
+        # Commit before the 202 is sent. Otherwise the next GET/PATCH and the
+        # dossier.uploaded consumer race an uncommitted transaction.
+        await svc.commit()
+    except BaseException:
+        # Files already in MinIO belong to a dossier that will never exist.
+        await discard_uploaded(uploaded)
+        raise
     if not staged.split_pending:
         # Publish after the request session commits (BackgroundTasks run post-response).
         background_tasks.add_task(

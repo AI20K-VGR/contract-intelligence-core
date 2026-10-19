@@ -68,6 +68,7 @@ from contract_intelligence.contract.interfaces.api.dossier_intake import (
     PdfUpload,
     check_document_count,
     check_pdf,
+    discard_uploaded,
     file_too_large,
     parse_upload_metadata,
     publish_dossier_uploaded,
@@ -203,31 +204,27 @@ _JOIN_CONCURRENCY = 8
 
 
 async def _join_chunks(paths: list[str]) -> bytes:
-    """Download the chunk objects (in order) and join them.
+    """Download the chunk objects and join them **in the order of** ``paths``.
 
-    Chunks are downloaded with bounded concurrency and joined in submission
-    order: the result is in ``bytearray`` form, accumulated one chunk at a time
-    rather than allocating a list of every chunk first.  Memory footprint is
-    proportional to ``_JOIN_CONCURRENCY`` × chunk size, not the full file.
+    This is the only place the PDF given to OCR is put back together, so order
+    is by construction: chunk ``i`` is awaited before chunk ``i + 1`` is
+    appended. Up to ``_JOIN_CONCURRENCY`` downloads run ahead of the one being
+    appended (a sliding window), so at most that many chunks wait in memory
+    besides the file being built.
     """
-    gate = asyncio.Semaphore(_JOIN_CONCURRENCY)
     result = bytearray()
-    pending: dict[int, bytes] = {}
-    next_index = 0
-
-    async def fetch(path: str, index: int) -> tuple[int, bytes]:
-        async with gate:
-            return index, await storage.download_object(path)
-
-    inflight = [asyncio.create_task(fetch(path, i)) for i, path in enumerate(paths)]
-    for task in asyncio.as_completed(inflight):
-        index, chunk = await task
-        pending[index] = chunk
-        # Drain in order: as soon as the next index is available, append it.
-        while next_index in pending:
-            result.extend(pending.pop(next_index))
-            next_index += 1
-
+    window: dict[int, asyncio.Task[bytes]] = {}
+    try:
+        for index in range(min(_JOIN_CONCURRENCY, len(paths))):
+            window[index] = asyncio.create_task(storage.download_object(paths[index]))
+        for index in range(len(paths)):
+            result.extend(await window.pop(index))
+            ahead = index + _JOIN_CONCURRENCY
+            if ahead < len(paths):
+                window[ahead] = asyncio.create_task(storage.download_object(paths[ahead]))
+    finally:
+        for task in window.values():
+            task.cancel()
     return bytes(result)
 
 
@@ -266,8 +263,8 @@ def _created(row: UploadSessionORM) -> ApiResponse[DossierCreatedDTO]:
         },
         429: {
             "description": (
-                "Every open session of the user is completing (older open ones are "
-                "cancelled to make room instead)"
+                "3 unfinished sessions and none idle for 5 minutes: uploads still "
+                "sending or completing are never cancelled (idle ones make room instead)"
             )
         },
     },
@@ -296,9 +293,10 @@ async def open_upload_session(
 
     store = UploadSessionStore(session, tenant_id)
     # A session left behind (tab closed, reload: the frontend keeps upload_id in
-    # memory only) must not lock the user out until it expires. At the cap, the
-    # oldest open sessions are cancelled to make room; sessions in the middle of
-    # /complete are never taken away (429 when all of them are).
+    # memory only) must not lock the user out until it expires. At the cap, open
+    # sessions idle for EVICT_IDLE_AFTER are cancelled to make room, least
+    # recently active first. A session still receiving chunks (another upload
+    # running in parallel) or in the middle of /complete is never taken: 429.
     open_count = await store.count_open(user.user_id)
     cap = settings.upload_sessions_per_user
     if open_count >= cap:
@@ -313,7 +311,10 @@ async def open_upload_session(
         if await store.count_open(user.user_id) >= cap:
             raise HTTPException(
                 status_code=429,
-                detail="Too many uploads are being completed; try again in a moment.",
+                detail=(
+                    "Too many uploads in progress; finish or cancel one, "
+                    "or try again in a few minutes."
+                ),
             )
 
     chunk_bytes = settings.upload_chunk_bytes
@@ -500,6 +501,7 @@ async def complete_upload_session(
             details={"upload_id": upload_id, "status": COMPLETING, "dossier_id": None},
         )
 
+    uploaded: list[str] = []
     try:
         uploads: list[PdfUpload] = []
         for f in files:
@@ -524,28 +526,26 @@ async def complete_upload_session(
             meta=parse_upload_metadata(row.dossier_metadata),
             contract=uploads[0],
             annexes=uploads[1:],
+            uploaded=uploaded,
         )
         paths = await store.finish(
             row, status=COMPLETED, dossier_id=staged.dossier_id, job_id=staged.job_id
         )
         # Dossier, documents and the completed session in one commit.
         await svc.commit()
-        # Past the commit: capture staged paths so we can clean up after
-        # background tasks / response serialization complete.
-        staged_paths: list[str] = [staged.contract_path, *staged.annex_paths]
     except BaseException:
         # Nothing of the dossier was committed: give the session back so the
         # client can fix the file (or retry) and complete again.
-        # If svc.commit() failed after stage_new_dossier uploaded files to MinIO,
-        # those objects are now orphans. Clean them up so they don't accumulate.
         await session.rollback()
         try:
             await store.reopen(upload_id)
             await session.commit()
         except Exception:
             logger.warning("upload.session.reopen_failed", upload_id=upload_id, exc_info=True)
-        if "staged_paths" in locals() and staged_paths:
-            background_tasks.add_task(delete_objects_quietly, staged_paths)
+        # Objects already stored for the dossier that was not committed
+        # (contract, first annexes...). Awaited: background tasks run only
+        # after a response, never on this error path.
+        await discard_uploaded(uploaded)
         raise
 
     if not staged.split_pending:

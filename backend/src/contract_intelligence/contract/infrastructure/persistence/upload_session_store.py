@@ -53,6 +53,12 @@ CANCELLED = "cancelled"
 # A request that died while completing (backend restart) leaves the session in
 # 'completing'. After this long another /complete may take it over.
 COMPLETING_STALE_AFTER = timedelta(minutes=10)
+# At the per-user cap, only an open session that received no chunk for this
+# long is cancelled to make room: one still sending is an upload in progress.
+EVICT_IDLE_AFTER = timedelta(minutes=5)
+# A completed session row (its chunks are already gone) is kept this long after
+# it was opened, so a repeated /complete still answers with the dossier.
+COMPLETED_KEEP = timedelta(days=7)
 
 
 class UploadSessionORM(Base):
@@ -167,20 +173,20 @@ class UploadSessionStore:
         return int((await self._session.execute(stmt)).scalar_one())
 
     async def oldest_open(self, user_id: str, *, limit: int) -> list[UploadSessionORM]:
-        """Open (not completing) sessions of ``user_id``, least-recently active first.
+        """Open sessions of ``user_id`` idle for ``EVICT_IDLE_AFTER``, least recently active first.
 
-        Ordering by ``updated_at`` avoids evicting a session that is still sending
-        chunks (the user's other tabs may be uploading in parallel).  A session that
-        received a chunk most recently stays alive; one that has been idle the
-        longest is evicted to make room.
+        ``updated_at`` moves on every chunk, so an upload still sending (another
+        tab, or several dossiers at once) is never returned here.
         """
+        now = utcnow()
         stmt = (
             select(UploadSessionORM)
             .where(
                 UploadSessionORM.tenant_id == self._tenant_id,
                 UploadSessionORM.user_id == user_id,
                 UploadSessionORM.status == OPEN,
-                UploadSessionORM.expires_at > utcnow(),
+                UploadSessionORM.expires_at > now,
+                UploadSessionORM.updated_at <= now - EVICT_IDLE_AFTER,
             )
             .order_by(UploadSessionORM.updated_at, UploadSessionORM.id)
             .limit(max(limit, 0))
@@ -348,14 +354,18 @@ class UploadSessionStore:
 
 
 async def sweep_expired_sessions(session: AsyncSession, *, limit: int = 200) -> list[str]:
-    """Delete expired ``open`` and ``cancelled`` sessions (any tenant); returns their chunk objects.
+    """Delete sessions that are over (any tenant); returns their chunk objects.
+
+    - ``open`` and ``cancelled`` past ``expires_at``;
+    - ``completing`` past ``expires_at`` **and** stale (no progress for
+      ``COMPLETING_STALE_AFTER``): the request that held it died, and nobody
+      came back to complete it. A live one is never touched;
+    - ``completed`` rows ``COMPLETED_KEEP`` after they were opened (their chunks
+      were deleted at completion). Until then a repeated /complete still
+      returns the dossier.
 
     Commits. The caller deletes the returned MinIO objects afterwards: an object
     left behind by a failed delete is only storage, never reachable again.
-
-    ``completed`` sessions are kept (repeated /complete must still return the
-    dossier).  ``completing`` sessions are excluded: the claim timeout
-    (``COMPLETING_STALE_AFTER``) lets another request take over a dead one.
     """
     now = utcnow()
     expired = list(
@@ -363,8 +373,21 @@ async def sweep_expired_sessions(session: AsyncSession, *, limit: int = 200) -> 
             await session.execute(
                 select(UploadSessionORM.id)
                 .where(
-                    UploadSessionORM.expires_at <= now,
-                    UploadSessionORM.status.in_((OPEN, CANCELLED)),
+                    or_(
+                        and_(
+                            UploadSessionORM.expires_at <= now,
+                            UploadSessionORM.status.in_((OPEN, CANCELLED)),
+                        ),
+                        and_(
+                            UploadSessionORM.expires_at <= now,
+                            UploadSessionORM.status == COMPLETING,
+                            UploadSessionORM.updated_at <= now - COMPLETING_STALE_AFTER,
+                        ),
+                        and_(
+                            UploadSessionORM.status == COMPLETED,
+                            UploadSessionORM.created_at <= now - COMPLETED_KEEP,
+                        ),
+                    )
                 )
                 .order_by(UploadSessionORM.expires_at)
                 .limit(limit)
@@ -415,7 +438,9 @@ async def run_expired_session_sweep() -> int:
 __all__ = [
     "CANCELLED",
     "COMPLETED",
+    "COMPLETED_KEEP",
     "COMPLETING",
+    "EVICT_IDLE_AFTER",
     "OPEN",
     "DeclaredFile",
     "UploadChunkORM",

@@ -10,6 +10,8 @@ tiny chunk size, so a one-page PDF already spans many chunks.
 
 from __future__ import annotations
 
+import asyncio
+import random
 from collections.abc import AsyncGenerator
 from datetime import timedelta
 from typing import Any
@@ -23,11 +25,15 @@ from tests.pdf_bytes import make_pdf
 from tests.unit.conftest_contract import FakeFileStorage
 
 from contract_intelligence.config.settings import get_settings
+from contract_intelligence.contract.application.services.contract_service import (
+    ContractService,
+)
 from contract_intelligence.contract.infrastructure.persistence import upload_session_store
 from contract_intelligence.contract.infrastructure.persistence.upload_session_store import (
     UploadChunkORM,
     UploadSessionORM,
 )
+from contract_intelligence.contract.interfaces.api.routers import upload_session_router
 from contract_intelligence.infrastructure import messaging, storage
 from contract_intelligence.main import app
 from contract_intelligence.shared.base import utcnow
@@ -378,6 +384,14 @@ class TestOpening:
         async with db() as s:
             path = (await s.execute(select(UploadChunkORM.object_path))).scalar_one()
         kept = [await _open(client, h, [("contract", "c.pdf", b"x" * 10)]) for _ in range(2)]
+        async with db() as s:
+            # Only the abandoned upload has been idle (no chunk) for over 5 minutes.
+            await s.execute(
+                update(UploadSessionORM)
+                .where(UploadSessionORM.id == oldest["upload_id"])
+                .values(updated_at=utcnow() - timedelta(minutes=6))
+            )
+            await s.commit()
 
         newest = await _open(client, h, [("contract", "d.pdf", b"x" * 10)])
 
@@ -394,6 +408,24 @@ class TestOpening:
         assert _code(late) == "UPLOAD_CANCELLED"
         # Another user is not affected.
         await _open(client, headers(user_id="usr_other"), [("contract", "c.pdf", b"x" * 10)])
+
+    @pytest.mark.asyncio
+    async def test_uploads_still_sending_are_never_evicted(
+        self, client: AsyncClient, headers: Any, db: async_sessionmaker[AsyncSession]
+    ) -> None:
+        """Several dossiers uploading at once: the 4th waits (429), none is cut off."""
+        h = headers()
+        sessions = [await _open(client, h, [("contract", "c.pdf", b"x" * 10)]) for _ in range(3)]
+
+        response = await client.post(
+            "/api/v1/uploads",
+            json={"metadata": {}, "files": [{"role": "contract", "filename": "c.pdf", "size": 10}]},
+            headers=h,
+        )
+        assert response.status_code == 429
+        for session in sessions:
+            state = (await client.get(f"/api/v1/uploads/{session['upload_id']}", headers=h)).json()
+            assert state["data"]["status"] == "open"
 
     @pytest.mark.asyncio
     async def test_sessions_being_completed_are_never_evicted(
@@ -576,3 +608,212 @@ class TestOwnershipAndLifecycle:
             await s.commit()
         done = await client.post(f"/api/v1/uploads/{upload_id}/complete", headers=h)
         assert done.status_code == 202, done.text
+
+
+class TestJoinOrder:
+    """`_join_chunks` rebuilds the PDF that OCR reads: bytes, not just length, must match."""
+
+    @staticmethod
+    def _fake_store(monkeypatch: pytest.MonkeyPatch, blobs: dict[str, bytes], delay) -> None:
+        async def download(path: str) -> bytes:
+            await asyncio.sleep(delay(path))
+            return blobs[path]
+
+        monkeypatch.setattr(storage, "download_object", download)
+
+    @pytest.mark.asyncio
+    async def test_first_chunk_slowest_still_joins_in_order(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        parts = [bytes([i]) * 97 for i in range(40)]
+        blobs = {f"s3://dossiers/c/{i:05d}": part for i, part in enumerate(parts)}
+        paths = list(blobs)
+        # Chunk 0 finishes last, chunk 39 first: the reverse of the file order.
+        self._fake_store(monkeypatch, blobs, lambda path: (40 - paths.index(path)) * 0.002)
+
+        assert await upload_session_router._join_chunks(paths) == b"".join(parts)
+
+    @pytest.mark.asyncio
+    async def test_random_download_times_never_reorder_bytes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        rng = random.Random(149)
+        for _ in range(20):
+            parts = [rng.randbytes(64) for _ in range(40)]
+            blobs = {f"s3://dossiers/r/{i:05d}": part for i, part in enumerate(parts)}
+            self._fake_store(monkeypatch, blobs, lambda _path: rng.uniform(0, 0.02))
+
+            assert await upload_session_router._join_chunks(list(blobs)) == b"".join(parts)
+
+    @pytest.mark.asyncio
+    async def test_at_most_the_window_downloads_run_at_once(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        running = peak = 0
+
+        async def download(path: str) -> bytes:
+            nonlocal running, peak
+            running += 1
+            peak = max(peak, running)
+            await asyncio.sleep(0.001)
+            running -= 1
+            return path.encode()
+
+        monkeypatch.setattr(storage, "download_object", download)
+        paths = [f"p{i:03d}" for i in range(50)]
+
+        assert await upload_session_router._join_chunks(paths) == "".join(paths).encode()
+        assert peak <= upload_session_router._JOIN_CONCURRENCY
+
+
+class TestOrphanFiles:
+    """A dossier that is not committed must not leave its PDFs in MinIO."""
+
+    @staticmethod
+    def _record_uploads(
+        monkeypatch: pytest.MonkeyPatch, *, fail_on: str | None = None
+    ) -> list[str]:
+        stored: list[str] = []
+        original = storage.upload_file
+
+        async def upload(file_name: str, file_data: bytes) -> str:
+            if fail_on and fail_on in file_name:
+                raise RuntimeError("MinIO refused the write")
+            path = await original(file_name, file_data)
+            if not file_name.startswith("uploads/"):  # dossier files, not chunks
+                stored.append(path)
+            return path
+
+        monkeypatch.setattr(storage, "upload_file", upload)
+        return stored
+
+    @staticmethod
+    async def _gone(paths: list[str]) -> bool:
+        for path in paths:
+            try:
+                await storage.download_object(path)
+            except FileNotFoundError:
+                continue
+            return False
+        return True
+
+    @pytest.mark.asyncio
+    async def test_second_annex_failing_deletes_the_contract_and_first_annex(
+        self, client: AsyncClient, headers: Any, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        h = headers()
+        files = [make_pdf(marker="hd"), make_pdf(marker="pl1"), make_pdf(marker="pl2")]
+        session = await _open(
+            client,
+            h,
+            [
+                ("contract", "hd.pdf", files[0]),
+                ("annex", "pl1.pdf", files[1]),
+                ("annex", "pl2.pdf", files[2]),
+            ],
+        )
+        await _send_all(client, h, session["upload_id"], files)
+        stored = self._record_uploads(monkeypatch, fail_on="/02_")
+
+        with pytest.raises(RuntimeError, match="MinIO refused"):
+            await client.post(f"/api/v1/uploads/{session['upload_id']}/complete", headers=h)
+
+        assert len(stored) == 2  # contract and first annex were written...
+        assert await self._gone(stored)  # ...and removed again
+        state = (await client.get(f"/api/v1/uploads/{session['upload_id']}", headers=h)).json()
+        assert state["data"]["status"] == "open"  # the user can complete again
+        assert (await client.get("/api/v1/dossiers", headers=h)).json()["data"] == []
+
+    @pytest.mark.asyncio
+    async def test_commit_failing_deletes_every_file_written(
+        self, client: AsyncClient, headers: Any, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        h = headers()
+        files = [make_pdf(marker="hd"), make_pdf(marker="pl1")]
+        session = await _open(
+            client, h, [("contract", "hd.pdf", files[0]), ("annex", "pl1.pdf", files[1])]
+        )
+        await _send_all(client, h, session["upload_id"], files)
+        stored = self._record_uploads(monkeypatch)
+
+        async def broken_commit(self: ContractService) -> None:
+            raise RuntimeError("database went away")
+
+        monkeypatch.setattr(ContractService, "commit", broken_commit)
+        with pytest.raises(RuntimeError, match="database went away"):
+            await client.post(f"/api/v1/uploads/{session['upload_id']}/complete", headers=h)
+
+        assert len(stored) == 2
+        assert await self._gone(stored)
+
+    @pytest.mark.asyncio
+    async def test_post_dossiers_also_deletes_files_of_a_failed_upload(
+        self, client: AsyncClient, headers: Any, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        stored = self._record_uploads(monkeypatch, fail_on="/01_")
+
+        with pytest.raises(RuntimeError, match="MinIO refused"):
+            await client.post(
+                "/api/v1/dossiers",
+                files=[
+                    ("contract", ("hd.pdf", make_pdf(marker="hd"), "application/pdf")),
+                    ("annexes", ("pl1.pdf", make_pdf(marker="pl1"), "application/pdf")),
+                ],
+                data={"metadata": '{"name": "orphan check"}'},
+                headers=headers(),
+            )
+
+        assert len(stored) == 1
+        assert await self._gone(stored)
+
+
+class TestSweep:
+    @pytest.mark.asyncio
+    async def test_a_live_completing_session_is_kept_a_dead_one_is_removed(
+        self, client: AsyncClient, headers: Any, db: async_sessionmaker[AsyncSession]
+    ) -> None:
+        h = headers()
+        live = await _open(client, h, [("contract", "a.pdf", b"x" * 10)])
+        dead = await _open(client, h, [("contract", "b.pdf", b"x" * 10)])
+        past = utcnow() - timedelta(seconds=1)
+        async with db() as s:
+            await s.execute(update(UploadSessionORM).values(status="completing", expires_at=past))
+            await s.execute(
+                update(UploadSessionORM)
+                .where(UploadSessionORM.id == dead["upload_id"])
+                .values(updated_at=utcnow() - timedelta(minutes=11))
+            )
+            await s.commit()
+
+        await upload_session_store.run_expired_session_sweep()
+
+        async with db() as s:
+            left = set((await s.execute(select(UploadSessionORM.id))).scalars())
+        assert left == {live["upload_id"]}
+
+    @pytest.mark.asyncio
+    async def test_completed_rows_are_kept_seven_days(
+        self, client: AsyncClient, headers: Any, db: async_sessionmaker[AsyncSession]
+    ) -> None:
+        h = headers()
+        pdf = make_pdf()
+        recent = await _open(client, h, [("contract", "a.pdf", pdf)])
+        old = await _open(client, h, [("contract", "b.pdf", pdf)])
+        for session in (recent, old):
+            await _send_all(client, h, session["upload_id"], [pdf])
+            await client.post(f"/api/v1/uploads/{session['upload_id']}/complete", headers=h)
+        async with db() as s:
+            await s.execute(
+                update(UploadSessionORM)
+                .where(UploadSessionORM.id == old["upload_id"])
+                .values(created_at=utcnow() - timedelta(days=8))
+            )
+            await s.commit()
+
+        await upload_session_store.run_expired_session_sweep()
+
+        async with db() as s:
+            left = set((await s.execute(select(UploadSessionORM.id))).scalars())
+        assert left == {recent["upload_id"]}
+        again = await client.post(f"/api/v1/uploads/{recent['upload_id']}/complete", headers=h)
+        assert again.status_code == 202

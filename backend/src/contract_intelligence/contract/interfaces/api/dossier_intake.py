@@ -173,12 +173,16 @@ async def stage_new_dossier(
     meta: DossierUploadMetadata,
     contract: PdfUpload,
     annexes: list[PdfUpload],
+    uploaded: list[str] | None = None,
 ) -> StagedDossier:
     """Create the dossier, its job and every document; the caller commits.
 
     The files are already checked (:func:`check_pdf`), so a bad annex never
-    leaves a half-made dossier behind.
+    leaves a half-made dossier behind. Each MinIO object is appended to
+    ``uploaded`` the moment it is stored, so a caller whose staging or commit
+    fails can delete exactly what was written (:func:`discard_uploaded`).
     """
+    uploaded = [] if uploaded is None else uploaded
     name = meta.name or contract.filename or "Untitled dossier"
     payload: dict[str, Any] = {}
     if meta.tags is not None:
@@ -202,6 +206,7 @@ async def stage_new_dossier(
         role=DocumentRole.CONTRACT,
         order_index=0,
     )
+    uploaded.append(contract_path)
     annex_paths: list[str] = []
     for index, annex in enumerate(annexes, start=1):
         _, _, annex_path = await ingest_upload_file(
@@ -211,6 +216,7 @@ async def stage_new_dossier(
             role=DocumentRole.ANNEX,
             order_index=index,
         )
+        uploaded.append(annex_path)
         annex_paths.append(annex_path)
 
     # A file holding a contract and its annexes (metadata.split_pending) waits
@@ -228,6 +234,22 @@ async def stage_new_dossier(
         annex_paths=annex_paths,
         split_pending=split_pending,
     )
+
+
+async def discard_uploaded(paths: list[str]) -> None:
+    """Best-effort delete of files written for a dossier that was never committed.
+
+    Awaited in the caller's ``except`` (a background task would not run: FastAPI
+    runs those only after a response). A delete that fails is logged; the
+    object is then only storage that no row points at.
+    """
+    for path in paths:
+        try:
+            await storage.delete_object(path)
+        except Exception:
+            logger.warning("dossier.ingest.orphan_delete_failed", s3_path=path, exc_info=True)
+    if paths:
+        logger.info("dossier.ingest.orphans_removed", count=len(paths))
 
 
 async def publish_dossier_uploaded(*, dossier_id: str, file_path: str) -> None:
@@ -248,6 +270,7 @@ __all__ = [
     "StagedDossier",
     "check_document_count",
     "check_pdf",
+    "discard_uploaded",
     "file_too_large",
     "ingest_upload_file",
     "parse_upload_metadata",
