@@ -25,9 +25,7 @@ import asyncio
 import json
 import re
 import time
-from dataclasses import dataclass
 from datetime import UTC, datetime
-from io import BytesIO
 from typing import Annotated, Any, Literal, TypeVar
 from urllib.parse import quote
 
@@ -75,7 +73,6 @@ from contract_intelligence.contract.application.dtos.manifest_dtos import (
 )
 from contract_intelligence.contract.domain.entities.document import (
     MAX_DOSSIER_DOCUMENTS,
-    Document,
     DocumentRole,
 )
 from contract_intelligence.contract.domain.entities.job import JobStatus
@@ -85,6 +82,15 @@ from contract_intelligence.contract.infrastructure.persistence.dossier_deletion_
 from contract_intelligence.contract.interfaces.api.dependencies import (
     ContractServiceDep,
     DossierDeletionServiceDep,
+)
+from contract_intelligence.contract.interfaces.api.dossier_intake import (
+    PdfUpload,
+    check_document_count,
+    ingest_upload_file,
+    parse_upload_metadata,
+    publish_dossier_uploaded,
+    read_pdf_upload,
+    stage_new_dossier,
 )
 from contract_intelligence.infrastructure import messaging, storage
 from contract_intelligence.shared.acl import (
@@ -109,7 +115,7 @@ from contract_intelligence.shared.exceptions import (
     ManifestValidationError,
     NotFoundError,
 )
-from contract_intelligence.shared.pdf import InvalidPdfError, count_pdf_pages, extract_pdf_pages
+from contract_intelligence.shared.pdf import InvalidPdfError, extract_pdf_pages
 from contract_intelligence.shared.persistence import get_session_factory
 from contract_intelligence.shared.query_history import record_query_answer
 from contract_intelligence.shared.query_policy import (
@@ -127,7 +133,6 @@ from contract_intelligence.shared.responses import (
     ErrorResponse,
 )
 from contract_intelligence.shared.storage import ByteRange, RangeNotSatisfiableError
-from contract_intelligence.shared.utils import safe_filename
 
 router = APIRouter(tags=["Contract"])
 logger = structlog.get_logger(__name__)
@@ -162,37 +167,6 @@ async def _record(
             await session.commit()
     except Exception as exc:  # noqa: BLE001
         logger.exception("activity.record_failed", kind=kind, error=str(exc))
-
-
-# -----------------------------------------------------------------------------
-# Multipart upload helper — accept JSON metadata field per spec
-# -----------------------------------------------------------------------------
-
-
-class DossierUploadMetadata(BaseModel):
-    """metadata field của DossierUploadRequest (openapi.yaml: required)."""
-
-    model_config = {"extra": "allow"}  # allow tags, notes, custom fields
-
-    name: str | None = None
-    tags: list[str] | None = None
-    notes: str | None = None
-
-
-def _parse_upload_metadata(raw: str | None) -> DossierUploadMetadata:
-    """Parse metadata field — JSON string theo OpenAPI multipart encoding.
-
-    Trả về empty object nếu thiếu (spec khuyến nghị name lấy từ filename).
-    """
-    if not raw:
-        return DossierUploadMetadata()
-    try:
-        return DossierUploadMetadata.model_validate_json(raw)
-    except (json.JSONDecodeError, ValueError) as exc:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Invalid metadata JSON: {exc}",
-        ) from exc
 
 
 class DossierUpdateBody(BaseModel):
@@ -556,102 +530,6 @@ def _send_share_emails(
             smtp.send_message(message)
 
 
-@dataclass(frozen=True, slots=True)
-class _PdfUpload:
-    file: UploadFile
-    data: bytes
-    page_count: int
-
-
-async def _read_pdf_upload(file: UploadFile) -> _PdfUpload:
-    """Read one uploaded PDF (size-capped) and count its pages.
-
-    Raises 413 above ``upload_max_file_bytes`` and 422 for a file that is not a
-    readable PDF, so a bad file is refused before anything is stored or sent
-    to AI1 — and AI1 gets the real page range (one render URL per page).
-    """
-    limit = get_settings().upload_max_file_bytes
-    too_large = HTTPException(
-        status_code=413,
-        detail=f"{file.filename}: file exceeds {limit // (1024 * 1024)} MB",
-    )
-    # The multipart parser has already spooled the part to disk and knows its
-    # size: refuse before reading, then read once. Collecting 1 MiB chunks and
-    # joining them held every file twice at the peak of an upload.
-    if file.size is not None and file.size > limit:
-        raise too_large
-    data = await file.read(limit + 1)
-    if len(data) > limit:
-        raise too_large
-    try:
-        page_count = await asyncio.to_thread(count_pdf_pages, data)
-    except InvalidPdfError as exc:
-        raise HTTPException(
-            status_code=422,
-            detail=f"{file.filename}: {exc}",
-        ) from exc
-    return _PdfUpload(file=file, data=data, page_count=page_count)
-
-
-async def _ingest_upload_file(
-    *,
-    svc: Any,
-    dossier_id: str,
-    upload: _PdfUpload,
-    role: DocumentRole,
-    order_index: int,
-) -> tuple[Document, int, str]:
-    """Validated upload → MinIO → persist Document (compensate MinIO on DB failure).
-
-    Returns:
-        (Document entity, size_bytes, s3_path) — s3_path dùng cho Kafka event.
-    """
-    file = upload.file
-    raw_bytes = upload.data
-    total_size = len(raw_bytes)
-
-    filename = safe_filename(file.filename, fallback=f"{role.value.lower()}.pdf")
-    object_key = f"{dossier_id}/{order_index:02d}_{filename}"
-    s3_path: str | None = None
-    try:
-        s3_path = await storage.upload_file(object_key, raw_bytes)
-        doc = await svc.upload_document(
-            dossier_id=dossier_id,
-            filename=filename,
-            content=BytesIO(raw_bytes),
-            role=role,
-            order_index=order_index,
-            file_size_bytes=total_size,
-            blob_uri=s3_path,
-            page_count=upload.page_count,
-        )
-        return doc, total_size, s3_path
-    except Exception:
-        if s3_path:
-            try:
-                await storage.delete_object(s3_path)
-            except Exception:
-                logger.warning(
-                    "dossier.ingest.compensate_minio_failed",
-                    dossier_id=dossier_id,
-                    s3_path=s3_path,
-                    exc_info=True,
-                )
-        raise
-
-
-async def _publish_dossier_uploaded(*, dossier_id: str, file_path: str) -> None:
-    """Post-commit Kafka publish — runs via BackgroundTasks after DB commit."""
-    await messaging.publish_event(
-        "dossier_events",
-        {
-            "event": "dossier.uploaded",
-            "dossier_id": str(dossier_id),
-            "file_path": file_path,
-        },
-    )
-
-
 # -----------------------------------------------------------------------------
 # POST /dossiers — Multipart upload (Per openapi.yaml line 116)
 # -----------------------------------------------------------------------------
@@ -702,102 +580,34 @@ async def create_dossier(
     # Validate contract file
     if not contract or not contract.filename:
         raise HTTPException(status_code=400, detail="contract file is required")
-    if contract.content_type and contract.content_type not in (
-        "application/pdf",
-        "application/octet-stream",
-    ):
-        # Warn but don't reject — Sprint 3 local dev sometimes sends octet-stream
-        pass
 
     # AI2 takes at most 6 documents per dossier (DEC-BE-AI2-01 D5): refuse
     # before reading any file, so nothing is created.
-    file_count = 1 + sum(1 for annex_file in annexes or [] if annex_file.filename)
-    if file_count > MAX_DOSSIER_DOCUMENTS:
-        raise DossierTooManyDocuments(limit=MAX_DOSSIER_DOCUMENTS, count=file_count)
-
-    # Parse metadata
-    meta = _parse_upload_metadata(metadata)
-    name = meta.name or contract.filename or "Untitled dossier"
-
-    # Build metadata dict from optional tags/notes + any extra fields
-    meta_payload: dict[str, Any] = {}
-    if meta.tags is not None:
-        meta_payload["tags"] = meta.tags
-    if meta.notes is not None:
-        meta_payload["notes"] = meta.notes
-    extras = getattr(meta, "model_extra", None) or {}
-    for key, value in extras.items():
-        if (
-            key not in ("name", "tags", "notes", "created_by", "created_by_name")
-            and value is not None
-        ):
-            meta_payload[key] = value
-    meta_payload["created_by"] = user.user_id
-    meta_payload["created_by_name"] = user.display_name
+    annex_files = [annex_file for annex_file in annexes or [] if annex_file.filename]
+    check_document_count(1 + len(annex_files))
+    meta = parse_upload_metadata(metadata)
 
     # Read + validate every file (size, readable PDF, page count) before
     # anything is created, so a bad annex leaves no half-made dossier behind.
-    contract_upload = await _read_pdf_upload(contract)
-    annex_uploads = [
-        (idx, await _read_pdf_upload(annex_file))
-        for idx, annex_file in enumerate(annexes or [], start=1)
-        if annex_file.filename
-    ]
+    contract_upload = await read_pdf_upload(contract)
+    annex_uploads = [await read_pdf_upload(annex_file) for annex_file in annex_files]
 
-    # Create dossier + initial Job (UPLOADED) — per openapi.yaml createDossier
-    dossier = await svc.create_dossier(
-        name=name,
-        batch_id=None,
-        metadata=meta_payload or None,
+    staged = await stage_new_dossier(
+        svc=svc, user=user, meta=meta, contract=contract_upload, annexes=annex_uploads
     )
-    job = dossier.latest_job()
-
-    # Ingest contract (always role=CONTRACT, order_index=0) → MinIO + DB
-    _contract_doc, _size, s3_path = await _ingest_upload_file(
-        svc=svc,
-        dossier_id=dossier.id,
-        upload=contract_upload,
-        role=DocumentRole.CONTRACT,
-        order_index=0,
-    )
-
-    # Ingest annexes (role=ANNEX, order_index=1..n)
-    for idx, annex_upload in annex_uploads:
-        await _ingest_upload_file(
-            svc=svc,
-            dossier_id=dossier.id,
-            upload=annex_upload,
-            role=DocumentRole.ANNEX,
-            order_index=idx,
-        )
-
-    # A file holding a contract and its annexes (metadata.split_pending) waits
-    # for POST /dossiers/{id}/split: no OCR yet, so no page is read twice.
-    split_pending = meta_payload.get("split_pending") is True
-    if not split_pending:
-        # Vai trò hợp đồng/phụ lục đã chọn lúc tải lên. Xác nhận luôn để worker
-        # so sánh xung đột khi OCR của mọi tệp xong, không chờ màn manifest.
-        await svc.confirm_uploaded_manifest(dossier.id, user.user_id)
-
     # Commit before the 202 is sent. Otherwise the next GET/PATCH and the
     # dossier.uploaded consumer race an uncommitted transaction.
     await svc.commit()
-
-    if not split_pending:
+    if not staged.split_pending:
         # Publish after the request session commits (BackgroundTasks run post-response).
         background_tasks.add_task(
-            _publish_dossier_uploaded,
-            dossier_id=str(dossier.id),
-            file_path=s3_path,
+            publish_dossier_uploaded,
+            dossier_id=staged.dossier_id,
+            file_path=staged.contract_path,
         )
 
     # ApiEnvelopeDossierCreated — dossier_id + job_id (openapi.yaml line 2320)
-    return ApiResponse(
-        data=DossierCreatedDTO(
-            dossier_id=dossier.id,
-            job_id=job.id if job else None,
-        )
-    )
+    return ApiResponse(data=DossierCreatedDTO(dossier_id=staged.dossier_id, job_id=staged.job_id))
 
 
 class SplitPartBody(BaseModel):
@@ -1053,11 +863,11 @@ async def split_dossier_document(
             role = DocumentRole.CONTRACT if part.role == "contract" else DocumentRole.ANNEX
             filename = f"{base}-p{part.page_start}-{part.page_end}.pdf"
             order_index = source.order_index if number == 1 else next_index + number - 2
-            document, _size, _path = await _ingest_upload_file(
+            document, _size, _path = await ingest_upload_file(
                 svc=svc,
                 dossier_id=dossier_id,
-                upload=_PdfUpload(
-                    file=UploadFile(file=BytesIO(piece), filename=filename),
+                upload=PdfUpload(
+                    filename=filename,
                     data=piece,
                     page_count=part.page_end - part.page_start + 1,
                 ),
@@ -1092,7 +902,7 @@ async def split_dossier_document(
     if len(body.parts) > 1:
         background_tasks.add_task(_delete_blob_quietly, source.blob_uri)
     background_tasks.add_task(
-        _publish_dossier_uploaded, dossier_id=dossier_id, file_path=created[0].filename
+        publish_dossier_uploaded, dossier_id=dossier_id, file_path=created[0].filename
     )
     await _record(
         tenant_id=user.tenant_id,

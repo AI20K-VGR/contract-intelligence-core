@@ -116,6 +116,140 @@ tags:
 paths:
 
   # ─── Dossiers ────────────────────────────────────────────────────────────
+  # v4.2.0 (#145): tải hồ sơ theo khúc. Cloudflare Free cắt request còn đang gửi body sau ~125 s,
+  # nên hồ sơ lớn gửi thành từng khúc chunk_size (mặc định 1 MiB), mỗi khúc một request ngắn.
+  /uploads:
+    post:
+      tags: [dossiers]
+      summary: Mở phiên tải hồ sơ theo khúc
+      description: |
+        Khai báo các file (đúng một `contract`, tối đa 6 file) và `metadata` như `POST /dossiers`.
+        Kiểm ngay, trước khi gửi byte nào: số file, một hợp đồng, kích thước (≤ 50 MiB mỗi file), metadata.
+        Mỗi người dùng tối đa 3 phiên chưa xong. Phiên hết hạn sau 24 giờ.
+      operationId: openUploadSession
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadSessionCreateRequest'
+      responses:
+        '201':
+          description: Phiên đã mở
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeUploadSession'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          description: Không đúng một hợp đồng, metadata sai, hoặc quá 6 file (`DOSSIER_TOO_MANY_DOCUMENTS`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Người dùng đang có quá nhiều phiên chưa xong
+
+  /uploads/{upload_id}:
+    parameters:
+      - name: upload_id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [dossiers]
+      summary: Trạng thái phiên tải lên (các khúc đã nhận)
+      operationId: getUploadSession
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      description: Chỉ người mở phiên; người khác nhận 404. Dùng `received` để gửi tiếp sau khi mất mạng.
+      responses:
+        '200':
+          description: Trạng thái phiên
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeUploadSession'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '410':
+          description: Phiên đã hết hạn
+    delete:
+      tags: [dossiers]
+      summary: Huỷ phiên và xoá các khúc đã gửi
+      operationId: cancelUploadSession
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      responses:
+        '204':
+          description: Đã huỷ (huỷ lại cũng 204)
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Phiên đã thành hồ sơ (xoá bằng DELETE /dossiers/{id}) hoặc đang hoàn tất
+
+  /uploads/{upload_id}/files/{file_index}/chunks/{chunk_no}:
+    put:
+      tags: [dossiers]
+      summary: Gửi một khúc (byte thô)
+      description: |
+        Khúc `chunk_no` của file `file_index` là đoạn `[chunk_no × chunk_size, (chunk_no + 1) × chunk_size)`.
+        Mọi khúc dài đúng `chunk_size` trừ khúc cuối. Gửi lại cùng khúc thì ghi đè; thứ tự gửi không quan trọng.
+      operationId: putUploadChunk
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      parameters:
+        - { name: upload_id, in: path, required: true, schema: { type: string } }
+        - { name: file_index, in: path, required: true, schema: { type: integer, minimum: 0 } }
+        - { name: chunk_no, in: path, required: true, schema: { type: integer, minimum: 0 } }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        '204':
+          description: Đã lưu khúc
+        '404':
+          description: Không có phiên (của người dùng này), file hoặc khúc đó
+        '409':
+          description: Phiên đã hoàn tất, đang hoàn tất hoặc đã huỷ
+        '410':
+          description: Phiên đã hết hạn
+        '422':
+          description: Độ dài khúc khác độ dài mong đợi
+
+  /uploads/{upload_id}/complete:
+    post:
+      tags: [dossiers]
+      summary: Ghép các khúc và tạo hồ sơ (như POST /dossiers)
+      description: |
+        Ghép các khúc rồi chạy cùng luồng với `POST /dossiers` (kiểm PDF, số trang, `split_pending`,
+        tự xác nhận vai trò, gửi OCR). Trả cùng `{dossier_id, job_id}`. Gọi lại sau khi thành công trả
+        cùng hồ sơ. Lỗi PDF thì phiên vẫn mở.
+      operationId: completeUploadSession
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      parameters:
+        - { name: upload_id, in: path, required: true, schema: { type: string } }
+      responses:
+        '202':
+          description: Hồ sơ đã tạo, xử lý bất đồng bộ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeDossierCreated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: |
+            Thiếu khúc (`detail.missing_chunks`: `{ "<file_index>": [chunk_no, …] }`), phiên đang hoàn tất
+            ở một request khác, hoặc đã huỷ
+        '410':
+          description: Phiên đã hết hạn
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          description: File không phải PDF đọc được, hoặc metadata sai
+
   /dossiers:
     post:
       tags: [dossiers]
@@ -3184,6 +3318,52 @@ components:
           nullable: true
           description: Có thể null nếu không đếm được (cursor-based)
 
+    UploadSessionCreateRequest:
+      type: object
+      required: [files]
+      additionalProperties: false
+      properties:
+        metadata:
+          type: object
+          description: Như trường `metadata` của `POST /dossiers` (object JSON, không phải chuỗi)
+        files:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [role, filename, size]
+            additionalProperties: false
+            properties:
+              role: { type: string, enum: [contract, annex] }
+              filename: { type: string, minLength: 1, maxLength: 255 }
+              size: { type: integer, minimum: 1, description: Số byte của file đúng như sẽ gửi }
+    UploadSession:
+      type: object
+      required: [upload_id, status, chunk_size, expires_at, files]
+      properties:
+        upload_id: { type: string, example: upl_01J... }
+        status: { type: string, enum: [open, completing, completed, cancelled] }
+        chunk_size: { type: integer, description: Byte của mỗi khúc trừ khúc cuối, example: 1048576 }
+        expires_at: { type: string, format: date-time }
+        dossier_id: { type: string, nullable: true }
+        job_id: { type: string, nullable: true }
+        files:
+          type: array
+          description: Hợp đồng trước (index 0), phụ lục sau
+          items:
+            type: object
+            properties:
+              index: { type: integer }
+              role: { type: string, enum: [contract, annex] }
+              filename: { type: string }
+              size: { type: integer }
+              chunks: { type: integer }
+              received: { type: array, items: { type: integer }, description: Các khúc đã nhận, tăng dần }
+    ApiEnvelopeUploadSession:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/UploadSession' }
+        meta: { type: object }
     ApiEnvelopeDossierCreated:
       type: object
       properties:

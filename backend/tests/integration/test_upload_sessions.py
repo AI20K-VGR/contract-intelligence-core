@@ -1,0 +1,508 @@
+"""Chunked dossier upload (/api/v1/uploads, issue #145) — FastAPI + SQLite.
+
+Cloudflare Free cuts a request still sending its body after ~125 s, so large
+dossiers go up as numbered chunks. These tests drive the real routes with a
+tiny chunk size, so a one-page PDF already spans many chunks.
+
+    cd backend
+    uv run pytest tests/integration/test_upload_sessions.py -v
+"""
+
+from __future__ import annotations
+
+from collections.abc import AsyncGenerator
+from datetime import timedelta
+from typing import Any
+
+import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from tests.pdf_bytes import make_pdf
+from tests.unit.conftest_contract import FakeFileStorage
+
+from contract_intelligence.config.settings import get_settings
+from contract_intelligence.contract.infrastructure.persistence import upload_session_store
+from contract_intelligence.contract.infrastructure.persistence.upload_session_store import (
+    UploadChunkORM,
+    UploadSessionORM,
+)
+from contract_intelligence.infrastructure import messaging, storage
+from contract_intelligence.main import app
+from contract_intelligence.shared.base import utcnow
+from contract_intelligence.shared.persistence import Base, bind_engine, reset_engine
+from contract_intelligence.shared.persistence.session import get_async_session
+
+CHUNK = 256  # bytes; a blank one-page PDF is ~600 bytes, so several chunks
+
+
+@pytest.fixture(autouse=True)
+def _settings(monkeypatch: pytest.MonkeyPatch) -> Any:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "database_url", "sqlite+aiosqlite:///:memory:")
+    monkeypatch.setattr(settings, "auth_mode", "keycloak")
+    monkeypatch.setattr(settings, "keycloak_server_url", "https://test-keycloak.local")
+    monkeypatch.setattr(settings, "keycloak_realm", "test-realm")
+    monkeypatch.setattr(settings, "keycloak_client_id", "ci-backend")
+    monkeypatch.setattr(settings, "keycloak_audience", "ci-backend")
+    monkeypatch.setattr(
+        settings,
+        "keycloak_role_map",
+        {
+            "ci_operator": "OPERATOR",
+            "ci_reviewer": "REVIEWER",
+            "ci_administrator": "ADMINISTRATOR",
+        },
+    )
+    monkeypatch.setattr(settings, "env", "test")
+    monkeypatch.setattr(settings, "job_queue_enabled", False)
+    monkeypatch.setattr(settings, "upload_chunk_bytes", CHUNK)
+    monkeypatch.setattr(settings, "upload_sessions_per_user", 3)
+    return settings
+
+
+@pytest_asyncio.fixture
+async def db(tmp_path: Any) -> AsyncGenerator[async_sessionmaker[AsyncSession], None]:
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'uploads.db'}")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    bind_engine(engine)
+    yield async_sessionmaker(bind=engine, expire_on_commit=False, class_=AsyncSession)
+    reset_engine()
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def client(
+    db: async_sessionmaker[AsyncSession],
+    cached_keycloak_jwks: str,
+    mock_keycloak_settings: Any,
+) -> AsyncGenerator[AsyncClient, None]:
+    from contract_intelligence.shared.storage import reset_file_storage, set_file_storage
+
+    set_file_storage(FakeFileStorage())
+
+    async def session_override() -> AsyncGenerator[AsyncSession, None]:
+        async with db() as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
+
+    app.dependency_overrides[get_async_session] = session_override
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        yield ac
+    app.dependency_overrides.clear()
+    reset_file_storage()
+
+
+@pytest.fixture
+def headers(make_keycloak_token: Any) -> Any:
+    def _headers(*, role: str = "OPERATOR", user_id: str = "usr_01HZ_TEST") -> dict[str, str]:
+        token = make_keycloak_token(role=role, user_id=user_id)
+        return {"Authorization": f"Bearer {token}", "X-Tenant-Id": "tenant_vgr_01"}
+
+    return _headers
+
+
+def _chunks(data: bytes) -> list[bytes]:
+    return [data[i : i + CHUNK] for i in range(0, len(data), CHUNK)]
+
+
+async def _open(
+    client: AsyncClient,
+    headers: dict[str, str],
+    files: list[tuple[str, str, bytes]],
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    response = await client.post(
+        "/api/v1/uploads",
+        json={
+            "metadata": metadata if metadata is not None else {"name": "Hồ sơ chia khúc"},
+            "files": [
+                {"role": role, "filename": name, "size": len(data)} for role, name, data in files
+            ],
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201, response.text
+    return response.json()["data"]
+
+
+async def _put(
+    client: AsyncClient, headers: dict[str, str], upload_id: str, index: int, n: int, body: bytes
+) -> Any:
+    return await client.put(
+        f"/api/v1/uploads/{upload_id}/files/{index}/chunks/{n}",
+        content=body,
+        headers={**headers, "Content-Type": "application/octet-stream"},
+    )
+
+
+async def _send_all(
+    client: AsyncClient, headers: dict[str, str], upload_id: str, files: list[bytes]
+) -> None:
+    for index, data in enumerate(files):
+        # Out of order on purpose: the server joins by chunk number.
+        for n, part in reversed(list(enumerate(_chunks(data)))):
+            response = await _put(client, headers, upload_id, index, n, part)
+            assert response.status_code == 204, response.text
+
+
+class TestHappyPath:
+    @pytest.mark.asyncio
+    async def test_chunks_become_the_same_dossier_as_a_multipart_upload(
+        self, client: AsyncClient, headers: Any
+    ) -> None:
+        h = headers()
+        contract = make_pdf(pages=2, marker="contract")
+        annex = make_pdf(marker="annex")
+        session = await _open(
+            client, h, [("annex", "phu-luc.pdf", annex), ("contract", "hop-dong.pdf", contract)]
+        )
+        # Contract first whatever the declared order; chunk counts from the size.
+        assert [f["role"] for f in session["files"]] == ["contract", "annex"]
+        assert session["files"][0]["chunks"] == len(_chunks(contract))
+        assert session["chunk_size"] == CHUNK
+        assert session["status"] == "open"
+
+        await _send_all(client, h, session["upload_id"], [contract, annex])
+
+        state = (await client.get(f"/api/v1/uploads/{session['upload_id']}", headers=h)).json()
+        assert state["data"]["files"][0]["received"] == list(range(len(_chunks(contract))))
+
+        messaging.publish_event.reset_mock()  # type: ignore[attr-defined]
+        done = await client.post(f"/api/v1/uploads/{session['upload_id']}/complete", headers=h)
+        assert done.status_code == 202, done.text
+        dossier_id = done.json()["data"]["dossier_id"]
+        assert dossier_id.startswith("dos_")
+        assert done.json()["data"]["job_id"].startswith("job_")
+
+        docs = (await client.get(f"/api/v1/dossiers/{dossier_id}/documents", headers=h)).json()[
+            "data"
+        ]
+        assert [(d["role"].lower(), d["filename"]) for d in docs] == [
+            ("contract", "hop-dong.pdf"),
+            ("annex", "phu-luc.pdf"),
+        ]
+        dossier = (await client.get(f"/api/v1/dossiers/{dossier_id}", headers=h)).json()["data"]
+        assert dossier["name"] == "Hồ sơ chia khúc"
+
+        # OCR starts as for POST /dossiers.
+        events = [c.args for c in messaging.publish_event.await_args_list]  # type: ignore[attr-defined]
+        assert events[0][:1] == ("dossier_events",)
+        assert events[0][1]["event"] == "dossier.uploaded"
+        assert events[0][1]["dossier_id"] == dossier_id
+
+    @pytest.mark.asyncio
+    async def test_complete_again_returns_the_same_dossier(
+        self, client: AsyncClient, headers: Any
+    ) -> None:
+        h = headers()
+        pdf = make_pdf()
+        session = await _open(client, h, [("contract", "a.pdf", pdf)])
+        await _send_all(client, h, session["upload_id"], [pdf])
+        first = await client.post(f"/api/v1/uploads/{session['upload_id']}/complete", headers=h)
+        second = await client.post(f"/api/v1/uploads/{session['upload_id']}/complete", headers=h)
+        assert first.status_code == second.status_code == 202
+        assert first.json()["data"] == second.json()["data"]
+        listed = (await client.get("/api/v1/dossiers", headers=h)).json()["data"]
+        assert len(listed) == 1
+
+    @pytest.mark.asyncio
+    async def test_completed_session_drops_its_chunk_objects(
+        self, client: AsyncClient, headers: Any, db: async_sessionmaker[AsyncSession]
+    ) -> None:
+        h = headers()
+        pdf = make_pdf()
+        session = await _open(client, h, [("contract", "a.pdf", pdf)])
+        await _send_all(client, h, session["upload_id"], [pdf])
+        async with db() as s:
+            paths = list((await s.execute(select(UploadChunkORM.object_path))).scalars())
+        assert paths and all(f"/uploads/tenant_vgr_01/{session['upload_id']}/" in p for p in paths)
+
+        await client.post(f"/api/v1/uploads/{session['upload_id']}/complete", headers=h)
+        async with db() as s:
+            assert (await s.execute(select(UploadChunkORM))).first() is None
+        for path in paths:
+            with pytest.raises(FileNotFoundError):
+                await storage.download_object(path)
+
+    @pytest.mark.asyncio
+    async def test_split_pending_waits_for_the_split_like_post_dossiers(
+        self, client: AsyncClient, headers: Any
+    ) -> None:
+        h = headers()
+        pdf = make_pdf(pages=3)
+        session = await _open(
+            client, h, [("contract", "tron.pdf", pdf)], {"name": "Trộn", "split_pending": True}
+        )
+        await _send_all(client, h, session["upload_id"], [pdf])
+        messaging.publish_event.reset_mock()  # type: ignore[attr-defined]
+        done = await client.post(f"/api/v1/uploads/{session['upload_id']}/complete", headers=h)
+        assert done.status_code == 202
+        assert messaging.publish_event.await_count == 0  # type: ignore[attr-defined]
+
+
+class TestChunks:
+    @pytest.mark.asyncio
+    async def test_resending_a_chunk_replaces_it(self, client: AsyncClient, headers: Any) -> None:
+        h = headers()
+        pdf = make_pdf()
+        session = await _open(client, h, [("contract", "a.pdf", pdf)])
+        first = _chunks(pdf)[0]
+        assert (
+            await _put(client, h, session["upload_id"], 0, 0, b"x" * len(first))
+        ).status_code == 204
+        await _send_all(client, h, session["upload_id"], [pdf])  # sends chunk 0 again, right bytes
+        done = await client.post(f"/api/v1/uploads/{session['upload_id']}/complete", headers=h)
+        assert done.status_code == 202, done.text
+
+    @pytest.mark.asyncio
+    async def test_a_chunk_of_the_wrong_size_is_refused(
+        self, client: AsyncClient, headers: Any
+    ) -> None:
+        h = headers()
+        pdf = make_pdf()
+        session = await _open(client, h, [("contract", "a.pdf", pdf)])
+        too_short = await _put(client, h, session["upload_id"], 0, 0, b"x" * (CHUNK - 1))
+        too_long = await _put(client, h, session["upload_id"], 0, 0, b"x" * (CHUNK + 1))
+        last = len(_chunks(pdf)) - 1
+        last_padded = await _put(client, h, session["upload_id"], 0, last, b"x" * CHUNK)
+        assert too_short.status_code == too_long.status_code == 422
+        assert len(pdf) % CHUNK != 0  # the last chunk is short
+        assert last_padded.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_unknown_file_or_chunk_is_404(self, client: AsyncClient, headers: Any) -> None:
+        h = headers()
+        pdf = make_pdf()
+        session = await _open(client, h, [("contract", "a.pdf", pdf)])
+        beyond = len(_chunks(pdf))
+        assert (await _put(client, h, session["upload_id"], 1, 0, b"x")).status_code == 404
+        assert (await _put(client, h, session["upload_id"], 0, beyond, b"x")).status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_complete_with_missing_chunks_lists_them(
+        self, client: AsyncClient, headers: Any
+    ) -> None:
+        h = headers()
+        pdf = make_pdf()
+        session = await _open(client, h, [("contract", "a.pdf", pdf)])
+        parts = _chunks(pdf)
+        for n, part in enumerate(parts[:-1]):
+            await _put(client, h, session["upload_id"], 0, n, part)
+        done = await client.post(f"/api/v1/uploads/{session['upload_id']}/complete", headers=h)
+        assert done.status_code == 409
+        assert done.json()["detail"]["missing_chunks"] == {"0": [len(parts) - 1]}
+        # Still open: send the last chunk and complete.
+        await _put(client, h, session["upload_id"], 0, len(parts) - 1, parts[-1])
+        again = await client.post(f"/api/v1/uploads/{session['upload_id']}/complete", headers=h)
+        assert again.status_code == 202, again.text
+
+
+class TestOpening:
+    @pytest.mark.asyncio
+    async def test_more_than_six_files_is_refused_before_any_byte(
+        self, client: AsyncClient, headers: Any
+    ) -> None:
+        files = [{"role": "contract", "filename": "c.pdf", "size": 10}] + [
+            {"role": "annex", "filename": f"a{i}.pdf", "size": 10} for i in range(6)
+        ]
+        response = await client.post(
+            "/api/v1/uploads", json={"metadata": {}, "files": files}, headers=headers()
+        )
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "DOSSIER_TOO_MANY_DOCUMENTS"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("roles", [["annex"], ["contract", "contract"]])
+    async def test_exactly_one_contract(
+        self, client: AsyncClient, headers: Any, roles: list[str]
+    ) -> None:
+        files = [{"role": r, "filename": f"{i}.pdf", "size": 10} for i, r in enumerate(roles)]
+        response = await client.post(
+            "/api/v1/uploads", json={"metadata": {}, "files": files}, headers=headers()
+        )
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_a_file_over_the_size_cap_is_413(
+        self, client: AsyncClient, headers: Any, _settings: Any
+    ) -> None:
+        size = _settings.upload_max_file_bytes + 1
+        response = await client.post(
+            "/api/v1/uploads",
+            json={
+                "metadata": {},
+                "files": [{"role": "contract", "filename": "c.pdf", "size": size}],
+            },
+            headers=headers(),
+        )
+        assert response.status_code == 413
+
+    @pytest.mark.asyncio
+    async def test_invalid_metadata_is_refused_at_open(
+        self, client: AsyncClient, headers: Any
+    ) -> None:
+        response = await client.post(
+            "/api/v1/uploads",
+            json={
+                "metadata": {"tags": "not-a-list"},
+                "files": [{"role": "contract", "filename": "c.pdf", "size": 10}],
+            },
+            headers=headers(),
+        )
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_open_sessions_per_user_are_capped(
+        self, client: AsyncClient, headers: Any
+    ) -> None:
+        h = headers()
+        for _ in range(3):
+            await _open(client, h, [("contract", "c.pdf", b"x" * 10)])
+        response = await client.post(
+            "/api/v1/uploads",
+            json={"metadata": {}, "files": [{"role": "contract", "filename": "c.pdf", "size": 10}]},
+            headers=h,
+        )
+        assert response.status_code == 429
+        # Another user is not affected.
+        await _open(client, headers(user_id="usr_other"), [("contract", "c.pdf", b"x" * 10)])
+
+    @pytest.mark.asyncio
+    async def test_reviewer_cannot_upload(self, client: AsyncClient, headers: Any) -> None:
+        response = await client.post(
+            "/api/v1/uploads",
+            json={"metadata": {}, "files": [{"role": "contract", "filename": "c.pdf", "size": 10}]},
+            headers=headers(role="REVIEWER"),
+        )
+        assert response.status_code == 403
+
+
+class TestOwnershipAndLifecycle:
+    @pytest.mark.asyncio
+    async def test_another_user_sees_404(self, client: AsyncClient, headers: Any) -> None:
+        pdf = make_pdf()
+        session = await _open(client, headers(), [("contract", "a.pdf", pdf)])
+        other = headers(user_id="usr_other")
+        upload_id = session["upload_id"]
+        assert (await client.get(f"/api/v1/uploads/{upload_id}", headers=other)).status_code == 404
+        assert (await _put(client, other, upload_id, 0, 0, _chunks(pdf)[0])).status_code == 404
+        assert (
+            await client.post(f"/api/v1/uploads/{upload_id}/complete", headers=other)
+        ).status_code == 404
+        assert (
+            await client.delete(f"/api/v1/uploads/{upload_id}", headers=other)
+        ).status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_cancel_drops_chunks_and_closes_the_session(
+        self, client: AsyncClient, headers: Any, db: async_sessionmaker[AsyncSession]
+    ) -> None:
+        h = headers()
+        pdf = make_pdf()
+        session = await _open(client, h, [("contract", "a.pdf", pdf)])
+        upload_id = session["upload_id"]
+        await _put(client, h, upload_id, 0, 0, _chunks(pdf)[0])
+        async with db() as s:
+            path = (await s.execute(select(UploadChunkORM.object_path))).scalar_one()
+
+        assert (await client.delete(f"/api/v1/uploads/{upload_id}", headers=h)).status_code == 204
+        assert (await client.delete(f"/api/v1/uploads/{upload_id}", headers=h)).status_code == 204
+        with pytest.raises(FileNotFoundError):
+            await storage.download_object(path)
+        assert (await _put(client, h, upload_id, 0, 0, _chunks(pdf)[0])).status_code == 409
+        assert (
+            await client.post(f"/api/v1/uploads/{upload_id}/complete", headers=h)
+        ).status_code == 409
+        state = (await client.get(f"/api/v1/uploads/{upload_id}", headers=h)).json()["data"]
+        assert state["status"] == "cancelled"
+
+    @pytest.mark.asyncio
+    async def test_a_completed_upload_cannot_be_cancelled(
+        self, client: AsyncClient, headers: Any
+    ) -> None:
+        h = headers()
+        pdf = make_pdf()
+        session = await _open(client, h, [("contract", "a.pdf", pdf)])
+        await _send_all(client, h, session["upload_id"], [pdf])
+        await client.post(f"/api/v1/uploads/{session['upload_id']}/complete", headers=h)
+        response = await client.delete(f"/api/v1/uploads/{session['upload_id']}", headers=h)
+        assert response.status_code == 409
+
+    @pytest.mark.asyncio
+    async def test_not_a_pdf_is_422_and_the_session_stays_open(
+        self, client: AsyncClient, headers: Any
+    ) -> None:
+        h = headers()
+        junk = b"not a pdf at all " * 40
+        session = await _open(client, h, [("contract", "a.pdf", junk)])
+        await _send_all(client, h, session["upload_id"], [junk])
+        done = await client.post(f"/api/v1/uploads/{session['upload_id']}/complete", headers=h)
+        assert done.status_code == 422
+        state = (await client.get(f"/api/v1/uploads/{session['upload_id']}", headers=h)).json()
+        assert state["data"]["status"] == "open"
+        assert (await client.get("/api/v1/dossiers", headers=h)).json()["data"] == []
+
+    @pytest.mark.asyncio
+    async def test_expired_session_is_gone_then_swept(
+        self, client: AsyncClient, headers: Any, db: async_sessionmaker[AsyncSession]
+    ) -> None:
+        h = headers()
+        pdf = make_pdf()
+        session = await _open(client, h, [("contract", "a.pdf", pdf)])
+        upload_id = session["upload_id"]
+        await _put(client, h, upload_id, 0, 0, _chunks(pdf)[0])
+        async with db() as s:
+            path = (await s.execute(select(UploadChunkORM.object_path))).scalar_one()
+            await s.execute(
+                update(UploadSessionORM).values(expires_at=utcnow() - timedelta(seconds=1))
+            )
+            await s.commit()
+
+        assert (await _put(client, h, upload_id, 0, 1, _chunks(pdf)[1])).status_code == 410
+        assert (await client.get(f"/api/v1/uploads/{upload_id}", headers=h)).status_code == 410
+        # Expired sessions no longer count toward the per-user cap.
+        for _ in range(3):
+            await _open(client, h, [("contract", "c.pdf", b"x" * 10)])
+
+        removed = await upload_session_store.run_expired_session_sweep()
+        assert removed == 1
+        async with db() as s:
+            assert (
+                await s.execute(select(UploadSessionORM).where(UploadSessionORM.id == upload_id))
+            ).first() is None
+            assert (await s.execute(select(UploadChunkORM))).first() is None
+        with pytest.raises(FileNotFoundError):
+            await storage.download_object(path)
+        assert (await client.get(f"/api/v1/uploads/{upload_id}", headers=h)).status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_a_stuck_completing_session_can_be_completed_later(
+        self, client: AsyncClient, headers: Any, db: async_sessionmaker[AsyncSession]
+    ) -> None:
+        h = headers()
+        pdf = make_pdf()
+        session = await _open(client, h, [("contract", "a.pdf", pdf)])
+        upload_id = session["upload_id"]
+        await _send_all(client, h, upload_id, [pdf])
+        async with db() as s:
+            await s.execute(update(UploadSessionORM).values(status="completing"))
+            await s.commit()
+        busy = await client.post(f"/api/v1/uploads/{upload_id}/complete", headers=h)
+        assert busy.status_code == 409  # another request may still be building it
+
+        async with db() as s:
+            await s.execute(
+                update(UploadSessionORM).values(updated_at=utcnow() - timedelta(minutes=11))
+            )
+            await s.commit()
+        done = await client.post(f"/api/v1/uploads/{upload_id}/complete", headers=h)
+        assert done.status_code == 202, done.text
