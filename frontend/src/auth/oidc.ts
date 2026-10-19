@@ -96,13 +96,61 @@ export function requireUserManager(): UserManager {
   return instance
 }
 
+/** Token còn hạn hơn ngưỡng này thì dùng luôn, không mở iframe. */
+export const RENEW_MARGIN_SECONDS = 60
+
+/** Thời gian chờ iframe lúc tải trang: hết thì hiện form đăng nhập, không trắng trang lâu. */
+export const FIRST_SESSION_TIMEOUT_SECONDS = 10
+
+export type RenewOptions = {
+  /** Thời gian chờ iframe; bỏ trống là `silentRequestTimeoutInSeconds` (30 giây). */
+  timeoutSeconds?: number
+  /** Luôn hỏi Keycloak, kể cả khi token còn hạn (tab khác vừa đăng nhập). */
+  force?: boolean
+}
+
+type RenewManager = Pick<UserManager, 'getUser' | 'signinSilent'>
+
+// Lời gọi gia hạn đang chạy của mỗi UserManager trong tab này.
+const inflight = new WeakMap<RenewManager, Promise<User | null>>()
+
 /**
  * Lấy phiên mới bằng iframe `prompt=none` (cookie phiên SSO HttpOnly của
- * Keycloak), không dùng refresh token. Mỗi lúc một lần trong cả trình duyệt.
- * Lỗi `login_required` khi phiên Keycloak đã hết: người gọi về màn đăng nhập.
+ * Keycloak), không dùng refresh token. Lỗi `login_required` khi phiên Keycloak
+ * đã hết: người gọi về màn đăng nhập.
+ *
+ * Nhiều lời gọi cùng lúc (onTokenExpiring, onTokenExpired, onVisible, các API
+ * gọi đúng lúc token hết hạn) chỉ mở một iframe: trong tab dùng chung lời gọi
+ * đang chạy; giữa các tab dùng khoá `lexis-refresh`, và sau khi lấy khoá đọc
+ * lại phiên, tab khác vừa gia hạn xong thì dùng luôn.
  */
-export function renewSession(instance: UserManager) {
-  return withRenewLock(() => instance.signinSilent({ forceIframeAuth: true }))
+export function renewSession(
+  instance: RenewManager,
+  options: RenewOptions = {},
+): Promise<User | null> {
+  const running = options.force ? undefined : inflight.get(instance)
+  if (running) return running
+  const task = withRenewLock(async () => {
+    if (!options.force) {
+      const current = await instance.getUser()
+      if (
+        current?.access_token &&
+        (current.expires_in ?? 0) > RENEW_MARGIN_SECONDS
+      ) {
+        return current
+      }
+    }
+    return instance.signinSilent({
+      forceIframeAuth: true,
+      ...(options.timeoutSeconds
+        ? { silentRequestTimeoutInSeconds: options.timeoutSeconds }
+        : {}),
+    })
+  }).finally(() => {
+    if (inflight.get(instance) === task) inflight.delete(instance)
+  })
+  inflight.set(instance, task)
+  return task
 }
 
 export async function getAccessToken(): Promise<string | null> {

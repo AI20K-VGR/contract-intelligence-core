@@ -9,6 +9,7 @@ import {
 import { openAuthChannel, type AuthChannel } from './authChannel'
 import { AuthContext } from './context'
 import {
+  FIRST_SESSION_TIMEOUT_SECONDS,
   getUserManager,
   isKeycloakConfigured,
   renewSession,
@@ -17,7 +18,7 @@ import {
 import { buildSessionUser } from './profile'
 import { isSessionEnded } from './sessionEnded'
 import { SessionExpiredDialog } from './SessionExpiredDialog'
-import type { SessionUser } from './session'
+import { homePath, type SessionUser } from './session'
 
 function isAuthCallbackPath(pathname: string) {
   return pathname === '/auth/callback' || pathname === '/auth/silent-callback'
@@ -31,6 +32,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const configured = isKeycloakConfigured()
   // Kênh lexis-auth: báo các tab khác khi đăng nhập / đăng xuất (#130).
   const channel = useRef<AuthChannel | null>(null)
+  // Người dùng hiện tại, để biết tab khác vừa đăng nhập bằng tài khoản khác.
+  const currentUser = useRef<SessionUser | null>(null)
+  useEffect(() => {
+    currentUser.current = user
+  }, [user])
 
   useEffect(() => {
     const manager = getUserManager()
@@ -43,7 +49,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Phiên chỉ ở bộ nhớ tab: F5 hay tab mới lấy lại bằng iframe.
           // ready vẫn false tới khi xong, nên route bảo vệ không nháy sang đăng nhập.
           try {
-            oidcUser = manager ? await renewSession(manager) : null
+            // Chờ ngắn hơn gia hạn nền: iframe không trả lời thì hiện form
+            // đăng nhập sau 10 giây, không để trang trắng 30 giây.
+            oidcUser = manager
+              ? await renewSession(manager, {
+                  timeoutSeconds: FIRST_SESSION_TIMEOUT_SECONDS,
+                })
+              : null
           } catch {
             oidcUser = null
           }
@@ -120,15 +132,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
     }
 
-    // Tab khác đăng xuất: bỏ phiên trong bộ nhớ tab này. Tab khác đăng nhập:
-    // lấy phiên bằng iframe (cookie SSO đã có).
+    // Tab khác vừa đăng nhập: luôn hỏi lại Keycloak (cookie SSO mới), kể cả
+    // khi tab này còn token. Người khác (sub khác) thì đổi người dùng và về
+    // trang chủ của vai trò mới, để không thao tác dưới danh tính cũ.
+    const onOtherTabLogin = async () => {
+      if (!manager) return
+      try {
+        // Bỏ phiên cũ trước: oidc-client-ts từ chối (login_required) phiên mới
+        // có sub khác phiên đang giữ (validateSubOnSilentRenew), mà ở đây đổi
+        // người là chuyện có thể xảy ra. Ta tự so sub ngay bên dưới.
+        await manager.removeUser()
+        const renewed = await renewSession(manager, { force: true })
+        if (!renewed?.access_token || cancelled) return
+        const session = await buildSessionUser(renewed.access_token)
+        if (cancelled) return
+        const previous = currentUser.current
+        setUser(session)
+        if (previous && previous.id !== session.id) {
+          window.location.assign(homePath(session.role))
+        }
+      } catch (cause) {
+        if (isSessionEnded(cause) && !cancelled) setUser(null)
+      }
+    }
+
+    // Tab khác đăng xuất: bỏ phiên trong bộ nhớ tab này.
     const authChannel = openAuthChannel((message) => {
       if (message === 'logout') {
         void manager?.removeUser()
         if (!cancelled) setUser(null)
         return
       }
-      void hydrate()
+      void onOtherTabLogin()
     })
     channel.current = authChannel
 

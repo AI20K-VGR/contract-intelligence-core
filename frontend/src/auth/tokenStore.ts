@@ -19,11 +19,16 @@ export function withoutRefreshToken(value: string): string {
 }
 
 /**
- * Phiên OIDC chỉ nằm trong bộ nhớ của tab, không xuống đĩa (#130), và không
- * giữ refresh token: mọi lần gia hạn đi bằng iframe `prompt=none` theo cookie
- * phiên SSO HttpOnly của Keycloak. Vì vậy script lạ (XSS) không lấy được token
- * nào dùng lâu dài, và các tab không tranh nhau một refresh token chỉ dùng
- * được một lần (refresh token rotation).
+ * Phiên OIDC chỉ nằm trong bộ nhớ của tab, không xuống đĩa (#130). Phiên được
+ * lưu không có refresh token, nên mọi lần gia hạn đi bằng iframe `prompt=none`
+ * theo cookie phiên SSO HttpOnly của Keycloak, và các tab không tranh nhau một
+ * refresh token chỉ dùng được một lần (refresh token rotation).
+ *
+ * Đây là lớp phòng thủ, không phải "JS không còn refresh token": object `User`
+ * mà oidc-client-ts trả cho `signinSilent()`/`signinCallback()` (và sự kiện
+ * `userLoaded`) vẫn mang `refresh_token` của token response tới khi bị thu
+ * gom. Cách triệt để là Keycloak không cấp refresh token cho client frontend
+ * (`use.refresh.tokens=false`, phía Backend).
  */
 export class MemoryTokenStorage extends InMemoryWebStorage {
   setItem(key: string, value: string): void {
