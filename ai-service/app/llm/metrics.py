@@ -152,11 +152,13 @@ def _create_zero_series() -> None:
 
 
 def _configured_models() -> list[tuple[str, str]]:
-    """``(kind, model label)`` of the models ``/query`` is configured to call."""
+    """``(kind, model label)`` of the models AI2 is configured to call (questions and
+    processing jobs; the pair classifier may run its own model)."""
     chat = os.environ.get("AI2_LLM_MODEL") or "gpt-5.5"
     pairs = [
         ("chat", chat),
         ("chat", os.environ.get("AI2_LLM_STRONG_MODEL") or chat),
+        ("chat", os.environ.get("AI2_CONTRACT_GRAPH_PAIRS_MODEL") or chat),
         ("embedding", os.environ.get("AI2_EMBEDDING_MODEL") or "text-embedding-3-small"),
     ]
     return sorted({(kind, _model(model)) for kind, model in pairs})

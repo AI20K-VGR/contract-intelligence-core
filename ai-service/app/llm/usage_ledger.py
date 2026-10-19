@@ -22,7 +22,10 @@ _totals: dict[str, dict[str, float]] = {}
 
 def record_trace(trace: dict[str, Any]) -> None:
     """Add one finished ``complete_json`` trace (success or failure)."""
-    model = trace.get("served_model") or trace.get("model")
+    # The configured model, not the snapshot the provider served
+    # (gpt-5.5-2026-04-23): the metric series made at startup carry the configured
+    # name, and prices map snapshots to it anyway (PR #135 review, PR #139 review).
+    model = trace.get("model") or trace.get("served_model")
     if not isinstance(model, str) or not model:
         return
     prompt = _count(trace.get("prompt_tokens"))

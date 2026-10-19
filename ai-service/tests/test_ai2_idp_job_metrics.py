@@ -92,17 +92,50 @@ def test_usage_ledger_counts_every_client_and_reports_a_delta():
         {"model": "gpt-5.5", "error_type": "APITimeoutError", "http_calls": 1}
     )
     delta = usage_ledger.usage_since(mark)
-    assert delta["gpt-5.5-2026-09-01"]["input"] == 600
-    assert delta["gpt-5.5-2026-09-01"]["input_cached"] == 400
-    assert delta["gpt-5.5-2026-09-01"]["output"] == 200
+    # Keyed by the configured model, never the served snapshot (PR #139 review).
+    assert set(delta) == {"gpt-5.5"}
     assert delta["gpt-5.5"] == {
-        "calls": 1,
+        "calls": 2,
         "errors": 1,
-        "input": 0,
-        "input_cached": 0,
-        "output": 0,
-        "latency_ms": 0,
+        "input": 600,
+        "input_cached": 400,
+        "output": 200,
+        "latency_ms": 900.0,
     }
+
+
+def test_served_snapshot_grows_the_idp_series_made_at_startup(monkeypatch, metrics_on):
+    """PR #139 review: a job answered by gpt-5.5-2026-04-23 must grow the
+    model="gpt-5.5" series _create_zero_series made, or increase() misses the cost
+    of the first job after every restart, and a new snapshot opens a new series."""
+    for name in ("AI2_LLM_MODEL", "AI2_LLM_STRONG_MODEL", "AI2_CONTRACT_GRAPH_PAIRS_MODEL"):
+        monkeypatch.delenv(name, raising=False)
+    metrics._create_zero_series()
+    configured = {"kind": "chat", "model": "gpt-5.5"}
+    snapshot = {"kind": "chat", "model": "gpt-5.5-2026-04-23"}
+    assert REGISTRY.get_sample_value("ai2_idp_cost_usd_total", configured) is not None
+    cost = _value("ai2_idp_cost_usd_total", **configured)
+    tokens = _value("ai2_idp_tokens_total", **configured, type="output")
+
+    mark = usage_ledger.snapshot()
+    usage_ledger.record_trace(
+        {
+            "model": "gpt-5.5",
+            "served_model": "gpt-5.5-2026-04-23",
+            "prompt_tokens": 1_000,
+            "completion_tokens": 100,
+            "http_calls": 1,
+        }
+    )
+    summary = build_idp_summary(
+        status="SUCCEEDED", timing={}, chat_usage=usage_ledger.usage_since(mark)
+    )
+    metrics.record_idp_job(summary)
+
+    # 1k input × $5 + 100 output × $30 per 1M tokens
+    assert _value("ai2_idp_cost_usd_total", **configured) - cost == pytest.approx(0.008)
+    assert _value("ai2_idp_tokens_total", **configured, type="output") - tokens == 100
+    assert REGISTRY.get_sample_value("ai2_idp_cost_usd_total", snapshot) is None
 
 
 def test_summary_prices_tokens_and_counts_findings():
