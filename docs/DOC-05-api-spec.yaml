@@ -245,8 +245,10 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           description: |
-            Thiếu khúc (`detail.missing_chunks`: `{ "<file_index>": [chunk_no, …] }`), phiên đang hoàn tất
-            ở một request khác, hoặc đã huỷ
+            Khung `{"error": {"code", "message", "details"}}` (DOC-05b §3.3):
+            `UPLOAD_MISSING_CHUNKS` (`error.details.missing_chunks`: `{ "<file_index>": [chunk_no, …] }`),
+            `UPLOAD_SIZE_MISMATCH`, `UPLOAD_COMPLETING` (request khác đang hoàn tất: chờ rồi gọi lại)
+            hoặc `UPLOAD_CANCELLED`.
         '410':
           description: Phiên đã hết hạn
         '413':

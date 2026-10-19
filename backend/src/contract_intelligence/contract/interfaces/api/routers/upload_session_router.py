@@ -301,14 +301,16 @@ async def open_upload_session(
     cap = settings.upload_sessions_per_user
     if open_count >= cap:
         evicted: list[str] = []
+        evicted_paths: list[str] = []
         for old in await store.oldest_open(user.user_id, limit=open_count - cap + 1):
-            paths = await store.finish(old, status=CANCELLED, dossier_id=None, job_id=None)
-            background_tasks.add_task(delete_objects_quietly, paths)
+            evicted_paths += await store.finish(old, status=CANCELLED, dossier_id=None, job_id=None)
             evicted.append(old.id)
         await session.commit()
         if evicted:
             logger.info("upload.session.evicted", upload_ids=evicted, user_cap=cap)
         if await store.count_open(user.user_id) >= cap:
+            # Background tasks do not run on an error response: delete now.
+            await delete_objects_quietly(evicted_paths)
             raise HTTPException(
                 status_code=429,
                 detail=(
@@ -316,6 +318,7 @@ async def open_upload_session(
                     "or try again in a few minutes."
                 ),
             )
+        background_tasks.add_task(delete_objects_quietly, evicted_paths)
 
     chunk_bytes = settings.upload_chunk_bytes
     ordered = contracts + [f for f in body.files if f.role == "annex"]
