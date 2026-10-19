@@ -8,6 +8,24 @@ import pytest
 from PIL import Image, ImageDraw
 
 
+@pytest.fixture
+def seed_query_record():
+    """Seed both API cache and the configured durable query read model."""
+    from app.api import main
+    from app.db.engine import database_url
+    from app.tools.query_store import save_query_snapshot
+    from fixtures import envelope, mock_record
+
+    def seed():
+        record = mock_record()
+        main.STORE.put(record)
+        if database_url():
+            save_query_snapshot(record, envelope())
+        return record
+
+    return seed
+
+
 @pytest.fixture(scope="session")
 def pg_url():
     configured = os.getenv("AI2_TEST_DATABASE_URL")

@@ -42,11 +42,11 @@ def _signed(payload: dict, *, tenant_id: str = "tenant_a", actor_id: str = PROCE
 
 
 @pytest.fixture(autouse=True)
-def _record_in_store(monkeypatch):
+def _record_in_store(monkeypatch, seed_query_record):
     monkeypatch.setenv("AI2_SERVICE_HMAC_SECRET", SECRET)
     monkeypatch.delenv("AI2_QUERY_REQUIRE_SIGNATURE", raising=False)
     main.STORE._dossiers.clear()
-    main.STORE.put(mock_record())
+    seed_query_record()
     yield
     main.STORE._dossiers.clear()
 
