@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   createDossier,
   createDossierErrorMessage,
+  uploadProgressLabel,
   MAX_DOSSIER_DOCUMENTS,
   TOO_MANY_DOCUMENTS,
   patchDossier,
@@ -145,6 +146,8 @@ export function CreateDossierPage() {
   const [annexes, setAnnexes] = useState<PickedFile[]>([])
   const [mixedFile, setMixedFile] = useState(false)
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle')
+  // Phần trăm body đã gửi lên máy chủ; null khi chưa bắt đầu gửi.
+  const [uploadPercent, setUploadPercent] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
 
@@ -294,6 +297,7 @@ export function CreateDossierPage() {
     }
 
     setError(null)
+    setUploadPercent(null)
     setUploadStatus('uploading')
     try {
       // Ảnh được gói thành PDF một trang để backend và OCR dùng chung luồng PDF.
@@ -301,13 +305,20 @@ export function CreateDossierPage() {
       const annexPdfs = await Promise.all(
         annexes.map((item) => asUploadPdf(item.file)),
       )
-      const created = await createDossier({
-        contract: contractPdf,
-        metadata: splitPending
-          ? { name: trimmedName, split_pending: true }
-          : { name: trimmedName },
-        annexes: annexPdfs,
-      })
+      const created = await createDossier(
+        {
+          contract: contractPdf,
+          metadata: splitPending
+            ? { name: trimmedName, split_pending: true }
+            : { name: trimmedName },
+          annexes: annexPdfs,
+        },
+        {
+          onProgress: (sent, total) => {
+            if (total > 0) setUploadPercent(Math.floor((sent * 100) / total))
+          },
+        },
+      )
       if (!created?.dossier_id) {
         setError('Không tạo được hồ sơ. Vui lòng thử lại.')
         setUploadStatus('idle')
@@ -676,6 +687,22 @@ export function CreateDossierPage() {
               </label>
             ) : null}
 
+            {busy && uploadPercent !== null ? (
+              <div
+                aria-label="Tiến độ tải lên"
+                aria-valuemax={100}
+                aria-valuemin={0}
+                aria-valuenow={uploadPercent}
+                className="h-1.5 w-full overflow-hidden rounded-full bg-surface-container-high"
+                role="progressbar"
+              >
+                <div
+                  className="h-full rounded-full bg-brand-600 transition-[width] duration-300"
+                  style={{ width: `${uploadPercent}%` }}
+                />
+              </div>
+            ) : null}
+
             <div className="flex items-center justify-end gap-space-md pt-space-sm">
               <button
                 className="h-10 px-space-lg font-body-sm text-body-sm font-medium text-on-surface-variant hover:text-primary transition-colors cursor-pointer rounded-lg hover:bg-surface-container-low"
@@ -694,7 +721,7 @@ export function CreateDossierPage() {
                 }}
               >
                 {busy ? (
-                  <span>Đang tải lên…</span>
+                  <span>{uploadProgressLabel(uploadPercent)}</span>
                 ) : (
                   <>
                     <MaterialIcon name="cloud_upload" className="text-[18px]" />

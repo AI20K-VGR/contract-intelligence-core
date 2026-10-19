@@ -93,14 +93,7 @@ function unwrapEnvelope<T>(body: unknown): { data: T; meta?: ApiMeta } {
   return { data: body as T }
 }
 
-export async function apiFetch(
-  path: string,
-  init: RequestInit & { accessToken?: string } = {},
-): Promise<Response> {
-  const { accessToken: overrideToken, ...rest } = init
-  const token = overrideToken ?? (await getAccessToken())
-  const headers = new Headers(rest.headers)
-
+function withApiHeaders(headers: Headers, token: string | null) {
   if (token) {
     headers.set('Authorization', `Bearer ${token}`)
     const tenantId = tenantIdFromToken(token)
@@ -116,6 +109,16 @@ export async function apiFetch(
     headers.set('ngrok-skip-browser-warning', 'true')
   }
   headers.set('X-Request-Id', crypto.randomUUID())
+  return headers
+}
+
+export async function apiFetch(
+  path: string,
+  init: RequestInit & { accessToken?: string } = {},
+): Promise<Response> {
+  const { accessToken: overrideToken, ...rest } = init
+  const token = overrideToken ?? (await getAccessToken())
+  const headers = withApiHeaders(new Headers(rest.headers), token)
 
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...rest,
@@ -148,15 +151,18 @@ export async function requestJson<T>(
     body,
   })
   const payload: unknown = await response.json().catch(() => null)
+  return parseApiResponse<T>(response.status, response.ok, payload)
+}
 
-  if (!response.ok) {
-    const { message: rawMessage, code } = messageFromBody(
-      response.status,
-      payload,
-    )
-    const message =
-      response.status === 401 ? SESSION_EXPIRED_MESSAGE : rawMessage
-    throw new ApiError(response.status, message, code, payload)
+function parseApiResponse<T>(
+  status: number,
+  ok: boolean,
+  payload: unknown,
+): { data: T; meta?: ApiMeta } {
+  if (!ok) {
+    const { message: rawMessage, code } = messageFromBody(status, payload)
+    const message = status === 401 ? SESSION_EXPIRED_MESSAGE : rawMessage
+    throw new ApiError(status, message, code, payload)
   }
 
   return unwrapEnvelope<T>(payload)
@@ -170,14 +176,102 @@ export async function getJson<T>(
   return data
 }
 
-export async function postMultipart<T>(
+export const UPLOAD_STALLED_MESSAGE = 'Mạng chậm hoặc bị ngắt, vui lòng thử lại.'
+
+/** Không gửi thêm được byte nào trong `stallTimeoutMs`: tải lên đã bị huỷ. */
+export class UploadStalledError extends Error {
+  constructor() {
+    super(UPLOAD_STALLED_MESSAGE)
+    this.name = 'UploadStalledError'
+  }
+}
+
+/** Sau ngần này không gửi thêm được byte nào thì huỷ tải lên. */
+export const UPLOAD_STALL_TIMEOUT_MS = 30_000
+
+export type UploadOptions = {
+  /** Số byte đã gửi / tổng số byte của body multipart. */
+  onProgress?: (sent: number, total: number) => void
+  stallTimeoutMs?: number
+  signal?: AbortSignal
+}
+
+/**
+ * POST multipart bằng XMLHttpRequest: `fetch` không báo tiến độ gửi body.
+ * Đồng hồ treo chỉ chạy khi còn byte phải gửi; gửi xong thì chờ máy chủ trả lời
+ * như `requestJson`. Lỗi trả về giống `requestJson` (ApiError, 401 hết phiên),
+ * mất kết nối là TypeError như `fetch`.
+ */
+export async function postMultipartWithProgress<T>(
   path: string,
   formData: FormData,
-  init: RequestInit & { accessToken?: string } = {},
+  options: UploadOptions = {},
 ): Promise<{ data: T; meta?: ApiMeta }> {
-  return requestJson<T>(path, {
-    ...init,
-    method: init.method ?? 'POST',
-    body: formData,
+  const { onProgress, stallTimeoutMs = UPLOAD_STALL_TIMEOUT_MS, signal } = options
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+  const token = await getAccessToken()
+  const headers = withApiHeaders(new Headers(), token)
+
+  const { status, payload } = await new Promise<{
+    status: number
+    payload: unknown
+  }>((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    let stallTimer: ReturnType<typeof setTimeout> | undefined
+    let settled = false
+
+    const stopStallTimer = () => {
+      if (stallTimer !== undefined) clearTimeout(stallTimer)
+      stallTimer = undefined
+    }
+    const finish = (fn: () => void) => {
+      if (settled) return
+      settled = true
+      stopStallTimer()
+      signal?.removeEventListener('abort', onAbort)
+      fn()
+    }
+    const armStallTimer = () => {
+      stopStallTimer()
+      stallTimer = setTimeout(() => {
+        finish(() => reject(new UploadStalledError()))
+        xhr.abort()
+      }, stallTimeoutMs)
+    }
+    const onAbort = () => {
+      finish(() => reject(new DOMException('Aborted', 'AbortError')))
+      xhr.abort()
+    }
+
+    xhr.open('POST', `${apiBaseUrl}${path}`)
+    // Browser must set multipart boundary. Do not set Content-Type.
+    headers.forEach((value, key) => xhr.setRequestHeader(key, value))
+    xhr.upload.onprogress = (event) => {
+      armStallTimer()
+      if (event.lengthComputable) onProgress?.(event.loaded, event.total)
+    }
+    // Gửi xong body: từ đây chỉ còn chờ máy chủ xử lý.
+    xhr.upload.onload = stopStallTimer
+    xhr.onload = () => {
+      let body: unknown = null
+      try {
+        body = xhr.responseText ? JSON.parse(xhr.responseText) : null
+      } catch {
+        body = null
+      }
+      finish(() => resolve({ status: xhr.status, payload: body }))
+    }
+    xhr.onerror = () => finish(() => reject(new TypeError('Failed to fetch')))
+    xhr.onabort = () =>
+      finish(() => reject(new DOMException('Aborted', 'AbortError')))
+    signal?.addEventListener('abort', onAbort)
+
+    armStallTimer()
+    xhr.send(formData)
   })
+
+  if (status === 401 && token) {
+    notifySessionExpired()
+  }
+  return parseApiResponse<T>(status, status >= 200 && status < 300, payload)
 }
