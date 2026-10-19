@@ -38,6 +38,21 @@ describe('waitForAnalysisReopen', () => {
     expect(deps.onSlow).not.toHaveBeenCalled()
   })
 
+  it('also waits out a cancelled job resumed after OCR', async () => {
+    // Chạy tiếp sau huỷ: job 'cancelled' sang lại 'extracted', trang cây ở lại.
+    const { job, deps } = setup()
+    job.status = 'cancelled'
+    const result = waitForAnalysisReopen('dos_1', deps)
+    await vi.advanceTimersByTimeAsync(REOPEN_FAST_MS)
+    expect(deps.getDossierStructure).toHaveBeenCalledTimes(1)
+    job.status = 'extracted'
+    await vi.advanceTimersByTimeAsync(REOPEN_FAST_MS)
+    await expect(result).resolves.toMatchObject({
+      kind: 'reopened',
+      next: { latestJobStatus: 'extracted' },
+    })
+  })
+
   it('says it is slow after the fast tries, and gives up after 5 minutes', async () => {
     // AI2 lỗi lại nhanh hơn nhịp hỏi: job luôn 'failed', trang không chờ mãi.
     const { deps } = setup()

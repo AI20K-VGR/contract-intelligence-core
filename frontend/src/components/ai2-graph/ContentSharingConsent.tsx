@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { updateDossierAi2Consent } from '../../api/dossiers'
+import { MaterialIcon } from '../icons'
 
 export type ContentSharingConsentProps = {
   dossierId: string
@@ -45,10 +46,17 @@ export function ContentSharingConsent({
     }
   }
 
+  // Lời giải thích để ở gợi ý khi rê chuột, không chiếm thêm một dòng.
+  const hint = canChange
+    ? 'Thay đổi có hiệu lực từ lần phân tích tiếp theo.'
+    : 'Chỉ chủ hồ sơ hoặc Quản trị đổi được.'
   return (
-    <div className="flex flex-col gap-1" aria-busy={pending}>
+    <div className="flex flex-col items-end gap-1" aria-busy={pending}>
       {canChange ? (
-        <label className="flex cursor-pointer items-center gap-space-xs font-body-sm text-body-sm text-on-surface">
+        <label
+          className="inline-flex h-9 cursor-pointer items-center gap-space-xs rounded-full border border-outline-variant/30 bg-surface-container-lowest px-space-md font-body-sm text-body-sm font-semibold text-on-surface shadow-[0_1px_2px_rgba(15,23,42,0.06)] hover:bg-surface-container"
+          title={hint}
+        >
           <input
             type="checkbox"
             className="h-4 w-4 accent-primary"
@@ -59,22 +67,27 @@ export function ContentSharingConsent({
             }
           />
           Cho phép AI phân tích nội dung hồ sơ
+          {pending ? (
+            <MaterialIcon
+              name="progress_activity"
+              className="animate-spin text-[16px] text-primary"
+            />
+          ) : null}
         </label>
       ) : (
-        <span className="font-body-sm text-body-sm text-on-surface">
+        <span
+          className="inline-flex h-9 items-center gap-space-xs rounded-full bg-surface-container px-space-md font-body-sm text-body-sm text-on-surface-variant"
+          title={hint}
+        >
+          <MaterialIcon
+            name={enabled ? 'check_circle' : 'block'}
+            className="text-[16px]"
+          />
           AI phân tích nội dung hồ sơ: {enabled ? 'đang bật' : 'đang tắt'}
         </span>
       )}
-      <p className="font-label-sm text-label-sm text-on-surface-variant">
-        {canChange
-          ? 'Thay đổi có hiệu lực từ lần phân tích tiếp theo.'
-          : 'Chỉ chủ hồ sơ hoặc Quản trị đổi được.'}
-      </p>
       {pending ? (
-        <span
-          role="status"
-          className="font-label-sm text-label-sm text-on-surface-variant"
-        >
+        <span role="status" className="sr-only">
           Đang lưu quyền chia sẻ…
         </span>
       ) : null}

@@ -84,11 +84,13 @@ export function ManualGraphFixture() {
     page.edges[0]?.id ?? null,
   )
   const [action, setAction] = useState('Chưa mở bằng chứng minh họa.')
-  const resolveNodeLabel = (nodeId: string, documentId?: string | null) =>
-    `${documentId === 'body-doc' ? 'Hợp đồng gốc' : `Phụ lục ${documentId ?? 'chưa rõ'}`} · Điều ${nodeId}`
+  const resolveNodeTitle = (nodeId: string, documentId?: string | null) =>
+    `Điều ${nodeId} · ${documentId === 'body-doc' ? 'Hợp đồng gốc' : `Phụ lục ${documentId ?? 'chưa rõ'}`}`
+  const resolveNodeLabel = (nodeId: string) =>
+    `Nội dung minh họa của điều ${nodeId}: Bên A thanh toán cho Bên B trong vòng 15 ngày kể từ ngày nhận hóa đơn hợp lệ.`
 
   return (
-    <div className="mx-auto flex min-w-0 max-w-5xl flex-col gap-3 p-3">
+    <div className="mx-auto flex min-w-0 max-w-6xl flex-col gap-3 p-3">
       <p role="status" className="break-words text-sm">
         Dữ liệu mẫu để minh họa, không phải kết quả phân tích tài liệu thật
       </p>
@@ -98,6 +100,7 @@ export function ManualGraphFixture() {
         selectedId={selectedId}
         onSelectEdge={setSelectedId}
         resolveNodeLabel={resolveNodeLabel}
+        resolveNodeTitle={resolveNodeTitle}
       />
       <RelationList
         page={page}
@@ -107,6 +110,7 @@ export function ManualGraphFixture() {
           setAction(`Bằng chứng minh họa: ${ref} · Điều ${node}`)
         }
         resolveNodeLabel={resolveNodeLabel}
+        resolveNodeTitle={resolveNodeTitle}
       />
       <p role="status" aria-live="polite">
         {action}

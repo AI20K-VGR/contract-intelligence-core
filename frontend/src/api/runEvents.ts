@@ -357,24 +357,38 @@ export function stepsAfterAnalysis(
 }
 
 /**
- * Tiến độ chung của AI2 từ các bước đã nhận: bước xong tính trọn, bước đang
- * chạy có `progress` tính phần đã xong. null khi chưa có số liệu nào.
+ * Phần trăm mỗi bước AI2 chiếm trên thanh tiến độ (cộng lại 100), theo thời
+ * gian chạy thật: S4–S6 xong trong vài giây, S7 (trích dữ kiện) và S9 (so sánh
+ * cặp, 85–90% thời gian ở hồ sơ lớn) chiếm gần hết. Chia đều thì vừa mở trang
+ * đã thấy 50%.
+ */
+const AI2_STEP_WEIGHTS: Record<string, number> = {
+  S4: 2,
+  S5: 2,
+  S6: 6,
+  S7: 40,
+  S9: 45,
+  S10: 5,
+}
+
+/**
+ * Tiến độ chung của AI2 từ các bước đã nhận, theo `AI2_STEP_WEIGHTS`: bước xong
+ * tính trọn, bước đang chạy có `progress` tính phần đã xong. null khi chưa có
+ * số liệu nào.
  */
 export function ai2ProgressPercent(steps: Record<string, RunStep>) {
   const rows = AI2_RUN_STEPS.flatMap((code) =>
     steps[code] ? [steps[code]] : [],
   )
   if (rows.length === 0) return null
-  const done = rows.reduce(
-    (sum, row) =>
-      row.status === 'succeeded'
-        ? sum + 1
-        : row.status === 'running' && row.progress && row.progress.total > 0
-          ? sum + Math.min(1, row.progress.done / row.progress.total)
-          : sum,
-    0,
-  )
-  return Math.min(99, Math.floor((done / AI2_RUN_STEPS.length) * 100))
+  const done = rows.reduce((sum, row) => {
+    const weight = AI2_STEP_WEIGHTS[row.step] ?? 0
+    if (row.status === 'succeeded') return sum + weight
+    if (row.status === 'running' && row.progress && row.progress.total > 0)
+      return sum + weight * Math.min(1, row.progress.done / row.progress.total)
+    return sum
+  }, 0)
+  return Math.min(99, Math.floor(done))
 }
 
 /** Đọc payload `step.changed` do BE đẩy xuống; null nếu thiếu mã bước. */
