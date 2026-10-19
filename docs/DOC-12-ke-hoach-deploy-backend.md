@@ -114,6 +114,7 @@ Tổng này là lý do đặt mức tối thiểu 8 GB. Số đo thật sẽ ghi
 | Trang quản trị Keycloak | `/admin` bị chặn ở Caddy. Chỉ vào qua SSH tunnel |
 | Endpoint nội bộ nhận back-channel logout của Keycloak | `/api/v1/auth/backchannel-logout` trả 404 ở Caddy như `/admin`; Keycloak gọi qua mạng nội bộ `http://backend:8000`. Logout token phải được ký bằng khoá của realm |
 | Token còn dùng được sau khi đăng xuất hoặc bị khoá | Back-channel logout (#129): phiên Keycloak kết thúc thì backend chặn mọi access token của phiên đó ngay (`401 Session has ended`), không chờ tối đa 15 phút |
+| Refresh token bị script trên trang lấy cắp (XSS) | Client `contract-intel-frontend` không được cấp refresh token (`use.refresh.tokens=false`, `keycloak_configure.py` đặt mỗi lần deploy). Frontend giữ access token trong bộ nhớ tab và gia hạn bằng iframe `prompt=none` theo cookie SSO HttpOnly (#133) |
 | Dữ liệu ngoài quyền | Bộ test M-07 trên 31 endpoint: **0/132 request lộ dữ liệu** (PR #28). Chia sẻ có `read`/`edit` và hạn dùng |
 | Nghe lén | HTTPS ở ngoài. Nội bộ là mạng Docker riêng. Backend → AI2 ký HMAC. AI1 đọc và ghi file qua URL ký sẵn có hạn |
 | Đầy đĩa vì log | Docker xoay vòng log 5 × 20 MB mỗi container |

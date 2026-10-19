@@ -187,6 +187,7 @@
         "backchannel.logout.url": "http://backend:8000/api/v1/auth/backchannel-logout",
         "backchannel.logout.session.required": "true",
         "backchannel.logout.revoke.offline.tokens": "false",
+        "use.refresh.tokens": "false",
         "client.use.lightweight.access.token.enabled": "false",
         "oauth2.device.authorization.grant.enabled": "false",
         "oidc.ciba.grant.enabled": "false"
