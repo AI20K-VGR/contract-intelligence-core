@@ -149,18 +149,21 @@ function isTransient(cause: unknown) {
 const COMPLETE_RETRY_CODES = new Set([502, 503, 524])
 
 function isCompleteRetryable(cause: unknown) {
+  // Mất mạng lúc chờ phản hồi: server có thể đã tạo hồ sơ. Hỏi lại phiên là
+  // an toàn vì gọi lại /complete trả đúng hồ sơ đó; bỏ qua thì người dùng
+  // thấy lỗi, tải lại và có hồ sơ trùng.
+  if (cause instanceof TypeError) return true
   return (
     cause instanceof ApiError &&
-    (cause.code === 'UPLOAD_COMPLETING' || COMPLETE_RETRY_CODES.has(cause.status))
+    (cause.code === 'UPLOAD_COMPLETING' ||
+      COMPLETE_RETRY_CODES.has(cause.status))
   )
 }
 
 /** `details` của lỗi /uploads: khung `{"error": {code, message, details}}` (DOC-05b §3.3). */
 function errorDetails(cause: ApiError): Record<string, unknown> {
   const body = cause.details as
-    | { error?: { details?: unknown }; detail?: unknown }
-    | null
-    | undefined
+    { error?: { details?: unknown }; detail?: unknown } | null | undefined
   const details = body?.error?.details ?? body?.detail
   return details && typeof details === 'object'
     ? (details as Record<string, unknown>)
@@ -311,7 +314,9 @@ export async function uploadDossierInChunks(
   }
 
   /** Phiên đã thành hồ sơ (`409 UPLOAD_COMPLETED`): lấy hồ sơ đó, không tạo thêm. */
-  async function alreadyCreated(cause: unknown): Promise<DossierCreated | null> {
+  async function alreadyCreated(
+    cause: unknown,
+  ): Promise<DossierCreated | null> {
     if (!(cause instanceof ApiError) || cause.code !== 'UPLOAD_COMPLETED') {
       return null
     }

@@ -301,3 +301,41 @@ describe('upload error codes (DOC-05b v4.2.0 §3.3)', () => {
     }
   })
 })
+
+describe('complete retries (PR #149 review)', () => {
+  it('reads the session after a dropped connection on complete instead of failing', async () => {
+    // Server đã tạo hồ sơ nhưng phản hồi mất giữa đường: không báo lỗi, không tải lại.
+    const deps = setup(session([{ size: 4 }]))
+    vi.mocked(deps.complete).mockRejectedValueOnce(
+      new TypeError('Failed to fetch'),
+    )
+    vi.mocked(deps.getSession).mockResolvedValueOnce(
+      session([{ size: 4, received: [0] }], {
+        status: 'completed',
+        dossier_id: 'dos_3',
+        job_id: 'job_3',
+      }),
+    )
+    const created = await uploadDossierInChunks(
+      { contract: pdf('a.pdf', 4), metadata: {} },
+      {},
+      deps,
+    )
+    expect(created).toEqual({ dossier_id: 'dos_3', job_id: 'job_3' })
+    expect(deps.cancel).not.toHaveBeenCalled()
+  })
+
+  it('does not retry complete on a plain 500', async () => {
+    const deps = setup(session([{ size: 4 }]))
+    vi.mocked(deps.complete).mockRejectedValueOnce(new ApiError(500, 'boom'))
+    await expect(
+      uploadDossierInChunks(
+        { contract: pdf('a.pdf', 4), metadata: {} },
+        {},
+        deps,
+      ),
+    ).rejects.toMatchObject({ status: 500 })
+    expect(deps.complete).toHaveBeenCalledTimes(1)
+    expect(deps.getSession).not.toHaveBeenCalled()
+  })
+})
