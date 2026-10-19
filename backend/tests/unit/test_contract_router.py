@@ -1222,6 +1222,26 @@ class TestSearchDossierEndpoint:
 
 
 class TestDossierAccessPermissions:
+    @pytest.fixture(autouse=True)
+    def _known_recipients(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Every new recipient is an enabled member of the caller's tenant (no mail sent).
+
+        Recipient checks themselves: tests/unit/test_share_recipient_validation.py.
+        """
+        from contract_intelligence.infrastructure import keycloak_admin
+
+        async def resolve(
+            *, tenant_id: str, recipients: list[tuple[str, str]]
+        ) -> list[keycloak_admin.TenantMember]:
+            return [
+                keycloak_admin.TenantMember(
+                    id=user_id, email="", display_name=user_id, status="active"
+                )
+                for user_id, _ in recipients
+            ]
+
+        monkeypatch.setattr(keycloak_admin, "resolve_tenant_members", resolve)
+
     @staticmethod
     def _body(**grant: Any) -> dict[str, Any]:
         return {

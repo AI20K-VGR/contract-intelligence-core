@@ -1,7 +1,7 @@
 """User Management APIs — B2B SaaS admin CRUD via Keycloak Admin API.
 
-RBAC: ADMINISTRATOR only, except ``GET /users/directory`` (OPERATOR too), which
-lists who a dossier can be shared with.
+RBAC: ADMINISTRATOR only, except ``GET /users/directory`` and ``GET /users/lookup``
+(OPERATOR too), which find who a dossier can be shared with.
 Guards: no self-modification; protect the last ADMINISTRATOR.
 """
 
@@ -36,6 +36,10 @@ router = APIRouter(prefix="/users", tags=["Users"])
 AdminUser = Annotated[AuthenticatedUser, Depends(require_role("ADMINISTRATOR"))]
 # Whoever may share a dossier (shared/acl.py DOSSIER_MANAGE): OPERATOR, ADMINISTRATOR.
 SharingUser = Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))]
+
+# An OPERATOR must search the directory; an empty or 1-2 character query would list
+# (almost) the whole tenant. ADMINISTRATOR already sees everyone through GET /users.
+DIRECTORY_MIN_QUERY = 3
 
 _ROLE_VI = {
     "OPERATOR": "Vận hành",
@@ -163,8 +167,21 @@ async def list_directory(
 
     Returns ``id``, ``email``, ``display_name`` and ``role``; nothing an
     administrator manages (status, invite, last login). Unlike ``GET /users``,
-    a user without a ``tenant_id`` attribute in Keycloak is not listed.
+    a user without a ``tenant_id`` attribute in Keycloak is not listed. An
+    OPERATOR must send ``q`` with at least ``DIRECTORY_MIN_QUERY`` characters
+    (422 ``directory_query_required``), so the API does not list the whole tenant.
     """
+    if user.role != "ADMINISTRATOR" and len((q or "").strip()) < DIRECTORY_MIN_QUERY:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content=ErrorResponse(
+                error=ErrorPayload(
+                    code="directory_query_required",
+                    message=f"Nhập ít nhất {DIRECTORY_MIN_QUERY} ký tự để tìm người dùng.",
+                    details={"min_length": DIRECTORY_MIN_QUERY},
+                )
+            ).model_dump(mode="json"),
+        )
     try:
         result = await kc.list_users(
             q=q,
@@ -191,6 +208,46 @@ async def list_directory(
             page_size=limit,
             total=result.total,
         ),
+    )
+
+
+@router.get(
+    "/lookup",
+    response_model=ApiResponse[UserDirectoryEntryDTO],
+    responses={404: {"model": ErrorResponse, "description": "user_not_found"}},
+    summary="Find the one tenant member with this exact email (for sharing)",
+)
+async def lookup_user(
+    user: SharingUser,
+    email: Annotated[str, Query(min_length=3, max_length=320, description="Exact email")],
+) -> ApiResponse[UserDirectoryEntryDTO] | JSONResponse:
+    """RBAC: OPERATOR, ADMINISTRATOR. Exact, case-insensitive email match.
+
+    Returns ``{id, email, display_name, role}`` when exactly one active user of the
+    caller's tenant has this email; otherwise 404 ``user_not_found`` (another tenant,
+    disabled, not yet activated, or no such user all look the same).
+    """
+    try:
+        member = await kc.lookup_tenant_member(tenant_id=user.tenant_id, email=email)
+    except kc.UserAdminError as exc:
+        return _error_response(exc)
+    if member is None:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content=ErrorResponse(
+                error=ErrorPayload(
+                    code="user_not_found",
+                    message="Không tìm thấy người dùng với email này trong đơn vị của bạn.",
+                )
+            ).model_dump(mode="json"),
+        )
+    return ApiResponse(
+        data=UserDirectoryEntryDTO(
+            id=member.id,
+            email=member.email,
+            display_name=member.display_name,
+            role=member.role or "OPERATOR",
+        )
     )
 
 

@@ -52,6 +52,35 @@ export async function listUsers(query: UserListQuery) {
   }
 }
 
+/** Một thành viên đang hoạt động cùng tenant (GET /users/lookup, DOC-05b v4.0.0). */
+export type TenantUser = {
+  id: string
+  email: string
+  display_name: string
+  role: ManagedUserRole
+}
+
+/**
+ * Tra đúng một email trong đơn vị (GET /users/lookup), để chia sẻ hồ sơ mà
+ * không cần xem cả danh sách người dùng. Chỉ có người đã kích hoạt tài khoản.
+ * null khi không có ai (404 user_not_found: khác đơn vị, bị khoá, chưa kích
+ * hoạt hay không tồn tại đều trả cùng một câu).
+ */
+export async function lookupUserByEmail(email: string, signal?: AbortSignal) {
+  const params = new URLSearchParams({ email: email.trim() })
+  try {
+    const { data } = await requestJson<TenantUser>(
+      `${USERS_PATH}/lookup?${params.toString()}`,
+      { signal },
+    )
+    return data
+  } catch (cause) {
+    if (cause instanceof ApiError && cause.code === 'user_not_found')
+      return null
+    throw cause
+  }
+}
+
 export async function createUser(input: CreateUserInput) {
   const { data } = await requestJson<ManagedUser>(USERS_PATH, {
     method: 'POST',
@@ -104,6 +133,9 @@ export function userAdminErrorMessage(error: unknown) {
     }
     if (error.code === 'invite_not_applicable') {
       return 'Chỉ gửi lại email khi người dùng còn ở trạng thái đã mời.'
+    }
+    if (error.code === 'email_domain_undeliverable') {
+      return 'Tên miền email không nhận được thư, vui lòng kiểm tra lại.'
     }
     if (error.code === 'email_not_configured') {
       return 'Hệ thống chưa gửi được email mời. Vui lòng báo quản trị viên.'

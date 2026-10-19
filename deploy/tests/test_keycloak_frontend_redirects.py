@@ -81,3 +81,36 @@ def test_running_twice_changes_nothing(
     kc.configure_frontend("token", [ONLINE, LOCAL])
 
     assert keycloak["sent"] == first
+
+
+def test_backchannel_logout_points_at_the_backend(
+    keycloak: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("KEYCLOAK_BACKCHANNEL_LOGOUT_URL", raising=False)
+    keycloak["client"]["frontchannelLogout"] = True
+
+    kc.configure_frontend("token", [ONLINE])
+
+    sent = keycloak["sent"]
+    attributes = sent["attributes"]
+    assert attributes["backchannel.logout.url"] == (
+        "http://backend:8000/api/v1/auth/backchannel-logout"
+    )
+    assert attributes["backchannel.logout.session.required"] == "true"
+    assert attributes["backchannel.logout.revoke.offline.tokens"] == "false"
+    # A front-channel client would skip the back-channel call on browser logout.
+    assert sent["frontchannelLogout"] is False
+    # Existing attributes survive.
+    assert f"{ONLINE}/*" in attributes["post.logout.redirect.uris"]
+
+
+def test_backchannel_logout_url_can_be_overridden(
+    keycloak: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("KEYCLOAK_BACKCHANNEL_LOGOUT_URL", "http://api.internal:9000/logout")
+
+    kc.configure_frontend("token", [ONLINE])
+
+    assert keycloak["sent"]["attributes"]["backchannel.logout.url"] == (
+        "http://api.internal:9000/logout"
+    )
