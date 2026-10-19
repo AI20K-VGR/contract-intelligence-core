@@ -343,6 +343,19 @@ export function accessSaveErrorMessage(cause: unknown) {
 export const MAX_DOSSIER_DOCUMENTS = 6
 export const TOO_MANY_DOCUMENTS = `Hồ sơ tối đa ${MAX_DOSSIER_DOCUMENTS} tài liệu`
 
+const UPLOAD_ERROR_MESSAGES: Record<string, string> = {
+  UPLOAD_CANCELLED:
+    'Lượt tải lên này đã dừng vì có lượt tải lên mới hơn. Vui lòng tải lên lại.',
+  UPLOAD_NOT_OPEN: 'Lượt tải lên này đã dừng. Vui lòng tải lên lại.',
+  UPLOAD_EXPIRED: 'Lượt tải lên đã quá 24 giờ. Vui lòng tải lên lại.',
+  UPLOAD_SIZE_MISMATCH:
+    'Tệp máy chủ nhận được không khớp với tệp đã chọn. Vui lòng tải lên lại.',
+  UPLOAD_COMPLETING:
+    'Máy chủ vẫn đang ghép tệp. Vui lòng xem lại danh sách hồ sơ sau ít phút.',
+  UPLOAD_MISSING_CHUNKS:
+    'Máy chủ chưa nhận đủ tệp. Vui lòng kiểm tra mạng rồi tải lên lại.',
+}
+
 export function createDossierErrorMessage(error: unknown) {
   if (error instanceof DOMException && error.name === 'AbortError') {
     return null
@@ -350,6 +363,10 @@ export function createDossierErrorMessage(error: unknown) {
   if (error instanceof UploadStalledError) return error.message
   if (error instanceof ApiError) {
     if (error.code === 'DOSSIER_TOO_MANY_DOCUMENTS') return TOO_MANY_DOCUMENTS
+    // Tải theo khúc (/uploads, DOC-05b v4.2.0 §3.3): message của backend là
+    // tiếng Anh, hiển thị theo mã.
+    const uploadMessage = error.code ? UPLOAD_ERROR_MESSAGES[error.code] : null
+    if (uploadMessage) return uploadMessage
     if (error.status === 401) {
       return 'Phiên đăng nhập hết hạn. Đăng nhập lại.'
     }
