@@ -78,14 +78,13 @@ Frontend (React) xử lý toàn bộ auth flow với Keycloak:
 Frontend                          Keycloak                  Backend
     │                                │                        │
     ├──► Login Page ──────────────►│ Login Credentials      │
-    │◄── access_token (RS256) ◄────│                        │
-    │◄── refresh_token ◄───────────│                        │
+    │◄── access_token (RS256), id_token ◄─│ (không có refresh_token) │
     │                                │                        │
-    │   (Frontend lưu tokens trong Memory/Secure Cookie)     │
+    │   (Frontend giữ phiên trong bộ nhớ tab, #133)          │
     │                                │                        │
-    │   Khi access_token hết hạn:                              │
-    ├──► Keycloak refresh URL ◄───────────────────────────────│
-    │◄── access_token mới ◄─────────────────────────────────│
+    │   Gần hết hạn / F5 / tab mới:                          │
+    ├──► iframe /auth?prompt=none ──►│ cookie SSO HttpOnly    │
+    │◄── access_token mới ◄─────────│                        │
     │                                │                        │
     │   Khi gọi API:                                         │
     │─── Authorization: Bearer <token> ─────────────────────►│ (Backend verify RS256 via JWKS)
@@ -221,9 +220,9 @@ Màn hình hiển thị thông tin user hiện tại (từ Keycloak JWT). Fronte
 
 **Luồng Frontend:**
 1. User click "Đăng nhập" → redirect đến Keycloak login page.
-2. Keycloak trả `access_token` + `refresh_token` về frontend (OIDC callback).
-3. Frontend lưu phiên (`access_token`, `refresh_token`, `id_token`) trong `localStorage` (`oidc-client-ts`, `frontend/src/auth/oidc.ts`).
-4. Khi `access_token` hết hạn, frontend gọi Keycloak refresh endpoint trực tiếp.
+2. Keycloak trả `access_token` + `id_token` về frontend (OIDC callback). Client `contract-intel-frontend` đặt `use.refresh.tokens=false`, nên **không có `refresh_token`**.
+3. Frontend giữ phiên chỉ trong bộ nhớ của tab (`InMemoryWebStorage`, #133); không có token trong `localStorage`/`sessionStorage`.
+4. Gần hết hạn, khi F5 hay mở tab mới, frontend lấy access token mới bằng iframe `prompt=none` theo cookie phiên SSO HttpOnly của Keycloak (`signinSilent({ forceIframeAuth: true })`). Phiên SSO đã hết thì Keycloak trả `login_required` và frontend về màn đăng nhập.
 5. Khi user click "Đăng xuất", frontend gọi Keycloak logout endpoint trực tiếp.
 6. **v4.1.0:** khi một phiên kết thúc (đăng xuất, quản trị đăng xuất hộ hoặc khoá tài khoản), Keycloak gọi `POST /auth/backchannel-logout` của backend trong mạng nội bộ (OIDC Back-Channel Logout). Từ đó mọi access token của phiên (`sid`) nhận `401` với body `{"detail": "Session has ended"}`, thay vì còn dùng được tới khi hết hạn (tối đa 15 phút). Frontend không phải gọi gì thêm; `401` vẫn xử lý như hiện tại (về màn đăng nhập). Phiên kết thúc vì hết thời gian chờ không gửi thông báo này: token còn dùng được tới `exp`.
 
