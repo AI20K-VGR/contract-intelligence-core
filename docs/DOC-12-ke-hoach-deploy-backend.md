@@ -226,6 +226,16 @@ Mỗi lần cập nhật báo trước trong nhóm. Không cập nhật trong l�
 - Log ở `docker compose … logs`.
 - Backup 02:00 mỗi đêm.
 
+**Chi phí câu hỏi AI2 (`/query`)** (DEC-BE-AI2-01 D6, PR #135):
+
+- **Grafana:** `/admin/monitoring` → dashboard `ci-overview`, hàng "AI2 – Question cost": số câu hỏi, tổng chi phí, chi phí mỗi câu, chi phí theo model, token mỗi giờ. Prometheus đọc `ai2-service:9109` (`AI2_METRICS_PORT`). Cổng này chỉ nằm trong mạng `ci-monitoring` và không publish ra ngoài. Chỉ có số tổng, không có câu hỏi, hồ sơ hay người dùng.
+- **Langfuse (từng câu hỏi):** mặc định tắt. Để bật:
+  1. Đặt `LANGFUSE_PUBLIC_KEY` và `LANGFUSE_SECRET_KEY` trong `deploy/.env.prod` (key của project Langfuse dùng chung với AI1, Đức Dũng giữ). `LANGFUSE_BASE_URL` mặc định `https://us.cloud.langfuse.com`.
+  2. `sudo deploy/deploy.sh`.
+  3. Hỏi một câu trong app, rồi lọc `name = ai2.query` trên Langfuse. Session là hồ sơ, user là người hỏi; mỗi lời gọi LLM/embedding có token và chi phí USD.
+- Model có giá chưa ghi trong code thì đặt `AI2_LLM_PRICES_JSON` (USD mỗi 1M token), ví dụ `{"gpt-5.6": {"input": 2, "output": 12}}`.
+- Chưa đo chi phí xử lý hồ sơ (`/jobs/idp`).
+
 **Người chịu trách nhiệm:**
 
 | Việc | Người |
@@ -233,6 +243,7 @@ Mỗi lần cập nhật báo trước trong nhóm. Không cập nhật trong l�
 | Máy chủ, deploy, backup | Chương |
 | Key AI1 | Đức Dũng |
 | Key AI2 | Văn Dũng / người Lead chỉ định |
+| Key Langfuse (AI1 và AI2) | Đức Dũng |
 | Quyết định cập nhật trước demo | Trang |
 
 ---

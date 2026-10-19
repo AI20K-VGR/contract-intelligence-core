@@ -179,9 +179,11 @@ class _Generation:
         self._model = model
 
     def update(self, **fields: Any) -> None:
+        # Prometheus keys by the configured model, so the series made at startup is
+        # the one that grows; the served snapshot (gpt-5.5-2026-04-23) goes to Langfuse.
         record_model_call(
             self._kind,
-            fields.get("model") or self._model,
+            self._model or fields.get("model"),
             fields.get("usage_details"),
             fields.get("cost_details"),
             failed=fields.get("level") == "ERROR",
