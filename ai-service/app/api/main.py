@@ -18,11 +18,12 @@ from uuid import uuid4
 
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app.api.contract_graph_router import router as contract_graph_router
+from app.api.dossier_deletion_router import router as dossier_deletion_router
 from app.api.processing_trace_router import router as processing_trace_router
 from app.compat_legacy import cancel_job as cancel_legacy_job
 from app.compat_legacy import create_completed_job, create_failed_job
@@ -62,6 +63,7 @@ from app.reasoning.stack import FourLayerReasoner
 from app.reasoning.vector_recall import VectorRecallService, query_embedding_token_cap
 from app.security.service_envelope import ServiceEnvelopeError, verify_service_envelope
 from app.tools.bounded import BoundedDict, env_capacity
+from app.tools.dossier_deletion import DossierDeletedError, is_deleted_write, require_live_dossier
 from app.tools.gateway import ToolGateway
 from app.tools.jobs import (
     JobNonceReplayConflict,
@@ -96,6 +98,10 @@ async def _periodic_job_sweep() -> None:
         await asyncio.sleep(JOB_SWEEP_INTERVAL_SECONDS)
         try:
             await asyncio.to_thread(_sweep_stale_jobs)
+            if database_url():
+                from app.tools.dossier_deletion import retry_pending_purges
+
+                await asyncio.to_thread(retry_pending_purges, data_dir=DATA)
         except Exception:
             logger.exception("ai2.job_sweep_failed")
 
@@ -118,6 +124,12 @@ async def _lifespan(_app: FastAPI):
 app = FastAPI(title="VSF AI2 IDP", version="0.1.0", lifespan=_lifespan)
 app.include_router(contract_graph_router)
 app.include_router(processing_trace_router)
+app.include_router(dossier_deletion_router)
+
+
+@app.exception_handler(DossierDeletedError)
+async def dossier_deleted_error(_request: Request, _exc: Exception):
+    return JSONResponse(status_code=410, content={"detail": {"code": "AI2_DOSSIER_DELETED"}})
 if STATIC.exists():
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
@@ -558,6 +570,8 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
             max_llm_calls=request.policy_flags.budget_limits.max_llm_calls,
             max_embedding_tokens=request.policy_flags.budget_limits.max_embedding_tokens,
             on_progress=_progress_writer(job_id, tenant_id, request.dossier_id, worker_token),
+            check_cancelled=(lambda: require_live_dossier(tenant_id, request.dossier_id))
+            if hasattr(JOB_STORE, "engine") else None,
         )
         query_snapshot_digest = adapted.record.pins.source_snapshot_digest
         trace_writer = ProcessingTraceWriter(
@@ -615,7 +629,15 @@ def _execute_wire_job(job_id: str, payload: dict) -> None:
                 persisted = load_query_snapshot(request.dossier_id, tenant_id=tenant_id)
                 if persisted is not None:
                     STORE.put(persisted[0])
+    except DossierDeletedError:
+        status = "CANCELLED"
+        WIRE_JOBS.pop(job_id, None)
+        STORE.discard(tenant_id, request.dossier_id)
     except Exception as exc:  # worker boundary: every failure ends the job
+        if is_deleted_write(exc):
+            status = "CANCELLED"
+            WIRE_JOBS.pop(job_id, None)
+            return
         status = "FAILED"
         code = exc.code if isinstance(exc, SnapshotContractError) else "AI2_WORKER_FAILED"
         update = {
@@ -698,9 +720,7 @@ def index():
 
 
 def _session_view(sid: str) -> dict:
-    s = SESSIONS.get(sid)
-    if not s:
-        raise HTTPException(404, sid)
+    s = _require_session(sid)
     rec: DossierRecord = s["record"]
     evidence_nodes = rec.evidence_nodes()
     job = s.get("job")
@@ -851,6 +871,14 @@ def _review_basis(record: DossierRecord) -> dict[str, object]:
 def _require_session(session_id: str) -> dict:
     s = SESSIONS.get(session_id)
     if s:
+        if database_url():
+            from app.tools.dossier_deletion import is_dossier_deleted
+
+            rec = s["record"]
+            if is_dossier_deleted(rec.tenant_id, rec.dossier_id):
+                SESSIONS.pop(session_id, None)
+                STORE.discard(rec.tenant_id, rec.dossier_id)
+                raise HTTPException(404, session_id)
         return s
     loaded = load_session(session_id, STORE)
     if not loaded:
@@ -1331,6 +1359,11 @@ def query_from_backend(payload: dict) -> dict:
         if service_envelope is not None
         else str(payload.get("tenant_id") or "").strip()
     )
+    if database_url() and tenant_id:
+        from app.tools.dossier_deletion import is_dossier_deleted
+
+        if is_dossier_deleted(tenant_id, dossier_id):
+            raise HTTPException(410, detail={"code": "AI2_DOSSIER_DELETED"})
     record = STORE.get(tenant_id, dossier_id) if tenant_id else None
     if record is None or database_url() or service_envelope is None:
         hydrated = load_query_snapshot(dossier_id, tenant_id=tenant_id or None)
@@ -1433,6 +1466,11 @@ def query_from_backend(payload: dict) -> dict:
                 answer = json.dumps(answer, ensure_ascii=False)
             review_state = result.get("review_state")
             state = review_state or result.get("state") or "INSUFFICIENT_EVIDENCE"
+            if database_url():
+                from app.tools.dossier_deletion import is_dossier_deleted
+
+                if is_dossier_deleted(record.tenant_id, dossier_id):
+                    raise HTTPException(410, detail={"code": "AI2_DOSSIER_DELETED"})
             return {
                 "state": "ANSWERED" if state == "PASS" else state,
                 "review_state": review_state,

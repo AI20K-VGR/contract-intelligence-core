@@ -51,7 +51,7 @@ def test_fresh_database_migrates_to_head_with_graph_receipts(fresh_url):
     from app.db.tables import contract_pair_relations as table
     engine = get_engine(fresh_url)
     migrate(engine)
-    assert _version(engine) == "0008_ai2_processing_trace"
+    assert _version(engine) == "0009_dossier_purge"
     schema = inspect(engine)
     columns = {c["name"]: c for c in schema.get_columns(table.name, schema="ai2")}
     assert set(columns) == {c.name for c in table.columns}
@@ -73,7 +73,7 @@ def test_0007_downgrade_entrypoint_then_upgrade(fresh_url):
         "contract_pair_relations", "contract_graph_write_receipts", "ai2_processing_trace_events",
     }
     migrate(engine)
-    assert _version(engine) == "0008_ai2_processing_trace"
+    assert _version(engine) == "0009_dossier_purge"
     assert _ai2_tables(engine) == before
 
 

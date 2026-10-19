@@ -68,9 +68,15 @@ async def client(
     db_engine: Any,
     cached_keycloak_jwks: str,
     mock_keycloak_settings: Any,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> AsyncGenerator[AsyncClient, None]:
+    from contract_intelligence.shared.ai import client as ai_clients
+    from contract_intelligence.shared.ai.client import StubAiServiceClient
     from contract_intelligence.shared.storage import reset_file_storage, set_file_storage
 
+    # This legacy API suite has no external AI2; real signed HTTP purge is
+    # exercised separately on PostgreSQL in test_dossier_purge_local_e2e.py.
+    monkeypatch.setattr(ai_clients, "get_ai_service_client", lambda: StubAiServiceClient())
     set_file_storage(FakeFileStorage())
     factory = async_sessionmaker(bind=db_engine, expire_on_commit=False, class_=AsyncSession)
 

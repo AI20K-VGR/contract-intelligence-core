@@ -289,6 +289,7 @@ class ProcessingRuntime:
     issues: list[tuple[str, str]] = field(default_factory=list)
     # Receives {step, done, total, unit} for GET /jobs while RUNNING; advisory, never fails a job.
     on_progress: Callable[[dict[str, Any]], None] | None = field(default=None, repr=False)
+    check_cancelled: Callable[[], None] | None = field(default=None, repr=False)
     _request_lock: Any = field(default_factory=threading.Lock, repr=False)
     # Per-operation LLM attempt timing for coverage.llm_timing; kept out of snapshot(),
     # which the flag-off golden hashes.
@@ -322,6 +323,8 @@ class ProcessingRuntime:
             logger.warning("ai2.progress_report_failed step=%s", step, exc_info=True)
 
     def checkpoint(self) -> None:
+        if self.check_cancelled is not None:
+            self.check_cancelled()
         if self.remaining() < 0:
             raise ProcessingTimeout("processing time budget exceeded")
 

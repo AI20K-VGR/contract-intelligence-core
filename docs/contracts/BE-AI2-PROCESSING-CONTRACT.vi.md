@@ -257,3 +257,116 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
 - Job store, query store và durable run store của AI2 nằm ở schema `ai2` ngay từ lần deploy online đầu tiên. Vector cũng nằm trong schema `ai2` bằng pgvector (Lead, 30/09), bật trên bản online theo D6. Postgres dùng image `pgvector/pgvector:pg16`, script khởi tạo chạy `CREATE EXTENSION vector`.
 - AI2 mất dữ liệu thì Backend dựng lại bằng cách gửi lại `/jobs/idp` với `attempt` mới.
 - Không cần volume cho `AI2_JOB_DB` và `vectors.sqlite` khi AI2 đã chạy trên Postgres.
+
+## 7. Xoá nội dung hồ sơ — issue #131
+
+**Trạng thái: đã chốt với Backend (Chương) ngày 19/10/2026 tại
+[review PR #132](https://github.com/AI20K-VGR/contract-intelligence-core/pull/132#pullrequestreview-5566790702),
+ghi nhận tại bổ sung #131 trong DEC-BE-AI2-01.**
+
+Phần AI2 triển khai trên PostgreSQL + pgvector (ADR-14), không có chế độ purge SQLite.
+`DossierDeletionService` của Backend purge nội dung DB trước, rồi gọi API này;
+chỉ đánh dấu `purge_status=completed` khi cả hai thành công. HTTP client dùng canonical `ai2_base_url` và bộ
+ký envelope hiện có. Response chưa completed hoặc thiếu evidence hợp lệ làm purge
+thất bại; background task commit trạng thái failed khi transaction còn hợp lệ để
+`sweep_pending_purges()` thử lại. Evidence tích luỹ được lưu ở `deletion_ledger.evidence.ai2`.
+Sweeper xử lý cả ledger completed thiếu khoá `ai2`: chỉ gọi AI2 và bổ sung evidence,
+giữ số đếm Backend cũ; nếu lỗi thì failed và retry mà không dọn lại Backend.
+Giữ nguyên `purge_completed_at`/`purged_at` đã có của Backend, cả khi dọn bù AI2
+thất bại rồi thử lại; không thay mốc purge gốc bằng thời điểm backfill.
+
+**Endpoint:** `DELETE /api/v1/dossiers/{dossier_id}`; JSON body bắt buộc:
+
+```json
+{
+  "tenant_id": "tenant-001",
+  "dossier_id": "dossier-001",
+  "service_envelope": {"...": "ai2.service-envelope.v1"}
+}
+```
+
+Envelope dùng issuer/audience/key/HMAC và TTL như endpoint canonical hiện có,
+với scope **`ai2.dossier.delete`**. Hash payload bỏ `service_envelope`, theo D2.
+`dossier_id` trên URL, body và envelope phải trùng; `tenant_id` trong body phải trùng
+envelope. Tenant từ chữ ký quyết định phạm vi xoá; header tenant đơn lẻ không đủ quyền.
+Không thêm cơ chế service-token mới ngoài xác thực canonical hiện tại.
+
+Ví dụ tạo body bằng helper AI2 (Backend dùng bộ ký tương đương của mình):
+
+```python
+payload = {"tenant_id": tenant_id, "dossier_id": dossier_id}
+payload["service_envelope"] = build_service_envelope(
+    payload, secret=secret, tenant_id=tenant_id, dossier_id=dossier_id,
+    scopes=["ai2.dossier.delete"],
+)
+```
+
+**Response `200`:** chỉ trả khi xoá DB và cleanup file đều hoàn tất.
+
+```json
+{
+  "status": "completed",
+  "deleted": {"jobs": 3, "dossier_query_snapshots": 1, "vector_segments": 812},
+  "evidence": {
+    "deleted": {"jobs": 3, "dossier_query_snapshots": 1, "vector_segments": 812},
+    "blob_directories": 0
+  }
+}
+```
+
+Ví dụ rút gọn; thực tế `deleted` có số dòng cho mọi bảng được purge. `deleted` là số
+xoá ở lần gọi này; `evidence.deleted` là tổng tích luỹ qua các lần retry. Backend lưu
+`evidence` vào deletion ledger. Gọi lặp hoặc scope chưa tồn tại vẫn thành công, thường
+trả số xoá mới bằng 0. Envelope còn hạn có thể được gửi lại cho cùng thao tác xoá;
+retry sau hết hạn phải ký envelope mới. Thao tác này không phục hồi hồ sơ.
+
+| HTTP | Code | Xử lý |
+|---|---|---|
+| 401 | `SERVICE_*` từ verifier | Sửa chữ ký, scope hoặc thời hạn |
+| 403 | `SERVICE_TENANT_MISMATCH` | Sửa tenant binding |
+| 422 | `SERVICE_DOSSIER_MISMATCH` | Sửa URL/body binding |
+| 503 | `AI2_PURGE_INCOMPLETE`, `retryable=true` | Chưa được đánh dấu completed; retry |
+
+Xoá nhầm tenant không xoá dữ liệu của tenant khác và không tiết lộ sự tồn tại của nó:
+scope không có dữ liệu vẫn trả thành công. Không trả nội dung hợp đồng/path/SQL trong lỗi.
+
+**Dữ liệu và đồng thời:**
+
+- Xoá jobs, query snapshots, session/blobs, graph edges/pair relations, graph receipts,
+  processing trace và durable runs/checkpoints/events/outbox/audit thuộc scope.
+- `dossier_resource_refs` lưu lịch sử ownership/digest không chứa nội dung. Migration
+  backfill từ trường JSON có cấu trúc; không nối bằng substring hoặc đoán ID. Durable
+  child có thể bổ sung owner của run; dữ liệu mâu thuẫn owner làm migration/write thất bại.
+- Vector dùng `record.pins.source_snapshot_digest`; digest của durable state không
+  đồng nghĩa với vector digest. Chỉ xoá segment khi mọi owner của digest đã tombstone,
+  xét trên tất cả tenant và cả digest lịch sử. Writer vector từ query luôn bind owner.
+- Tombstone `(tenant_id,dossier_id)` tồn tại lâu dài, kể cả scope chưa từng có dữ liệu.
+  Job mới, message tới muộn và write muộn bị chặn ở DB. Job hiện tại mất lease/row;
+  worker dừng hợp tác ở checkpoint và không thể commit kết quả trở lại.
+- Các transaction ghi ngắn dùng `pg_advisory_xact_lock_shared(131,2)`, purge dùng
+  `pg_advisory_xact_lock(131,2)` độc quyền; các writer khác resource chạy song song.
+  Đăng ký owner dùng khoá riêng theo loại và ID resource để giữ owner bất biến;
+  không giữ khoá trong lời gọi LLM/embedding. Khoá statement chạy trước khoá row;
+  store nào SELECT FOR UPDATE phải lấy khoá purge trước. Đây là thứ tự khoá bắt buộc.
+- Durable outbox kiểm tra lại claim trước publish và giữ erasure gate đến khi
+  callback publish đồng bộ kết thúc. Purge đợi publication đang chạy; payload đã
+  claim nhưng bị purge trước publication không được phát. Callback phải có timeout
+  và không gọi lại AI2 persistence trong cùng lời gọi để tránh chờ khoá của chính nó.
+- Audit vẫn append-only với run còn sống; chỉ cho DELETE toàn bộ audit của run có
+  owner đã tombstone để không giữ lại `details_json` có thể chứa nội dung.
+- File blobs legacy được xoá sau commit bằng session ID đã đăng ký, giới hạn trong
+  `AI2_DATA_DIR/blobs`. Nếu lỗi/crash, tombstone vẫn chặn truy cập và trạng thái pending
+  được sweeper AI2 tiếp tục; Backend cũng phải retry để lấy evidence completed.
+- Giữ `service_nonces` chống replay và hai bảng metadata tombstone/resource refs;
+  không giữ request/result/snapshot/text/blob trong các bảng này.
+- `/query` cho scope đã xoá trả `410 AI2_DOSSIER_DELETED`; `/jobs/{job_id}` của job
+  đã purge không còn tồn tại. Session cache cũ không được đọc lại nội dung đã xoá.
+
+**Triển khai:** chạy migration `0009_dossier_purge` trước khi sử dụng endpoint. Không
+downgrade bỏ fencing sau khi đã có tombstone; migration từ chối thao tác đó. Kiểm thử
+chấp nhận dùng PostgreSQL thật, gồm pgvector. Luồng Backend → AI2 đã kiểm chứng local
+với HTTP thật, hai file/OCR, retry và restart AI2; E2E này chỉ chạy local, không chạy CI.
+Backend gọi purge ngay sau deploy, không có cờ enable; AI2 chưa có endpoint thì
+purge failed và sweeper thử lại. Deploy AI2 cùng migration/readers/writers trước Backend,
+không chạy worker cũ sau khi xoá. Sweeper tự dọn scope completed thiếu evidence AI2
+(7 hồ sơ theo audit #131 ngày 18/10); kiểm đếm DB/files sau rollout trước khi đóng issue.

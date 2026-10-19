@@ -133,11 +133,12 @@ class ProcessingTraceStore:
         return ProcessingTraceEvent(**row)
 
     def _append_postgres(self, event: dict[str, Any], worker_token: str | None) -> ProcessingTraceEvent:
-        from sqlalchemy import func, select
+        from sqlalchemy import func, select, text
 
         from app.db.tables import jobs, processing_trace_events
 
         with self.job_store.engine.begin() as cx:
+            cx.execute(text("SELECT ai2.purge_write_lock()"))
             job = cx.execute(select(jobs.c.status, jobs.c.worker_token, jobs.c.current_execution_id).where(
                 jobs.c.job_id == event["job_id"], jobs.c.tenant_id == event["tenant_id"],
                 jobs.c.dossier_id == event["dossier_id"],
@@ -235,10 +236,11 @@ class ProcessingTraceStore:
             cx.close()
 
     def _finalize_postgres(self, job_id: str) -> int:
-        from sqlalchemy import select
+        from sqlalchemy import select, text
 
         from app.db.tables import jobs, processing_trace_events
         with self.job_store.engine.begin() as cx:
+            cx.execute(text("SELECT ai2.purge_write_lock()"))
             job = cx.execute(select(jobs.c.status, jobs.c.worker_token).where(
                 jobs.c.job_id == job_id).with_for_update()).first()
             if job is None or job.status not in {"FAILED", "SUCCEEDED", "CANCELLED"} or job.worker_token:

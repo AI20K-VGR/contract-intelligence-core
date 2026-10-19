@@ -236,3 +236,37 @@ def test_worker_does_not_commit_when_result_publish_is_retryable():
 
     assert producer.sent == []
     assert consumer.commit_calls == 0
+
+
+@pytest.mark.parametrize("publish_error", [None, TimeoutError("Kafka unavailable")])
+def test_worker_dossier_deleted_after_processing(publish_error, caplog):
+    import json
+
+    async def scenario():
+        command = _command()
+        consumer = _FakeConsumer(command)
+        producer = _FakeProducer(send_error=publish_error)
+        result = {"event_type": worker.EVENT_COMPLETED, "payload": {"job_id": "job-1"}}
+        worker._processed[command["event_id"]] = result
+        with (
+            patch.object(worker, "AIOKafkaConsumer", return_value=consumer),
+            patch.object(worker, "AIOKafkaProducer", return_value=producer),
+            patch.object(worker, "database_url", return_value="configured"),
+            patch.object(worker.asyncio, "to_thread", new=AsyncMock(
+                side_effect=[result, worker.DossierDeletedError("AI2_DOSSIER_DELETED")])),
+        ):
+            await worker.run_worker()
+        assert command["event_id"] not in worker._processed
+        return consumer, producer
+
+    consumer, producer = asyncio.run(scenario())
+    assert "ai2.kafka.command_failed" not in caplog.text
+    if publish_error:
+        assert consumer.commit_calls == 0
+        assert producer.sent == []
+    else:
+        assert consumer.commit_calls == 1
+        event = json.loads(producer.sent[0][1])
+        assert event["event_type"] == worker.EVENT_FAILED
+        assert event["payload"]["errors"][0]["code"] == "AI2_DOSSIER_DELETED"
+        assert event["payload"]["errors"][0]["retryable"] is False
