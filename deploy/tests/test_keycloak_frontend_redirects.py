@@ -114,3 +114,26 @@ def test_backchannel_logout_url_can_be_overridden(
     assert keycloak["sent"]["attributes"]["backchannel.logout.url"] == (
         "http://api.internal:9000/logout"
     )
+
+
+def test_frontend_client_gets_no_refresh_tokens(
+    keycloak: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The SPA renews through a prompt=none iframe (#133); no refresh token in page memory."""
+    keycloak["client"]["attributes"]["use.refresh.tokens"] = "true"
+
+    kc.configure_frontend("token", [ONLINE])
+
+    attributes = keycloak["sent"]["attributes"]
+    assert attributes["use.refresh.tokens"] == "false"
+    # Settings set earlier in the same call survive.
+    assert attributes["backchannel.logout.session.required"] == "true"
+    assert f"{ONLINE}/*" in attributes["post.logout.redirect.uris"]
+
+
+def test_realm_export_frontend_client_has_no_refresh_tokens() -> None:
+    import json
+
+    realm = json.loads((_SCRIPT.parents[1] / "keycloak" / "realm-export.json").read_text("utf-8"))
+    frontend = next(c for c in realm["clients"] if c["clientId"] == "contract-intel-frontend")
+    assert frontend["attributes"]["use.refresh.tokens"] == "false"

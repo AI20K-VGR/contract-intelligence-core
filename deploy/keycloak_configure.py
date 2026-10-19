@@ -13,7 +13,8 @@ Runs inside the running backend container on ci-network (deploy/deploy.sh does i
   brings for local work (a token must not be sent to a page on the user's own
   machine). KEYCLOAK_KEEP_LOCAL_REDIRECTS=true keeps them. Back-channel logout
   points at the backend (KEYCLOAK_BACKCHANNEL_LOGOUT_URL, default
-  http://backend:8000/api/v1/auth/backchannel-logout);
+  http://backend:8000/api/v1/auth/backchannel-logout). No refresh tokens: the
+  SPA renews through silent SSO;
 - backend client: replace the repo's dev secret with BACKEND_KEYCLOAK_ADMIN_SECRET;
 - seeded demo users: replace the passwords committed in realm-export.json with
   DEMO_*_PASSWORD from deploy/.env.prod;
@@ -159,6 +160,10 @@ def configure_frontend(token: str, origins: list[str]) -> None:
         _merge(_online(logout, keep_local), [f"{o}/*" for o in origins])
     )
     attributes.update(_backchannel_logout_attributes())
+    # No refresh token for the SPA (#130, #133): it renews through a prompt=none
+    # iframe on Keycloak's HttpOnly SSO cookie, so a refresh token would only be
+    # one more long-lived credential sitting in page memory for a script to take.
+    attributes["use.refresh.tokens"] = "false"
     client["attributes"] = attributes
     # Keycloak skips the back-channel call for a client marked front-channel
     # on a browser logout; this client has no front-channel URL anyway.
@@ -167,6 +172,7 @@ def configure_frontend(token: str, origins: list[str]) -> None:
     local = "kept" if keep_local else "removed"
     print(f"[keycloak] frontend client allows {', '.join(origins)}; localhost redirects {local}")
     print(f"[keycloak] back-channel logout: {attributes['backchannel.logout.url']}")
+    print("[keycloak] frontend client: no refresh tokens (renews through silent SSO)")
 
 
 def _backchannel_logout_attributes() -> dict[str, str]:
