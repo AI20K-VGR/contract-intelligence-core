@@ -242,6 +242,41 @@ echo "[deploy] configuring Keycloak"
   -e SMTP_PASSWORD="$(envval SMTP_PASSWORD)" -e SMTP_STARTTLS="$(envval SMTP_STARTTLS)" \
   backend python - < deploy/keycloak_configure.py
 
+# Nightly backup (deploy/backup.sh). The schedule is written here rather than
+# kept in a hand-edited crontab, so every server built from the repo has one:
+# production ran without any until 19/10/2026. BACKUP_SCHEDULE in
+# deploy/.env.prod is a cron expression in the server's clock (UTC on AWS), or
+# "off". Default 19:00 UTC = 02:00 in Vietnam, outside working hours.
+backup_schedule=$(envval BACKUP_SCHEDULE || true)
+backup_schedule=${backup_schedule:-0 19 * * *}
+backup_cron=${BACKUP_CRON_FILE:-/etc/cron.d/ci-backup}
+if [ "$backup_schedule" = off ]; then
+  if [ -e "$backup_cron" ]; then
+    rm -f "$backup_cron"
+    echo "[deploy] nightly backup: off (BACKUP_SCHEDULE=off), schedule removed"
+  fi
+else
+  read -r -a backup_fields <<< "$backup_schedule"
+  if [ "${#backup_fields[@]}" -ne 5 ] || [[ "$backup_schedule" =~ [^0-9*/,\ -] ]]; then
+    echo "[deploy] BACKUP_SCHEDULE is not a 5-field cron expression: $backup_schedule" >&2
+    exit 1
+  fi
+  backup_entry="# Managed by deploy/deploy.sh: BACKUP_SCHEDULE in deploy/.env.prod, \"off\" removes it.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+$backup_schedule root $PWD/deploy/backup.sh >> /var/log/ci-backup.log 2>&1"
+  if [ "$(cat "$backup_cron" 2>/dev/null || true)" != "$backup_entry" ]; then
+    # cron.d ignores files that are group/world writable or have a dot in the name.
+    printf '%s\n' "$backup_entry" > "$backup_cron.new"
+    chmod 644 "$backup_cron.new"
+    mv "$backup_cron.new" "$backup_cron"
+    echo "[deploy] nightly backup scheduled: $backup_schedule (server time) -> $backup_cron"
+  fi
+  if command -v systemctl >/dev/null && ! systemctl is-active --quiet cron 2>/dev/null; then
+    echo "WARNING: the cron service is not running; the nightly backup will not run" >&2
+  fi
+fi
+
 api="https://$(envval API_HOST)"
 auth="https://$(envval AUTH_HOST)"
 echo "[deploy] smoke test"
