@@ -304,10 +304,10 @@ export function OverviewPage() {
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-space-lg items-start">
         {isAdmin ? (
           <div
-            className={`lg:col-span-8 flex flex-col min-h-0 overflow-hidden lg:h-[380px] ${CARD}`}
+            className={`xl:col-span-8 flex flex-col min-h-0 overflow-hidden xl:h-[380px] ${CARD}`}
           >
             <div className="p-space-lg flex flex-col sm:flex-row sm:items-center justify-between gap-space-md shrink-0">
               <div>
@@ -455,7 +455,7 @@ export function OverviewPage() {
         ) : null}
 
         <div
-          className={`${isAdmin ? 'lg:col-span-4' : 'lg:col-span-12'} flex flex-col p-space-lg min-h-0 overflow-hidden lg:h-[380px] ${CARD}`}
+          className={`${isAdmin ? 'xl:col-span-4' : 'xl:col-span-12'} flex flex-col p-space-lg min-h-0 overflow-hidden xl:h-[380px] ${CARD}`}
         >
           <div className="flex items-center justify-between mb-space-md shrink-0">
             <div className="flex items-center gap-space-xs min-w-0">

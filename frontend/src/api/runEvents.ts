@@ -65,10 +65,17 @@ export type WatchRunHandlers = {
   onLost: () => void
   /** Server từ chối (403/404...): không nối lại. */
   onRejected: (status: number) => void
+  /** Kết nối mở mà không tới byte nào (proxy giữ luồng lại): không nối lại. */
+  onStalled?: () => void
 }
 
 const RETRY_MIN_MS = 1000
 const RETRY_MAX_MS = 10000
+// Proxy giữa đường (vd. Websense của mạng công ty) có thể giữ cả luồng tới khi
+// nó đóng: kết nối vẫn mở nhưng không tới byte nào. Server gửi run.started ngay
+// và heartbeat mỗi 15 giây, nên quá các mốc này là SSE không dùng được.
+const FIRST_BYTE_TIMEOUT_MS = 15000
+const STALL_TIMEOUT_MS = 40000
 
 function wait(ms: number, signal: AbortSignal) {
   return new Promise<void>((resolve) => {
@@ -88,6 +95,7 @@ function wait(ms: number, signal: AbortSignal) {
  * Nghe tiến độ run qua SSE. Dùng fetch (không phải EventSource) để gửi được
  * Bearer token. Mất kết nối thì báo `onLost` rồi nối lại với Last-Event-ID;
  * hủy `signal` (rời trang) thì ngắt hẳn. Kết thúc khi server gửi run.completed.
+ * Luồng mở mà không tới byte nào thì báo `onStalled` để trang hỏi định kỳ.
  */
 export async function watchRun(
   runId: string,
@@ -98,12 +106,23 @@ export async function watchRun(
   let delay = RETRY_MIN_MS
   while (!signal.aborted) {
     let completed = false
+    let opened = false
+    let received = false
+    let stalled = false
+    const connection = new AbortController()
+    const abortConnection = () => connection.abort()
+    signal.addEventListener('abort', abortConnection, { once: true })
+    const stall = () => {
+      stalled = true
+      connection.abort()
+    }
+    let stallTimer = window.setTimeout(stall, FIRST_BYTE_TIMEOUT_MS)
     try {
       const headers: Record<string, string> = { Accept: 'text/event-stream' }
       if (lastId) headers['Last-Event-ID'] = lastId
       const response = await apiFetch(
         `/api/v1/runs/${encodeURIComponent(runId)}/events`,
-        { headers, signal },
+        { headers, signal: connection.signal },
       )
       if (!response.ok) {
         if (response.status >= 400 && response.status < 500) {
@@ -113,6 +132,7 @@ export async function watchRun(
         throw new Error(`SSE ${response.status}`)
       }
       if (!response.body) throw new Error('SSE không có body')
+      opened = true
       delay = RETRY_MIN_MS
       const reader = response.body
         .pipeThrough(new TextDecoderStream())
@@ -129,6 +149,9 @@ export async function watchRun(
       for (;;) {
         const { done, value } = await reader.read()
         if (done) break
+        received = true
+        window.clearTimeout(stallTimer)
+        stallTimer = window.setTimeout(stall, STALL_TIMEOUT_MS)
         parse(value)
         if (completed) {
           void reader.cancel()
@@ -137,8 +160,18 @@ export async function watchRun(
       }
     } catch {
       if (signal.aborted) return
+    } finally {
+      window.clearTimeout(stallTimer)
+      signal.removeEventListener('abort', abortConnection)
     }
     if (completed || signal.aborted) return
+    // Đứng im, hoặc mở được mà đóng khi chưa tới byte nào: nối lại cũng vậy.
+    // Lỗi mạng hay 5xx (server đang khởi động lại) thì vẫn nối lại như cũ.
+    // Nơi không có cách hỏi định kỳ (không truyền onStalled) thì nối lại như cũ.
+    if ((stalled || (opened && !received)) && handlers.onStalled) {
+      handlers.onStalled()
+      return
+    }
     handlers.onLost()
     await wait(delay, signal)
     delay = Math.min(delay * 2, RETRY_MAX_MS)

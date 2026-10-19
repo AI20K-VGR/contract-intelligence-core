@@ -60,6 +60,9 @@ export function progressPath(dossierId: string) {
   return `/tien-trinh-phan-tich/${encodeURIComponent(dossierId)}`
 }
 
+/** Trang tiến trình lúc tệp còn đang gửi lên, hồ sơ chưa có mã. */
+export const UPLOAD_PROGRESS_PATH = '/tien-trinh-phan-tich'
+
 export function dossierOpenTo(dossier: Dossier) {
   const job = dossier.jobStatus
   if (dossier.splitPending && job === 'uploaded') return splitPath(dossier.id)

@@ -576,7 +576,7 @@ function UserRow({
 function StatusBadge({ status }: { status: ManagedUserStatus }) {
   if (status === 'active') {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container text-on-surface font-label-sm text-label-sm">
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap px-2 py-0.5 rounded bg-surface-container text-on-surface font-label-sm text-label-sm">
         <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
         Đang hoạt động
       </span>

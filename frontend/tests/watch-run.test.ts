@@ -32,6 +32,7 @@ function handlers() {
     onEvent: vi.fn(),
     onLost: vi.fn(),
     onRejected: vi.fn(),
+    onStalled: vi.fn(),
   }
 }
 
@@ -117,6 +118,48 @@ describe('watchRun', () => {
     const h = handlers()
     await watchRun('run_1', h, new AbortController().signal)
     expect(h.onRejected).toHaveBeenCalledWith(403)
+    expect(apiFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives up on SSE when the open stream sends nothing (proxy holds it back)', async () => {
+    apiFetch.mockImplementation(
+      (_path: string, init: { signal: AbortSignal }) =>
+        Promise.resolve(sse('', { hold: true, signal: init.signal })),
+    )
+    const h = handlers()
+    const done = watchRun('run_1', h, new AbortController().signal)
+    await vi.advanceTimersByTimeAsync(15000)
+    await done
+    expect(h.onStalled).toHaveBeenCalledTimes(1)
+    expect(h.onLost).not.toHaveBeenCalled()
+    expect(apiFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives up on SSE when the stream goes quiet past the heartbeat', async () => {
+    apiFetch.mockImplementation(
+      (_path: string, init: { signal: AbortSignal }) =>
+        Promise.resolve(
+          sse('event: run.started\ndata: {}\n\n', {
+            hold: true,
+            signal: init.signal,
+          }),
+        ),
+    )
+    const h = handlers()
+    const done = watchRun('run_1', h, new AbortController().signal)
+    await vi.advanceTimersByTimeAsync(39000)
+    expect(h.onStalled).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1000)
+    await done
+    expect(h.onEvent).toHaveBeenCalledTimes(1)
+    expect(h.onStalled).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives up on SSE when the stream closes before any byte', async () => {
+    apiFetch.mockResolvedValueOnce(sse(''))
+    const h = handlers()
+    await watchRun('run_1', h, new AbortController().signal)
+    expect(h.onStalled).toHaveBeenCalledTimes(1)
     expect(apiFetch).toHaveBeenCalledTimes(1)
   })
 })

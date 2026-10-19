@@ -1860,7 +1860,7 @@ export function DossierStructurePage() {
           !qaMode &&
           !reviewCiteId &&
           (activeMode !== 'tables' || showAi2Graph) ? (
-            <div className="flex min-h-[520px] flex-1 flex-col pb-space-md">
+            <div className="flex min-h-[360px] flex-1 flex-col pb-space-md">
               {showAi2Graph ? (
                 detail?.ai2JobId && detail.snapshotDigest ? (
                   <Ai2GraphDossierView

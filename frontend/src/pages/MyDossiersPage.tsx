@@ -785,7 +785,7 @@ export function MyDossiersPage() {
         </h1>
       )}
 
-      <div className="flex flex-col xl:flex-row xl:items-center gap-space-md pt-space-lg pb-space-md">
+      <div className="flex flex-col lg:flex-row lg:items-center gap-space-md pt-space-lg pb-space-md">
         {reviewer ? (
           <ReviewToolbar
             dossiers={dossiers}
@@ -846,7 +846,7 @@ export function MyDossiersPage() {
                 <th className="py-3 px-space-md font-semibold w-[12%]">
                   {reviewer ? 'Ngày tạo' : 'Tải lên'}
                 </th>
-                <th className="py-3 px-space-sm text-right pr-space-md font-semibold w-[4%]">
+                <th className="py-3 px-space-sm whitespace-nowrap text-right pr-space-md font-semibold w-[4%]">
                   Thao tác
                 </th>
               </tr>
