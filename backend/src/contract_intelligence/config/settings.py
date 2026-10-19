@@ -12,6 +12,7 @@ Một số quy ước (xem ``docs/DOC-04-architecture.md`` §5 Technology stack)
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
@@ -509,6 +510,40 @@ class Settings(BaseSettings):
         default="http://localhost:5173/",
         description="Trang đăng nhập sau khi người dùng đặt mật khẩu xong.",
     )
+
+    # -------------------------------------------------------------------------
+    # Thư mời bị trả về (bounce): đọc hộp thư gửi qua IMAP.
+    #
+    # Gmail nhận mọi người nhận lúc gửi SMTP; địa chỉ không tồn tại chỉ báo về
+    # sau đó bằng thư "Address not found" trong hộp thư gửi. Trống host thì
+    # dùng imap.gmail.com khi SMTP_HOST là smtp.gmail.com; trống user/password
+    # thì dùng SMTP_USER/SMTP_PASSWORD. Không có host thì không kiểm tra.
+    # -------------------------------------------------------------------------
+    invite_bounce_imap_host: str = Field(
+        default="",
+        description="IMAP host của hộp thư gửi thư mời (trống: suy ra từ SMTP_HOST).",
+    )
+    invite_bounce_imap_port: int = Field(default=993, ge=1, le=65535)
+    invite_bounce_imap_user: str = Field(default="", description="Trống: SMTP_USER.")
+    invite_bounce_imap_password: str = Field(default="", description="Trống: SMTP_PASSWORD.")
+    invite_bounce_pending_seconds: int = Field(
+        default=600,
+        ge=60,
+        le=86400,
+        description="Sau bao lâu không thấy thư trả về thì coi thư mời đã gửi được (giây).",
+    )
+
+    def invite_bounce_imap(self) -> tuple[str, int, str, str] | None:
+        """(host, port, user, password) của hộp thư gửi; None khi không kiểm tra bounce."""
+        smtp_host = os.environ.get("SMTP_HOST", "").strip().lower()
+        host = self.invite_bounce_imap_host.strip()
+        if not host and smtp_host == "smtp.gmail.com":
+            host = "imap.gmail.com"
+        user = self.invite_bounce_imap_user.strip() or os.environ.get("SMTP_USER", "").strip()
+        password = self.invite_bounce_imap_password or os.environ.get("SMTP_PASSWORD", "")
+        if not host or not user or not password:
+            return None
+        return host, self.invite_bounce_imap_port, user, password
 
     # -------------------------------------------------------------------------
     # Keycloak → backend webhook signature verification

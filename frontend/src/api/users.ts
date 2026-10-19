@@ -4,6 +4,15 @@ export type ManagedUserRole = 'OPERATOR' | 'REVIEWER' | 'ADMINISTRATOR'
 
 export type ManagedUserStatus = 'invited' | 'active' | 'disabled'
 
+/**
+ * Thư mời gần nhất của người còn "invited" (DOC-05b v5.1.0). pending: chưa đủ
+ * thời gian để biết; sent: quá thời gian chờ mà không có thư trả về; bounced:
+ * máy chủ thư báo không gửi được. null khi backend không biết.
+ */
+export type InviteDelivery = 'pending' | 'sent' | 'bounced'
+
+export type InviteBounceReason = 'mailbox_not_found' | 'rejected'
+
 export type ManagedUser = {
   id: string
   email: string
@@ -13,6 +22,17 @@ export type ManagedUser = {
   created_at: string
   invited_at?: string | null
   last_login_at?: string | null
+  invite_delivery?: InviteDelivery | null
+  invite_delivery_reason?: InviteBounceReason | null
+}
+
+/** Câu báo thư mời không tới được; null khi thư mời không bị trả về. */
+export function inviteBounceMessage(user: ManagedUser) {
+  if (user.invite_delivery !== 'bounced') return null
+  if (user.invite_delivery_reason === 'mailbox_not_found') {
+    return `Không gửi được email mời tới ${user.email} vì không tìm thấy địa chỉ này. Kiểm tra lại email và tạo người dùng với địa chỉ đúng.`
+  }
+  return `Không gửi được email mời tới ${user.email} vì máy chủ thư bên nhận từ chối. Kiểm tra lại email rồi gửi lại lời mời.`
 }
 
 export type UserListQuery = {

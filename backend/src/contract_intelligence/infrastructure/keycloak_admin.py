@@ -11,7 +11,7 @@ import asyncio
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import structlog
@@ -19,7 +19,14 @@ from keycloak import KeycloakAdmin
 from keycloak.exceptions import KeycloakConnectionError, KeycloakError
 
 from contract_intelligence.config.settings import get_settings
-from contract_intelligence.schemas.users import UserDTO, UserRole, UserStatus
+from contract_intelligence.infrastructure import invite_bounces
+from contract_intelligence.schemas.users import (
+    InviteBounceReason,
+    InviteDelivery,
+    UserDTO,
+    UserRole,
+    UserStatus,
+)
 from contract_intelligence.shared.email_delivery import (
     UNDELIVERABLE_MESSAGE,
     skip_undeliverable,
@@ -42,6 +49,16 @@ _EMAIL_CONFIG_RE = re.compile(
     r"smtp|email|mail.?server|Failed to send|not configured",
     re.IGNORECASE,
 )
+
+# Thuộc tính Keycloak (khai báo trong user profile) về thư mời gần nhất, ms epoch.
+_INVITE_SENT_AT = "invite_sent_at"
+_INVITE_BOUNCED_AT = "invite_bounced_at"
+_INVITE_BOUNCE_REASON = "invite_bounce_reason"
+_BOUNCE_REASONS: frozenset[str] = frozenset({"mailbox_not_found", "rejected"})
+# Thư trả về muộn vẫn được ghi nhận nếu thư mời gửi trong khoảng này.
+_INVITE_BOUNCE_LOOKBACK = timedelta(days=3)
+# Lệch đồng hồ giữa backend và máy chủ thư.
+_BOUNCE_CLOCK_SKEW = timedelta(minutes=2)
 
 
 # -----------------------------------------------------------------------------
@@ -196,6 +213,38 @@ def _derive_status(user: dict[str, Any]) -> UserStatus:
     return "active"
 
 
+def _invite_sent_at(user: dict[str, Any]) -> datetime | None:
+    attrs = user.get("attributes")
+    return _ms_to_dt(_attr_first(attrs if isinstance(attrs, dict) else None, _INVITE_SENT_AT))
+
+
+def _invite_delivery(
+    user: dict[str, Any], status: UserStatus
+) -> tuple[InviteDelivery | None, InviteBounceReason | None]:
+    """Thư mời gần nhất của người còn "invited" đã tới nơi chưa, theo thuộc tính Keycloak.
+
+    (None, None) khi không phải "invited", thư mời gửi trước khi có thuộc tính này,
+    hoặc backend không đọc hộp thư gửi (không biết được).
+    """
+    if status != "invited":
+        return None, None
+    sent_at = _invite_sent_at(user)
+    if sent_at is None:
+        return None, None
+    attrs = user.get("attributes")
+    attrs = attrs if isinstance(attrs, dict) else None
+    bounced_at = _ms_to_dt(_attr_first(attrs, _INVITE_BOUNCED_AT))
+    if bounced_at is not None and bounced_at >= sent_at - _BOUNCE_CLOCK_SKEW:
+        reason = _attr_first(attrs, _INVITE_BOUNCE_REASON)
+        return "bounced", reason if reason in _BOUNCE_REASONS else "rejected"  # type: ignore[return-value]
+    if not invite_bounces.bounce_check_enabled():
+        return None, None
+    waited = datetime.now(UTC) - sent_at
+    if waited < timedelta(seconds=get_settings().invite_bounce_pending_seconds):
+        return "pending", None
+    return "sent", None
+
+
 def _to_user_dto(
     user: dict[str, Any], role: UserRole | None, *, last_login_at: datetime | None = None
 ) -> UserDTO:
@@ -208,6 +257,7 @@ def _to_user_dto(
         or (user.get("email") or "").strip()
     )
     invited_at = created_at if status == "invited" else None
+    delivery, delivery_reason = _invite_delivery(user, status)
 
     return UserDTO(
         id=str(user["id"]),
@@ -218,6 +268,8 @@ def _to_user_dto(
         created_at=created_at,
         invited_at=invited_at,
         last_login_at=last_login_at,
+        invite_delivery=delivery,
+        invite_delivery_reason=delivery_reason,
     )
 
 
@@ -396,6 +448,93 @@ def _user_attributes(user: dict[str, Any]) -> dict[str, list[str]]:
         elif value is not None:
             cleaned[str(key)] = [str(value)]
     return cleaned
+
+
+def _now_ms() -> str:
+    return str(int(datetime.now(UTC).timestamp() * 1000))
+
+
+def _update_attributes(
+    admin: KeycloakAdmin, user: dict[str, Any], changes: dict[str, list[str] | None]
+) -> dict[str, Any]:
+    """Ghi ``changes`` (None xoá) vào thuộc tính của ``user``; trả về user đã sửa.
+
+    Gửi kèm username/email/tên vì Keycloak kiểm user profile trên cả bản ghi.
+    """
+    attributes = _user_attributes(user)
+    for key, value in changes.items():
+        if value is None:
+            attributes.pop(key, None)
+        else:
+            attributes[key] = value
+    profile: dict[str, Any] = {"attributes": attributes}
+    for field in ("username", "email", "firstName", "lastName"):
+        if user.get(field):
+            profile[field] = user.get(field)
+    admin.update_user(str(user["id"]), profile)
+    return {**user, "attributes": attributes}
+
+
+def _stamp_invite_sent(admin: KeycloakAdmin, user: dict[str, Any]) -> dict[str, Any]:
+    """Ghi lúc gửi thư mời và bỏ thư trả về cũ; lỗi chỉ ghi log vì thư đã gửi rồi."""
+    try:
+        return _update_attributes(
+            admin,
+            user,
+            {_INVITE_SENT_AT: [_now_ms()], _INVITE_BOUNCED_AT: None, _INVITE_BOUNCE_REASON: None},
+        )
+    except (KeycloakError, KeycloakConnectionError) as exc:
+        logger.warning("keycloak.invite_stamp_failed", user_id=user.get("id"), error=str(exc))
+        return user
+
+
+def _record_invite_bounces(
+    admin: KeycloakAdmin, raw_by_id: dict[str, dict[str, Any]], page: list[UserDTO]
+) -> list[UserDTO]:
+    """Đối chiếu người còn chờ thư mời trên trang với thư trả về trong hộp thư gửi.
+
+    Người có thư trả về sau lần gửi mời gần nhất được ghi ``invite_bounced_at`` vào
+    Keycloak, để lần sau không cần đọc lại hộp thư. Không đọc được hộp thư thì giữ nguyên.
+    """
+    now = datetime.now(UTC)
+    waiting: list[tuple[UserDTO, dict[str, Any], datetime]] = []
+    for dto in page:
+        user = raw_by_id.get(dto.id)
+        sent_at = _invite_sent_at(user) if user else None
+        if (
+            user is not None
+            and sent_at is not None
+            and dto.invite_delivery in ("pending", "sent")
+            and now - sent_at <= _INVITE_BOUNCE_LOOKBACK
+        ):
+            waiting.append((dto, user, sent_at))
+    if not waiting:
+        return page
+    bounces = invite_bounces.recent_bounces(min(sent for _, _, sent in waiting))
+    if not bounces:
+        return page
+    updated: dict[str, UserDTO] = {}
+    for dto, user, sent_at in waiting:
+        bounce = bounces.get(dto.email.casefold())
+        if bounce is None or bounce.at < sent_at - _BOUNCE_CLOCK_SKEW:
+            continue
+        try:
+            _update_attributes(
+                admin,
+                user,
+                {
+                    _INVITE_BOUNCED_AT: [str(int(bounce.at.timestamp() * 1000))],
+                    _INVITE_BOUNCE_REASON: [bounce.reason],
+                },
+            )
+        except (KeycloakError, KeycloakConnectionError) as exc:
+            # Vẫn báo cho người đang xem; lần sau đọc lại hộp thư.
+            logger.warning("keycloak.invite_bounce_save_failed", user_id=dto.id, error=str(exc))
+        logger.info("keycloak.invite_bounced", user_id=dto.id, reason=bounce.reason)
+        updated[dto.id] = dto.model_copy(
+            update={"invite_delivery": "bounced", "invite_delivery_reason": bounce.reason}
+        )
+    return [updated.get(dto.id, dto) for dto in page]
 
 
 # Keycloak user ids are UUIDs; anything else is not looked up (it lands in the URL path).
@@ -600,6 +739,7 @@ def _list_users_sync(
             raw_users = [u for u in users if isinstance(u, dict)]
 
         dtos: list[UserDTO] = []
+        raw_by_id: dict[str, dict[str, Any]] = {}
         for user in raw_users:
             uid = str(user.get("id") or "")
             if not uid:
@@ -627,11 +767,12 @@ def _list_users_sync(
                 if needle not in hay and needle not in dto.id.lower():
                     continue
             dtos.append(dto)
+            raw_by_id[uid] = user
 
         # Stable sort by email for deterministic pagination.
         dtos.sort(key=lambda u: (u.email.lower(), u.id))
         total = len(dtos)
-        page = dtos[offset : offset + limit]
+        page = _record_invite_bounces(admin, raw_by_id, dtos[offset : offset + limit])
         logins = _last_login_times(admin, [dto.id for dto in page]) if with_last_login else {}
         page = [
             dto.model_copy(update={"last_login_at": logins[dto.id]}) if dto.id in logins else dto
@@ -664,7 +805,8 @@ def _create_user_sync(
                 "enabled": True,
                 "emailVerified": True,
                 "requiredActions": ["UPDATE_PASSWORD"],
-                "attributes": {"tenant_id": [tenant_id]},
+                # Ghi trước khi gửi: gửi lỗi thì user bị xoá (rollback bên dưới).
+                "attributes": {"tenant_id": [tenant_id], _INVITE_SENT_AT: [_now_ms()]},
             }
         )
         user_id = str(created_id or "")
@@ -786,7 +928,7 @@ def _resend_invite_sync(*, user_id: str) -> UserDTO:
             required.append("UPDATE_PASSWORD")
             admin.update_user(user_id, {"requiredActions": required})
         _send_update_password_email(admin, user_id)
-        user = _get_user_or_raise(admin, user_id)
+        user = _stamp_invite_sent(admin, _get_user_or_raise(admin, user_id))
         logger.info("keycloak.resend_invite.ok", user_id=user_id)
         return _to_user_dto(
             user, role, last_login_at=_last_login_times(admin, [user_id]).get(user_id)

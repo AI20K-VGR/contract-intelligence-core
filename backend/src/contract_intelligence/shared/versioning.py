@@ -68,7 +68,9 @@ __version__ = "2.0.0"
 # v5.0.0: không gửi được thư thì không có quyền. PUT /dossiers/{id}/access từ chối
 #         người nhận mới có tên miền không nhận thư (422 share_recipient_undeliverable)
 #         và gỡ người gửi thư lỗi, trả họ trong email_not_sent. Thu hẹp hành vi nên MAJOR.
-__api_contract__ = "v5.0.0"
+# v5.1.0: thư mời bị trả về. Người dùng của các API quản lý người dùng thêm
+#         invite_delivery và invite_delivery_reason (đọc thư báo lỗi qua IMAP).
+__api_contract__ = "v5.1.0"
 
 # AI service contract version (DOC-05c) — wrap khi AI service sẵn sàng
 __ai_contract__ = "v1.0.0"

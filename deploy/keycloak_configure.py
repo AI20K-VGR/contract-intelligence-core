@@ -19,6 +19,9 @@ Runs inside the running backend container on ci-network (deploy/deploy.sh does i
 - seeded demo users: replace the passwords committed in realm-export.json with
   DEMO_*_PASSWORD from deploy/.env.prod;
 - realm SMTP: point at SMTP_* when a real mail server is configured;
+- user profile: declare the attributes the backend writes on users (tenant_id,
+  invite_sent_at / invite_bounced_at / invite_bounce_reason), which Keycloak 26
+  drops otherwise;
 - brute-force protection on: the login page is public (off in the dev realm).
 """
 
@@ -246,6 +249,39 @@ def configure_smtp(token: str) -> None:
     print(f"[keycloak] SMTP: {host}")
 
 
+def _admin_only_attribute(name: str, display_name: str) -> dict[str, Any]:
+    return {
+        "name": name,
+        "displayName": display_name,
+        "validations": {"length": {"max": 64}},
+        "permissions": {"view": ["admin"], "edit": ["admin"]},
+        "multivalued": False,
+    }
+
+
+# Thuộc tính backend ghi lên user. Keycloak 26 bỏ thuộc tính không khai báo trong
+# user profile; realm import xong rồi thì realm-export.json không được đọc lại.
+PROFILE_ATTRIBUTES = (
+    _admin_only_attribute("tenant_id", "Tenant ID"),
+    _admin_only_attribute("invite_sent_at", "Invite sent at"),
+    _admin_only_attribute("invite_bounced_at", "Invite bounced at"),
+    _admin_only_attribute("invite_bounce_reason", "Invite bounce reason"),
+)
+
+
+def ensure_profile_attributes(token: str) -> None:
+    profile = _request("GET", f"/admin/realms/{REALM}/users/profile", token)
+    attributes = profile.setdefault("attributes", [])
+    known = {item.get("name") for item in attributes if isinstance(item, dict)}
+    missing = [dict(item) for item in PROFILE_ATTRIBUTES if item["name"] not in known]
+    if not missing:
+        print("[keycloak] user profile: attributes present")
+        return
+    attributes.extend(missing)
+    _request("PUT", f"/admin/realms/{REALM}/users/profile", token, profile)
+    print(f"[keycloak] user profile: added {', '.join(item['name'] for item in missing)}")
+
+
 def enable_brute_force_protection(token: str) -> None:
     realm = _request("GET", f"/admin/realms/{REALM}", token)
     realm.update(
@@ -270,6 +306,7 @@ def main() -> None:
     configure_backend_secret(token, _env("BACKEND_KEYCLOAK_ADMIN_SECRET"))
     reset_demo_passwords(token)
     configure_smtp(token)
+    ensure_profile_attributes(token)
     enable_brute_force_protection(token)
     print("[keycloak] done")
 
