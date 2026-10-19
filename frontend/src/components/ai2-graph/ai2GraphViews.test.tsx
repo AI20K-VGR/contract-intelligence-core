@@ -77,7 +77,7 @@ describe('AI2 graph accessible views', () => {
     expect(html).toContain('Quy định chung – riêng')
     expect(html).toContain('Hợp đồng gốc')
     expect(html).toContain('Phụ lục')
-    expect(html).toMatch(/<rect[^>]*width="260"[^>]*x="350"/)
+    expect(html).toContain('Điều 2.1 · Hợp đồng gốc')
     expect(html).not.toContain('1970')
   })
 
@@ -107,6 +107,22 @@ describe('AI2 graph accessible views', () => {
     )
     expect(html).toContain('doc-a:clause-1')
     expect(html).toContain('doc-b:clause-1')
+  })
+
+  it('shows one empty state for an empty graph whatever its status, naming only real problems', () => {
+    const empty = (status: ContractGraphPage['status']) =>
+      renderToStaticMarkup(
+        <ContractGraphCanvas
+          page={{ ...page([], null), total_count: 0, status }}
+          selectedId={null}
+          onSelectEdge={() => {}}
+        />,
+      )
+    const skipped = empty('SKIPPED')
+    expect(skipped).toContain('Chưa tìm thấy quan hệ nào giữa các điều khoản')
+    expect(skipped).not.toContain('Đã bỏ qua bước tìm quan hệ')
+    expect(skipped).not.toContain('role="group"')
+    expect(empty('PERSIST_FAILED')).toContain('Không lưu được quan hệ')
   })
 
   it('does not merge repeated node IDs when endpoint document identity is missing', () => {

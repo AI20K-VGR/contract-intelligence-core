@@ -5,12 +5,39 @@ import {
   type ContractGraphEdge,
   type ContractGraphKind,
   type ContractGraphPage,
+  type ContractGraphStatus,
   type ProcessingTrace,
 } from '../../api/contractGraph'
 import { MaterialIcon } from '../icons'
 import { loadAi2GraphDataIfVisible } from './contractGraphRuntime'
-import { ProcessingTimeline } from './ProcessingTimeline'
+import { graphStatusLabel } from './contractGraphViewModel'
+import { AnalysisNotices, AnalysisStatus } from './ProcessingTimeline'
+import { RelationInspector } from './RelationInspector'
 import { RelationList } from './RelationList'
+import {
+  RELATION_TONES,
+  relationDotClasses,
+  relationFillClasses,
+  relationStrokeClasses,
+  relationTone,
+  type RelationTone,
+} from './relationTone'
+
+type NodeLabelResolver = (nodeId: string, documentId?: string | null) => string
+
+type GraphView = 'diagram' | 'list'
+
+const GRAPH_VIEW_KEY = 'ai2_graph_view'
+
+function readGraphView(): GraphView {
+  try {
+    return window.localStorage.getItem(GRAPH_VIEW_KEY) === 'list'
+      ? 'list'
+      : 'diagram'
+  } catch {
+    return 'diagram'
+  }
+}
 
 export function Ai2GraphDossierView({
   enabled,
@@ -19,6 +46,7 @@ export function Ai2GraphDossierView({
   snapshotDigest,
   graphKind,
   resolveNodeLabel,
+  resolveNodeTitle,
   onOpenCitation,
   onSelectRelation,
   onResolveEdgeEvidence,
@@ -31,7 +59,9 @@ export function Ai2GraphDossierView({
   jobId: string
   snapshotDigest: string
   graphKind: ContractGraphKind
-  resolveNodeLabel: (nodeId: string, documentId?: string | null) => string
+  resolveNodeLabel: NodeLabelResolver
+  /** Tên ngắn của điều khoản (số điều, tên tệp) để đặt trên nút sơ đồ. */
+  resolveNodeTitle?: NodeLabelResolver
   onOpenCitation: (citationRef: string, nodeId: string) => void
   onSelectRelation: (edgeId: string) => void
   onResolveEdgeEvidence?: (edge: ContractGraphEdge) => Promise<{
@@ -51,6 +81,8 @@ export function Ai2GraphDossierView({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [retry, setRetry] = useState(0)
+  const [view, setView] = useState<GraphView>(readGraphView)
+  const [filter, setFilter] = useState<string | null>(null)
   const [resolvedEvidence, setResolvedEvidence] = useState<
     Record<string, string>
   >({})
@@ -88,6 +120,7 @@ export function Ai2GraphDossierView({
     setError(false)
     setData(null)
     setSelectedId(null)
+    setFilter(null)
     setResolvedEvidence({})
     load(controller.signal)
       .then((result) => {
@@ -181,6 +214,26 @@ export function Ai2GraphDossierView({
     [onSelectRelation],
   )
 
+  function changeView(next: GraphView) {
+    setView(next)
+    try {
+      window.localStorage.setItem(GRAPH_VIEW_KEY, next)
+    } catch {
+      // Không lưu được thì lần sau mở lại kiểu mặc định.
+    }
+  }
+
+  function changeFilter(next: string | null) {
+    setFilter(next)
+    // Quan hệ đang chọn bị lọc mất thì chọn quan hệ đầu tiên còn hiện.
+    const edges = data?.page?.edges ?? []
+    const selected = edges.find((edge) => edge.id === selectedId)
+    if (next && selected && relationLabel(selected.label) !== next) {
+      const first = edges.find((edge) => relationLabel(edge.label) === next)
+      if (first) selectRelation(first.id)
+    }
+  }
+
   if (loading)
     return (
       <p
@@ -202,46 +255,232 @@ export function Ai2GraphDossierView({
         onRetry={() => setRetry((value) => value + 1)}
       />
     )
-  // Đã tải đủ mà không có quan hệ nào: sơ đồ đã báo trống, không cần danh sách.
+  const page = data.page
+  // Không có quan hệ nào để vẽ (dù READY hay bước bị bỏ qua, lỗi lưu…): chỉ
+  // báo trống, không hiện bộ lọc, kiểu xem hay khung chi tiết.
   const nothingFound =
-    data.page !== null &&
-    data.page.status === 'READY' &&
-    data.page.edges.length === 0 &&
-    !data.page.has_more
+    page !== null && page.edges.length === 0 && !page.has_more
+  const selectedEdge =
+    page?.edges.find((edge) => edge.id === selectedId) ?? null
+  const showResults = !data.graphError && page !== null && !nothingFound
   return (
-    <div className="flex min-w-0 flex-col gap-gutter">
-      <ProcessingTimeline trace={data.trace} graphKind={graphKind} />
-      {data.graphError || !data.page ? (
+    <section
+      aria-label={
+        graphKind === 'operation' ? 'Sửa đổi điều khoản' : 'Quan hệ điều khoản'
+      }
+      className="flex min-w-0 flex-col gap-space-md rounded-lg bg-surface-container-lowest p-space-lg shadow-sm"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-space-sm">
+        {showResults ? (
+          <RelationFilter page={page} value={filter} onChange={changeFilter} />
+        ) : (
+          <span />
+        )}
+        <div className="flex items-center gap-space-sm">
+          <AnalysisStatus trace={data.trace} graphKind={graphKind} />
+          {showResults ? (
+            <ViewSwitch value={view} onChange={changeView} />
+          ) : null}
+        </div>
+      </div>
+      <AnalysisNotices trace={data.trace} graphKind={graphKind} />
+      {data.graphError || !page ? (
         <GraphLoadError
-          message="Không tải được sơ đồ quan hệ. Các bước phân tích vẫn hiện ở trên."
+          message="Không tải được sơ đồ quan hệ."
           retryLabel="Tải lại sơ đồ"
           onRetry={() => setRetry((value) => value + 1)}
         />
-      ) : (
-        <>
+      ) : nothingFound ? (
+        <EmptyGraph kind={graphKind} status={page.status} />
+      ) : view === 'diagram' ? (
+        <div className="grid min-w-0 items-start gap-gutter lg:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
           <ContractGraphCanvas
-            page={data.page}
+            page={page}
+            filter={filter}
             selectedId={selectedId}
             onSelectEdge={selectRelation}
             resolveNodeLabel={resolveVisibleNodeLabel}
+            resolveNodeTitle={resolveNodeTitle}
           />
-          {nothingFound ? null : (
-            <RelationList
-              key={`${jobId}:${snapshotDigest}:${graphKind}`}
-              page={data.page}
-              onLoadPage={loadNextPage}
-              onOpenCitation={onOpenCitation}
-              onResolveEdgeEvidence={resolveAndStoreEdgeEvidence}
-              onSelectEdge={selectRelation}
-              resolveNodeLabel={resolveVisibleNodeLabel}
-              citationRecord={citationRecord}
-              citationError={citationError}
-              citationLoading={citationLoading}
-              selectedId={selectedId}
-            />
-          )}
-        </>
+          <div className="min-w-0 lg:sticky lg:top-0">
+            {selectedEdge ? (
+              <RelationInspector
+                edge={selectedEdge}
+                onOpenCitation={onOpenCitation}
+                resolveNodeLabel={resolveVisibleNodeLabel}
+                resolveNodeTitle={resolveNodeTitle}
+                citationRecord={citationRecord}
+                citationError={citationError}
+                citationLoading={citationLoading}
+              />
+            ) : (
+              <InspectorPlaceholder />
+            )}
+          </div>
+        </div>
+      ) : (
+        <RelationList
+          key={`${jobId}:${snapshotDigest}:${graphKind}`}
+          page={page}
+          filter={filter}
+          onLoadPage={loadNextPage}
+          onOpenCitation={onOpenCitation}
+          onResolveEdgeEvidence={resolveAndStoreEdgeEvidence}
+          onSelectEdge={selectRelation}
+          resolveNodeLabel={resolveVisibleNodeLabel}
+          resolveNodeTitle={resolveNodeTitle}
+          citationRecord={citationRecord}
+          citationError={citationError}
+          citationLoading={citationLoading}
+          selectedId={selectedId}
+        />
       )}
+    </section>
+  )
+}
+
+/** Chú thích màu của từng loại quan hệ, bấm để chỉ xem loại đó. */
+function RelationFilter({
+  page,
+  value,
+  onChange,
+}: {
+  page: ContractGraphPage
+  value: string | null
+  onChange: (next: string | null) => void
+}) {
+  const groups = new Map<string, { tone: RelationTone; count: number }>()
+  for (const edge of page.edges) {
+    const label = relationLabel(edge.label)
+    const group = groups.get(label)
+    if (group) group.count += 1
+    else groups.set(label, { tone: relationTone(edge.label), count: 1 })
+  }
+  // Còn trang chưa tải thì số theo loại chưa đúng, chỉ hiện tổng.
+  const exact = !page.has_more
+  const chip = (active: boolean) =>
+    `inline-flex h-8 items-center gap-space-xs rounded-full px-space-md font-body-sm text-body-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 ${
+      active
+        ? 'bg-brand-100 text-brand-700 shadow-sm ring-1 ring-brand-200'
+        : 'text-on-surface-variant hover:bg-surface-container-high hover:text-primary'
+    }`
+  return (
+    <div
+      className="flex min-w-0 flex-wrap items-center gap-0.5 rounded-full bg-surface-container p-1"
+      role="group"
+      aria-label="Lọc theo loại quan hệ"
+    >
+      <button
+        aria-pressed={value === null}
+        className={chip(value === null)}
+        onClick={() => onChange(null)}
+        type="button"
+      >
+        Tất cả
+        <span className="tabular-nums opacity-70">{page.total_count}</span>
+      </button>
+      {[...groups]
+        .sort(
+          ([, a], [, b]) =>
+            RELATION_TONES.indexOf(a.tone) - RELATION_TONES.indexOf(b.tone),
+        )
+        .map(([label, group]) => (
+          <button
+            key={label}
+            aria-pressed={value === label}
+            className={chip(value === label)}
+            onClick={() => onChange(value === label ? null : label)}
+            type="button"
+          >
+            <span
+              aria-hidden
+              className={`h-2 w-2 rounded-full ${relationDotClasses[group.tone]}`}
+            />
+            {label}
+            {exact ? (
+              <span className="tabular-nums opacity-70">{group.count}</span>
+            ) : null}
+          </button>
+        ))}
+    </div>
+  )
+}
+
+function ViewSwitch({
+  value,
+  onChange,
+}: {
+  value: GraphView
+  onChange: (next: GraphView) => void
+}) {
+  return (
+    <div
+      className="inline-flex items-center gap-0.5 rounded-full bg-surface-container p-1"
+      role="group"
+      aria-label="Kiểu xem"
+    >
+      {(
+        [
+          ['diagram', 'hub', 'Sơ đồ'],
+          ['list', 'view_list', 'Danh sách'],
+        ] as const
+      ).map(([id, icon, label]) => (
+        <button
+          key={id}
+          aria-pressed={value === id}
+          className={`inline-flex h-8 items-center gap-space-xs rounded-full px-space-sm font-body-sm text-body-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 ${
+            value === id
+              ? 'bg-brand-100 text-brand-700 shadow-sm ring-1 ring-brand-200'
+              : 'text-on-surface-variant hover:bg-surface-container-high hover:text-primary'
+          }`}
+          onClick={() => onChange(id)}
+          title={label}
+          type="button"
+        >
+          <MaterialIcon name={icon} className="text-[18px]" />
+          <span className="hidden sm:inline">{label}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function InspectorPlaceholder() {
+  return (
+    <div className="flex flex-col items-center gap-space-xs rounded-lg bg-surface-container-low px-space-lg py-space-xl text-center font-body-sm text-body-sm text-on-surface-variant">
+      <MaterialIcon name="ads_click" className="text-[28px] text-outline" />
+      Chọn một đường nối trên sơ đồ để xem hai điều khoản liên quan.
+    </div>
+  )
+}
+
+function EmptyGraph({
+  kind,
+  status = 'READY',
+}: {
+  kind: ContractGraphKind
+  status?: ContractGraphStatus
+}) {
+  // READY và SKIPPED đã được chip trạng thái và lời giải thích phía trên nói rõ;
+  // trạng thái lỗi lưu, chưa sẵn sàng… thì ghi thêm một dòng.
+  const note =
+    status === 'READY' || status === 'SKIPPED' ? null : graphStatusLabel(status)
+  return (
+    <div
+      className="flex flex-col items-center gap-space-xs rounded-lg bg-surface-container-low px-space-lg py-space-xl text-center"
+      role="status"
+    >
+      <MaterialIcon name="account_tree" className="text-[32px] text-outline" />
+      <p className="font-body-sm text-body-sm font-semibold text-on-surface">
+        {kind === 'operation'
+          ? 'Chưa tìm thấy điều khoản nào bị sửa đổi'
+          : 'Chưa tìm thấy quan hệ nào giữa các điều khoản'}
+      </p>
+      {note ? (
+        <p className="font-body-sm text-body-sm text-on-surface-variant">
+          {note}
+        </p>
+      ) : null}
     </div>
   )
 }
@@ -276,283 +515,235 @@ function GraphLoadError({
 const ZOOM_BUTTON =
   'inline-flex h-8 w-8 items-center justify-center rounded-full text-on-surface hover:bg-surface-container-high focus-visible:outline focus-visible:outline-2'
 
+const MIN_ZOOM = 0.5
+const MAX_ZOOM = 2.5
+
+function clampZoom(value: number) {
+  return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round(value * 10) / 10))
+}
+
+// Kích thước sơ đồ (đơn vị viewBox): hai cột điều khoản, đường nối ở giữa.
+const WIDTH = 960
+const NODE_W = 272
+const NODE_H = 76
+const ROW = 96
+const PAD = 24
+const COLUMN_X = { left: PAD, right: WIDTH - PAD - NODE_W } as const
+
+type GraphNode = {
+  key: string
+  label: string
+  title: string
+  column: 'left' | 'right'
+  x: number
+  y: number
+}
+
 export function ContractGraphCanvas({
   page,
   selectedId,
   onSelectEdge,
+  filter = null,
   resolveNodeLabel = (nodeId) => `Mã điều khoản ${nodeId}`,
+  resolveNodeTitle,
 }: {
   page: ContractGraphPage
   selectedId: string | null
   onSelectEdge: (edgeId: string) => void
-  resolveNodeLabel?: (nodeId: string, documentId?: string | null) => string
+  /** Chỉ vẽ loại quan hệ này (tên hiển thị); null là vẽ tất cả. */
+  filter?: string | null
+  resolveNodeLabel?: NodeLabelResolver
+  resolveNodeTitle?: NodeLabelResolver
 }) {
-  const nodes = new Map<string, { label: string; x: number; y: number }>()
-  for (const edge of page.edges) {
-    addNode(
-      nodes,
-      edge.source_node_id,
-      edge.source_document_id,
-      190,
-      resolveNodeLabel,
-      null,
-      `${edge.id}:source`,
-    )
-    addNode(
-      nodes,
-      edge.target_node_id,
-      edge.target_document_id,
-      770,
-      resolveNodeLabel,
-      edge.target_address,
-      `${edge.id}:target`,
-    )
-  }
-  const height = Math.max(196, 160 + Math.max(0, nodes.size - 1) * 144)
-  const width = 960
   const [zoom, setZoom] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
-  const drag = useRef<{ pointerId: number; x: number; y: number } | null>(null)
-  const positions = new Map([...nodes].map(([id, node]) => [id, node]))
-  const rows = page.edges.map((edge) => ({
-    edge,
-    source: positions.get(
+  const [focus, setFocus] = useState<string | null>(null)
+  const drag = useRef<{
+    pointerId: number
+    x: number
+    y: number
+  } | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
+
+  // Lăn chuột thường để cuộn trang; giữ Ctrl (⌘) mới phóng to. Gắn trực tiếp
+  // vì onWheel của React là passive, không chặn được trang cùng cuộn.
+  useEffect(() => {
+    const svg = svgRef.current
+    if (!svg) return
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return
+      event.preventDefault()
+      setZoom((value) => clampZoom(value + (event.deltaY < 0 ? 0.1 : -0.1)))
+    }
+    svg.addEventListener('wheel', onWheel, { passive: false })
+    return () => svg.removeEventListener('wheel', onWheel)
+  }, [page.edges.length])
+
+  const edges = filter
+    ? page.edges.filter((edge) => relationLabel(edge.label) === filter)
+    : page.edges
+  const nodes = layoutNodes(edges, resolveNodeLabel, resolveNodeTitle)
+  const rows = edges.map((edge) => {
+    const source = nodes.get(
       nodeKey(
         edge.source_node_id,
         edge.source_document_id,
         `${edge.id}:source`,
       ),
-    )!,
-    target: positions.get(
+    )!
+    const target = nodes.get(
       nodeKey(
         edge.target_node_id,
         edge.target_document_id,
         `${edge.id}:target`,
       ),
-    )!,
-  }))
+    )!
+    return { edge, source, target, ...edgeGeometry(source, target) }
+  })
+  const columnSize = (column: 'left' | 'right') =>
+    [...nodes.values()].filter((node) => node.column === column).length
+  const height =
+    PAD * 2 +
+    Math.max(1, columnSize('left'), columnSize('right')) * ROW -
+    (ROW - NODE_H)
+  const selected = rows.find((row) => row.edge.id === selectedId)
+  // Đang trỏ vào một đường nối hay một điều khoản thì làm mờ phần không liên quan.
+  const focusedRows = focus
+    ? rows.filter(
+        (row) =>
+          row.edge.id === focus ||
+          row.source.key === focus ||
+          row.target.key === focus,
+      )
+    : null
+  const isDimmedEdge = (edgeId: string) =>
+    focusedRows !== null && !focusedRows.some((row) => row.edge.id === edgeId)
+  const isDimmedNode = (key: string) =>
+    focusedRows !== null &&
+    !focusedRows.some((row) => row.source.key === key || row.target.key === key)
+  const isSelectedNode = (key: string) =>
+    selected !== undefined &&
+    (selected.source.key === key || selected.target.key === key)
+  // Đường được chọn vẽ sau cùng để nằm trên các đường khác.
+  const ordered = [
+    ...rows.filter((row) => row.edge.id !== selectedId),
+    ...rows.filter((row) => row.edge.id === selectedId),
+  ]
+
+  if (page.edges.length === 0) {
+    return <EmptyGraph kind={page.graph_kind} status={page.status} />
+  }
 
   return (
-    <section
-      aria-labelledby="ai2-graph-canvas-title"
-      className="min-w-0 rounded-lg bg-surface-container-lowest p-space-lg shadow-sm"
-    >
+    <div className="flex min-w-0 flex-col gap-space-sm">
       <div className="flex flex-wrap items-center justify-between gap-space-sm">
-        <div className="flex items-center gap-space-sm">
-          <MaterialIcon
-            name="hub"
-            className="text-[20px] text-on-tertiary-container"
-          />
-          <h2
-            id="ai2-graph-canvas-title"
-            className="font-title-sm text-title-sm font-semibold text-on-surface"
-          >
-            {page.graph_kind === 'operation'
-              ? 'Sơ đồ sửa đổi điều khoản'
-              : 'Sơ đồ quan hệ điều khoản'}
-          </h2>
-          {page.total_count > 0 ? (
-            <span
-              className="rounded-full bg-brand-50 px-space-sm py-0.5 font-label-sm text-label-sm font-semibold text-brand-700"
-              role="status"
-            >
-              {page.edges.length < page.total_count
-                ? `${page.edges.length}/${page.total_count} quan hệ`
-                : `${page.total_count} quan hệ`}
-            </span>
-          ) : null}
-        </div>
-        {page.edges.length > 0 ? (
-          <div
-            className="inline-flex items-center gap-0.5 rounded-full bg-surface-container p-1"
-            aria-label="Điều khiển sơ đồ"
-          >
-            <button
-              className={ZOOM_BUTTON}
-              onClick={() =>
-                setZoom((value) =>
-                  Math.max(0.6, Math.round((value - 0.2) * 10) / 10),
-                )
-              }
-              type="button"
-              aria-label="Thu nhỏ sơ đồ"
-              title="Thu nhỏ"
-            >
-              <MaterialIcon name="zoom_out" className="text-[18px]" />
-            </button>
-            <span
-              className="min-w-12 text-center font-label-sm text-label-sm tabular-nums text-on-surface-variant"
-              aria-live="polite"
-            >
-              {Math.round(zoom * 100)}%
-            </span>
-            <button
-              className={ZOOM_BUTTON}
-              onClick={() =>
-                setZoom((value) =>
-                  Math.min(2.5, Math.round((value + 0.2) * 10) / 10),
-                )
-              }
-              type="button"
-              aria-label="Phóng to sơ đồ"
-              title="Phóng to"
-            >
-              <MaterialIcon name="zoom_in" className="text-[18px]" />
-            </button>
-            <button
-              className={ZOOM_BUTTON}
-              onClick={() => {
-                setZoom(1)
-                setOffset({ x: 0, y: 0 })
-              }}
-              type="button"
-              aria-label="Đặt lại sơ đồ"
-              title="Đặt lại"
-            >
-              <MaterialIcon name="restart_alt" className="text-[18px]" />
-            </button>
-          </div>
-        ) : null}
+        <p className="min-w-0 font-label-sm text-label-sm text-on-surface-variant">
+          {page.edges.length < page.total_count
+            ? `Sơ đồ đang vẽ ${page.edges.length}/${page.total_count} quan hệ, xem đủ ở kiểu Danh sách. `
+            : ''}
+          Kéo để di chuyển · Ctrl + cuộn để phóng to · Bấm vào đường nối để xem
+          chi tiết
+        </p>
+        <ZoomControls
+          zoom={zoom}
+          setZoom={setZoom}
+          onReset={() => {
+            setZoom(1)
+            setOffset({ x: 0, y: 0 })
+          }}
+        />
       </div>
-      <p className="mt-space-xs font-body-sm text-body-sm text-on-surface-variant">
-        {page.graph_kind === 'operation'
-          ? 'Phụ lục sửa đổi, bổ sung, thay thế hay bãi bỏ điều khoản nào của hợp đồng.'
-          : 'Các cặp điều khoản liên quan với nhau trong hợp đồng và phụ lục: dẫn chiếu, có thể mâu thuẫn, trùng lặp, quy định chung – riêng.'}
-      </p>
-      {page.edges.length === 0 ? (
-        <div
-          className="mt-space-md flex flex-col items-center gap-space-sm rounded-lg bg-surface-container-low px-space-lg py-space-xl text-center"
-          role="status"
-        >
-          <MaterialIcon
-            name="account_tree"
-            className="text-[32px] text-outline"
-          />
-          <p className="font-body-sm text-body-sm font-semibold text-on-surface">
-            {page.graph_kind === 'operation'
-              ? 'Chưa tìm thấy điều khoản nào bị sửa đổi'
-              : 'Chưa tìm thấy quan hệ nào giữa các điều khoản'}
-          </p>
-          <p className="max-w-md font-body-sm text-body-sm text-on-surface-variant">
-            Các bước phân tích ở trên cho biết vì sao. Kết quả sẽ hiện ở đây khi
-            hệ thống tìm được quan hệ.
-          </p>
-        </div>
-      ) : (
-        <>
-          <p className="mt-space-xs font-label-sm text-label-sm text-on-surface-variant">
-            {page.edges.length < page.total_count
-              ? `Sơ đồ đang vẽ ${page.edges.length}/${page.total_count} quan hệ, danh sách bên dưới tải thêm được. `
-              : ''}
-            Kéo để di chuyển, cuộn chuột để phóng to. Chọn một đường nối để xem
-            chi tiết.
-          </p>
-          <div className="mt-space-sm max-h-[70vh] min-w-0 overflow-auto rounded-lg bg-surface-container-low">
-            <svg
-              aria-label={`Sơ đồ ${page.graph_kind === 'operation' ? 'thay đổi điều khoản' : 'quan hệ giữa điều khoản'}, ${page.edges.length} quan hệ trong trang`}
-              className="block h-auto min-w-[900px] w-full touch-none cursor-grab active:cursor-grabbing"
-              role="group"
-              tabIndex={0}
-              viewBox={`0 0 ${width} ${height}`}
-              xmlns="http://www.w3.org/2000/svg"
-              onPointerDown={(event) => {
-                if (
-                  (event.target as Element).closest('[data-graph-edge="true"]')
-                )
-                  return
-                drag.current = {
-                  pointerId: event.pointerId,
-                  x: event.clientX,
-                  y: event.clientY,
-                }
-                event.currentTarget.setPointerCapture(event.pointerId)
-              }}
-              onPointerMove={(event) => {
-                if (drag.current?.pointerId !== event.pointerId) return
-                const bounds = event.currentTarget.getBoundingClientRect()
-                const scaleX = width / Math.max(bounds.width, 1) / zoom
-                const scaleY = height / Math.max(bounds.height, 1) / zoom
-                const deltaX = (event.clientX - drag.current.x) * scaleX
-                const deltaY = (event.clientY - drag.current.y) * scaleY
-                drag.current.x = event.clientX
-                drag.current.y = event.clientY
-                setOffset((current) => ({
-                  x: current.x + deltaX,
-                  y: current.y + deltaY,
-                }))
-              }}
-              onPointerUp={(event) => {
-                if (drag.current?.pointerId !== event.pointerId) return
-                drag.current = null
-                event.currentTarget.releasePointerCapture(event.pointerId)
-              }}
-              onPointerCancel={() => {
-                drag.current = null
-              }}
-              onWheel={(event) => {
-                event.preventDefault()
-                setZoom((value) =>
-                  Math.max(
-                    0.6,
-                    Math.min(
-                      2.5,
-                      Math.round(
-                        (value + (event.deltaY < 0 ? 0.1 : -0.1)) * 10,
-                      ) / 10,
-                    ),
-                  ),
-                )
-              }}
-              onKeyDown={(event) => {
-                if (event.key === '+' || event.key === '=')
-                  setZoom((value) => Math.min(2.5, value + 0.1))
-                if (event.key === '-')
-                  setZoom((value) => Math.max(0.6, value - 0.1))
-                const step = 40 / zoom
-                if (event.key === 'ArrowLeft')
-                  setOffset((current) => ({ ...current, x: current.x + step }))
-                if (event.key === 'ArrowRight')
-                  setOffset((current) => ({ ...current, x: current.x - step }))
-                if (event.key === 'ArrowUp')
-                  setOffset((current) => ({ ...current, y: current.y + step }))
-                if (event.key === 'ArrowDown')
-                  setOffset((current) => ({ ...current, y: current.y - step }))
-              }}
-            >
-              <defs>
-                {(['ai2-graph-arrow', 'ai2-graph-arrow-selected'] as const).map(
-                  (id) => (
-                    <marker
-                      key={id}
-                      id={id}
-                      markerHeight="8"
-                      markerWidth="8"
-                      orient="auto"
-                      refX="7"
-                      refY="4"
-                      viewBox="0 0 8 8"
-                    >
-                      <path
-                        d="M0,0 L8,4 L0,8 z"
-                        className={
-                          id === 'ai2-graph-arrow'
-                            ? 'fill-outline'
-                            : 'fill-brand-600'
-                        }
-                      />
-                    </marker>
-                  ),
-                )}
-              </defs>
-              <g
-                transform={`translate(${offset.x} ${offset.y}) scale(${zoom})`}
-              >
-                {rows.map(({ edge, source, target }) => (
+      <div className="min-w-0 overflow-hidden rounded-lg bg-surface-container-low">
+        <div className="max-h-[68vh] min-w-0 overflow-auto">
+          <svg
+            ref={svgRef}
+            aria-label={`Sơ đồ ${page.graph_kind === 'operation' ? 'thay đổi điều khoản' : 'quan hệ giữa điều khoản'}, ${edges.length} quan hệ`}
+            className="block h-auto w-full min-w-[720px] touch-none cursor-grab select-none active:cursor-grabbing"
+            role="group"
+            tabIndex={0}
+            viewBox={`0 0 ${WIDTH} ${height}`}
+            xmlns="http://www.w3.org/2000/svg"
+            onPointerDown={(event) => {
+              if ((event.target as Element).closest('[data-graph-hit="true"]'))
+                return
+              drag.current = {
+                pointerId: event.pointerId,
+                x: event.clientX,
+                y: event.clientY,
+              }
+              event.currentTarget.setPointerCapture(event.pointerId)
+            }}
+            onPointerMove={(event) => {
+              if (drag.current?.pointerId !== event.pointerId) return
+              const bounds = event.currentTarget.getBoundingClientRect()
+              const scaleX = WIDTH / Math.max(bounds.width, 1) / zoom
+              const scaleY = height / Math.max(bounds.height, 1) / zoom
+              const deltaX = (event.clientX - drag.current.x) * scaleX
+              const deltaY = (event.clientY - drag.current.y) * scaleY
+              drag.current.x = event.clientX
+              drag.current.y = event.clientY
+              setOffset((current) => ({
+                x: current.x + deltaX,
+                y: current.y + deltaY,
+              }))
+            }}
+            onPointerUp={(event) => {
+              if (drag.current?.pointerId !== event.pointerId) return
+              drag.current = null
+              event.currentTarget.releasePointerCapture(event.pointerId)
+            }}
+            onPointerCancel={() => {
+              drag.current = null
+            }}
+            onKeyDown={(event) => {
+              if (event.target !== event.currentTarget) return
+              if (event.key === '+' || event.key === '=')
+                setZoom((value) => clampZoom(value + 0.1))
+              if (event.key === '-') setZoom((value) => clampZoom(value - 0.1))
+              const step = 40 / zoom
+              if (event.key === 'ArrowLeft')
+                setOffset((current) => ({ ...current, x: current.x + step }))
+              if (event.key === 'ArrowRight')
+                setOffset((current) => ({ ...current, x: current.x - step }))
+              if (event.key === 'ArrowUp')
+                setOffset((current) => ({ ...current, y: current.y + step }))
+              if (event.key === 'ArrowDown')
+                setOffset((current) => ({ ...current, y: current.y - step }))
+            }}
+          >
+            <defs>
+              {RELATION_TONES.map((tone) => (
+                <marker
+                  key={tone}
+                  id={`ai2-graph-arrow-${tone}`}
+                  markerHeight="7"
+                  markerWidth="7"
+                  orient="auto"
+                  refX="7"
+                  refY="4"
+                  viewBox="0 0 8 8"
+                >
+                  <path
+                    d="M0,0 L8,4 L0,8 z"
+                    className={relationFillClasses[tone]}
+                  />
+                </marker>
+              ))}
+            </defs>
+            <g transform={`translate(${offset.x} ${offset.y}) scale(${zoom})`}>
+              {ordered.map(({ edge, source, target, path, labelX, labelY }) => {
+                const tone = relationTone(edge.label)
+                const isSelected = edge.id === selectedId
+                const label = relationLabel(edge.label)
+                const pillWidth = label.length * 6.8 + 26
+                return (
                   <g
                     key={edge.id}
-                    aria-label={`${relationLabel(edge.label)}: ${source.label} ${edge.directed ? 'đến' : 'và'} ${target.label}${edge.target_address ? `; địa chỉ đích ${edge.target_address}` : ''}`}
-                    aria-pressed={selectedId === edge.id}
-                    className="cursor-pointer focus:outline focus:outline-2"
+                    aria-label={`${label}: ${source.label} ${edge.directed ? 'đến' : 'và'} ${target.label}${edge.target_address ? `; địa chỉ đích ${edge.target_address}` : ''}`}
+                    aria-pressed={isSelected}
+                    className="cursor-pointer outline-none transition-opacity focus-visible:outline focus-visible:outline-2"
+                    data-graph-hit="true"
+                    opacity={isDimmedEdge(edge.id) ? 0.15 : 1}
                     onClick={() => onSelectEdge(edge.id)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
@@ -560,116 +751,308 @@ export function ContractGraphCanvas({
                         onSelectEdge(edge.id)
                       }
                     }}
+                    onPointerEnter={() => setFocus(edge.id)}
+                    onPointerLeave={() => setFocus(null)}
+                    onFocus={() => setFocus(edge.id)}
+                    onBlur={() => setFocus(null)}
                     role="button"
                     tabIndex={0}
-                    data-graph-edge="true"
                   >
-                    <title>{`${relationLabel(edge.label)} · ${edge.review_state === 'NEEDS_REVIEW' ? 'AI đề xuất, cần rà soát' : reviewStateLabel(edge.review_state)}`}</title>
+                    <title>{`${label} · ${edge.review_state === 'NEEDS_REVIEW' ? 'AI đề xuất, cần rà soát' : reviewStateLabel(edge.review_state)}`}</title>
+                    {/* Vùng bấm rộng hơn nét vẽ để dễ chọn đường mảnh. */}
                     <path
-                      d={`M ${source.x + 132} ${source.y} C 400 ${source.y}, 560 ${target.y}, ${target.x - 132} ${target.y}`}
+                      d={path}
+                      fill="none"
+                      stroke="transparent"
+                      strokeWidth={16}
+                    />
+                    {isSelected ? (
+                      <path
+                        d={path}
+                        fill="none"
+                        className={relationStrokeClasses[tone]}
+                        strokeOpacity={0.18}
+                        strokeWidth={10}
+                      />
+                    ) : null}
+                    <path
+                      d={path}
                       fill="none"
                       markerEnd={
                         edge.directed
-                          ? selectedId === edge.id
-                            ? 'url(#ai2-graph-arrow-selected)'
-                            : 'url(#ai2-graph-arrow)'
+                          ? `url(#ai2-graph-arrow-${tone})`
                           : undefined
                       }
-                      className={
-                        selectedId === edge.id
-                          ? 'stroke-brand-600'
-                          : 'stroke-outline'
-                      }
-                      strokeWidth={selectedId === edge.id ? 3 : 1.5}
+                      className={relationStrokeClasses[tone]}
+                      strokeWidth={isSelected ? 3 : 1.75}
                     />
                     <rect
                       className={
-                        selectedId === edge.id
-                          ? 'fill-brand-50 stroke-brand-500'
-                          : 'fill-white stroke-outline-variant'
+                        isSelected
+                          ? relationFillClasses[tone]
+                          : `fill-white ${relationStrokeClasses[tone]}`
                       }
-                      height="30"
-                      rx="15"
-                      width="260"
-                      x="350"
-                      y={(source.y + target.y) / 2 - 15}
+                      height="24"
+                      rx="12"
+                      strokeWidth={1.25}
+                      width={pillWidth}
+                      x={labelX - pillWidth / 2}
+                      y={labelY - 12}
                     />
                     <text
-                      className={
-                        selectedId === edge.id
-                          ? 'fill-brand-700'
-                          : 'fill-on-surface'
-                      }
-                      fontSize="13"
+                      className={isSelected ? 'fill-white' : 'fill-on-surface'}
+                      fontSize="12"
                       fontWeight={600}
                       textAnchor="middle"
-                      x="480"
-                      y={(source.y + target.y) / 2 + 5}
+                      x={labelX}
+                      y={labelY + 4}
                     >
-                      {relationLabel(edge.label)} ·{' '}
-                      {edge.review_state === 'NEEDS_REVIEW'
-                        ? 'cần rà soát'
-                        : reviewStateLabel(edge.review_state)}
+                      {label}
                     </text>
                   </g>
-                ))}
-                {[...nodes].map(([id, node]) => (
-                  <g key={id} aria-label={node.label}>
-                    <rect
-                      className="fill-white stroke-outline-variant"
-                      height="124"
-                      rx="12"
-                      width="280"
-                      x={node.x - 140}
-                      y={node.y - 62}
-                    />
+                )
+              })}
+              {[...nodes.values()].map((node) => {
+                const highlighted = isSelectedNode(node.key)
+                const firstEdge = rows.find(
+                  (row) =>
+                    row.source.key === node.key || row.target.key === node.key,
+                )?.edge.id
+                const lines = wrapGraphLabel(node.label, 40, node.title ? 2 : 3)
+                const textTop = node.title ? node.y + 42 : node.y + 24
+                return (
+                  <g
+                    key={node.key}
+                    aria-label={node.label}
+                    className="cursor-pointer transition-opacity"
+                    data-graph-hit="true"
+                    opacity={isDimmedNode(node.key) ? 0.35 : 1}
+                    onClick={() => firstEdge && onSelectEdge(firstEdge)}
+                    onPointerEnter={() => setFocus(node.key)}
+                    onPointerLeave={() => setFocus(null)}
+                  >
                     <title>{node.label}</title>
-                    <text
-                      className="fill-on-surface"
-                      fontSize="12"
-                      textAnchor="middle"
+                    <rect
+                      className={
+                        highlighted
+                          ? 'fill-white stroke-brand-500'
+                          : 'fill-white stroke-outline-variant'
+                      }
+                      height={NODE_H}
+                      rx="10"
+                      strokeWidth={highlighted ? 2 : 1}
+                      width={NODE_W}
                       x={node.x}
+                      y={node.y}
+                    />
+                    {node.title ? (
+                      <text
+                        className="fill-on-surface"
+                        fontSize="12"
+                        fontWeight={700}
+                        x={node.x + 12}
+                        y={node.y + 22}
+                      >
+                        {truncate(node.title, 38)}
+                      </text>
+                    ) : null}
+                    <text
+                      className={
+                        node.title
+                          ? 'fill-on-surface-variant'
+                          : 'fill-on-surface'
+                      }
+                      fontSize="12"
+                      x={node.x + 12}
                     >
-                      {wrapGraphLabel(node.label, 39, 6).map((line, index) => (
+                      {lines.map((line, index) => (
                         <tspan
                           key={`${index}:${line}`}
-                          x={node.x}
-                          y={node.y - 40 + index * 17}
+                          x={node.x + 12}
+                          y={textTop + index * 16}
                         >
                           {line}
                         </tspan>
                       ))}
                     </text>
                   </g>
-                ))}
-              </g>
-            </svg>
-          </div>
-        </>
-      )}
-    </section>
+                )
+              })}
+            </g>
+          </svg>
+        </div>
+      </div>
+    </div>
   )
 }
 
-function addNode(
-  nodes: Map<string, { label: string; x: number; y: number }>,
-  id: string,
-  documentId: string | null | undefined,
-  x: number,
-  resolveNodeLabel: (nodeId: string, documentId?: string | null) => string,
-  address?: string | null,
-  unknownIdentity?: string,
+function ZoomControls({
+  zoom,
+  setZoom,
+  onReset,
+}: {
+  zoom: number
+  setZoom: (update: (value: number) => number) => void
+  onReset: () => void
+}) {
+  return (
+    <div
+      className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-surface-container p-1"
+      aria-label="Điều khiển sơ đồ"
+    >
+      <button
+        className={ZOOM_BUTTON}
+        onClick={() => setZoom((value) => clampZoom(value - 0.2))}
+        type="button"
+        aria-label="Thu nhỏ sơ đồ"
+        title="Thu nhỏ"
+      >
+        <MaterialIcon name="zoom_out" className="text-[18px]" />
+      </button>
+      <span
+        className="min-w-11 text-center font-label-sm text-label-sm tabular-nums text-on-surface-variant"
+        aria-live="polite"
+      >
+        {Math.round(zoom * 100)}%
+      </span>
+      <button
+        className={ZOOM_BUTTON}
+        onClick={() => setZoom((value) => clampZoom(value + 0.2))}
+        type="button"
+        aria-label="Phóng to sơ đồ"
+        title="Phóng to"
+      >
+        <MaterialIcon name="zoom_in" className="text-[18px]" />
+      </button>
+      <button
+        className={ZOOM_BUTTON}
+        onClick={onReset}
+        type="button"
+        aria-label="Đặt lại sơ đồ"
+        title="Vừa khung"
+      >
+        <MaterialIcon name="fit_screen" className="text-[18px]" />
+      </button>
+    </div>
+  )
+}
+
+/**
+ * Xếp điều khoản thành hai cột: điều khoản nguồn bên trái, đích bên phải. Cột
+ * phải sắp theo vị trí trung bình của các nguồn nối tới để đường nối ít cắt
+ * nhau; cột ngắn hơn được canh giữa theo cột dài.
+ */
+function layoutNodes(
+  edges: ContractGraphEdge[],
+  resolveNodeLabel: NodeLabelResolver,
+  resolveNodeTitle?: NodeLabelResolver,
 ) {
-  const key = nodeKey(id, documentId, unknownIdentity)
-  if (!nodes.has(key)) {
-    const label = [resolveNodeLabel(id, documentId), address]
-      .filter(Boolean)
-      .join(' · ')
+  const nodes = new Map<string, GraphNode>()
+  const add = (
+    id: string,
+    documentId: string | null | undefined,
+    column: GraphNode['column'],
+    unknownIdentity: string,
+    address?: string | null,
+  ) => {
+    const key = nodeKey(id, documentId, unknownIdentity)
+    if (nodes.has(key)) return
     nodes.set(key, {
-      label,
-      x,
-      y: 96 + nodes.size * 144,
+      key,
+      label: [resolveNodeLabel(id, documentId), address]
+        .filter(Boolean)
+        .join(' · '),
+      title: resolveNodeTitle?.(id, documentId) ?? '',
+      column,
+      x: COLUMN_X[column],
+      y: 0,
     })
+  }
+  for (const edge of edges) {
+    add(
+      edge.source_node_id,
+      edge.source_document_id,
+      'left',
+      `${edge.id}:source`,
+    )
+    add(
+      edge.target_node_id,
+      edge.target_document_id,
+      'right',
+      `${edge.id}:target`,
+      edge.target_address,
+    )
+  }
+  const left = [...nodes.values()].filter((node) => node.column === 'left')
+  const leftIndex = new Map(left.map((node, index) => [node.key, index]))
+  const neighbours = new Map<string, number[]>()
+  for (const edge of edges) {
+    const source = nodeKey(
+      edge.source_node_id,
+      edge.source_document_id,
+      `${edge.id}:source`,
+    )
+    const target = nodeKey(
+      edge.target_node_id,
+      edge.target_document_id,
+      `${edge.id}:target`,
+    )
+    for (const [a, b] of [
+      [source, target],
+      [target, source],
+    ]) {
+      const index = leftIndex.get(b)
+      if (index !== undefined && nodes.get(a)?.column === 'right')
+        neighbours.set(a, [...(neighbours.get(a) ?? []), index])
+    }
+  }
+  const barycenter = (key: string) => {
+    const list = neighbours.get(key)
+    return list
+      ? list.reduce((sum, value) => sum + value, 0) / list.length
+      : Number.POSITIVE_INFINITY
+  }
+  const right = [...nodes.values()]
+    .filter((node) => node.column === 'right')
+    .map((node, index) => ({ node, index }))
+    .sort(
+      (a, b) =>
+        barycenter(a.node.key) - barycenter(b.node.key) || a.index - b.index,
+    )
+    .map(({ node }) => node)
+  const tallest = Math.max(left.length, right.length)
+  for (const column of [left, right]) {
+    const shift = ((tallest - column.length) * ROW) / 2
+    column.forEach((node, index) => {
+      node.y = PAD + shift + index * ROW
+    })
+  }
+  return nodes
+}
+
+/** Đường cong nối hai điều khoản và vị trí nhãn ở giữa đường. */
+function edgeGeometry(source: GraphNode, target: GraphNode) {
+  const sourceY = source.y + NODE_H / 2
+  const targetY = target.y + NODE_H / 2
+  if (source.column !== target.column) {
+    const leftToRight = source.column === 'left'
+    const startX = leftToRight ? source.x + NODE_W : source.x
+    const endX = leftToRight ? target.x : target.x + NODE_W
+    const middle = (startX + endX) / 2
+    return {
+      path: `M ${startX} ${sourceY} C ${middle} ${sourceY}, ${middle} ${targetY}, ${endX} ${targetY}`,
+      labelX: middle,
+      labelY: (sourceY + targetY) / 2,
+    }
+  }
+  // Cùng cột: vòng ra phía giữa sơ đồ rồi quay lại.
+  const inward = source.column === 'left' ? 1 : -1
+  const edgeX = source.column === 'left' ? source.x + NODE_W : source.x
+  const bulge = inward * 140
+  return {
+    path: `M ${edgeX} ${sourceY} C ${edgeX + bulge} ${sourceY}, ${edgeX + bulge} ${targetY}, ${edgeX} ${targetY}`,
+    labelX: edgeX + bulge * 0.75,
+    labelY: (sourceY + targetY) / 2,
   }
 }
 
@@ -681,6 +1064,11 @@ function nodeKey(
   return documentId
     ? `${documentId}:${id}`
     : `unknown:${unknownIdentity ?? id}:${id}`
+}
+
+function truncate(value: string, length: number) {
+  const compact = value.replace(/\s+/g, ' ').trim()
+  return compact.length > length ? `${compact.slice(0, length - 1)}…` : compact
 }
 
 function wrapGraphLabel(

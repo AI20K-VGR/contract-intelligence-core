@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { relationLabel, reviewStateLabel } from '../../structure/displayLabels'
+import { relationLabel } from '../../structure/displayLabels'
 
 import type {
   ContractGraphEdge,
@@ -12,13 +12,18 @@ import {
   isRelationListComplete,
 } from './contractGraphViewModel'
 import { MaterialIcon } from '../icons'
+import { RelationBadge, ReviewBadge } from './RelationBadges'
 import { RelationInspector } from './RelationInspector'
+
+type NodeLabelResolver = (nodeId: string, documentId?: string | null) => string
 
 export function RelationList({
   page,
+  filter = null,
   onLoadPage,
   onOpenCitation,
   resolveNodeLabel,
+  resolveNodeTitle,
   selectedId: controlledSelectedId,
   onSelectEdge,
   onResolveEdgeEvidence,
@@ -27,13 +32,16 @@ export function RelationList({
   citationLoading,
 }: {
   page: ContractGraphPage
+  /** Chỉ hiện loại quan hệ này (tên hiển thị); null là hiện tất cả. */
+  filter?: string | null
   onLoadPage?: (cursor: string) => Promise<ContractGraphPage>
   onOpenCitation: (
     citationRef: string,
     nodeId: string,
     sourceDocumentId?: string | null,
   ) => void
-  resolveNodeLabel?: (nodeId: string, documentId?: string | null) => string
+  resolveNodeLabel?: NodeLabelResolver
+  resolveNodeTitle?: NodeLabelResolver
   selectedId?: string | null
   onSelectEdge?: (edgeId: string) => void
   onResolveEdgeEvidence?: (edge: ContractGraphEdge) => Promise<{
@@ -76,106 +84,112 @@ export function RelationList({
 
   if (state.status !== 'READY') {
     return (
-      <section
-        aria-labelledby="ai2-relations-title"
-        className="min-w-0 rounded-lg bg-surface-container-lowest p-space-lg shadow-sm"
+      <p
+        className="break-words rounded-lg bg-surface-container-low px-space-md py-space-sm font-body-sm text-body-sm text-on-surface-variant"
+        role="status"
       >
-        <RelationsTitle kind={state.graphKind} />
-        <p
-          className="mt-space-sm break-words font-body-sm text-body-sm text-on-surface-variant"
-          role="status"
-        >
-          {graphStatusLabel(state.status)}
-        </p>
-      </section>
+        {graphStatusLabel(state.status)}
+      </p>
     )
   }
 
+  if (state.edges.length === 0 && complete) {
+    return (
+      <p
+        className="rounded-lg bg-surface-container-low px-space-md py-space-sm font-body-sm text-body-sm text-on-surface-variant"
+        role="status"
+      >
+        Đã xác nhận: không có quan hệ
+      </p>
+    )
+  }
+
+  const edges = filter
+    ? state.edges.filter((edge) => relationLabel(edge.label) === filter)
+    : state.edges
+  const selectedEdge = edges.find((edge) => edge.id === selectedId) ?? null
+
   return (
-    <section
-      aria-labelledby="ai2-relations-title"
-      className="min-w-0 rounded-lg bg-surface-container-lowest p-space-lg shadow-sm"
-    >
-      <RelationsTitle kind={state.graphKind} />
-      {state.edges.length === 0 && complete ? (
-        <p
-          className="mt-space-sm font-body-sm text-body-sm text-on-surface-variant"
-          role="status"
-        >
-          Đã xác nhận: không có quan hệ
-        </p>
-      ) : (
-        <>
-          <p
-            className="mt-space-xs break-words font-label-sm text-label-sm text-on-surface-variant"
-            aria-live="polite"
-          >
-            Đã tải {state.edges.length}/{state.totalCount} quan hệ
-            {complete
-              ? ' · Đã tải đầy đủ'
-              : state.hasMore
-                ? ' · Danh sách chưa tải hết'
-                : ' · Tổng số chưa khớp'}
-          </p>
-          <ul className="mt-space-md flex min-w-0 flex-col gap-space-sm">
-            {state.edges.map((edge) => (
-              <li key={edge.id} className="min-w-0">
-                <RelationRow
-                  edge={edge}
-                  selected={edge.id === selectedId}
-                  onSelect={(id) => {
-                    setInternalSelectedId(id)
-                    onSelectEdge?.(id)
-                    onResolveEdgeEvidence?.(edge)
-                  }}
-                  resolveNodeLabel={resolveNodeLabel}
-                />
-                {edge.id === selectedId ? (
-                  <div className="mt-space-xs">
-                    <RelationInspector
-                      edge={edge}
-                      onOpenCitation={onOpenCitation}
-                      resolveNodeLabel={resolveNodeLabel}
-                      citationRecord={citationRecord}
-                      citationError={citationError}
-                      citationLoading={citationLoading}
-                    />
-                  </div>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-          {state.hasMore && state.nextCursor ? (
-            <div className="mt-space-md">
+    <div className="grid min-w-0 items-start gap-gutter lg:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
+      <section aria-label="Danh sách quan hệ" className="flex min-w-0 flex-col">
+        <ul className="flex min-w-0 flex-col gap-space-xs">
+          {edges.map((edge) => (
+            <li key={edge.id} className="min-w-0">
+              <RelationRow
+                edge={edge}
+                selected={edge.id === selectedId}
+                onSelect={(id) => {
+                  setInternalSelectedId(id)
+                  onSelectEdge?.(id)
+                  onResolveEdgeEvidence?.(edge)
+                }}
+                resolveNodeLabel={resolveNodeLabel}
+                resolveNodeTitle={resolveNodeTitle}
+              />
+            </li>
+          ))}
+        </ul>
+        {complete ? null : (
+          <div className="mt-space-md flex flex-wrap items-center gap-space-sm">
+            <span
+              className="break-words font-label-sm text-label-sm text-on-surface-variant"
+              aria-live="polite"
+            >
+              Đã tải {state.edges.length}/{state.totalCount} quan hệ
+              {state.hasMore ? ' · Danh sách chưa tải hết' : ''}
+            </span>
+            {state.hasMore && state.nextCursor ? (
               <button
-                className="inline-flex items-center gap-space-xs rounded-lg border border-brand-500/70 bg-white px-gutter py-space-sm font-body-sm text-body-sm font-semibold text-on-surface shadow-sm hover:bg-brand-500/5 disabled:opacity-60 focus-visible:outline focus-visible:outline-2"
+                className="inline-flex items-center gap-space-xs rounded-full border border-brand-500/70 bg-white px-space-md py-space-xs font-body-sm text-body-sm font-semibold text-on-surface shadow-sm hover:bg-brand-500/5 disabled:opacity-60 focus-visible:outline focus-visible:outline-2"
                 disabled={!onLoadPage || loading}
                 onClick={loadNextPage}
                 type="button"
               >
+                <MaterialIcon name="expand_more" className="text-[18px]" />
                 {loading ? 'Đang tải quan hệ…' : 'Tải thêm quan hệ'}
               </button>
-              {loadError ? (
-                <p
-                  className="mt-space-sm font-body-sm text-body-sm text-error"
-                  role="alert"
-                >
-                  Không tải được trang tiếp theo. Thử lại để tiếp tục danh sách.
-                </p>
-              ) : null}
-            </div>
-          ) : !complete ? (
-            <p
-              className="mt-space-sm font-body-sm text-body-sm text-error"
-              role="status"
-            >
-              {state.paginationError ??
-                'Số quan hệ đã nhận chưa khớp tổng số từ máy chủ.'}
-            </p>
-          ) : null}
-        </>
-      )}
-    </section>
+            ) : (
+              <span
+                className="font-body-sm text-body-sm text-error"
+                role="status"
+              >
+                {state.paginationError ??
+                  'Số quan hệ đã nhận chưa khớp tổng số từ máy chủ.'}
+              </span>
+            )}
+            {loadError ? (
+              <p
+                className="w-full font-body-sm text-body-sm text-error"
+                role="alert"
+              >
+                Không tải được trang tiếp theo. Thử lại để tiếp tục danh sách.
+              </p>
+            ) : null}
+          </div>
+        )}
+      </section>
+      <div className="min-w-0 lg:sticky lg:top-0">
+        {selectedEdge ? (
+          <RelationInspector
+            edge={selectedEdge}
+            onOpenCitation={onOpenCitation}
+            resolveNodeLabel={resolveNodeLabel}
+            resolveNodeTitle={resolveNodeTitle}
+            citationRecord={citationRecord}
+            citationError={citationError}
+            citationLoading={citationLoading}
+          />
+        ) : (
+          <div className="flex flex-col items-center gap-space-xs rounded-lg bg-surface-container-low px-space-lg py-space-xl text-center font-body-sm text-body-sm text-on-surface-variant">
+            <MaterialIcon
+              name="ads_click"
+              className="text-[28px] text-outline"
+            />
+            Chọn một quan hệ để xem hai điều khoản liên quan.
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -184,119 +198,75 @@ function RelationRow({
   selected,
   onSelect,
   resolveNodeLabel = (nodeId) => `Mã điều khoản ${nodeId}`,
+  resolveNodeTitle,
 }: {
   edge: ContractGraphEdge
   selected: boolean
   onSelect: (id: string) => void
-  resolveNodeLabel?: (nodeId: string, documentId?: string | null) => string
+  resolveNodeLabel?: NodeLabelResolver
+  resolveNodeTitle?: NodeLabelResolver
 }) {
-  return (
-    <>
-      <button
-        aria-pressed={selected}
-        aria-expanded={selected}
-        aria-controls={selected ? 'ai2-selected-relation-detail' : undefined}
-        className={`w-full min-w-0 rounded-lg border p-space-md text-left transition-colors focus-visible:outline focus-visible:outline-2 ${
-          selected
-            ? 'border-brand-300 bg-brand-50'
-            : 'border-outline-variant/30 bg-surface-container-lowest hover:bg-surface-container-low'
-        }`}
-        onClick={() => onSelect(edge.id)}
-        type="button"
-      >
-        <span className="flex flex-wrap items-center gap-space-xs">
-          <span className="font-body-sm text-body-sm font-semibold text-on-surface">
-            {relationLabel(edge.label)}
-          </span>
-          <ReviewBadge state={edge.review_state} />
-        </span>
-        <span className="mt-space-xs grid min-w-0 gap-space-xs font-body-sm text-body-sm text-on-surface-variant sm:grid-cols-[1fr_auto_1fr] sm:items-start">
-          <span className="min-w-0 break-words">
-            <span className="font-label-sm text-label-sm font-semibold uppercase tracking-wide text-outline">
-              Nguồn
-            </span>{' '}
-            <span
-              title={resolveNodeLabel(
-                edge.source_node_id,
-                edge.source_document_id,
-              )}
-            >
-              {compactRelationText(
-                resolveNodeLabel(edge.source_node_id, edge.source_document_id),
-              )}
-            </span>
-          </span>
-          <MaterialIcon
-            name={edge.directed ? 'arrow_forward' : 'sync_alt'}
-            className="hidden text-[18px] text-outline sm:block"
-          />
-          <span className="min-w-0 break-words">
-            <span className="font-label-sm text-label-sm font-semibold uppercase tracking-wide text-outline">
-              Đích
-            </span>{' '}
-            <span
-              title={[
-                resolveNodeLabel(edge.target_node_id, edge.target_document_id),
-                edge.target_address,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            >
-              {compactRelationText(
-                [
-                  resolveNodeLabel(
-                    edge.target_node_id,
-                    edge.target_document_id,
-                  ),
-                  edge.target_address,
-                ]
-                  .filter(Boolean)
-                  .join(' · '),
-              )}
-            </span>
-          </span>
-        </span>
-      </button>
-    </>
+  const sourceText = resolveNodeLabel(
+    edge.source_node_id,
+    edge.source_document_id,
   )
-}
-
-function RelationsTitle({ kind }: { kind: ContractGraphPage['graph_kind'] }) {
+  const targetText = [
+    resolveNodeLabel(edge.target_node_id, edge.target_document_id),
+    edge.target_address,
+  ]
+    .filter(Boolean)
+    .join(' · ')
   return (
-    <div className="flex items-center gap-space-sm">
-      <MaterialIcon
-        name="link"
-        className="text-[20px] text-on-tertiary-container"
-      />
-      <h2
-        id="ai2-relations-title"
-        className="font-title-sm text-title-sm font-semibold text-on-surface"
-      >
-        {kind === 'operation' ? 'Danh sách sửa đổi' : 'Danh sách quan hệ'}
-      </h2>
-    </div>
-  )
-}
-
-/** Nhãn trạng thái rà soát: AI đề xuất thì vàng, đã xác nhận thì xanh. */
-export function ReviewBadge({ state }: { state: string }) {
-  const needsReview = state === 'NEEDS_REVIEW'
-  return (
-    <span
-      className={`rounded-full px-space-sm py-0.5 font-label-sm text-label-sm font-semibold ${
-        needsReview
-          ? 'bg-amber-50 text-amber-900'
-          : state === 'PASS'
-            ? 'bg-emerald-50 text-emerald-800'
-            : 'bg-surface-container text-on-surface-variant'
+    <button
+      aria-pressed={selected}
+      aria-controls={selected ? 'ai2-selected-relation-detail' : undefined}
+      className={`w-full min-w-0 rounded-lg border px-space-md py-space-sm text-left transition-colors focus-visible:outline focus-visible:outline-2 ${
+        selected
+          ? 'border-brand-300 bg-brand-50'
+          : 'border-outline-variant/30 bg-surface-container-lowest hover:bg-surface-container-low'
       }`}
+      onClick={() => onSelect(edge.id)}
+      type="button"
     >
-      {needsReview ? 'cần rà soát' : reviewStateLabel(state)}
+      <span className="flex flex-wrap items-center gap-space-xs">
+        <RelationBadge label={edge.label} />
+        <ReviewBadge state={edge.review_state} />
+      </span>
+      <span className="mt-space-xs grid min-w-0 gap-space-xs font-body-sm text-body-sm sm:grid-cols-[1fr_auto_1fr] sm:items-start">
+        <ClauseSummary
+          title={resolveNodeTitle?.(
+            edge.source_node_id,
+            edge.source_document_id,
+          )}
+          text={sourceText}
+        />
+        <MaterialIcon
+          name={edge.directed ? 'arrow_forward' : 'sync_alt'}
+          className="hidden pt-0.5 text-[18px] text-outline sm:block"
+        />
+        <ClauseSummary
+          title={resolveNodeTitle?.(
+            edge.target_node_id,
+            edge.target_document_id,
+          )}
+          text={targetText}
+        />
+      </span>
+    </button>
+  )
+}
+
+function ClauseSummary({ title, text }: { title?: string; text: string }) {
+  return (
+    <span className="flex min-w-0 flex-col" title={text}>
+      {title ? (
+        <span className="truncate font-semibold text-on-surface">{title}</span>
+      ) : null}
+      <span
+        className={`line-clamp-2 break-words ${title ? 'text-on-surface-variant' : 'text-on-surface'}`}
+      >
+        {text}
+      </span>
     </span>
   )
-}
-
-function compactRelationText(value: string): string {
-  const compact = value.replace(/\s+/g, ' ').trim()
-  return compact.length > 140 ? `${compact.slice(0, 139)}…` : compact
 }
