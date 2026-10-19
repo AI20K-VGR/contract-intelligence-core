@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import json
 import logging
@@ -13,6 +14,9 @@ from collections import deque
 from typing import Any, Callable
 
 from openai import BadRequestError, OpenAI, UnprocessableEntityError
+
+from app.llm import usage_ledger
+from app.llm.observability import llm_generation, record_completion
 
 _FORMAT_ERRORS = (BadRequestError, UnprocessableEntityError)
 
@@ -92,10 +96,12 @@ def call_with_timeout(fn: Callable[[], Any], seconds: float, *, name: str = "ai2
     """
 
     outcome: dict[str, Any] = {}
+    # The caller's context (Langfuse trace of the question) goes with the call.
+    context = contextvars.copy_context()
 
     def run() -> None:
         try:
-            outcome["value"] = fn()
+            outcome["value"] = context.run(fn)
         except BaseException as exc:  # re-raised on the caller thread below
             outcome["error"] = exc
 
@@ -166,9 +172,44 @@ class NineRouterClient:
         """One logical completion. ``last_http_calls`` reports the HTTP requests it
         made (2 when the provider rejected ``response_format``) so the caller can
         charge every request to its budget. ``timeout`` overrides the per-request
-        SDK timeout, e.g. with the time left before a job deadline."""
+        SDK timeout, e.g. with the time left before a job deadline.
+
+        Inside a ``/query`` it is also one Langfuse generation with usage and cost."""
 
         model = self.strong_model if strong else self.model
+        trace: dict[str, Any] = {}
+        with llm_generation("ai2.llm.complete_json", model=model) as generation:
+            try:
+                return self._complete_json(
+                    trace,
+                    model,
+                    system,
+                    user,
+                    strong=strong,
+                    timeout=timeout,
+                    before_request=before_request,
+                    max_output_tokens=max_output_tokens,
+                    reasoning_effort=reasoning_effort,
+                )
+            finally:
+                record_completion(generation, trace)
+                usage_ledger.record_trace(trace)
+
+    def _complete_json(
+        self,
+        trace: dict[str, Any],
+        model: str,
+        system: str,
+        user: str,
+        *,
+        strong: bool,
+        timeout: float | None,
+        before_request: Callable[[], float] | None,
+        max_output_tokens: int | None,
+        reasoning_effort: str | None,
+    ) -> dict[str, Any]:
+        """``complete_json`` itself; fills ``trace`` (also kept in ``self.traces``)."""
+
         sampling_options = _sampling_options(model)
         request_options: dict[str, Any] = {} if timeout is None else {"timeout": timeout}
         if max_output_tokens is not None:
@@ -182,17 +223,19 @@ class NineRouterClient:
         # Local per call: a concurrent call on the same client must not reset this count.
         http_calls = 0
         started = time.perf_counter()
-        trace: dict[str, Any] = {
-            "trace_id": uuid.uuid4().hex,
-            "model": model,
-            "strong": strong,
-            "request_digest": hashlib.sha256((system + "\n" + user).encode("utf-8")).hexdigest()[
-                :16
-            ],
-            "system_chars": len(system),
-            "user_chars": len(user),
-            "fallback_without_json_format": False,
-        }
+        trace.update(
+            {
+                "trace_id": uuid.uuid4().hex,
+                "model": model,
+                "strong": strong,
+                "request_digest": hashlib.sha256(
+                    (system + "\n" + user).encode("utf-8")
+                ).hexdigest()[:16],
+                "system_chars": len(system),
+                "user_chars": len(user),
+                "fallback_without_json_format": False,
+            }
+        )
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": user},

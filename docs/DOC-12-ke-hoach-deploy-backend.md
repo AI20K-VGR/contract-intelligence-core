@@ -229,6 +229,19 @@ Mỗi lần cập nhật báo trước trong nhóm. Không cập nhật trong l�
 - Log ở `docker compose … logs`.
 - Backup 02:00 mỗi đêm.
 
+**Chi phí câu hỏi AI2 (`/query`)** (DEC-BE-AI2-01 D6, PR #135):
+
+- **Grafana:** `/admin/monitoring` → tab **"AI2: chi phí & tốc độ"** (dashboard `ai2-cost`, tách khỏi `ci-overview` của hệ thống và AI1). Hai phần:
+  - **Hỏi đáp** (`ai2_query_*`): số câu hỏi, tổng chi phí, chi phí mỗi câu, thời gian trả lời P50/P95, số lần gọi LLM mỗi câu, chi phí và token theo model.
+  - **Tìm conflict** (`ai2_idp_*`, job xử lý hồ sơ): số job và tỷ lệ thành công, tổng chi phí, chi phí mỗi job, thời gian job P50/P95, thời gian từng chặng (nạp snapshot, nhận job, pipeline, lưu), thời gian và số lần gọi LLM theo thao tác, số conflict tìm được. Job chạy trong tiến trình con (`AI2_JOB_ISOLATION=process`) gửi bản tóm tắt qua pipe; tiến trình API ghi vào Prometheus.
+  Prometheus đọc `ai2-service:9109` (`AI2_METRICS_PORT`). Cổng này chỉ nằm trong mạng `ci-monitoring` và không publish ra ngoài. Chỉ có số tổng, không có câu hỏi, hồ sơ, tenant hay người dùng. Chi phí là ước tính từ token × bảng giá (`AI2_LLM_PRICES_JSON` để đổi giá).
+- **Langfuse (từng câu hỏi):** mặc định tắt. Để bật:
+  1. Đặt `LANGFUSE_PUBLIC_KEY` và `LANGFUSE_SECRET_KEY` trong `deploy/.env.prod` (key của project Langfuse dùng chung với AI1, Đức Dũng giữ). `LANGFUSE_BASE_URL` mặc định `https://us.cloud.langfuse.com`.
+  2. `sudo deploy/deploy.sh`.
+  3. Hỏi một câu trong app, rồi lọc `name = ai2.query` trên Langfuse. Session là hồ sơ, user là người hỏi; mỗi lời gọi LLM/embedding có token và chi phí USD.
+- Model có giá chưa ghi trong code thì đặt `AI2_LLM_PRICES_JSON` (USD mỗi 1M token), ví dụ `{"gpt-5.6": {"input": 2, "output": 12}}`.
+- Chưa đo chi phí xử lý hồ sơ (`/jobs/idp`).
+
 **Người chịu trách nhiệm:**
 
 | Việc | Người |
@@ -236,6 +249,7 @@ Mỗi lần cập nhật báo trước trong nhóm. Không cập nhật trong l�
 | Máy chủ, deploy, backup | Chương |
 | Key AI1 | Đức Dũng |
 | Key AI2 | Văn Dũng / người Lead chỉ định |
+| Key Langfuse (AI1 và AI2) | Đức Dũng |
 | Quyết định cập nhật trước demo | Trang |
 
 ---

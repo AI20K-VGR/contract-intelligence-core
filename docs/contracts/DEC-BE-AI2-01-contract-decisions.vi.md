@@ -204,6 +204,12 @@ Kế hoạch AI2 (O6) ghi compose của nhánh AI2 để egress mặc định `t
 - Gửi câu hỏi, các đoạn nguồn được ToolGateway cho phép và quan hệ pair đã lưu; không gửi PDF. Prompt COMPOSE giới hạn 48.000 ký tự; nguồn có thể gồm dữ liệu các bên/tài khoản nếu liên quan câu hỏi. Vẫn áp dụng consent, scope, chữ ký và timeout LLM chung của query; không có ngân sách mới được duyệt.
 - Hệ quả: tăng chi phí/độ trễ so với L0 trả trực tiếp; thêm lần gửi nội dung tới provider khi consent cho phép. Provider lỗi thì giữ kết quả truy xuất. Theo phê duyệt của Lead, chi phí vẫn trong trần 30 USD/tháng và dữ liệu vẫn theo phạm vi D6: bản online chỉ dùng hợp đồng mẫu đã ẩn thông tin, consent từng hồ sơ và `AI2_QUERY_EGRESS_ALLOWED`, không gửi PDF. Test local không thay thế review/approve code của Chương và Đức Dũng trên SHA mới; Lead approve sau hai reviewer.
 
+**Theo dõi chi phí `/query` — Lead (Trang) chốt ngày 19/10/2026, [review PR #135](https://github.com/AI20K-VGR/contract-intelligence-core/pull/135).** Mục đích: biết chi phí theo người và theo hồ sơ để giữ trần 30 USD/tháng ở trên.
+- **Langfuse:** bật cho AI2 trên production. Mỗi câu hỏi là một trace `ai2.query` gồm `dossier_id` (session), `tenant_id`, `actor_id` (id Keycloak của người hỏi, user), số ký tự và loại câu hỏi, cùng model, token và chi phí USD của từng lời gọi LLM/embedding. **Không gửi** nội dung câu hỏi, prompt, câu trả lời hay hợp đồng.
+- **Nơi nhận:** Langfuse Cloud US (`https://us.cloud.langfuse.com`), dùng chung project với AI1, tách bằng `OTEL_SERVICE_NAME=contract-intelligence-ai2`. **Đức Dũng giữ key Langfuse** (`LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` trong `deploy/.env.prod`; để trống thì tắt).
+- **Grafana:** cùng token và chi phí, không có id hồ sơ/người, đi vào Prometheus (`ai2-service:9109`, chỉ trong `ci-monitoring`), hiện ở dashboard riêng `ai2-cost` (tab "AI2: chi phí & tốc độ" ở `/admin/monitoring`, tách khỏi AI1), cùng chi phí và thời gian của job tìm conflict (`ai2_idp_*`). Grafana không phụ thuộc Langfuse. AI2 dùng client Langfuse riêng (`app/llm/langfuse_client.py`), không import code AI1.
+- **Chưa đo:** lời gọi LLM khi xử lý hồ sơ (`/jobs/idp`), làm ở PR sau.
+
 **Lịch:** đóng băng code giữ tối 02/10 (DOC-11); deploy 03/10.
 
 **Việc cần làm:**
@@ -493,3 +499,4 @@ Các mục sau để lại cho Sprint 3:
 | 2026-10-16 | Thêm D13 (tiến độ trong bước, trường `progress` tuỳ chọn của `GET /jobs/{job_id}`): đề xuất của Backend theo yêu cầu frontend, chờ AI2 duyệt ở #116; `BE-AI2-PROCESSING-CONTRACT.vi.md` §3 ghi cùng trạng thái. Theo review của Trang ở PR #117 | Chương |
 | 2026-10-18 | PR #125: ghi phê duyệt Lead cho light reasoning `low`, pairs concurrency `5` có điều kiện budget, rollback về `1` khi 429 tăng; D13 và processing §3 đã chốt cho #116. COMPOSE được mô tả riêng và vẫn chờ Lead duyệt | Văn Dũng |
 | 2026-10-18 | Lead duyệt giữ COMPOSE trong PR #125 (review 5563062147), với điều kiện Chương review xong COMPOSE trên SHA mới; giữ trần 30 USD/tháng, phạm vi dữ liệu/consent D6. Vẫn chờ reviewer approve code cuối | Văn Dũng |
+| 2026-10-19 | D6: thêm mục "Theo dõi chi phí `/query`" theo Lead (Trang) chốt ở review PR #135: bật Langfuse cho AI2 trên production, chỉ gửi id (`dossier_id`, `tenant_id`, `actor_id`), số ký tự/loại câu hỏi, model, token và chi phí USD, không gửi nội dung; Langfuse Cloud US, chung project với AI1 (`OTEL_SERVICE_NAME=contract-intelligence-ai2`), Đức Dũng giữ key; Grafana nhận tổng token/chi phí qua `ai2-service:9109`; chi phí xử lý hồ sơ chưa đo | Đức Dũng |

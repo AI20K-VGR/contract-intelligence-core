@@ -8,9 +8,29 @@ import { ForbiddenPage } from './ForbiddenPage'
 
 const TITLE = 'Giám sát hệ thống'
 
+type DashboardView = 'system' | 'ai2'
+
+/** AI1 (OCR) and AI2 stay on separate dashboards, picked with these tabs. */
+const VIEWS: { id: DashboardView; label: string; hint: string }[] = [
+  {
+    id: 'system',
+    label: 'Hệ thống & AI1 (OCR)',
+    hint: 'Tình trạng máy chủ, việc đọc tài liệu (AI1), chi phí OCR và các dịch vụ.',
+  },
+  {
+    id: 'ai2',
+    label: 'AI2: chi phí & tốc độ',
+    hint: 'Chi phí và thời gian của AI2 khi trả lời câu hỏi và khi tìm conflict trong hồ sơ.',
+  },
+]
+
 type SessionState =
   | { kind: 'loading' }
-  | { kind: 'ready'; url: string; notice: string | null }
+  | {
+      kind: 'ready'
+      urls: Record<DashboardView, string>
+      notice: string | null
+    }
   | { kind: 'forbidden' }
   | { kind: 'error'; message: string }
 
@@ -57,7 +77,10 @@ export function MonitoringPage() {
         if (first) {
           setState({
             kind: 'ready',
-            url: withLightTheme(session.dashboardUrl),
+            urls: {
+              system: withLightTheme(session.dashboardUrl),
+              ai2: withLightTheme(session.ai2DashboardUrl),
+            },
             notice: null,
           })
         } else {
@@ -116,15 +139,40 @@ function MonitoringView({
 }) {
   usePageTitle(TITLE)
   const [frameKey, setFrameKey] = useState(0)
+  const [view, setView] = useState<DashboardView>('system')
+  const current = VIEWS.find((item) => item.id === view) ?? VIEWS[0]
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-space-sm pt-space-md">
       <div className="flex items-center justify-between gap-space-md">
-        <p className="flex items-center gap-space-xs font-body-sm text-body-sm text-secondary">
-          <MaterialIcon name="monitoring" className="text-[18px]" />
-          Tình trạng máy chủ, việc đọc tài liệu, chi phí và các dịch vụ (chỉ
-          xem). Chi tiết xử lý từng tài liệu xem ở trang Langfuse.
-        </p>
+        <div className="flex min-w-0 flex-wrap items-center gap-space-sm">
+          <div
+            role="tablist"
+            aria-label="Bảng giám sát"
+            className="flex items-center gap-1 rounded-lg bg-surface-container p-1"
+          >
+            {VIEWS.map((item) => (
+              <button
+                key={item.id}
+                role="tab"
+                type="button"
+                aria-selected={item.id === view}
+                className={`px-space-md py-1 rounded-md font-label-sm text-label-sm transition-colors ${
+                  item.id === view
+                    ? 'bg-surface-container-lowest text-primary shadow-sm'
+                    : 'text-secondary hover:text-primary'
+                }`}
+                onClick={() => setView(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <p className="flex items-center gap-space-xs font-body-sm text-body-sm text-secondary">
+            <MaterialIcon name="monitoring" className="text-[18px]" />
+            {current.hint} Chỉ xem; chi tiết từng lượt xem ở Langfuse.
+          </p>
+        </div>
         <button
           className="flex items-center gap-space-xs px-space-md py-1 rounded bg-brand-100 text-brand-700 hover:bg-brand-200 font-label-sm text-label-sm transition-colors disabled:text-outline disabled:cursor-not-allowed"
           type="button"
@@ -164,9 +212,9 @@ function MonitoringView({
 
       {state.kind === 'ready' ? (
         <iframe
-          key={frameKey}
-          title="Grafana — giám sát hệ thống"
-          src={state.url}
+          key={`${view}-${frameKey}`}
+          title={`Grafana — ${current.label}`}
+          src={state.urls[view]}
           className="min-h-0 w-full flex-1 rounded-xl border border-outline-variant/60 bg-surface-container-lowest shadow-sm"
           // No top-navigation: the dashboard can never redirect the app.
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
