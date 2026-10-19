@@ -128,6 +128,36 @@ echo "[deploy] AI2 preflight: $(tail -n 1 /tmp/ai2-preflight.log)"
 
 "${COMPOSE[@]}" up -d --remove-orphans
 
+# Caddy reads its config through single-file bind mounts. `git checkout`
+# replaces those files with new inodes, so a running ci-caddy keeps the old
+# content, and `up -d` sees no compose change to recreate it. A Caddyfile edit
+# then stays inactive (#129's 404 on /api/v1/auth/backchannel-logout did).
+# Restart Caddy when any mounted file differs, after `caddy validate` loads the
+# new config in a throwaway container (same mounts, env and image). validate
+# also provisions modules, so a missing TLS file or a bad module value stops the
+# deploy here, while the running Caddy keeps serving the old config. `adapt`
+# only parses and would let those through to a restart that never comes up.
+caddy_changed=0
+while IFS='|' read -r caddy_source caddy_target; do
+  [ -f "$caddy_source" ] || continue
+  host_sum=$(sha256sum "$caddy_source" | cut -d' ' -f1)
+  live_sum=$(docker exec ci-caddy sha256sum "$caddy_target" 2>/dev/null | cut -d' ' -f1 || true)
+  if [ "$host_sum" != "$live_sum" ]; then
+    echo "[deploy] Caddy config changed: $caddy_target"
+    caddy_changed=1
+  fi
+done < <(docker inspect -f '{{range .Mounts}}{{if eq .Type "bind"}}{{.Source}}|{{.Destination}}{{"\n"}}{{end}}{{end}}' ci-caddy)
+if [ "$caddy_changed" -eq 1 ]; then
+  if ! "${COMPOSE[@]}" run --rm --no-deps -T caddy \
+      caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/tmp/caddy-validate.log 2>&1; then
+    echo "[deploy] the new Caddy config does not load; Caddy keeps serving the old one" >&2
+    tail -n 20 /tmp/caddy-validate.log >&2 || true
+    exit 1
+  fi
+  "${COMPOSE[@]}" restart caddy
+  echo "[deploy] Caddy restarted with the new config"
+fi
+
 echo "[deploy] waiting for backend health"
 for _ in $(seq 1 60); do
   status=$(docker inspect -f '{{.State.Health.Status}}' ci-backend 2>/dev/null || echo starting)
@@ -200,6 +230,12 @@ code=$(curl -s -o /dev/null -w '%{http_code}' "$auth/admin/master/console/")
 case "$code" in  # 404 from Caddy, 403 when Cloudflare's WAF stops it first
   404|403) echo "admin console blocked publicly ($code): ok" ;;
   *) echo "WARNING: admin console answered $code" ;;
+esac
+# Keycloak reports ended sessions to the backend inside ci-network only (#129).
+code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -d 'logout_token=x' "$api/api/v1/auth/backchannel-logout")
+case "$code" in  # 404 from Caddy, 403 when Cloudflare's WAF stops it first
+  404|403) echo "back-channel logout blocked publicly ($code): ok" ;;
+  *) echo "WARNING: back-channel logout answered $code from the Internet (Caddy config not live?)" ;;
 esac
 code=$(curl -s -o /dev/null -w '%{http_code}' -H 'X-WEBAUTH-USER: admin' "$api/grafana/")
 [ "$code" = 401 ] && echo "grafana refuses anonymous callers: ok" || echo "WARNING: /grafana answered $code"

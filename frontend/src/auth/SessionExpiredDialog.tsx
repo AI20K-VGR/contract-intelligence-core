@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { openAuthChannel } from './authChannel'
 import { getUserManager } from './oidc'
 import {
   SESSION_EXPIRED_EVENT,
@@ -21,6 +22,11 @@ export function SessionExpiredDialog() {
   }
 
   const signInAgain = async () => {
+    // Các tab khác cũng bỏ phiên, để không tab nào giữ danh tính cũ khi đăng
+    // nhập lại bằng tài khoản khác (#133).
+    const channel = openAuthChannel(() => {})
+    channel.post('logout')
+    channel.close()
     try {
       await getUserManager()?.removeUser()
     } finally {
