@@ -408,9 +408,10 @@ Giữ nguyên thì hồ sơ có hai hợp đồng không bao giờ tới đượ
 Trạng thái: AI2 và lời gọi purge từ Backend đã được triển khai và kiểm chứng local
 trong thay đổi #131; chưa deploy production. Đây không phải ghi nhận phê duyệt mới của Lead.
 
-- [ ] Backend (Chương) duyệt bổ sung #131 và §7 BE-AI2.
+- [x] Backend (Chương) duyệt bổ sung #131 và §7 BE-AI2 ngày 19/10/2026
+  ([review PR #132](https://github.com/AI20K-VGR/contract-intelligence-core/pull/132#pullrequestreview-5566790702)).
 
-§7 BE-AI2 là đề xuất đang triển khai; chưa coi là hợp đồng đã chốt khi Backend chưa duyệt.
+§7 BE-AI2 đã chốt với Backend theo review trên; triển khai production và audit sau rollout vẫn còn phải thực hiện.
 
 - Theo D11/ADR-14, purge chỉ hỗ trợ PostgreSQL + pgvector; không xây luồng SQLite.
 - API `DELETE /api/v1/dossiers/{dossier_id}`, envelope scope `ai2.dossier.delete`,

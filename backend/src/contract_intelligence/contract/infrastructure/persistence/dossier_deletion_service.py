@@ -201,7 +201,8 @@ class DossierDeletionService:
             if orm is None:
                 return
             orm.purge_status = "completed"
-            orm.purge_completed_at = now
+            # Historical AI2 backfill must retain the original Backend audit time.
+            orm.purge_completed_at = orm.purge_completed_at or now
             orm.purge_error = None
             orm.name = "[deleted]"
             orm.metadata_json = None
@@ -260,7 +261,9 @@ class DossierDeletionService:
         if ledger is None:
             return
         ledger.purge_status = purge_status
-        ledger.purged_at = purged_at
+        # A later remote retry/backfill does not replace an existing purge time,
+        # including when the remote attempt temporarily changes status to failed.
+        ledger.purged_at = ledger.purged_at or purged_at
         ledger.evidence = {**(ledger.evidence or {}), **evidence}
 
     async def _load_dossier_orm(

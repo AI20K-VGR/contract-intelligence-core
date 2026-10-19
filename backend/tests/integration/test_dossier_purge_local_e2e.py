@@ -12,6 +12,7 @@ import json
 import os
 import socket
 import subprocess
+from datetime import timedelta
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -419,8 +420,9 @@ async def test_historical_completed_ledger_sweeps_real_ai2(purge_stack, monkeypa
 
     base, engine, settings, _ = purge_stack
     dossier = "dos_" + uuid4().hex
+    ledger_id = "led_" + uuid4().hex
     factory = async_sessionmaker(engine, expire_on_commit=False)
-    now = utcnow()
+    now = utcnow() - timedelta(days=7)
     async with factory() as session:
         session.add(
             DossierORM(
@@ -434,7 +436,7 @@ async def test_historical_completed_ledger_sweeps_real_ai2(purge_stack, monkeypa
         )
         session.add(
             DeletionLedgerORM(
-                id="led_" + uuid4().hex,
+                id=ledger_id,
                 tenant_id=TENANT,
                 dossier_id=dossier,
                 requested_by="usr_purge",
@@ -456,7 +458,8 @@ async def test_historical_completed_ledger_sweeps_real_ai2(purge_stack, monkeypa
         async with factory() as session:
             row = await session.get(DossierORM, dossier)
             assert row.purge_status == "failed"
-            assert row.purge_completed_at is not None
+            assert row.purge_completed_at == now
+            assert (await session.get(DeletionLedgerORM, ledger_id)).purged_at == now
         monkeypatch.setattr(settings, "ai2_base_url", base)
     await sweep_pending_purges()
     await sweep_pending_purges()
@@ -464,7 +467,10 @@ async def test_historical_completed_ledger_sweeps_real_ai2(purge_stack, monkeypa
         ledger = (
             (
                 await cx.execute(
-                    text("SELECT purge_status,evidence FROM deletion_ledger WHERE dossier_id=:id"),
+                    text(
+                        "SELECT purge_status,evidence,purged_at FROM deletion_ledger "
+                        "WHERE dossier_id=:id"
+                    ),
                     {"id": dossier},
                 )
             )
@@ -472,6 +478,12 @@ async def test_historical_completed_ledger_sweeps_real_ai2(purge_stack, monkeypa
             .one()
         )
         assert ledger["purge_status"] == "completed"
+        assert ledger["purged_at"] == now
+        assert (
+            await cx.execute(
+                text("SELECT purge_completed_at FROM dossier WHERE id=:id"), {"id": dossier}
+            )
+        ).scalar_one() == now
         assert ledger["evidence"]["blob_count"] == 7
         assert ledger["evidence"]["blobs_deleted"] == 7
         assert ledger["evidence"]["ai2"]["deleted"]["jobs"] == 1

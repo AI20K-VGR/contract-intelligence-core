@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from datetime import timedelta
 from io import BytesIO
 from unittest.mock import AsyncMock
 
@@ -122,6 +123,7 @@ async def test_tombstone_and_purge_keeps_shells_and_clears_content(
     ).scalar_one()
     assert dossier.deleted_at is not None
     assert dossier.purge_status == "completed"
+    assert dossier.purge_completed_at is not None
     assert dossier.name == "[deleted]"
     assert dossier.metadata_json is None
 
@@ -144,6 +146,7 @@ async def test_tombstone_and_purge_keeps_shells_and_clears_content(
     ).scalar_one()
     assert ledger.requested_by == "usr_1"
     assert ledger.purge_status == "completed"
+    assert ledger.purged_at is not None
     assert not await storage.exists("contracts/a.pdf")
 
 
@@ -222,7 +225,7 @@ async def test_historical_completed_purge_retries_only_ai2(session, monkeypatch)
     cleanup = AsyncMock(side_effect=AssertionError("Backend cleanup must not repeat"))
     monkeypatch.setattr(mod.DossierDeletionService, "_purge_db_content", cleanup)
     monkeypatch.setattr(mod.DossierDeletionService, "_collect_blob_uris", cleanup)
-    now = utcnow()
+    now = utcnow() - timedelta(days=7)
     for tenant, dossier_id, evidence in (
         ("tenant_old", "dos_old", {"blobs_deleted": 9, "blob_count": 9}),
         ("tenant_other", "dos_done", {"ai2": {"deleted": {"jobs": 1}}}),
@@ -254,7 +257,13 @@ async def test_historical_completed_purge_retries_only_ai2(session, monkeypatch)
     session.expire_all()
     dossier = await session.get(DossierORM, "dos_old")
     assert dossier.purge_status == "failed"
-    assert dossier.purge_completed_at is not None
+    assert dossier.purge_completed_at.replace(tzinfo=None) == now.replace(tzinfo=None)
+    failed_ledger = (
+        await session.execute(
+            select(DeletionLedgerORM).where(DeletionLedgerORM.dossier_id == "dos_old")
+        )
+    ).scalar_one()
+    assert failed_ledger.purged_at.replace(tzinfo=None) == now.replace(tzinfo=None)
     await session.commit()
     await mod.sweep_pending_purges()
     await mod.sweep_pending_purges()
@@ -265,6 +274,9 @@ async def test_historical_completed_purge_retries_only_ai2(session, monkeypatch)
         )
     ).scalar_one()
     assert ledger.purge_status == "completed"
+    assert ledger.purged_at.replace(tzinfo=None) == now.replace(tzinfo=None)
+    dossier = await session.get(DossierORM, "dos_old")
+    assert dossier.purge_completed_at.replace(tzinfo=None) == now.replace(tzinfo=None)
     assert ledger.evidence["blobs_deleted"] == 9
     assert ledger.evidence["blob_count"] == 9
     assert ledger.evidence["ai2"] == {"deleted": {"jobs": 7}}

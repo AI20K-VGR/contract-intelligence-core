@@ -260,8 +260,9 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
 
 ## 7. Xoá nội dung hồ sơ — issue #131
 
-**Trạng thái: chờ Backend (Chương) duyệt tại bổ sung #131 trong DEC-BE-AI2-01;
-chưa coi là hợp đồng đã chốt.**
+**Trạng thái: đã chốt với Backend (Chương) ngày 19/10/2026 tại
+[review PR #132](https://github.com/AI20K-VGR/contract-intelligence-core/pull/132#pullrequestreview-5566790702),
+ghi nhận tại bổ sung #131 trong DEC-BE-AI2-01.**
 
 Phần AI2 triển khai trên PostgreSQL + pgvector (ADR-14), không có chế độ purge SQLite.
 `DossierDeletionService` của Backend purge nội dung DB trước, rồi gọi API này;
@@ -271,6 +272,8 @@ thất bại; background task commit trạng thái failed khi transaction còn h
 `sweep_pending_purges()` thử lại. Evidence tích luỹ được lưu ở `deletion_ledger.evidence.ai2`.
 Sweeper xử lý cả ledger completed thiếu khoá `ai2`: chỉ gọi AI2 và bổ sung evidence,
 giữ số đếm Backend cũ; nếu lỗi thì failed và retry mà không dọn lại Backend.
+Giữ nguyên `purge_completed_at`/`purged_at` đã có của Backend, cả khi dọn bù AI2
+thất bại rồi thử lại; không thay mốc purge gốc bằng thời điểm backfill.
 
 **Endpoint:** `DELETE /api/v1/dossiers/{dossier_id}`; JSON body bắt buộc:
 

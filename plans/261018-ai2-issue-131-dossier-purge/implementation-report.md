@@ -131,5 +131,23 @@ AI2 phase, preserving prior Backend counts even after a failed retry.
 
 Production deployment, staging verification and count audit of the seven historical
 scopes require a subsequent rollout. The sweeper performs historical erasure after
-deployment; this local change does not deploy or close the issue. Backend approval
-of the proposed §7 contract remains unchecked for Chương to review.
+deployment; this local change does not deploy or close the issue. Backend (Chương)
+approved DEC #131 / §7 on 19/10 in
+[review 5566790702](https://github.com/AI20K-VGR/contract-intelligence-core/pull/132#pullrequestreview-5566790702).
+The documents now record that approval.
+
+## Follow-up review revision (19/10)
+
+Merged the latest develop, including #128, #129, #133 and #134. Historical AI2
+backfill now retains existing dossier `purge_completed_at` and ledger `purged_at`,
+including transport failures and subsequent successful retries. A first-time purge
+still records its completion time. Unit and local HTTP/PostgreSQL E2E assertions
+use a seven-day-old timestamp to detect accidental replacement by the current time.
+Staging performance with 202 pages / pairs concurrency 5 and the seven production
+scope audit remain rollout work, as the reviewers requested.
+
+Validation on this revision: **19 Backend focused tests passed**, including all
+**4 local HTTP/PostgreSQL E2E cases** with timestamp-preservation assertions;
+**15 AI1 golden/structure + Kafka tests passed** without API keys or AI2 database.
+Backend Ruff, MyPy and `git diff --check` passed. The earlier 1003-test Backend
+regression and 87-test AI2 run above belong to the previous review revision.
