@@ -15,6 +15,9 @@ one exception: the maintenance loop runs it for every tenant.
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -33,6 +36,7 @@ from sqlalchemy import (
     func,
     or_,
     select,
+    text,
     update,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -155,8 +159,41 @@ def aware(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
+# Fallback for databases without advisory locks (SQLite in tests and local
+# runs): one process only, which is all those setups have. Keyed by event loop
+# too, because an asyncio.Lock cannot be shared between loops.
+_local_owner_locks: dict[tuple[int, str, str], asyncio.Lock] = {}
+
+
+@asynccontextmanager
+async def owner_lock(session: AsyncSession, tenant_id: str, user_id: str) -> AsyncIterator[None]:
+    """Serialise "count the user's sessions, evict, open one" per user.
+
+    Without it, concurrent POST /uploads all read the same count and all open a
+    session, past the cap. On PostgreSQL this is a transaction-level advisory
+    lock, held by every API process until the request commits or rolls back:
+    the block must end with the commit. Elsewhere a process-local lock.
+    """
+    if session.get_bind().dialect.name == "postgresql":
+        await session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": f"upload_session:{tenant_id}:{user_id}"},
+        )
+        yield
+        return
+    key = (id(asyncio.get_running_loop()), tenant_id, user_id)
+    lock = _local_owner_locks.setdefault(key, asyncio.Lock())
+    async with lock:
+        yield
+
+
 class UploadSessionStore:
-    """Upload sessions of one tenant, on the request's database session."""
+    """Upload sessions of one tenant, on the request's database session.
+
+    Every change of ``status`` is one conditional UPDATE, so two requests on the
+    same session (DELETE and /complete, eviction and a chunk, two /complete)
+    cannot both act on what each read earlier: the loser finds 0 rows.
+    """
 
     def __init__(self, session: AsyncSession, tenant_id: str) -> None:
         self._session = session
@@ -295,6 +332,59 @@ class UploadSessionStore:
             existing.received_at = now
         row.updated_at = now
         await self._session.flush()
+
+    async def touch_open(self, upload_id: str) -> bool:
+        """Mark the session active, only if it is still ``open``.
+
+        Called before a chunk row is written. On PostgreSQL the UPDATE holds the
+        session row until the request commits, so a cancel or a claim that comes
+        later waits and then sees the chunk; one that came first makes this
+        return False and the chunk is refused.
+        """
+        result = await self._session.execute(
+            update(UploadSessionORM)
+            .where(
+                UploadSessionORM.id == upload_id,
+                UploadSessionORM.tenant_id == self._tenant_id,
+                UploadSessionORM.status == OPEN,
+            )
+            .values(updated_at=utcnow())
+            .returning(UploadSessionORM.id)
+            .execution_options(synchronize_session=False)
+        )
+        return result.scalar_one_or_none() is not None
+
+    async def cancel_if_open(
+        self, upload_id: str, *, idle_since: datetime | None = None
+    ) -> list[str] | None:
+        """Cancel the session if it is still ``open``; returns the chunk objects to delete.
+
+        ``idle_since``: only if no chunk arrived after it (eviction). None when
+        the session is no longer open (completed, being completed, cancelled)
+        or became active: nothing is changed then.
+        """
+        conditions = [
+            UploadSessionORM.id == upload_id,
+            UploadSessionORM.tenant_id == self._tenant_id,
+            UploadSessionORM.status == OPEN,
+        ]
+        if idle_since is not None:
+            conditions.append(UploadSessionORM.updated_at <= idle_since)
+        result = await self._session.execute(
+            update(UploadSessionORM)
+            .where(*conditions)
+            .values(status=CANCELLED, dossier_id=None, job_id=None, updated_at=utcnow())
+            .returning(UploadSessionORM.id)
+            .execution_options(synchronize_session=False)
+        )
+        if result.scalar_one_or_none() is None:
+            return None
+        paths = [chunk.object_path for chunk in await self.chunks(upload_id)]
+        await self._session.execute(
+            delete(UploadChunkORM).where(UploadChunkORM.upload_id == upload_id)
+        )
+        await self._session.flush()
+        return paths
 
     async def claim_for_completion(self, upload_id: str) -> bool:
         """Move ``open`` (or a stale ``completing``) → ``completing`` atomically.
@@ -454,5 +544,6 @@ __all__ = [
     "chunk_key",
     "declared_files",
     "expected_chunk_size",
+    "owner_lock",
     "sweep_expired_sessions",
 ]

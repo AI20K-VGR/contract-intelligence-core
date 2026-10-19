@@ -51,6 +51,7 @@ from contract_intelligence.contract.infrastructure.persistence.upload_session_st
     CANCELLED,
     COMPLETED,
     COMPLETING,
+    EVICT_IDLE_AFTER,
     OPEN,
     DeclaredFile,
     UploadSessionORM,
@@ -61,6 +62,7 @@ from contract_intelligence.contract.infrastructure.persistence.upload_session_st
     declared_files,
     delete_objects_quietly,
     expected_chunk_size,
+    owner_lock,
     stale_completing,
 )
 from contract_intelligence.contract.interfaces.api.dependencies import ContractServiceDep
@@ -292,34 +294,6 @@ async def open_upload_session(
     parse_upload_metadata(body.metadata)  # 422 now rather than at /complete
 
     store = UploadSessionStore(session, tenant_id)
-    # A session left behind (tab closed, reload: the frontend keeps upload_id in
-    # memory only) must not lock the user out until it expires. At the cap, open
-    # sessions idle for EVICT_IDLE_AFTER are cancelled to make room, least
-    # recently active first. A session still receiving chunks (another upload
-    # running in parallel) or in the middle of /complete is never taken: 429.
-    open_count = await store.count_open(user.user_id)
-    cap = settings.upload_sessions_per_user
-    if open_count >= cap:
-        evicted: list[str] = []
-        evicted_paths: list[str] = []
-        for old in await store.oldest_open(user.user_id, limit=open_count - cap + 1):
-            evicted_paths += await store.finish(old, status=CANCELLED, dossier_id=None, job_id=None)
-            evicted.append(old.id)
-        await session.commit()
-        if evicted:
-            logger.info("upload.session.evicted", upload_ids=evicted, user_cap=cap)
-        if await store.count_open(user.user_id) >= cap:
-            # Background tasks do not run on an error response: delete now.
-            await delete_objects_quietly(evicted_paths)
-            raise HTTPException(
-                status_code=429,
-                detail=(
-                    "Too many uploads in progress; finish or cancel one, "
-                    "or try again in a few minutes."
-                ),
-            )
-        background_tasks.add_task(delete_objects_quietly, evicted_paths)
-
     chunk_bytes = settings.upload_chunk_bytes
     ordered = contracts + [f for f in body.files if f.role == "annex"]
     files = [
@@ -332,14 +306,52 @@ async def open_upload_session(
         )
         for index, f in enumerate(ordered)
     ]
-    row = await store.create(
-        user_id=user.user_id,
-        metadata=body.metadata,
-        files=files,
-        chunk_bytes=chunk_bytes,
-        ttl_seconds=settings.upload_session_ttl_seconds,
-    )
-    await session.commit()
+    # A session left behind (tab closed, reload: the frontend keeps upload_id in
+    # memory only) must not lock the user out until it expires. At the cap, open
+    # sessions idle for EVICT_IDLE_AFTER are cancelled to make room, least
+    # recently active first. A session still receiving chunks (another upload
+    # running in parallel) or in the middle of /complete is never taken: 429.
+    # Count, evict and create run under one lock per user and end in one commit,
+    # so concurrent requests (several tabs) cannot all pass the same count.
+    cap = settings.upload_sessions_per_user
+    evicted: list[str] = []
+    evicted_paths: list[str] = []
+    async with owner_lock(session, tenant_id, user.user_id):
+        open_count = await store.count_open(user.user_id)
+        if open_count >= cap:
+            idle_since = utcnow() - EVICT_IDLE_AFTER
+            for old in await store.oldest_open(user.user_id, limit=open_count):
+                if open_count - len(evicted) < cap:
+                    break
+                # Conditional: skipped if a chunk or /complete reached it meanwhile.
+                paths = await store.cancel_if_open(old.id, idle_since=idle_since)
+                if paths is not None:
+                    evicted_paths += paths
+                    evicted.append(old.id)
+        if open_count - len(evicted) >= cap:
+            await session.commit()  # keeps the evictions and releases the lock
+            if evicted:
+                logger.info("upload.session.evicted", upload_ids=evicted, user_cap=cap)
+            # Background tasks do not run on an error response: delete now.
+            await delete_objects_quietly(evicted_paths)
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "Too many uploads in progress; finish or cancel one, "
+                    "or try again in a few minutes."
+                ),
+            )
+        row = await store.create(
+            user_id=user.user_id,
+            metadata=body.metadata,
+            files=files,
+            chunk_bytes=chunk_bytes,
+            ttl_seconds=settings.upload_session_ttl_seconds,
+        )
+        await session.commit()
+    if evicted:
+        logger.info("upload.session.evicted", upload_ids=evicted, user_cap=cap)
+        background_tasks.add_task(delete_objects_quietly, evicted_paths)
     logger.info(
         "upload.session.opened",
         upload_id=row.id,
@@ -394,6 +406,18 @@ async def put_chunk(
     object_path = await storage.upload_file(
         chunk_key(tenant_id, row.id, file_index, chunk_no), data
     )
+    if not await store.touch_open(row.id):
+        # Cancelled, claimed or completed after the check above.
+        await session.rollback()
+        current = await store.get_refreshed(upload_id, user.user_id)
+        if current is None or current.status in (CANCELLED, COMPLETED):
+            # Its chunk rows and objects are already gone, so this object would
+            # be left behind. A session being completed still reads this key
+            # (same name, same bytes): it is kept then.
+            await delete_objects_quietly([object_path])
+        if current is None:
+            raise _not_found()
+        raise _not_open(current)
     try:
         await store.save_chunk(
             row,
@@ -503,6 +527,9 @@ async def complete_upload_session(
             "Upload session is completing",
             details={"upload_id": upload_id, "status": COMPLETING, "dossier_id": None},
         )
+    # Read again now that no chunk can be added: a resend may have landed
+    # between the check above and the claim.
+    chunks = await store.chunks(row.id)
 
     uploaded: list[str] = []
     try:
@@ -594,8 +621,15 @@ async def cancel_upload_session(
     if row.status in (COMPLETED, COMPLETING):
         raise _not_open(row)
     if row.status == OPEN:
-        paths = await store.finish(row, status=CANCELLED, dossier_id=None, job_id=None)
+        paths = await store.cancel_if_open(row.id)
         await session.commit()
+        if paths is None:
+            # /complete (or another cancel) got there between the read and the
+            # update: report what happened instead of overwriting it.
+            current = await store.get_refreshed(upload_id, user.user_id)
+            if current is not None and current.status in (COMPLETED, COMPLETING):
+                raise _not_open(current)
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
         background_tasks.add_task(delete_objects_quietly, paths)
         logger.info("upload.session.cancelled", upload_id=upload_id, chunks=len(paths))
     return Response(status_code=status.HTTP_204_NO_CONTENT)

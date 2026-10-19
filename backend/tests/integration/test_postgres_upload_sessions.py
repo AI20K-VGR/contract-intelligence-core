@@ -24,12 +24,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from contract_intelligence.contract.infrastructure.persistence.upload_session_store import (
+    CANCELLED,
     COMPLETING,
     OPEN,
     DeclaredFile,
     UploadChunkORM,
     UploadSessionORM,
     UploadSessionStore,
+    owner_lock,
     sweep_expired_sessions,
 )
 from contract_intelligence.shared.base import utcnow
@@ -175,3 +177,110 @@ async def test_sweep_removes_expired_sessions_of_every_tenant_and_cascades_chunk
     async with factory() as session:
         assert (await session.execute(select(UploadSessionORM))).first() is None
         assert (await session.execute(select(UploadChunkORM))).first() is None
+
+
+@pytest.mark.asyncio
+async def test_concurrent_opens_by_one_user_stay_within_the_cap(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Count -> create under owner_lock, as POST /uploads does, from 5 connections at once."""
+
+    async def open_one() -> bool:
+        async with factory() as session:
+            store = UploadSessionStore(session, TENANT_ID)
+            async with owner_lock(session, TENANT_ID, USER_ID):
+                count = await store.count_open(USER_ID)
+                await asyncio.sleep(0.1)  # without the lock every request reads 0 here
+                if count >= 3:
+                    await session.rollback()
+                    return False
+                await store.create(
+                    user_id=USER_ID,
+                    metadata={"name": "pg"},
+                    files=[
+                        DeclaredFile(index=0, role="contract", filename="c.pdf", size=10, chunks=1)
+                    ],
+                    chunk_bytes=1024,
+                    ttl_seconds=3600,
+                )
+                await session.commit()
+                return True
+
+    results = await asyncio.gather(*(open_one() for _ in range(5)))
+    assert sorted(results) == [False, False, True, True, True]
+    async with factory() as session:
+        assert await UploadSessionStore(session, TENANT_ID).count_open(USER_ID) == 3
+        # Another user is not held by this user's lock.
+        async with owner_lock(session, TENANT_ID, "usr-other"):
+            pass
+
+
+@pytest.mark.asyncio
+async def test_cancel_and_complete_at_once_one_wins_and_the_other_changes_nothing(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    for _ in range(5):
+        upload_id = await _open_session(factory)
+
+        async def claim(upload_id: str = upload_id) -> bool:
+            async with factory() as session:
+                won = await UploadSessionStore(session, TENANT_ID).claim_for_completion(upload_id)
+                await asyncio.sleep(0.05)
+                await session.commit()
+                return won
+
+        async def cancel(upload_id: str = upload_id) -> bool:
+            async with factory() as session:
+                paths = await UploadSessionStore(session, TENANT_ID).cancel_if_open(upload_id)
+                await asyncio.sleep(0.05)
+                await session.commit()
+                return paths is not None
+
+        claimed, cancelled = await asyncio.gather(claim(), cancel())
+        assert claimed != cancelled
+        async with factory() as session:
+            status = (
+                await session.execute(
+                    select(UploadSessionORM.status).where(UploadSessionORM.id == upload_id)
+                )
+            ).scalar_one()
+        assert status == (COMPLETING if claimed else CANCELLED)
+
+
+@pytest.mark.asyncio
+async def test_a_chunk_written_while_cancelling_is_deleted_with_the_session(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """PUT holds the session row (touch_open) until it commits; the cancel waits for it."""
+    upload_id = await _open_session(factory)
+    async with factory() as put_session:
+        put_store = UploadSessionStore(put_session, TENANT_ID)
+        assert await put_store.touch_open(upload_id)
+
+        async def cancel() -> list[str] | None:
+            async with factory() as session:
+                paths = await UploadSessionStore(session, TENANT_ID).cancel_if_open(upload_id)
+                await session.commit()
+                return paths
+
+        cancelling = asyncio.create_task(cancel())
+        await asyncio.sleep(0.2)
+        assert not cancelling.done()  # blocked on the row the PUT holds
+        put_session.add(
+            UploadChunkORM(
+                upload_id=upload_id,
+                file_index=0,
+                chunk_no=0,
+                size_bytes=10,
+                sha256="0" * 64,
+                object_path="s3://dossiers/uploads/late/0/00000",
+                received_at=utcnow(),
+            )
+        )
+        await put_session.commit()
+
+    assert await cancelling == ["s3://dossiers/uploads/late/0/00000"]
+    async with factory() as session:
+        assert (await session.execute(select(UploadChunkORM))).first() is None
+        # And a chunk after the cancel is refused.
+        assert not await UploadSessionStore(session, TENANT_ID).touch_open(upload_id)

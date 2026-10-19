@@ -817,3 +817,151 @@ class TestSweep:
         assert left == {recent["upload_id"]}
         again = await client.post(f"/api/v1/uploads/{recent['upload_id']}/complete", headers=h)
         assert again.status_code == 202
+
+
+class TestConcurrency:
+    """Two requests on the same session, or on the same user's cap (review of 146054d1).
+
+    Each test stops one request right after it read the session and runs the
+    other one to the end in between, the order vdungx reproduced with barriers.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_cancel_that_lost_to_complete_keeps_the_dossier(
+        self, client: AsyncClient, headers: Any, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        h = headers()
+        pdf = make_pdf()
+        session = await _open(client, h, [("contract", "a.pdf", pdf)])
+        upload_id = session["upload_id"]
+        await _send_all(client, h, upload_id, [pdf])
+
+        real_cancel = upload_session_store.UploadSessionStore.cancel_if_open
+        completed: list[Any] = []
+
+        async def complete_first(self: Any, *args: Any, **kwargs: Any) -> Any:
+            # DELETE has read "open"; /complete now builds the dossier and commits.
+            completed.append(await client.post(f"/api/v1/uploads/{upload_id}/complete", headers=h))
+            return await real_cancel(self, *args, **kwargs)
+
+        monkeypatch.setattr(
+            upload_session_store.UploadSessionStore, "cancel_if_open", complete_first
+        )
+        cancel = await client.delete(f"/api/v1/uploads/{upload_id}", headers=h)
+
+        assert completed[0].status_code == 202
+        assert cancel.status_code == 409
+        assert _code(cancel) == "UPLOAD_COMPLETED"
+        state = (await client.get(f"/api/v1/uploads/{upload_id}", headers=h)).json()["data"]
+        assert state["status"] == "completed"
+        # A client that lost the first answer still gets its dossier.
+        again = await client.post(f"/api/v1/uploads/{upload_id}/complete", headers=h)
+        assert again.status_code == 202
+        assert again.json()["data"] == completed[0].json()["data"]
+
+    @pytest.mark.asyncio
+    async def test_concurrent_opens_never_pass_the_cap(
+        self, client: AsyncClient, headers: Any, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        h = headers()
+        real_count = upload_session_store.UploadSessionStore.count_open
+
+        async def slow_count(self: Any, user_id: str) -> int:
+            count = await real_count(self, user_id)
+            await asyncio.sleep(0.05)  # every request reads before any creates
+            return count
+
+        monkeypatch.setattr(upload_session_store.UploadSessionStore, "count_open", slow_count)
+        body = {"metadata": {}, "files": [{"role": "contract", "filename": "c.pdf", "size": 10}]}
+        responses = await asyncio.gather(
+            *(client.post("/api/v1/uploads", json=body, headers=h) for _ in range(5))
+        )
+
+        assert sorted(r.status_code for r in responses) == [201, 201, 201, 429, 429]
+
+    @pytest.mark.asyncio
+    async def test_a_session_that_became_active_is_not_evicted(
+        self,
+        client: AsyncClient,
+        headers: Any,
+        db: async_sessionmaker[AsyncSession],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        h = headers()
+        pdf = make_pdf()
+        idle = await _open(client, h, [("contract", "a.pdf", pdf)])
+        for _ in range(2):
+            await _open(client, h, [("contract", "c.pdf", b"x" * 10)])
+        async with db() as s:
+            await s.execute(
+                update(UploadSessionORM)
+                .where(UploadSessionORM.id == idle["upload_id"])
+                .values(updated_at=utcnow() - timedelta(minutes=6))
+            )
+            await s.commit()
+
+        real_oldest = upload_session_store.UploadSessionStore.oldest_open
+
+        async def chunk_arrives(self: Any, *args: Any, **kwargs: Any) -> Any:
+            candidates = await real_oldest(self, *args, **kwargs)
+            # Picked as idle, then a chunk comes in before it is cancelled.
+            sent = await _put(client, h, idle["upload_id"], 0, 0, _chunks(pdf)[0])
+            assert sent.status_code == 204
+            return candidates
+
+        monkeypatch.setattr(upload_session_store.UploadSessionStore, "oldest_open", chunk_arrives)
+        response = await client.post(
+            "/api/v1/uploads",
+            json={"metadata": {}, "files": [{"role": "contract", "filename": "c.pdf", "size": 10}]},
+            headers=h,
+        )
+
+        assert response.status_code == 429
+        state = (await client.get(f"/api/v1/uploads/{idle['upload_id']}", headers=h)).json()
+        assert state["data"]["status"] == "open"
+        assert state["data"]["files"][0]["received"] == [0]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("ended_by", ["cancel", "complete"])
+    async def test_a_chunk_arriving_after_the_session_ended_is_not_kept(
+        self,
+        ended_by: str,
+        client: AsyncClient,
+        headers: Any,
+        db: async_sessionmaker[AsyncSession],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        h = headers()
+        pdf = make_pdf()
+        parts = _chunks(pdf)
+        session = await _open(client, h, [("contract", "a.pdf", pdf)])
+        upload_id = session["upload_id"]
+        if ended_by == "complete":
+            await _send_all(client, h, upload_id, [pdf])
+
+        real_upload = storage.upload_file
+        written: list[str] = []
+
+        async def end_session_meanwhile(key: str, data: bytes) -> str:
+            path = await real_upload(key, data)
+            written.append(path)
+            # The PUT has read "open" and stored its object; the session ends now.
+            if ended_by == "cancel":
+                ended = await client.delete(f"/api/v1/uploads/{upload_id}", headers=h)
+                assert ended.status_code == 204
+            else:
+                monkeypatch.setattr(storage, "upload_file", real_upload)
+                ended = await client.post(f"/api/v1/uploads/{upload_id}/complete", headers=h)
+                assert ended.status_code == 202
+            return path
+
+        monkeypatch.setattr(storage, "upload_file", end_session_meanwhile)
+        late = await _put(client, h, upload_id, 0, 0, parts[0])
+
+        assert late.status_code == 409
+        assert _code(late) == ("UPLOAD_CANCELLED" if ended_by == "cancel" else "UPLOAD_COMPLETED")
+        async with db() as s:
+            assert (await s.execute(select(UploadChunkORM))).first() is None
+        # The late object is not left behind in MinIO.
+        with pytest.raises(FileNotFoundError):
+            await storage.download_object(written[0])
