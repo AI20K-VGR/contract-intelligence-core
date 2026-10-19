@@ -205,30 +205,28 @@ _JOIN_CONCURRENCY = 8
 async def _join_chunks(paths: list[str]) -> bytes:
     """Download the chunk objects (in order) and join them.
 
-    Chunks are downloaded with bounded concurrency and accumulated into a
-    ``bytearray`` as they arrive, draining completed tasks eagerly so the
-    memory footprint is proportional to ``_JOIN_CONCURRENCY`` × chunk size
-    rather than the full file (6×50 MiB = 300 MiB otherwise).
+    Chunks are downloaded with bounded concurrency and joined in submission
+    order: the result is in ``bytearray`` form, accumulated one chunk at a time
+    rather than allocating a list of every chunk first.  Memory footprint is
+    proportional to ``_JOIN_CONCURRENCY`` × chunk size, not the full file.
     """
     gate = asyncio.Semaphore(_JOIN_CONCURRENCY)
     result = bytearray()
+    pending: dict[int, bytes] = {}
+    next_index = 0
 
-    async def fetch(path: str) -> bytes:
+    async def fetch(path: str, index: int) -> tuple[int, bytes]:
         async with gate:
-            return await storage.download_object(path)
+            return index, await storage.download_object(path)
 
-    inflight: set[asyncio.Task[bytes]] = set()
-    for path in paths:
-        inflight.add(asyncio.create_task(fetch(path)))
-        if len(inflight) >= _JOIN_CONCURRENCY:
-            done, _ = await asyncio.wait(inflight, return_when=asyncio.FIRST_COMPLETED)
-            for task in done:
-                inflight.discard(task)
-                result.extend(task.result())
-
-    if inflight:
-        for chunk in await asyncio.gather(*inflight):
-            result.extend(chunk)
+    inflight = [asyncio.create_task(fetch(path, i)) for i, path in enumerate(paths)]
+    for task in asyncio.as_completed(inflight):
+        index, chunk = await task
+        pending[index] = chunk
+        # Drain in order: as soon as the next index is available, append it.
+        while next_index in pending:
+            result.extend(pending.pop(next_index))
+            next_index += 1
 
     return bytes(result)
 
