@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   deleteDossier,
   formatDocumentCounts,
   inspectDossierOcr,
+  listedDossierFacts,
   loadDocumentCounts,
   listDossiers,
   listDossiersErrorMessage,
@@ -540,9 +541,40 @@ export function MyDossiersPage() {
   const [pendingDelete, setPendingDelete] = useState<Dossier | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [ocrById, setOcrById] = useState<Record<string, OcrInspection>>({})
-  const [countsById, setCountsById] = useState<Record<string, DocumentCounts>>(
-    {},
-  )
+  // null: danh sách báo người dùng không được xem tài liệu của hồ sơ này.
+  const [countsById, setCountsById] = useState<
+    Record<string, DocumentCounts | null>
+  >({})
+  // Hồ sơ mà danh sách đã trả sẵn số tài liệu / tình trạng OCR (v3.3.0, #144):
+  // không gọi /documents hay /pages cho từng hồ sơ đó.
+  const listed = useRef({ counts: new Set<string>(), ocr: new Set<string>() })
+  /** Lấy số liệu danh sách đã trả, thay cho mỗi hồ sơ một lần gọi API. */
+  function applyListedFacts(summaries: DossierSummary[]) {
+    const facts = listedDossierFacts(summaries)
+    for (const id of Object.keys(facts.counts)) listed.current.counts.add(id)
+    for (const id of Object.keys(facts.ocr)) listed.current.ocr.add(id)
+    if (Object.keys(facts.counts).length > 0) {
+      setCountsById((current) => ({ ...current, ...facts.counts }))
+    }
+    applyInspections(Object.entries(facts.ocr))
+  }
+  function applyInspections(entries: (readonly [string, OcrInspection])[]) {
+    if (entries.length === 0) return
+    setOcrById((current) => {
+      const next = { ...current }
+      for (const [id, inspection] of entries) next[id] = inspection
+      return next
+    })
+    setRestartAt((current) => {
+      const next = { ...current }
+      for (const [id, inspection] of entries) {
+        if (inspection.state === 'running' || inspection.state === 'done') {
+          delete next[id]
+        }
+      }
+      return next
+    })
+  }
   const [restartAt, setRestartAt] = useState<Record<string, number>>({})
   /** Thông báo kết quả thao tác (đã xóa…), tự ẩn sau vài giây. */
   const [notice, setNotice] = useState<{
@@ -586,6 +618,7 @@ export function MyDossiersPage() {
     listDossiers({ limit: 100, offset: 0, signal: controller.signal })
       .then((result) => {
         if (controller.signal.aborted) return
+        applyListedFacts(result.items)
         setDossiers(
           result.items.map((item) =>
             dossierFromSummary(item, user?.id, user?.email),
@@ -607,7 +640,10 @@ export function MyDossiersPage() {
   }, [reloadKey])
 
   useEffect(() => {
-    const missing = dossiers.filter((item) => !countsById[item.id])
+    // Chỉ hồ sơ mà danh sách không trả document_counts (backend trước v3.3.0).
+    const missing = dossiers.filter(
+      (item) => !listed.current.counts.has(item.id) && !(item.id in countsById),
+    )
     if (missing.length === 0) return
     const controller = new AbortController()
     void Promise.all(
@@ -633,13 +669,15 @@ export function MyDossiersPage() {
   }, [dossiers])
 
   useEffect(() => {
-    if (dossiers.length === 0) return
+    // Chỉ hồ sơ mà danh sách không trả contract_ocr (backend trước v3.3.0).
+    const unlisted = dossiers.filter((item) => !listed.current.ocr.has(item.id))
+    if (unlisted.length === 0) return
     const controller = new AbortController()
     let stopped = false
 
     async function inspect() {
       const entries = await Promise.all(
-        dossiers.map(async (item) => {
+        unlisted.map(async (item) => {
           try {
             const inspection = await inspectDossierOcr(
               item.id,
@@ -658,24 +696,7 @@ export function MyDossiersPage() {
         }),
       )
       if (stopped) return
-      setOcrById((current) => {
-        const next = { ...current }
-        for (const entry of entries) {
-          if (!entry) continue
-          next[entry[0]] = entry[1]
-        }
-        return next
-      })
-      setRestartAt((current) => {
-        const next = { ...current }
-        for (const entry of entries) {
-          if (!entry) continue
-          if (entry[1].state === 'running' || entry[1].state === 'done') {
-            delete next[entry[0]]
-          }
-        }
-        return next
-      })
+      applyInspections(entries.filter((entry) => entry !== null))
     }
 
     void inspect()
@@ -727,6 +748,7 @@ export function MyDossiersPage() {
         limit: 100,
         offset: dossiers.length,
       })
+      applyListedFacts(result.items)
       setDossiers((current) => [
         ...current,
         ...result.items.map((item) =>

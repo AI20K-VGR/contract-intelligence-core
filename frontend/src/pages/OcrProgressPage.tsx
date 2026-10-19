@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   loadContractOcrPages,
+  loadDocumentOcrPages,
   rerunDossierOcr,
   restartDossierOcr,
   restartOcrErrorMessage,
@@ -119,17 +120,48 @@ export function OcrProgressPage() {
       })
   }, [dossierId, location.key, location.pathname, location.state, navigate])
 
+  // Hợp đồng của hồ sơ không đổi trong lúc đọc: chỉ hỏi /documents một lần,
+  // các lần hỏi lại (4 giây) chỉ gọi /pages (#144).
+  const contractDoc = useRef<{
+    dossierId: string
+    documentId: string
+    filename: string | null
+  } | null>(null)
+
   useEffect(() => {
     if (!dossierId) return
     const controller = new AbortController()
     let timer: number | undefined
     let stopped = false
 
+    async function loadOcr() {
+      const known = contractDoc.current
+      if (known?.dossierId === dossierId) {
+        return {
+          documentId: known.documentId,
+          filename: known.filename,
+          pages: await loadDocumentOcrPages(
+            known.documentId,
+            controller.signal,
+          ),
+        }
+      }
+      const ocr = await loadContractOcrPages(dossierId, controller.signal)
+      if (ocr.documentId) {
+        contractDoc.current = {
+          dossierId,
+          documentId: ocr.documentId,
+          filename: ocr.filename,
+        }
+      }
+      return ocr
+    }
+
     async function load() {
       try {
         const [detail, ocr] = await Promise.all([
           getDossierStructure(dossierId, controller.signal),
-          loadContractOcrPages(dossierId, controller.signal),
+          loadOcr(),
         ])
         if (stopped) return
         setName(detail.name)
