@@ -1341,6 +1341,10 @@ paths:
       description: |
         Áp dụng khi chất lượng OCR mặc định thấp, trang bị mờ, chữ viết tay hoặc chứa bảng phức tạp.
         Profiles hỗ trợ: `high_res_binarize`, `table_optimized`, `handwritten_vietnamese`.
+
+        Cần AI service DOC-05c (`AI_SERVICE_URL`). AI1 chỉ nhận lệnh OCR qua Kafka, theo cả
+        tài liệu và không có profile, nên production chưa có service này: API trả `503`
+        trước khi lưu gì. Đọc lại cả hồ sơ dùng `POST /dossiers/{dossier_id}/ocr`.
       operationId: requestDocumentReOcr
       x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
       requestBody:
@@ -1364,6 +1368,10 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '503':
+          description: |
+            Không có service đọc lại từng trang; không lưu yêu cầu nào.
+            `{"detail": "Hệ thống chưa hỗ trợ đọc lại từng trang. …"}`
 
   /documents/{document_id}/re-ocr-requests:
     parameters:
@@ -2323,7 +2331,12 @@ paths:
   /readyz:
     get:
       tags: [health]
-      summary: Readiness probe (DB + data dir)
+      summary: Readiness probe (DB + AI2)
+      description: |
+        `checks.db_ok`: `SELECT 1`. `checks.ai_service_ok`: AI2 trả lời `GET {AI2_BASE_URL}/healthz`
+        trong 3 giây (không gọi `/readyz` của AI2 vì nó gọi nhà cung cấp LLM).
+        `checks.ai_service_mode`: `live` hoặc `unavailable`. AI2 không trả lời thì `status` là
+        `degraded` (vẫn 200), trừ khi đặt `AI_REQUIRE_READY=1` (khi đó 503).
       operationId: readyz
       x-rbac: [OPERATOR, REVIEWER, ADMINISTRATOR]
       responses:
