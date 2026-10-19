@@ -67,6 +67,9 @@ def test_deploy_smoke_checks_the_api_on_the_app_origin() -> None:
     deploy = (ROOT / "deploy" / "deploy.sh").read_text(encoding="utf-8")
     smoke = deploy.split("[deploy] smoke test", 1)[1]
 
-    assert '"https://$app_host/api/v1/health"' in smoke
+    # /health is the backend's only health route and lives outside /api.
+    assert "/api/v1/health" not in smoke
+    assert '"https://$app_host/api/v1/dossiers"' in smoke
+    assert '[ "$code" = 401 ] && grep -q \'Authorization\' "$api_body"' in smoke
     assert "back-channel logout blocked on the app origin" in smoke
     assert '"https://$app_host/grafana/"' in smoke

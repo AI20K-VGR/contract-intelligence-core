@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { NOTIFICATIONS_ENABLED } from '../api/notifications'
 import {
@@ -93,6 +93,17 @@ const MONO_PAGES = [
   '/tien-trinh-phan-tich',
   '/admin/monitoring',
 ]
+
+/** Dưới mốc xl (1280px) menu đầy đủ chiếm gần 1/4 màn và cắt cột cuối của bảng. */
+const NARROW_VIEWPORT = '(max-width: 1279px)'
+
+function narrowViewport() {
+  return (
+    typeof window !== 'undefined' &&
+    !!window.matchMedia &&
+    window.matchMedia(NARROW_VIEWPORT).matches
+  )
+}
 
 /** Trang có mã hồ sơ trong đường dẫn: so theo phần đầu. */
 const MONO_PAGE_PREFIXES = ['/cau-truc/', '/tien-trinh-phan-tich/']
@@ -194,7 +205,15 @@ export function AppLayout({ role }: { role: AppRole }) {
     location.pathname === '/doi-soat-xung-dot' ||
     location.pathname === '/admin/monitoring'
   // Thu gọn: menu chỉ còn icon (rộng 4rem) để nhường chỗ cho nội dung.
-  const [collapsed, setCollapsed] = useState(false)
+  // Laptop nhỏ, hoặc màn to đặt phóng 125–150%, thì thu sẵn; vẫn mở lại được.
+  const [collapsed, setCollapsed] = useState(narrowViewport)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const query = window.matchMedia(NARROW_VIEWPORT)
+    const onChange = () => setCollapsed(query.matches)
+    query.addEventListener('change', onChange)
+    return () => query.removeEventListener('change', onChange)
+  }, [])
   const sideWidth = collapsed ? 'w-16' : 'w-64'
   const sideOffset = collapsed ? 'pl-16' : 'pl-64'
 
@@ -322,7 +341,14 @@ export function AppLayout({ role }: { role: AppRole }) {
                   : 'w-full min-h-screen bg-background px-gutter pb-space-lg pt-[calc(4rem+var(--spacing-space-lg))]'
               }
             >
-              <Outlet />
+              {fillViewport ? (
+                <Outlet />
+              ) : (
+                // Màn rất rộng (màn ngoài 2K trở lên): giữ dòng và bảng ở độ dài đọc được.
+                <div className="mx-auto w-full max-w-[1760px]">
+                  <Outlet />
+                </div>
+              )}
             </main>
           </div>
         </div>

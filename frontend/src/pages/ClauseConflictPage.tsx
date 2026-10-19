@@ -721,8 +721,8 @@ export function ClauseConflictPage() {
         ) : null}
       </div>
 
-      <div className="grid min-h-0 w-full flex-1 grid-cols-1 overflow-hidden rounded border border-outline-variant/50 bg-surface-container-low shadow-sm max-xl:grid-rows-[minmax(420px,1fr)_minmax(420px,1fr)] max-xl:overflow-y-auto xl:grid-cols-12">
-        <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-r border-outline-variant/60 xl:col-span-7">
+      <div className="grid min-h-0 w-full flex-1 grid-cols-1 overflow-hidden rounded border border-outline-variant/50 bg-surface-container-low shadow-sm max-lg:grid-rows-[minmax(420px,1fr)_minmax(420px,1fr)] max-lg:overflow-y-auto lg:grid-cols-12">
+        <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-r border-outline-variant/60 lg:col-span-7">
           {comparing ? (
             <div className="grid h-full min-h-0 flex-1 grid-rows-2">
               {located.map((pane, index) => (
@@ -788,7 +788,7 @@ export function ClauseConflictPage() {
             />
           )}
         </div>
-        <div className="flex min-h-[420px] flex-col bg-surface-container-lowest xl:col-span-5 xl:min-h-0">
+        <div className="flex min-h-[420px] flex-col bg-surface-container-lowest lg:col-span-5 lg:min-h-0">
           <div className="space-y-space-sm border-b border-outline-variant/40 bg-surface-bright p-space-md">
             <div className="relative">
               <MaterialIcon

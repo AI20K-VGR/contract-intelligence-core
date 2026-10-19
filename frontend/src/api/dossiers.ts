@@ -1,4 +1,10 @@
-import { ApiError, postMultipart, requestJson } from './client'
+import {
+  ApiError,
+  postMultipartWithProgress,
+  requestJson,
+  UploadStalledError,
+  type UploadOptions,
+} from './client'
 import {
   isNetworkError,
   NETWORK_MESSAGE,
@@ -137,7 +143,10 @@ export async function deleteDossier(id: string) {
   )
 }
 
-export async function createDossier(input: CreateDossierInput) {
+export async function createDossier(
+  input: CreateDossierInput,
+  options: UploadOptions = {},
+) {
   const form = new FormData()
   form.append('contract', input.contract)
   form.append('metadata', JSON.stringify(input.metadata))
@@ -145,7 +154,11 @@ export async function createDossier(input: CreateDossierInput) {
     form.append('annexes', annex)
   }
 
-  const { data } = await postMultipart<DossierCreated>(DOSSIERS_PATH, form)
+  const { data } = await postMultipartWithProgress<DossierCreated>(
+    DOSSIERS_PATH,
+    form,
+    options,
+  )
   return data
 }
 
@@ -286,6 +299,7 @@ export function createDossierErrorMessage(error: unknown) {
   if (error instanceof DOMException && error.name === 'AbortError') {
     return null
   }
+  if (error instanceof UploadStalledError) return error.message
   if (error instanceof ApiError) {
     if (error.code === 'DOSSIER_TOO_MANY_DOCUMENTS') return TOO_MANY_DOCUMENTS
     if (error.status === 401) {

@@ -274,8 +274,17 @@ if [ -n "$app_host" ]; then
   # The SPA calls the API on its own origin (deploy/frontend.caddy), so the
   # same checks hold there: the API answers, the back-channel path and anonymous
   # Grafana stay closed.
-  code=$(curl -s -o /dev/null -w '%{http_code}' "https://$app_host/api/v1/health")
-  [ "$code" = 200 ] && echo "API on the app origin: ok" || echo "WARNING: https://$app_host/api/v1/health answered $code"
+  # The backend's health route is /health, outside /api. An anonymous call to an
+  # /api route proves the app origin reaches the backend: its 401 is JSON, while
+  # a route Caddy missed would fall through to the SPA and answer 200 HTML.
+  api_body=$(mktemp)
+  code=$(curl -s -o "$api_body" -w '%{http_code}' "https://$app_host/api/v1/dossiers")
+  if [ "$code" = 401 ] && grep -q 'Authorization' "$api_body"; then
+    echo "API on the app origin: ok"
+  else
+    echo "WARNING: https://$app_host/api/v1/dossiers answered $code, expected the backend's 401"
+  fi
+  rm -f "$api_body"
   code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -d 'logout_token=x' "https://$app_host/api/v1/auth/backchannel-logout")
   case "$code" in
     404|403) echo "back-channel logout blocked on the app origin ($code): ok" ;;

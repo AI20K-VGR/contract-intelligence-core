@@ -1,28 +1,19 @@
-import { useRef, useState, type DragEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { MAX_DOSSIER_DOCUMENTS, TOO_MANY_DOCUMENTS } from '../api/dossiers'
 import {
-  createDossier,
-  createDossierErrorMessage,
-  MAX_DOSSIER_DOCUMENTS,
-  TOO_MANY_DOCUMENTS,
-  patchDossier,
-} from '../api/dossiers'
+  formatFileSize as formatSize,
+  getDossierUpload,
+  releaseDossierUpload,
+  startDossierUpload,
+} from '../api/dossierUpload'
 import { dossiersPath } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
 import { MaterialIcon } from '../components/icons'
-import { progressPath, splitPath } from '../data/dossiers'
+import { UPLOAD_PROGRESS_PATH } from '../data/dossiers'
 import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
-import {
-  asUploadPdf,
-  isImageFile,
-  isUploadable,
-  UPLOAD_ACCEPT,
-} from '../pdf/imageToPdf'
-import {
-  STRUCTURE_MODE_KEY,
-  structureModes,
-  type StructureMode,
-} from '../structure'
+import { isImageFile, isUploadable, UPLOAD_ACCEPT } from '../pdf/imageToPdf'
+import { structureModes, type StructureMode } from '../structure'
 
 type UploadStatus = 'idle' | 'uploading'
 
@@ -33,10 +24,20 @@ type PickedFile = {
   file: File
 }
 
-function formatSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+function pickedContract(file: File): PickedFile {
+  return {
+    key: `contract-${file.name}-${file.size}-${file.lastModified}`,
+    role: 'contract',
+    file,
+  }
+}
+
+function pickedAnnex(file: File): PickedFile {
+  return {
+    key: `annex-${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
+    role: 'annex',
+    file,
+  }
 }
 
 function FileCard({
@@ -138,14 +139,34 @@ export function CreateDossierPage() {
   const annexInputRef = useRef<HTMLInputElement>(null)
   const replaceKeyRef = useRef<string | null>(null)
 
-  const [name, setName] = useState('')
-  const [code, setCode] = useState('')
-  const [structureMode, setStructureMode] = useState<StructureMode | null>(null)
-  const [contract, setContract] = useState<PickedFile | null>(null)
-  const [annexes, setAnnexes] = useState<PickedFile[]>([])
-  const [mixedFile, setMixedFile] = useState(false)
+  // Quay lại từ trang tiến trình sau khi tải lên lỗi hoặc bị hủy: điền lại
+  // đúng những gì đã chọn để sửa rồi tải lại.
+  const location = useLocation()
+  const [retry] = useState(
+    () =>
+      getDossierUpload(
+        (location.state as { retryUpload?: string } | null)?.retryUpload,
+      ) ?? null,
+  )
+  const previous = retry?.input ?? null
+  // Tệp đã nằm trong state của form: store không giữ thêm một bản nữa.
+  useEffect(() => {
+    if (retry) releaseDossierUpload(retry.id)
+  }, [retry])
+  const [name, setName] = useState(previous?.name ?? '')
+  const [code, setCode] = useState(previous?.code ?? '')
+  const [structureMode, setStructureMode] = useState<StructureMode | null>(
+    previous?.structureMode ?? null,
+  )
+  const [contract, setContract] = useState<PickedFile | null>(() =>
+    previous ? pickedContract(previous.contract) : null,
+  )
+  const [annexes, setAnnexes] = useState<PickedFile[]>(() =>
+    previous ? previous.annexes.map(pickedAnnex) : [],
+  )
+  const [mixedFile, setMixedFile] = useState(previous?.splitPending ?? false)
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle')
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(retry?.error ?? null)
   const [dragOver, setDragOver] = useState(false)
 
   const files = contract ? [contract, ...annexes] : annexes
@@ -172,11 +193,7 @@ export function CreateDossierPage() {
   }
 
   function addContract(file: File) {
-    setContract({
-      key: `contract-${file.name}-${file.size}-${file.lastModified}`,
-      role: 'contract',
-      file,
-    })
+    setContract(pickedContract(file))
   }
 
   function addAnnexes(list: FileList | File[]) {
@@ -190,11 +207,7 @@ export function CreateDossierPage() {
         setError(UNSUPPORTED_FILE)
         return
       }
-      next.push({
-        key: `annex-${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`,
-        role: 'annex',
-        file,
-      })
+      next.push(pickedAnnex(file))
     }
     setError(null)
     setAnnexes((current) => [...current, ...next])
@@ -265,7 +278,7 @@ export function CreateDossierPage() {
     addAnnexes(dropped)
   }
 
-  async function handleUpload() {
+  function handleUpload() {
     if (busy) return
     const trimmedName = name.trim()
     if (!trimmedName) {
@@ -295,48 +308,19 @@ export function CreateDossierPage() {
 
     setError(null)
     setUploadStatus('uploading')
-    try {
-      // Ảnh được gói thành PDF một trang để backend và OCR dùng chung luồng PDF.
-      const contractPdf = await asUploadPdf(contract.file)
-      const annexPdfs = await Promise.all(
-        annexes.map((item) => asUploadPdf(item.file)),
-      )
-      const created = await createDossier({
-        contract: contractPdf,
-        metadata: splitPending
-          ? { name: trimmedName, split_pending: true }
-          : { name: trimmedName },
-        annexes: annexPdfs,
-      })
-      if (!created?.dossier_id) {
-        setError('Không tạo được hồ sơ. Vui lòng thử lại.')
-        setUploadStatus('idle')
-        return
-      }
-
-      const extra: Record<string, unknown> = {
-        privacy: 'private',
-        [STRUCTURE_MODE_KEY]: structureMode,
-      }
-      if (code.trim()) extra.code = code.trim()
-      try {
-        await patchDossier(created.dossier_id, { metadata: extra })
-      } catch {
-        // POST đã tạo hồ sơ. PATCH chỉ ghi field UI thừa so với OpenAPI.
-        // Loại cấu trúc vẫn được truyền qua state để trang cây dùng ngay.
-      }
-
-      navigate(
-        splitPending
-          ? splitPath(created.dossier_id)
-          : progressPath(created.dossier_id),
-        { state: { structureMode, name: trimmedName } },
-      )
-    } catch (cause) {
-      const message = createDossierErrorMessage(cause)
-      if (message) setError(message)
-      setUploadStatus('idle')
-    }
+    // Sang trang tiến trình ngay; % gửi tệp hiện ở đó, tạo xong hồ sơ thì
+    // trang đó tự chuyển sang mã hồ sơ (hoặc trang tách file).
+    const upload = startDossierUpload({
+      name: trimmedName,
+      code: code.trim(),
+      structureMode,
+      contract: contract.file,
+      annexes: annexes.map((item) => item.file),
+      splitPending,
+    })
+    navigate(UPLOAD_PROGRESS_PATH, {
+      state: { upload, structureMode, name: trimmedName },
+    })
   }
 
   return (
@@ -690,7 +674,7 @@ export function CreateDossierPage() {
                 disabled={busy || !canUpload}
                 type="button"
                 onClick={() => {
-                  void handleUpload()
+                  handleUpload()
                 }}
               >
                 {busy ? (
