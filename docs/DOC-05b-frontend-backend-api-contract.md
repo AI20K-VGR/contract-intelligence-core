@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu | **DOC-05b** / Contract Intelligence (PROD-01) |
-| Phiên bản / SemVer | **`v3.3.0`** — `GET /dossiers` thêm `document_counts`, `contract_ocr` cho mỗi hồ sơ (bỏ 3 lần gọi mỗi dòng); header `Server-Timing`. **`v3.2.0`** — tiến độ trong bước: `progress` trên `GET /runs/{id}/steps` và SSE `step.changed`; mã lỗi `AI1_NO_READABLE_PAGE`. **`v3.1.0`** — bật consent AI2 tự reindex hồ sơ, response thêm `ai2_reindex_queued`. **`v3.0.0`** — siết quyền trước pentest (#96): token không có role ứng dụng trả `403` thay vì thành `OPERATOR`; `/ai/jobs/{id}` chỉ `ADMINISTRATOR`; batch cancel/resume chỉ người tạo hoặc `ADMINISTRATOR`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
+| Phiên bản / SemVer | **`v4.0.0`** (breaking) — chia sẻ hồ sơ chỉ với người dùng có thật cùng tenant: `PUT /dossiers/{id}/access` kiểm tra người nhận mới trong Keycloak (`422 share_recipient_not_found`), `shared_with` tối đa 100; thêm `GET /users/lookup`; `GET /users/directory` bắt OPERATOR gửi `q` từ 3 ký tự; không gửi thư tới tên miền dành riêng (`422 email_domain_undeliverable` khi tạo người dùng hoặc gửi lại lời mời). **`v3.3.0`** — `GET /dossiers` thêm `document_counts`, `contract_ocr` cho mỗi hồ sơ (bỏ 3 lần gọi mỗi dòng); header `Server-Timing`. **`v3.2.0`** — tiến độ trong bước: `progress` trên `GET /runs/{id}/steps` và SSE `step.changed`; mã lỗi `AI1_NO_READABLE_PAGE`. **`v3.1.0`** — bật consent AI2 tự reindex hồ sơ, response thêm `ai2_reindex_queued`. **`v3.0.0`** — siết quyền trước pentest (#96): token không có role ứng dụng trả `403` thay vì thành `OPERATOR`; `/ai/jobs/{id}` chỉ `ADMINISTRATOR`; batch cancel/resume chỉ người tạo hoặc `ADMINISTRATOR`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
 | Trạng thái | Đã chốt — Sẵn sàng triển khai Frontend & Backend |
 | Owner | Tech Lead / Frontend Lead / Backend Lead |
 | Ngày hiệu lực | 17/09/2026 |
@@ -181,6 +181,9 @@ Mọi phản hồi lỗi (HTTP status >= 400) đều tuân theo chuẩn RFC 7807
 | `422` | `DOSSIER_TOO_MANY_DOCUMENTS` | **v1.2.0.** Hồ sơ quá 6 tài liệu, khi tải lên (`POST /dossiers`) hoặc sau khi tách (`POST /dossiers/{id}/split`). `details`: `{ limit, count }`. Giới hạn đếm **tài liệu** (mỗi file PDF tải lên, mỗi phần sau khi tách là một tài liệu), không đếm trang | Hiện `error.message`. Tải lên: "Hồ sơ tối đa 6 file PDF (1 hợp đồng và tối đa 5 phụ lục). Bạn đã chọn 7 file." Tách: "Sau khi tách, hồ sơ tối đa 6 tài liệu. Cách tách này làm hồ sơ có 7 tài liệu." (số lấy từ `details`) |
 | `413` | `detail`: `"<tên file>: file exceeds 50 MB"` | **v2.0.1.** Một file PDF vượt `UPLOAD_MAX_FILE_BYTES` (mặc định 50 MiB), ở `POST /dossiers` và `POST /dossiers/{id}/documents`. Backend trả JSON | Báo file nào quá lớn. Nên kiểm `file.size` trước khi gửi |
 | `413` | (không có, body là **HTML** của Cloudflare) | **v2.0.1.** Bản online (`api.contract-intelligence.tech`, sau Cloudflare gói Free): **cả request vượt 100 MB** bị Cloudflare chặn trước khi tới backend. `POST /dossiers` gửi hợp đồng và mọi phụ lục trong **một** request, nên bộ hồ sơ tổng trên 100 MB gặp lỗi này | Kiểm tổng dung lượng các file trước khi gửi, chừa vài MB cho phần đầu multipart. Gặp 413 mà body không phải JSON thì báo "Bộ hồ sơ vượt 100 MB, hãy bớt phụ lục hoặc nén file", đừng parse body |
+| `422` | `share_recipient_not_found` | **v4.0.0.** `PUT /dossiers/{id}/access`: một người nhận mới không phải người dùng đang bật cùng tenant với người gọi (sai email, khác đơn vị, bị khoá, không tồn tại). `details`: `{ rejected_emails: [...] }`. Không lưu gì và không gửi thư nào | Hiện `error.message` ("Không tìm thấy email này trong đơn vị của bạn, hoặc người này chưa kích hoạt tài khoản. Vui lòng kiểm tra lại."), đánh dấu các email trong `details.rejected_emails` |
+| `422` | `email_domain_undeliverable` | **v4.0.0.** `POST /users`, `POST /users/{id}/invite`: email thuộc tên miền không nhận thư (`.local`, `.test`, `.example`, `.invalid`, `localhost`, `example.com/net/org`). Không tạo người dùng, không gửi thư. `details`: `{ field }` ở `POST /users`, `{ email }` ở `/invite` | Hiện `error.message` ("Tên miền email không nhận được thư, vui lòng kiểm tra lại.") ở ô email |
+| `422` | `directory_query_required` | **v4.0.0.** `GET /users/directory` do OPERATOR gọi mà không có `q` hoặc `q` dưới 3 ký tự. `details`: `{ min_length: 3 }` | Chỉ gọi khi người dùng đã gõ đủ 3 ký tự; chia sẻ theo email thì dùng `GET /users/lookup` |
 | `422` | `contract_required` / `contract_not_unique` | **v1.2.0.** Hồ sơ không có, hoặc có nhiều hơn một, hợp đồng chính (`POST /dossiers/{id}/split`, `POST /dossiers/{id}/manifest/confirm`) | Yêu cầu chọn đúng một phần hoặc tài liệu là hợp đồng |
 | `500` | `INTERNAL_ERROR` | Lỗi phía server / database / AI service | Hiển thị toast lỗi và mã `X-Request-Id` để liên hệ IT |
 
@@ -579,7 +582,9 @@ Backend đã có cả hai endpoint và các trường dưới đây. Response b�
 
 | Phương thức | Endpoint | Phân quyền `x-rbac` | Chức năng |
 |:---:|---|:---:|---|
-| `GET` | `/users/directory?q=&role=&limit=20&offset=0` | `OPERATOR`, `ADMINISTRATOR` | Danh bạ thành viên cùng tenant để chọn người chia sẻ hồ sơ. `REVIEWER` nhận `403` |
+| `GET` | `/users/directory?q=&role=&limit=20&offset=0` | `OPERATOR`, `ADMINISTRATOR` | Danh bạ thành viên cùng tenant để chọn người chia sẻ hồ sơ. `REVIEWER` nhận `403`. **v4.0.0:** OPERATOR phải gửi `q` từ 3 ký tự |
+| `GET` | `/users/lookup?email=` | `OPERATOR`, `ADMINISTRATOR` | **v4.0.0.** Đúng một thành viên cùng tenant theo email chính xác, để chia sẻ bằng cách nhập email. `REVIEWER` nhận `403` |
+| `PUT` | `/dossiers/{id}/access` | `OPERATOR`, `ADMINISTRATOR` (chủ hồ sơ hoặc `ADMINISTRATOR`) | Đặt phạm vi và người được chia sẻ. **v4.0.0:** backend kiểm tra người nhận mới trong Keycloak |
 | `GET` | `/review-queue?limit=20&offset=0` | `REVIEWER`, `ADMINISTRATOR` | Hồ sơ còn mục review mở mà người gọi được thẩm định. `OPERATOR` nhận `403` |
 
 **`GET /users/directory`**
@@ -596,7 +601,62 @@ Backend đã có cả hai endpoint và các trường dưới đây. Response b�
 - Mỗi người chỉ có đúng 4 trường trên. `id` là giá trị `id` của từng phần tử `shared_with` trong `PUT /dossiers/{id}/access`.
 - `role=REVIEWER` để dựng ô "Giao cho người thẩm định". `q` tìm theo email hoặc tên hiển thị.
 - Chỉ trả người đang `active` và có `tenant_id` trong Keycloak trùng tenant của người gọi. User không có `tenant_id`, người chưa đặt mật khẩu (`invited`) và người bị khoá (`disabled`) không có trong danh bạ. Điểm này khác `GET /users` của `ADMINISTRATOR`, nơi user không có `tenant_id` vẫn hiện.
+- **v4.0.0:** OPERATOR phải gửi `q` có ít nhất 3 ký tự (sau khi bỏ khoảng trắng hai đầu), nếu không nhận `422 directory_query_required`. Như vậy người gọi API trực tiếp không lấy được cả danh sách tenant. `ADMINISTRATOR` vẫn gọi được khi để trống `q`.
 - Keycloak không trả lời thì trả `503` với mã `keycloak_unavailable`.
+
+**`GET /users/lookup?email=<email>`** (v4.0.0)
+
+```json
+{
+  "data": { "id": "8f1c…", "email": "rita@lexis.vn", "display_name": "Rita", "role": "REVIEWER" },
+  "meta": { "trace_id": null, "request_id": null, "page": null, "page_size": null, "total": null }
+}
+```
+
+- Khớp **chính xác** email, không phân biệt hoa thường, bỏ khoảng trắng hai đầu. Không tìm gần đúng như `q` của danh bạ.
+- Trả `200` khi có đúng một người `active` có `tenant_id` trùng tenant người gọi. Mọi trường hợp khác (khác tenant, bị khoá, chưa đặt mật khẩu, không tồn tại) đều trả `404` với mã `user_not_found` và cùng một câu, để API không cho biết email có trong hệ thống hay không.
+- `email` bắt buộc, 3–320 ký tự. Thiếu thì trả `422` của FastAPI.
+- Keycloak không trả lời thì trả `503` với mã `keycloak_unavailable`.
+
+**`PUT /dossiers/{id}/access`** (kiểm tra người nhận từ v4.0.0)
+
+```json
+{
+  "scope": "shared_out",
+  "shared_with": [
+    { "id": "8f1c…", "email": "rita@lexis.vn", "permission": "read", "expires_at": "2026-11-01T00:00:00+07:00" }
+  ]
+}
+```
+
+- Chỉ chủ hồ sơ hoặc `ADMINISTRATOR` cùng tenant; người khác nhận `403`. `scope`: `mine` (bỏ mọi chia sẻ), `shared_out`, `shared_in`. `permission`: `read` hoặc `edit` (mặc định `edit`). `expires_at` mới đặt hoặc vừa đổi phải ở tương lai, nếu không trả `422`.
+- **Người nhận mới** là phần tử có `id` chưa có trong danh sách đang lưu. Backend tra Keycloak theo `id`, hoặc theo `email` (khớp chính xác) khi `id` rỗng. Người đó phải đang bật (`active`, hoặc `invited` chưa đặt mật khẩu) và có `tenant_id` trùng tenant người gọi. `id`, `email`, `display_name`, `status` được lấy từ Keycloak; giá trị trong body bị bỏ qua.
+- Có người nhận mới không hợp lệ thì trả `422`, **không lưu gì và không gửi thư nào**:
+
+  ```json
+  {
+    "error": {
+      "code": "share_recipient_not_found",
+      "message": "Không tìm thấy email này trong đơn vị của bạn, hoặc người này chưa kích hoạt tài khoản. Vui lòng kiểm tra lại.",
+      "details": { "rejected_emails": ["ten-sai@lexis.vn"] }
+    },
+    "meta": { "trace_id": null, "request_id": null, "page": null, "page_size": null, "total": null }
+  }
+  ```
+
+  `rejected_emails` là email gửi lên, hoặc `id` khi phần tử không có email.
+- **Lượt chia sẻ cũ** gửi lại (cùng `id`) giữ nguyên `email`, `display_name`, `status` đang lưu, chỉ lấy `permission` và `expires_at` từ body, và không kiểm tra lại. Nhờ vậy chủ hồ sơ sửa người khác không bị chặn bởi một người đã bị khoá sau đó.
+- Nhiều phần tử trỏ tới cùng một người thì chỉ lưu phần tử đầu, và backend chỉ tra Keycloak một lần cho mỗi `id` hoặc email. Response `shared_with` là danh sách đã lưu.
+- `shared_with` tối đa 100 phần tử; nhiều hơn thì nhận `422` của FastAPI trước khi tra Keycloak.
+- Keycloak không trả lời thì trả `503 keycloak_unavailable` và không lưu gì.
+- Với `scope=shared_out`, người nhận mới nhận thư: thư đặt mật khẩu nếu còn `invited`, thư mở hồ sơ nếu không.
+
+**Không gửi thư tới tên miền không nhận thư** (v4.0.0)
+
+- Tên miền dành riêng `.local`, `.test`, `.example`, `.invalid`, `localhost`, `example.com`, `example.net`, `example.org` không có máy chủ nhận thư, nên thư gửi tới đó bị trả về hộp thư người gửi. Ba tài khoản demo trong `keycloak/realm-export.json` dùng `@ci.local`.
+- Chia sẻ (`PUT /dossiers/{id}/access`): vẫn lưu lượt chia sẻ, chỉ không gửi thư; backend ghi log `email.skipped_undeliverable`.
+- `POST /users` và `POST /users/{id}/invite`: trả `422 email_domain_undeliverable`, không tạo người dùng và không gửi thư.
+- Backend chưa kiểm tra bản ghi MX, và không thể biết trước một hộp thư như `ten-sai@gmail.com` có tồn tại hay không: máy chủ thư chỉ báo sau khi đã gửi. Báo "thư mời không gửi được" cần đọc thư bị trả về hoặc webhook của nhà cung cấp email; phần này để sau.
 
 **`GET /review-queue`**
 
@@ -981,6 +1041,7 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
+| `v4.0.0` | 18/10/2026 | Chia sẻ hồ sơ chỉ với người dùng có thật trong cùng tenant (mục "Chia sẻ hồ sơ & hàng chờ thẩm định" ở §5). `PUT /dossiers/{id}/access` (lần đầu ghi vào DOC-05b) kiểm tra mỗi người nhận mới trong Keycloak, trả `422 share_recipient_not_found` (`details.rejected_emails`) và không lưu, không gửi thư khi có người không hợp lệ; danh tính người nhận lấy từ Keycloak. Thêm `GET /users/lookup?email=`. `shared_with` tối đa 100 phần tử. Không gửi thư tới tên miền dành riêng (`.local`, `.test`...); `POST /users` và `POST /users/{id}/invite` trả `422 email_domain_undeliverable`. **Breaking** theo §8 vì thu hẹp hành vi đã công bố: `GET /users/directory` do OPERATOR gọi phải có `q` từ 3 ký tự (`422 directory_query_required`), và `PUT /access` từ chối người nhận trước đây được nhận. Frontend chia sẻ bằng email đã tra `q=<email>` nên không bị ảnh hưởng; nên chuyển sang `GET /users/lookup` |
 | `v3.3.0` | 17/10/2026 | `GET /dossiers`: mỗi hồ sơ thêm `document_counts` (`{contracts, annexes}`) và `contract_ocr` (`{document_id, filename, page_count, failed_pages, first_error}`), `null` khi người gọi không có quyền tương ứng: `CITATION_READ` cho `document_counts`, `QUERY` cho `contract_ocr` (mục "Số tài liệu và trạng thái OCR trong danh sách" ở Màn hình 3). Màn danh sách bỏ được 3 lần gọi cho mỗi dòng. Header `Server-Timing` và `Timing-Allow-Origin` (§1.2), staging và production tắt mặc định. Chỉ thêm trường và header, nên là MINOR |
 | `v3.2.0` | 16/10/2026 | Tiến độ trong bước: `progress` (`{done, total, unit}` hoặc `null`) trên mỗi phần tử `GET /runs/{id}/steps` và payload SSE `step.changed`, phát lại có giới hạn tần suất khi bước đang chạy (mục "Tiến độ trong bước" ở Màn hình 4). Mã lỗi job mới `AI1_NO_READABLE_PAGE`: AI1 không đọc được trang nào thì OCR thất bại thay vì `succeeded`. Chỉ thêm trường và mã lỗi, nên là MINOR |
 | `v3.1.0` | 15/10/2026 | `PATCH /dossiers/{id}/ai2-content-sharing-consent`: bật consent khi lượt chạy cuối đã qua AI2 thì backend tự reindex AI2 (như `POST /dossiers/{id}/ai2/reindex`); response thêm `ai2_reindex_queued` (boolean). Trước đây bật consent chỉ lưu giá trị và kết quả cũ (`RULE_ONLY_NO_CONSENT`) vẫn hiển thị. Thêm trường và hành vi, không bỏ gì, nên là MINOR |
@@ -1003,7 +1064,7 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 **Chưa đồng bộ (đã biết):** backend còn các route có trong `DOC-05-api-spec.yaml` hoặc `frontend/API-BE.md` nhưng chưa có trong DOC-05b. Sẽ đồng bộ ở bản sau, mỗi nhóm một lần:
 
 - Quản trị người dùng: `/users`, `/users/{id}`, `/users/{id}/disable|enable|invite`, `/admin/activity`, `/admin/storage`.
-- Hồ sơ: `DELETE /dossiers/{id}`, `PUT /dossiers/{id}/access` (chia sẻ), `POST /dossiers/{id}/ocr`, `/reprocess`, `/ai2/retry`, `/dossiers/{id}/facts`, `/conflicts`.
+- Hồ sơ: `DELETE /dossiers/{id}`, `POST /dossiers/{id}/ocr`, `/reprocess`, `/ai2/retry`, `/dossiers/{id}/facts`, `/conflicts`.
 - Hỏi đáp: `POST /dossiers/{id}/search`, `/ask`, `/query`.
 - Review: `GET|POST /clause-nodes/{id}/review`, `GET|POST /findings/{id}/review`.
 - Khác: `GET /runs/{id}/events` (SSE), `GET /documents/{id}/pages/{page_no}/image`, `GET /re-ocr-requests/{id}`, `/ai/jobs/{id}` (**v3.0.0:** `GET` và `DELETE` chỉ `ADMINISTRATOR`; huỷ lần xử lý của hồ sơ dùng `POST /runs/{run_id}/cancel`), `/readyz`.

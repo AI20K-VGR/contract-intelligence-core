@@ -2107,13 +2107,19 @@ paths:
         User không có `tenant_id` không được liệt kê (khác `GET /users` của ADMINISTRATOR, nơi user đó vẫn hiện).
         Người chưa đặt mật khẩu (`invited`) và người bị khoá (`disabled`) không có trong danh bạ.
         Sắp xếp theo email.
+
+        **v4.0.0:** OPERATOR phải gửi `q` có ít nhất 3 ký tự (sau khi bỏ khoảng trắng hai đầu),
+        nếu không nhận `422 directory_query_required`, để API không trả cả danh sách tenant.
+        ADMINISTRATOR vẫn gọi được khi để trống `q`. Để chia sẻ theo email, dùng `GET /users/lookup`.
       operationId: listUserDirectory
       x-rbac: [OPERATOR, ADMINISTRATOR]
       parameters:
         - name: q
           in: query
           required: false
-          description: Tìm theo email hoặc tên hiển thị (không phân biệt hoa thường)
+          description: |
+            Tìm theo email hoặc tên hiển thị (không phân biệt hoa thường).
+            Bắt buộc, tối thiểu 3 ký tự, khi người gọi là OPERATOR (v4.0.0).
           schema: { type: string }
         - name: role
           in: query
@@ -2138,8 +2144,106 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '422':
+          description: OPERATOR không gửi `q` hoặc `q` ngắn hơn 3 ký tự (`directory_query_required`, `details.min_length`)
         '503':
           description: Keycloak không trả lời (`keycloak_unavailable`)
+
+  /users/lookup:
+    get:
+      tags: [users]
+      summary: Tìm đúng một thành viên tenant theo email để chia sẻ hồ sơ
+      description: |
+        **v4.0.0.** Khớp **chính xác** email (không phân biệt hoa thường, bỏ khoảng trắng hai đầu),
+        không tìm gần đúng. Trả người đó khi có đúng một người `active` cùng `tenant_id` với người gọi.
+        Người ở tenant khác, bị khoá, chưa đặt mật khẩu (`invited`) hoặc không tồn tại đều trả
+        `404 user_not_found` như nhau, để API không cho biết email có trong hệ thống hay không.
+      operationId: lookupUserByEmail
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema: { type: string, minLength: 3, maxLength: 320 }
+      responses:
+        '200':
+          description: Thành viên khớp email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiEnvelopeUserDirectoryEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Không có thành viên `active` nào của tenant với email này (`user_not_found`)
+        '503':
+          description: Keycloak không trả lời (`keycloak_unavailable`)
+
+  /dossiers/{dossier_id}/access:
+    parameters:
+      - $ref: '#/components/parameters/DossierId'
+    put:
+      tags: [users]
+      summary: Đặt phạm vi và người được chia sẻ hồ sơ
+      description: |
+        Chỉ chủ hồ sơ hoặc ADMINISTRATOR cùng tenant (người khác nhận `403`).
+        `scope`: `mine` (bỏ mọi chia sẻ), `shared_out`, `shared_in`.
+
+        **v4.0.0, kiểm tra người nhận:** mỗi phần tử `shared_with` có `id` **chưa** có trong
+        danh sách đang lưu là người nhận mới. Backend tra Keycloak theo `id`, hoặc theo `email`
+        (khớp chính xác) khi `id` rỗng. Người đó phải đang bật (`active` hoặc `invited`) và có
+        `tenant_id` trùng tenant người gọi. `id`, `email`, `display_name`, `status` được lấy từ
+        Keycloak, không lấy từ body. Có người không hợp lệ thì trả `422 share_recipient_not_found`
+        kèm `details.rejected_emails` (email gửi lên, hoặc `id` khi không có email); khi đó
+        **không lưu gì và không gửi thư nào**.
+        Phần tử có `id` đã chia sẻ trước đó giữ nguyên `email`/`display_name`/`status` đang lưu
+        (chỉ lấy `permission`, `expires_at` từ body) và không kiểm tra lại, để chủ hồ sơ sửa
+        người khác không bị chặn. Nhiều phần tử trùng một người thì chỉ lưu phần tử đầu.
+
+        Người nhận mới (với `scope=shared_out`) nhận thư: thư đặt mật khẩu nếu còn `invited`,
+        thư mở hồ sơ nếu không. Địa chỉ thuộc tên miền dành riêng (`.local`, `.test`,
+        `.example`, `.invalid`, `localhost`, `example.com|net|org`) không được gửi thư
+        (log `email.skipped_undeliverable`), việc chia sẻ vẫn được lưu.
+      operationId: updateDossierAccess
+      x-rbac: [OPERATOR, ADMINISTRATOR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scope]
+              properties:
+                scope: { type: string, enum: [mine, shared_out, shared_in] }
+                shared_with:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [id]
+                    properties:
+                      id: { type: string, description: Keycloak user id; để rỗng thì tra theo `email` }
+                      email: { type: string }
+                      display_name: { type: string, description: Bỏ qua với người nhận mới (lấy từ Keycloak) }
+                      status: { type: string, enum: [invited, active, disabled], nullable: true }
+                      permission: { type: string, enum: [read, edit], default: edit }
+                      expires_at: { type: string, format: date-time, nullable: true }
+      responses:
+        '200':
+          description: Quyền đã lưu, `shared_with` theo danh tính đã kiểm tra
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: |
+            `share_recipient_not_found` (`details.rejected_emails`), hoặc `expires_at` mới đặt đã ở quá khứ
+        '503':
+          description: Keycloak không trả lời (`keycloak_unavailable`); không lưu gì
 
   # ─── Audit & Export ──────────────────────────────────────────────────────
   /dossiers/{dossier_id}/audit:
@@ -3887,6 +3991,12 @@ components:
         email: { type: string }
         display_name: { type: string }
         role: { type: string, enum: [OPERATOR, REVIEWER, ADMINISTRATOR] }
+
+    ApiEnvelopeUserDirectoryEntry:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/UserDirectoryEntry' }
 
     ApiEnvelopeUserDirectory:
       type: object

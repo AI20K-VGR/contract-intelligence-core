@@ -6,6 +6,13 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic_core import PydanticCustomError
+
+from contract_intelligence.shared.email_delivery import (
+    UNDELIVERABLE_MESSAGE,
+    email_domain,
+    is_undeliverable_email,
+)
 
 UserRole = Literal["OPERATOR", "REVIEWER", "ADMINISTRATOR"]
 UserStatus = Literal["invited", "active", "disabled"]
@@ -53,7 +60,10 @@ class UserCreateRequest(BaseModel):
     @classmethod
     def _lowercase_email(cls, value: object) -> object:
         if isinstance(value, str):
-            return value.strip().lower()
+            value = value.strip().lower()
+            # Before EmailStr, which rejects .local/.test with a generic English error.
+            if email_domain(value) and is_undeliverable_email(value):
+                raise PydanticCustomError("email_domain_undeliverable", UNDELIVERABLE_MESSAGE)
         return value
 
 
