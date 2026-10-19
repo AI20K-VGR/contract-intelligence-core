@@ -5,6 +5,7 @@ No paid call: usage comes from synthetic traces.
 """
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -136,6 +137,26 @@ def test_served_snapshot_grows_the_idp_series_made_at_startup(monkeypatch, metri
     assert _value("ai2_idp_cost_usd_total", **configured) - cost == pytest.approx(0.008)
     assert _value("ai2_idp_tokens_total", **configured, type="output") - tokens == 100
     assert REGISTRY.get_sample_value("ai2_idp_cost_usd_total", snapshot) is None
+
+
+def test_each_llm_operation_starts_at_zero_so_the_first_job_shows(metrics_on):
+    """A series born at the first job's value has no growth for increase() to see, so
+    the per-operation panels stayed empty after every restart (prod, 2026-10-19)."""
+    metrics._create_zero_series()
+    for operation in metrics._OPERATIONS:
+        for name in ("ai2_idp_llm_calls_total", "ai2_idp_llm_seconds_total"):
+            assert REGISTRY.get_sample_value(name, {"operation": operation}) is not None
+
+
+def test_every_operation_the_pipeline_sends_has_a_zero_series():
+    """A new ``operation=`` name must join _OPERATIONS, or its panel row stays empty."""
+    used = set()
+    for path in (AI_SERVICE / "app").rglob("*.py"):
+        used |= set(
+            re.findall(r'(?<![a-z_])operation="([a-z0-9_.:-]+)"', path.read_text(encoding="utf-8"))
+        )
+    assert used, "no operation= names found: the scan pattern is stale"
+    assert used <= set(metrics._OPERATIONS), sorted(used - set(metrics._OPERATIONS))
 
 
 def test_summary_prices_tokens_and_counts_findings():
