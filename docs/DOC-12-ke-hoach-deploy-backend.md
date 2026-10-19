@@ -67,6 +67,7 @@ flowchart LR
 |---|---|---|
 | Caddy | **Có: 80, 443** | Tự lấy và gia hạn chứng chỉ Let's Encrypt |
 | backend | Qua Caddy: `https://api-<ip>.sslip.io` | API cho frontend, `/docs`, SSE tiến độ |
+| backend (cùng origin với app) | Qua Caddy: `https://$APP_HOST/api/*` và `/grafana/*` (`deploy/frontend.caddy`) | Đường frontend dùng trên bản online (`VITE_API_BASE_URL=https://$APP_HOST`). Cùng origin nên trình duyệt không gửi CORS preflight trước mỗi request có `Authorization`: mỗi request bớt một lượt đi-về tới Cloudflare (≈0,5 s từ Việt Nam ở gói Free, đo 19/10). `/api/v1/auth/backchannel-logout` vẫn trả 404, CSP chỉ áp cho trang SPA. Host API vẫn mở cho máy dev và script |
 | Keycloak | Qua Caddy: `https://auth-<ip>.sslip.io` | Trang đăng nhập, OIDC. **`/admin` trả 404**, quản trị qua SSH tunnel |
 | backend-worker, ai1-worker, ai2-service | Không | AI1 ↔ backend qua Kafka. Backend → AI2 qua HTTP nội bộ có chữ ký HMAC |
 | backend-db, keycloak-db, Kafka, MinIO, mailpit | Không | Chỉ trong mạng Docker |
