@@ -610,6 +610,8 @@ services:
       AI2_EMBEDDING_DISCOVERY_ENABLED: ${AI2_EMBEDDING_DISCOVERY_ENABLED:-false}
       AI2_EMBEDDING_MODEL: ${AI2_EMBEDDING_MODEL:-text-embedding-3-small}
       AI2_SEMANTIC_CONTEXT_CAPS: '{"max_hops":2,"max_nodes":256,"max_context_tokens":32768,"max_output_tokens":8192,"max_llm_calls":20,"max_seconds":300}'
+      # LANGFUSE_* come from ai-service/.env; AI2's question traces get their own service name.
+      OTEL_SERVICE_NAME: contract-intelligence-ai2
       # glibc makes one heap per allocating thread (up to 8 x CPUs); two keep
       # fragmentation and the post-job footprint lower.
       MALLOC_ARENA_MAX: "2"

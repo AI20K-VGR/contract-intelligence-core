@@ -40,6 +40,7 @@ from app.contracts.wire import BeAi2ProcessingRequest, job_result_to_wire
 from app.db.engine import database_url, ensure_database, get_engine, validate_database_config
 from app.llm.client import DeadlineLLM, NineRouterClient, llm_status, query_llm_timeout_seconds
 from app.llm.embeddings import OpenAICompatibleEmbeddingClient
+from app.llm.observability import flush_langfuse, query_trace
 from app.ops.memory import release_memory
 from app.pipeline.ai1_ingest import ingest_files
 from app.pipeline.ai1_snapshot_adapter import (
@@ -119,6 +120,8 @@ async def _lifespan(_app: FastAPI):
         sweeper.cancel()
         with suppress(asyncio.CancelledError):
             await sweeper
+        # Send the questions' Langfuse traces still buffered before the process exits.
+        await asyncio.to_thread(flush_langfuse)
 
 
 app = FastAPI(title="VSF AI2 IDP", version="0.1.0", lifespan=_lifespan)
@@ -1443,23 +1446,39 @@ def query_from_backend(payload: dict) -> dict:
             query_store.put(record)
             task = classify_ask(query)
             task["pair_relations"] = _query_pair_relations(record, expected_digest)
-            result = QueryRouter(
-                query_store,
-                ToolGateway(query_store, signed_principal=service_envelope is not None),
-                llm=llm,
-                vector_recall=_vector_service(
-                    policy_flags["use_vector"],
-                    ProcessingRuntime(
-                        egress_allowed=policy_flags["egress_allowed"],
-                        max_embedding_tokens=query_embedding_token_cap(),
+            # One Langfuse trace per question: its LLM and embedding calls carry the cost.
+            with query_trace(
+                dossier_id=dossier_id,
+                tenant_id=record.tenant_id,
+                actor_id=service_envelope.actor_id if service_envelope is not None else None,
+                task_type=task.get("type"),
+                query_chars=len(query),
+            ) as query_span:
+                result = QueryRouter(
+                    query_store,
+                    ToolGateway(query_store, signed_principal=service_envelope is not None),
+                    llm=llm,
+                    vector_recall=_vector_service(
+                        policy_flags["use_vector"],
+                        ProcessingRuntime(
+                            egress_allowed=policy_flags["egress_allowed"],
+                            max_embedding_tokens=query_embedding_token_cap(),
+                        ),
                     ),
-                ),
-            ).query(
-                envelope,
-                query,
-                task,
-                policy_flags=policy_flags,
-            )
+                ).query(
+                    envelope,
+                    query,
+                    task,
+                    policy_flags=policy_flags,
+                )
+                if query_span is not None:
+                    query_span.update(
+                        output={
+                            "state": result.get("review_state") or result.get("state"),
+                            "used_llm": bool(result.get("used_llm", False)),
+                            "citations": len(result.get("citations") or []),
+                        }
+                    )
             citations = _enrich_citations(result.get("citations") or [], record)
             answer = result.get("answer")
             if answer is not None and not isinstance(answer, str):

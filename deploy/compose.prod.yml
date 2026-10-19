@@ -187,6 +187,14 @@ services:
       AI2_CONTRACT_GRAPH_AUTO_PASS: ${AI2_CONTRACT_GRAPH_AUTO_PASS:-false}
       AI2_QUERY_REQUIRE_SIGNATURE: "true"
       AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:?set in deploy/.env.prod}
+      # Langfuse: token usage and USD cost of each question (/query). Empty keys = off.
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-https://us.cloud.langfuse.com}
+      LANGFUSE_TRACING_ENVIRONMENT: ${LANGFUSE_TRACING_ENVIRONMENT:-production}
+      LANGFUSE_SAMPLE_RATE: ${LANGFUSE_SAMPLE_RATE:-1.0}
+      AI2_LLM_PRICES_JSON: ${AI2_LLM_PRICES_JSON:-}
+      OTEL_SERVICE_NAME: contract-intelligence-ai2
     # Internal only — the backend reaches it as http://ai2-service:8002.
     ports: !reset []
 
