@@ -5,8 +5,9 @@
 #
 # Metrics carry no contract content, OCR text, file names, user data or keys:
 # labels are engine / model / route template / status only (see
-# backend/src/contract_intelligence/monitoring/metrics.py and
-# ai-service/src/contract_ocr/infrastructure/prometheus_metrics.py).
+# backend/src/contract_intelligence/monitoring/metrics.py,
+# ai-service/src/contract_ocr/infrastructure/prometheus_metrics.py and
+# ai-service/app/llm/metrics.py).
 
 global:
   scrape_interval: 15s
@@ -59,3 +60,7 @@ scrape_configs:
   - job_name: ai1-worker
     static_configs:
       - targets: ["ai1-worker:9108"]
+
+  - job_name: ai2-service
+    static_configs:
+      - targets: ["ai2-service:9109"]
