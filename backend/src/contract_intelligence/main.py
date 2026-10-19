@@ -16,6 +16,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer
@@ -334,6 +336,26 @@ def create_app() -> FastAPI:
         app.add_middleware(ServerTimingMiddleware, allow_origins=settings.cors_allow_origins)
 
     # Exception handlers
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        # An email on a reserved domain (.local, .test...) gets its own code so the FE
+        # can say why; every other validation error keeps FastAPI's default body.
+        for error in exc.errors():
+            if error.get("type") == "email_domain_undeliverable":
+                return JSONResponse(
+                    status_code=422,
+                    content=ErrorResponse(
+                        error=ErrorPayload(
+                            code="email_domain_undeliverable",
+                            message=str(error.get("msg") or ""),
+                            details={"field": ".".join(str(p) for p in error.get("loc", ()))},
+                        ),
+                    ).model_dump(mode="json"),
+                )
+        return await request_validation_exception_handler(request, exc)
+
     @app.exception_handler(DomainException)
     async def domain_exception_handler(_: Request, exc: DomainException) -> JSONResponse:
         return JSONResponse(

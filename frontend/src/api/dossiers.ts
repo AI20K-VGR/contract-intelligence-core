@@ -251,6 +251,34 @@ export async function updateDossierAccess(
   return data
 }
 
+export const SHARE_EMAIL_NOT_FOUND =
+  'Không tìm thấy email này trong đơn vị của bạn, hoặc người này chưa kích hoạt tài khoản. Vui lòng kiểm tra lại.'
+
+/**
+ * Câu báo khi lưu quyền không được. Backend kiểm tra người nhận mới trong
+ * Keycloak trước khi lưu (DOC-05b v4.0.0): có người không hợp lệ hay Keycloak
+ * không trả lời thì không lưu gì, không gửi thư nào.
+ */
+export function accessSaveErrorMessage(cause: unknown) {
+  if (cause instanceof ApiError) {
+    if (cause.code === 'share_recipient_not_found') {
+      const rejected = (cause.details as { rejected_emails?: unknown } | null)
+        ?.rejected_emails
+      const emails = Array.isArray(rejected)
+        ? rejected.filter((item): item is string => typeof item === 'string')
+        : []
+      return emails.length > 0
+        ? `${SHARE_EMAIL_NOT_FOUND} (${emails.join(', ')})`
+        : SHARE_EMAIL_NOT_FOUND
+    }
+    if (cause.code === 'keycloak_unavailable') {
+      return 'Chưa kiểm tra được người nhận vì dịch vụ đăng nhập không phản hồi. Chưa lưu gì, vui lòng thử lại.'
+    }
+    if (cause.message) return cause.message
+  }
+  return 'Chưa lưu được quyền truy cập.'
+}
+
 export const MAX_DOSSIER_DOCUMENTS = 6
 export const TOO_MANY_DOCUMENTS = `Hồ sơ tối đa ${MAX_DOSSIER_DOCUMENTS} tài liệu`
 
