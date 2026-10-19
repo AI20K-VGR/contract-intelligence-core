@@ -103,6 +103,13 @@ class L3Ground:
                 allowed = {n["node_id"] for n in outline}
             except ToolBlocked:
                 allowed = set()
+        record = self.gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
+        if record is not None:
+            allowed.update(
+                f"page:{page.page_revision_id}"
+                for page in record.pages
+                if self.gateway._member_allowed(envelope, page.source_file_id)
+            )
 
         if task.get("type") in {
             "count_entity",
