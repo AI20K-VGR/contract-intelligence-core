@@ -128,6 +128,33 @@ echo "[deploy] AI2 preflight: $(tail -n 1 /tmp/ai2-preflight.log)"
 
 "${COMPOSE[@]}" up -d --remove-orphans
 
+# Caddy reads its config through single-file bind mounts. `git checkout`
+# replaces those files with new inodes, so a running ci-caddy keeps the old
+# content, and `up -d` sees no compose change to recreate it. A Caddyfile edit
+# then stays inactive (#129's 404 on /api/v1/auth/backchannel-logout did).
+# Restart Caddy when any mounted file differs, after checking the new config
+# parses in a throwaway container; a broken config leaves the old one serving.
+caddy_changed=0
+while IFS='|' read -r caddy_source caddy_target; do
+  [ -f "$caddy_source" ] || continue
+  host_sum=$(sha256sum "$caddy_source" | cut -d' ' -f1)
+  live_sum=$(docker exec ci-caddy sha256sum "$caddy_target" 2>/dev/null | cut -d' ' -f1 || true)
+  if [ "$host_sum" != "$live_sum" ]; then
+    echo "[deploy] Caddy config changed: $caddy_target"
+    caddy_changed=1
+  fi
+done < <(docker inspect -f '{{range .Mounts}}{{if eq .Type "bind"}}{{.Source}}|{{.Destination}}{{"\n"}}{{end}}{{end}}' ci-caddy)
+if [ "$caddy_changed" -eq 1 ]; then
+  if ! "${COMPOSE[@]}" run --rm --no-deps -T caddy \
+      caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile >/tmp/caddy-adapt.log 2>&1; then
+    echo "[deploy] the new Caddy config does not parse; Caddy keeps serving the old one" >&2
+    tail -n 20 /tmp/caddy-adapt.log >&2 || true
+    exit 1
+  fi
+  "${COMPOSE[@]}" restart caddy
+  echo "[deploy] Caddy restarted with the new config"
+fi
+
 echo "[deploy] waiting for backend health"
 for _ in $(seq 1 60); do
   status=$(docker inspect -f '{{.State.Health.Status}}' ci-backend 2>/dev/null || echo starting)
