@@ -1,7 +1,7 @@
 """Permanent dossier tombstones and database-enforced write fencing.
 
-The transaction advisory lock serializes short persistence transactions only,
-never model/provider calls. This also orders digest reference creation vs purge.
+Writers share the transaction advisory gate; purge takes it exclusively.
+Resource-specific locks protect immutable ownership without serializing tenants.
 """
 
 from alembic import op
@@ -39,7 +39,7 @@ def upgrade():
         CREATE INDEX IF NOT EXISTS idx_ai2_digest_owner ON ai2.dossier_resource_refs(snapshot_digest);
 
         CREATE FUNCTION ai2.purge_write_lock() RETURNS void LANGUAGE sql AS $$
-            SELECT pg_advisory_xact_lock(131, 2)
+            SELECT pg_advisory_xact_lock_shared(131, 2)
         $$;
         CREATE FUNCTION ai2.lock_dossier_statement() RETURNS trigger LANGUAGE plpgsql AS $$
         BEGIN PERFORM ai2.purge_write_lock(); RETURN NULL; END $$;
@@ -85,6 +85,11 @@ def upgrade():
                 RAISE EXCEPTION 'AI2_DOSSIER_DELETED' USING ERRCODE='23514';
             END IF;
             rid := COALESCE(row_data->>'session_id', row_data->>'run_id', row_data->>'job_id', d);
+            -- Shared erasure gates allow writers to overlap. Serialize only
+            -- competing registrations of the same globally identified resource.
+            IF kind IN ('sessions','durable_runs','jobs') THEN
+                PERFORM pg_advisory_xact_lock(hashtextextended('ai2.owner:' || kind || ':' || rid, 0));
+            END IF;
             IF kind IN ('sessions','durable_runs','jobs') AND EXISTS (
                 SELECT 1 FROM ai2.dossier_resource_refs r
                 WHERE r.resource_kind=kind AND r.resource_id=rid
@@ -135,6 +140,9 @@ def upgrade():
                     RAISE EXCEPTION 'AI2_DOSSIER_DELETED' USING ERRCODE='23514';
                 END IF;
                 IF TG_TABLE_NAME='jobs' THEN
+                    IF data->>'wire_json' IS NOT DISTINCT FROM to_jsonb(OLD)->>'wire_json' THEN
+                        data := data || '{"wire_json":"{}"}'::jsonb;
+                    END IF;
                     IF data->>'request_json'=to_jsonb(OLD)->>'request_json' THEN
                         data := data || '{"request_json":"{}"}'::jsonb;
                     END IF;

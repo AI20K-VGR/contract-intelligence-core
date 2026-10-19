@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Any
 
 import structlog
-from sqlalchemy import delete, select, text, update
+from sqlalchemy import and_, delete, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from contract_intelligence.conflict.infrastructure.persistence.orm import (
@@ -148,7 +148,22 @@ class DossierDeletionService:
         if orm.deleted_at is None:
             logger.warning("dossier.purge_skip_not_tombstoned", dossier_id=dossier_id)
             return
-        if orm.purge_status == "completed":
+        ledger = (
+            await self._session.execute(
+                select(DeletionLedgerORM).where(
+                    DeletionLedgerORM.tenant_id == self._tenant_id,
+                    DeletionLedgerORM.dossier_id == dossier_id,
+                )
+            )
+        ).scalar_one_or_none()
+        # Old completed ledgers predate AI2 erasure. Retry just the remote
+        # phase, even after a failed attempt, without repeating Backend cleanup.
+        backend_completed = (
+            orm.purge_completed_at is not None
+            or orm.purge_status == "completed"
+            or bool(ledger and (ledger.evidence or {}).get("backend_content_purged"))
+        )
+        if backend_completed and ledger is not None and "ai2" in (ledger.evidence or {}):
             return
 
         orm.purge_status = "running"
@@ -156,18 +171,31 @@ class DossierDeletionService:
         orm.updated_at = utcnow()
         await self._session.flush()
 
-        blob_uris = await self._collect_blob_uris(dossier_id)
+        blob_uris = [] if backend_completed else await self._collect_blob_uris(dossier_id)
         deleted_blobs = 0
         for uri in blob_uris:
             if await self._delete_blob(uri):
                 deleted_blobs += 1
 
         try:
+            if not backend_completed:
+                await self._purge_db_content(dossier_id)
+                # Persist the local phase before the remote call, so a committed
+                # transport failure preserves counts and retries just AI2.
+                await self._update_ledger(
+                    dossier_id,
+                    purge_status="running",
+                    purged_at=None,
+                    evidence={
+                        "backend_content_purged": True,
+                        "blobs_deleted": deleted_blobs,
+                        "blob_count": len(blob_uris),
+                    },
+                )
             ai2_evidence = await self._ai_client.purge_dossier(
                 tenant_id=self._tenant_id,
                 dossier_id=dossier_id,
             )
-            await self._purge_db_content(dossier_id)
             now = utcnow()
             orm = await self._load_dossier_orm(dossier_id, for_update=True)
             if orm is None:
@@ -183,7 +211,9 @@ class DossierDeletionService:
                 dossier_id,
                 purge_status="completed",
                 purged_at=now,
-                evidence={
+                evidence={"ai2": ai2_evidence}
+                if backend_completed
+                else {
                     "blobs_deleted": deleted_blobs,
                     "blob_count": len(blob_uris),
                     "ai2": ai2_evidence,
@@ -550,7 +580,13 @@ async def sweep_pending_purges() -> None:
     async with factory() as session:
         result = await session.execute(
             select(DeletionLedgerORM.tenant_id, DeletionLedgerORM.dossier_id).where(
-                DeletionLedgerORM.purge_status.in_(("pending", "failed"))
+                or_(
+                    DeletionLedgerORM.purge_status.in_(("pending", "failed")),
+                    and_(
+                        DeletionLedgerORM.purge_status == "completed",
+                        DeletionLedgerORM.evidence["ai2"].as_string().is_(None),
+                    ),
+                )
             )
         )
         pending = list(result.all())

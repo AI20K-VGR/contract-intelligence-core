@@ -311,9 +311,21 @@ async def run_worker() -> None:
                 envelope = await asyncio.to_thread(_handle_command, message)
                 if database_url():
                     payload = message.get("payload") or {}
-                    await asyncio.to_thread(require_live_dossier,
-                        str(message.get("tenant_id") or (payload.get("service_envelope") or {}).get("tenant_id") or "unknown"),
-                        str(payload.get("dossier_id") or ""))
+                    try:
+                        await asyncio.to_thread(require_live_dossier,
+                            str(message.get("tenant_id") or (payload.get("service_envelope") or {}).get("tenant_id") or "unknown"),
+                            str(payload.get("dossier_id") or ""))
+                    except DossierDeletedError:
+                        _processed.pop(str(message.get("event_id") or ""), None)
+                        envelope = _build_result_envelope(
+                            event_type=EVENT_FAILED, command=message,
+                            payload=_failed_wire(
+                                request_meta=payload,
+                                job_id=str((envelope.get("payload") or {}).get("job_id") or ""),
+                                code="AI2_DOSSIER_DELETED",
+                                message="Dossier has been deleted", retryable=False,
+                            ),
+                        )
                 await producer.send_and_wait(
                     results_topic,
                     json.dumps(envelope, default=str).encode("utf-8"),

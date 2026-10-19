@@ -5,7 +5,8 @@
 The signed AI2 dossier deletion API and its Backend integration are implemented.
 Purge uses PostgreSQL + pgvector; no SQLite deletion path is introduced. The user
 requested local verification before deployment. No staging/production data was
-read or deleted, and the seven historical production scopes remain a rollout task.
+read or deleted. After rollout, the sweeper automatically purges historical completed
+scopes missing AI2 evidence, including the seven reported production scopes.
 
 Backend now calls AI2 before marking its purge completed, validates cumulative
 count evidence and stores it in `deletion_ledger.evidence.ai2`. A remote failure
@@ -21,11 +22,43 @@ tombstone and count metadata remain.
 
 ## Verified locally
 
+### PR #132 review revision (19/10)
+
+- AI2 targeted regression: **87 passed**, covering PostgreSQL jobs/graph/pairs,
+  the **21 purge acceptance cases**, Kafka worker/results and job progress.
+- Backend focused regression: **19 passed**, including **4 local-only E2E** cases
+  using real HTTP + migrated PostgreSQL. Historical completed ledgers are tested
+  both directly and after transport failure; prior Backend counts survive retry.
+- Full Backend regression: **1003 passed, 14 deselected**, with separate disposable
+  PostgreSQL databases for CI invariants and lexicon; local E2E ran separately above.
+- New PostgreSQL checks prove five writers overlap while another writer holds its
+  gate, purge waits for an in-flight writer, competing owners cannot cross dossiers,
+  and a progress update does not pass unchanged 6 MiB wire JSON for parsing while
+  changed digest pins still register references. Kafka deletion before publication
+  emits the terminal deletion code and commits only after successful publication.
+- Ruff on changed Python files, Backend MyPy and `git diff --check` pass.
+
+Local synthetic lock comparison (PostgreSQL 16 + pgvector, five concurrent job
+INSERTs per batch, three batches per mode, each job has 3 MiB request JSON + 3 MiB
+wire JSON; only the advisory gate mode changes):
+
+| Gate mode | Batch durations (seconds) | Mean gate wait | Maximum gate wait |
+|---|---|---|---|
+| Exclusive writers | 0.825 / 0.700 / 0.506 | 0.278 s | 0.661 s |
+| Shared writers | 0.274 / 0.322 / 0.197 | 0.006 s | 0.011 s |
+
+These are local synthetic measurements, not staging throughput or a 202-page
+end-to-end processing run. Initial JSON decoding still costs CPU; shared gates
+remove global writer serialization. No production/staging data was accessed.
+The unmerged migration 0009 is revised in place; acceptance/E2E used fresh databases.
+
+### Original implementation baseline
+
 | Area | Evidence |
 |---|---|
 | LLM live | **2 passed** using the existing local gateway's configured credential; no key was printed, committed or changed |
 | AI2 acceptance | **17 passed** on real PostgreSQL 16 + pgvector, including upgrade from 0008 with existing content, shared/historical digests, tenant isolation, late writers, cancellation, audit, cleanup/recovery and claimed outbox |
-| Backend → AI2 E2E | **2 passed**: real AI2 HTTP process, migrated PostgreSQL, authenticated Backend DELETE, two files and OCR, ledger evidence, failed transport + sweeper retry, another dossier preserved, AI2 restart and idempotent DELETE |
+| Backend → AI2 E2E (local only; excluded from CI) | **2 passed**: real AI2 HTTP process, migrated PostgreSQL, authenticated Backend DELETE, two files and OCR, ledger evidence, failed transport + sweeper retry, another dossier preserved, AI2 restart and idempotent DELETE |
 | AI2 regression | Previous final run **2555 passed**, 6 live tests deselected; the 10 expensive golden tests omitted from that final rerun had passed in both earlier full runs |
 | Backend regression | **1001 passed, 12 deselected**, with dedicated PostgreSQL databases for invariants/role tests and lexicon; the new local E2E cases were run separately |
 | Lint | Ruff on changed Python files and `git diff --check` pass |
@@ -80,15 +113,23 @@ with "blocked by policy", so temporary directories are retained.
 ## Rollout and review
 
 Review both Backend and AI2 changes. Deploy migration 0009 with the new readers and
-writers before enabling purge calls; do not run an older writer after erasure is
-enabled. Downgrade is refused once any tombstone exists.
+writers before deploying Backend; do not run an older writer after erasure.
+Backend calls purge immediately after deployment; there is no enable flag.
+If AI2 lacks the endpoint, purge fails and the sweeper retries. Downgrade is
+refused once any tombstone exists.
 
-Short persistence transactions share an advisory gate to order all writers and
-shared-digest ownership vs purge. No LLM/embedding call holds this gate. Durable
+Short persistence transactions take a shared advisory gate; purge takes the same
+gate exclusively. Writers for different resources can overlap; immutable ownership
+uses resource-specific locks. No LLM/embedding call holds this gate. Durable
 outbox publication holds it for a bounded synchronous emitter callback, which must
 not re-enter AI2 persistence; purge waits for publication already in progress.
 Functional tests do not establish production throughput at higher concurrency.
 
-Production deployment, staging verification and erasure/count audit of the seven
-historical scopes require a subsequent rollout. This PR does not perform those
-actions or close the issue before the rollout evidence is available.
+Backend erases its DB content before calling AI2. Only both successful phases
+complete deletion. Completed historical ledgers without AI2 evidence run only the
+AI2 phase, preserving prior Backend counts even after a failed retry.
+
+Production deployment, staging verification and count audit of the seven historical
+scopes require a subsequent rollout. The sweeper performs historical erasure after
+deployment; this local change does not deploy or close the issue. Backend approval
+of the proposed §7 contract remains unchecked for Chương to review.

@@ -64,7 +64,7 @@ def purge_dossier(tenant_id: str, dossier_id: str, *, data_dir: Path) -> dict:
     ensure_database(engine)
     scope = {"tenant": tenant_id, "dossier": dossier_id}
     with engine.begin() as cx:
-        cx.execute(text("SELECT ai2.purge_write_lock()"))
+        cx.execute(text("SELECT pg_advisory_xact_lock(131, 2)"))
         cx.execute(text("""INSERT INTO ai2.dossier_tombstones(tenant_id,dossier_id,deleted_ms)
             VALUES (:tenant,:dossier,:now) ON CONFLICT DO NOTHING"""),
             {**scope, "now": int(time.time() * 1000)})
@@ -137,7 +137,7 @@ def purge_dossier(tenant_id: str, dossier_id: str, *, data_dir: Path) -> dict:
                 if candidate.exists():
                     raise OSError("AI2_PURGE_INCOMPLETE") from None
     with engine.begin() as cx:
-        cx.execute(text("SELECT ai2.purge_write_lock()"))
+        cx.execute(text("SELECT pg_advisory_xact_lock(131, 2)"))
         # Merge after re-reading: overlapping retries cannot lose accumulated evidence.
         evidence = json.loads(cx.execute(text("""SELECT evidence_json FROM ai2.dossier_tombstones
             WHERE tenant_id=:tenant AND dossier_id=:dossier FOR UPDATE"""), scope).scalar_one())

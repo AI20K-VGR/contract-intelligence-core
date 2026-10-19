@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 from io import BytesIO
+from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
@@ -201,3 +202,114 @@ async def test_purge_includes_uploaded_ai1_results(session: AsyncSession) -> Non
         for doc in ("doc_1", "doc_2")
         for run in ("run_1", "run_2")
     }
+
+
+@pytest.mark.asyncio
+async def test_historical_completed_purge_retries_only_ai2(session, monkeypatch):
+    from contract_intelligence.contract.infrastructure.persistence import (
+        dossier_deletion_service as mod,
+    )
+    from contract_intelligence.shared.persistence import session as session_mod
+
+    factory = async_sessionmaker(session.bind, expire_on_commit=False)
+    monkeypatch.setattr(session_mod, "get_session_factory", lambda: factory)
+    ai = StubAiServiceClient()
+    ai.purge_dossier = AsyncMock(
+        side_effect=[RuntimeError("AI2 unavailable"), {"deleted": {"jobs": 7}}]
+    )
+    monkeypatch.setattr("contract_intelligence.shared.ai.client.get_ai_service_client", lambda: ai)
+    monkeypatch.setattr("contract_intelligence.shared.storage.get_file_storage", FakeFileStorage)
+    cleanup = AsyncMock(side_effect=AssertionError("Backend cleanup must not repeat"))
+    monkeypatch.setattr(mod.DossierDeletionService, "_purge_db_content", cleanup)
+    monkeypatch.setattr(mod.DossierDeletionService, "_collect_blob_uris", cleanup)
+    now = utcnow()
+    for tenant, dossier_id, evidence in (
+        ("tenant_old", "dos_old", {"blobs_deleted": 9, "blob_count": 9}),
+        ("tenant_other", "dos_done", {"ai2": {"deleted": {"jobs": 1}}}),
+    ):
+        session.add(
+            DossierORM(
+                id=dossier_id,
+                tenant_id=tenant,
+                name="[deleted]",
+                deleted_at=now,
+                purge_completed_at=now,
+                purge_status="completed",
+            )
+        )
+        session.add(
+            DeletionLedgerORM(
+                id=new_ulid("led_"),
+                tenant_id=tenant,
+                dossier_id=dossier_id,
+                requested_by="usr_1",
+                tombstoned_at=now,
+                purged_at=now,
+                purge_status="completed",
+                evidence=evidence,
+            )
+        )
+    await session.commit()
+    await mod.sweep_pending_purges()
+    session.expire_all()
+    dossier = await session.get(DossierORM, "dos_old")
+    assert dossier.purge_status == "failed"
+    assert dossier.purge_completed_at is not None
+    await session.commit()
+    await mod.sweep_pending_purges()
+    await mod.sweep_pending_purges()
+    session.expire_all()
+    ledger = (
+        await session.execute(
+            select(DeletionLedgerORM).where(DeletionLedgerORM.dossier_id == "dos_old")
+        )
+    ).scalar_one()
+    assert ledger.purge_status == "completed"
+    assert ledger.evidence["blobs_deleted"] == 9
+    assert ledger.evidence["blob_count"] == 9
+    assert ledger.evidence["ai2"] == {"deleted": {"jobs": 7}}
+    assert ai.purge_dossier.await_count == 2
+    ai.purge_dossier.assert_awaited_with(tenant_id="tenant_old", dossier_id="dos_old")
+    cleanup.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_backend_content_removed_before_ai2_failure(session):
+    tenant, dossier_id = "tenant_order", "dos_order"
+    session.add(
+        DossierORM(
+            id=dossier_id,
+            tenant_id=tenant,
+            name="Secret",
+            deleted_at=utcnow(),
+            purge_status="pending",
+        )
+    )
+    session.add(
+        DeletionLedgerORM(
+            id=new_ulid("led_"),
+            tenant_id=tenant,
+            dossier_id=dossier_id,
+            requested_by="usr_1",
+            tombstoned_at=utcnow(),
+            purge_status="pending",
+        )
+    )
+    await session.commit()
+    ai = StubAiServiceClient()
+
+    async def fail_after_check(**_kwargs):
+        row = await session.get(DossierORM, dossier_id)
+        assert row.name == "[deleted]"
+        raise RuntimeError("AI2 unavailable")
+
+    ai.purge_dossier = AsyncMock(side_effect=fail_after_check)
+    svc = DossierDeletionService(
+        session=session, storage=FakeFileStorage(), ai_client=ai, tenant_id=tenant
+    )
+    with pytest.raises(RuntimeError, match="AI2 unavailable"):
+        await svc.purge(dossier_id)
+    await session.commit()
+    row = await session.get(DossierORM, dossier_id)
+    assert row.purge_status == "failed"
+    assert row.name == "[deleted]"

@@ -14,6 +14,7 @@ import socket
 import subprocess
 from io import BytesIO
 from pathlib import Path
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import httpx
@@ -403,3 +404,80 @@ async def test_backend_delete_calls_real_ai2_and_commits_evidence(
             assert response.json()["evidence"]["deleted"]["jobs"] == 1
     finally:
         app.dependency_overrides.pop(get_async_session, None)
+
+
+@pytest.mark.parametrize("retry_first", [False, True])
+async def test_historical_completed_ledger_sweeps_real_ai2(purge_stack, monkeypatch, retry_first):
+    from contract_intelligence.contract.infrastructure.persistence.deletion_ledger import (
+        DeletionLedgerORM,
+    )
+    from contract_intelligence.contract.infrastructure.persistence.dossier_deletion_service import (
+        DossierDeletionService,
+        sweep_pending_purges,
+    )
+    from contract_intelligence.shared.base import utcnow
+
+    base, engine, settings, _ = purge_stack
+    dossier = "dos_" + uuid4().hex
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    now = utcnow()
+    async with factory() as session:
+        session.add(
+            DossierORM(
+                id=dossier,
+                tenant_id=TENANT,
+                name="[deleted]",
+                deleted_at=now,
+                purge_completed_at=now,
+                purge_status="completed",
+            )
+        )
+        session.add(
+            DeletionLedgerORM(
+                id="led_" + uuid4().hex,
+                tenant_id=TENANT,
+                dossier_id=dossier,
+                requested_by="usr_purge",
+                tombstoned_at=now,
+                purged_at=now,
+                purge_status="completed",
+                evidence={"blob_count": 7, "blobs_deleted": 7},
+            )
+        )
+        await session.commit()
+    async with httpx.AsyncClient(trust_env=False, timeout=15) as ai:
+        await process(ai, base, dossier)
+    cleanup = AsyncMock(side_effect=AssertionError("Historical Backend content is already purged"))
+    monkeypatch.setattr(DossierDeletionService, "_purge_db_content", cleanup)
+    monkeypatch.setattr(DossierDeletionService, "_collect_blob_uris", cleanup)
+    if retry_first:
+        monkeypatch.setattr(settings, "ai2_base_url", "http://127.0.0.1:1")
+        await sweep_pending_purges()
+        async with factory() as session:
+            row = await session.get(DossierORM, dossier)
+            assert row.purge_status == "failed"
+            assert row.purge_completed_at is not None
+        monkeypatch.setattr(settings, "ai2_base_url", base)
+    await sweep_pending_purges()
+    await sweep_pending_purges()
+    async with engine.connect() as cx:
+        ledger = (
+            (
+                await cx.execute(
+                    text("SELECT purge_status,evidence FROM deletion_ledger WHERE dossier_id=:id"),
+                    {"id": dossier},
+                )
+            )
+            .mappings()
+            .one()
+        )
+        assert ledger["purge_status"] == "completed"
+        assert ledger["evidence"]["blob_count"] == 7
+        assert ledger["evidence"]["blobs_deleted"] == 7
+        assert ledger["evidence"]["ai2"]["deleted"]["jobs"] == 1
+        assert (
+            await cx.execute(
+                text("SELECT count(*) FROM ai2.jobs WHERE dossier_id=:id"), {"id": dossier}
+            )
+        ).scalar_one() == 0
+    cleanup.assert_not_awaited()

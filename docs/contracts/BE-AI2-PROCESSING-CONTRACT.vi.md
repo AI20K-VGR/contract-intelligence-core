@@ -260,12 +260,17 @@ Lý do và bằng chứng của từng mục nằm trong DEC-BE-AI2-01. Mã `Dn`
 
 ## 7. Xoá nội dung hồ sơ — issue #131
 
+**Trạng thái: chờ Backend (Chương) duyệt tại bổ sung #131 trong DEC-BE-AI2-01;
+chưa coi là hợp đồng đã chốt.**
+
 Phần AI2 triển khai trên PostgreSQL + pgvector (ADR-14), không có chế độ purge SQLite.
-`DossierDeletionService` của Backend gọi API này trước khi purge nội dung DB và
-đánh dấu `purge_status=completed`. HTTP client dùng canonical `ai2_base_url` và bộ
+`DossierDeletionService` của Backend purge nội dung DB trước, rồi gọi API này;
+chỉ đánh dấu `purge_status=completed` khi cả hai thành công. HTTP client dùng canonical `ai2_base_url` và bộ
 ký envelope hiện có. Response chưa completed hoặc thiếu evidence hợp lệ làm purge
 thất bại; background task commit trạng thái failed khi transaction còn hợp lệ để
 `sweep_pending_purges()` thử lại. Evidence tích luỹ được lưu ở `deletion_ledger.evidence.ai2`.
+Sweeper xử lý cả ledger completed thiếu khoá `ai2`: chỉ gọi AI2 và bổ sung evidence,
+giữ số đếm Backend cũ; nếu lỗi thì failed và retry mà không dọn lại Backend.
 
 **Endpoint:** `DELETE /api/v1/dossiers/{dossier_id}`; JSON body bắt buộc:
 
@@ -335,7 +340,9 @@ scope không có dữ liệu vẫn trả thành công. Không trả nội dung h
 - Tombstone `(tenant_id,dossier_id)` tồn tại lâu dài, kể cả scope chưa từng có dữ liệu.
   Job mới, message tới muộn và write muộn bị chặn ở DB. Job hiện tại mất lease/row;
   worker dừng hợp tác ở checkpoint và không thể commit kết quả trở lại.
-- Các transaction ghi ngắn dùng advisory lock chung `pg_advisory_xact_lock(131,2)`;
+- Các transaction ghi ngắn dùng `pg_advisory_xact_lock_shared(131,2)`, purge dùng
+  `pg_advisory_xact_lock(131,2)` độc quyền; các writer khác resource chạy song song.
+  Đăng ký owner dùng khoá riêng theo loại và ID resource để giữ owner bất biến;
   không giữ khoá trong lời gọi LLM/embedding. Khoá statement chạy trước khoá row;
   store nào SELECT FOR UPDATE phải lấy khoá purge trước. Đây là thứ tự khoá bắt buộc.
 - Durable outbox kiểm tra lại claim trước publish và giữ erasure gate đến khi
@@ -355,6 +362,8 @@ scope không có dữ liệu vẫn trả thành công. Không trả nội dung h
 **Triển khai:** chạy migration `0009_dossier_purge` trước khi sử dụng endpoint. Không
 downgrade bỏ fencing sau khi đã có tombstone; migration từ chối thao tác đó. Kiểm thử
 chấp nhận dùng PostgreSQL thật, gồm pgvector. Luồng Backend → AI2 đã kiểm chứng local
-với HTTP thật, hai file/OCR, retry và restart AI2. Sau triển khai, dùng endpoint
-để purge lại các scope đã completed trước đây (7 hồ sơ theo audit #131 ngày 18/10),
-rồi kiểm đếm DB/files để xác nhận. Phần này không tự chạy trên prod và không tự đóng issue.
+với HTTP thật, hai file/OCR, retry và restart AI2; E2E này chỉ chạy local, không chạy CI.
+Backend gọi purge ngay sau deploy, không có cờ enable; AI2 chưa có endpoint thì
+purge failed và sweeper thử lại. Deploy AI2 cùng migration/readers/writers trước Backend,
+không chạy worker cũ sau khi xoá. Sweeper tự dọn scope completed thiếu evidence AI2
+(7 hồ sơ theo audit #131 ngày 18/10); kiểm đếm DB/files sau rollout trước khi đóng issue.
