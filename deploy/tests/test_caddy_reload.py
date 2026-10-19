@@ -11,12 +11,14 @@ from test_keycloak_configure import BASH
 ROOT = Path(__file__).resolve().parents[2]
 START = "caddy_changed=0\n"
 END = 'echo "[deploy] waiting for backend health"'
+# The Prometheus block follows; it has its own test (test_prometheus_reload.py).
+CADDY_END = "# Prometheus mounts prometheus.yml"
 
 
 def _block() -> str:
     source = (ROOT / "deploy/deploy.sh").read_text(encoding="utf-8")
     assert source.index('"${COMPOSE[@]}" up -d --remove-orphans') < source.index(START)
-    return START + source.split(START, 1)[1].split(END, 1)[0]
+    return START + source.split(START, 1)[1].split(CADDY_END, 1)[0]
 
 
 def _run(
