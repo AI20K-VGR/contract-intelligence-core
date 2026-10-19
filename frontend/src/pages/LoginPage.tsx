@@ -16,6 +16,12 @@ export function LoginPage() {
   if (ready && user) {
     return <Navigate to={homePath(user.role)} replace />
   }
+  // Phiên nằm trong bộ nhớ tab (#130): F5 hay tab mới phải chờ silent SSO mới
+  // biết đã đăng nhập chưa. Như các route bảo vệ, chưa vẽ gì trong lúc chờ để
+  // người đã đăng nhập không thấy form đăng nhập nháy lên.
+  if (!ready) {
+    return null
+  }
 
   async function handleSsoSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
