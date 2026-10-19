@@ -610,10 +610,6 @@ services:
       AI2_EMBEDDING_DISCOVERY_ENABLED: ${AI2_EMBEDDING_DISCOVERY_ENABLED:-false}
       AI2_EMBEDDING_MODEL: ${AI2_EMBEDDING_MODEL:-text-embedding-3-small}
       AI2_SEMANTIC_CONTEXT_CAPS: '{"max_hops":2,"max_nodes":256,"max_context_tokens":32768,"max_output_tokens":8192,"max_llm_calls":20,"max_seconds":300}'
-      # LANGFUSE_* come from ai-service/.env; AI2's question traces get their own service name.
-      OTEL_SERVICE_NAME: contract-intelligence-ai2
-      # Aggregate question cost/tokens for Prometheus (internal port, not published).
-      AI2_METRICS_PORT: "9109"
       # glibc makes one heap per allocating thread (up to 8 x CPUs); two keep
       # fragmentation and the post-job footprint lower.
       MALLOC_ARENA_MAX: "2"
@@ -633,8 +629,6 @@ services:
       ci-network:
         aliases:
           - ai2
-      # Prometheus reaches AI2_METRICS_PORT through this network.
-      ci-monitoring: {}
     # Liveness only. /readyz probes the LLM provider: deploy.sh calls it once per
     # deploy; probing it every 15 s cost a paid request each time and let a
     # provider outage mark AI2 itself unhealthy.
@@ -707,8 +701,7 @@ services:
   #
   #   browser ─▶ backend /grafana/* ─(ADMINISTRATOR check, sets X-WEBAUTH-USER)─▶ grafana:3000
   #                                                         grafana ─▶ prometheus:9090
-  #   prometheus ─▶ node-exporter:9100, cadvisor:8080, backend:9101, ai1-worker:9108,
-  #                 ai2-service:9109
+  #   prometheus ─▶ node-exporter:9100, cadvisor:8080, backend:9101, ai1-worker:9108
   #
   # None of these publish a port. They share `ci-monitoring` (internal: no
   # route out), so only the backend — at its fixed IP — can reach Grafana with
