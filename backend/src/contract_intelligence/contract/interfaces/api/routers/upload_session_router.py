@@ -203,14 +203,36 @@ _JOIN_CONCURRENCY = 8
 
 
 async def _join_chunks(paths: list[str]) -> bytes:
-    """Download the chunk objects (in order) and join them."""
+    """Download the chunk objects (in order) and join them.
+
+    Chunks are accumulated in a ``bytearray`` as they arrive, rather than holding
+    every byte in memory simultaneously (``b"".join(await asyncio.gather(...))``).
+    For a 6×50 MiB dossier (300 × 1 MiB chunks) this keeps resident memory
+    proportional to ``_JOIN_CONCURRENCY`` × chunk size instead of the full file.
+    """
     gate = asyncio.Semaphore(_JOIN_CONCURRENCY)
+    result = bytearray()
 
     async def fetch(path: str) -> bytes:
         async with gate:
             return await storage.download_object(path)
 
-    return b"".join(await asyncio.gather(*(fetch(path) for path in paths)))
+    # Download concurrently (up to _JOIN_CONCURRENCY) but append in document order.
+    pending: set[asyncio.Task[bytes]] = set()
+    for path in paths:
+        pending.add(asyncio.create_task(fetch(path)))
+        if len(pending) >= _JOIN_CONCURRENCY:
+            done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+            for t in done:
+                result.extend(t.result())
+
+    # Drain the remaining tasks.
+    if pending:
+        done = await asyncio.gather(*pending)
+        for chunk in done:
+            result.extend(chunk)
+
+    return bytes(result)
 
 
 def _missing_chunks(
@@ -471,7 +493,9 @@ async def complete_upload_session(
     claimed = await store.claim_for_completion(row.id)
     await session.commit()
     if not claimed:
-        row = await store.get(upload_id, user.user_id)
+        # Re-fetch with populate_existing so the identity-map copy is refreshed
+        # from the DB (claim ran with synchronize_session=False).
+        row = await store.get_refreshed(upload_id, user.user_id)
         if row is not None and row.status == COMPLETED:
             return _created(row)
         raise UploadSessionConflict(
@@ -513,12 +537,17 @@ async def complete_upload_session(
     except BaseException:
         # Nothing of the dossier was committed: give the session back so the
         # client can fix the file (or retry) and complete again.
+        # If svc.commit() failed after stage_new_dossier uploaded files to MinIO,
+        # those objects are now orphans. Clean them up so they don't accumulate.
+        staged_paths = [staged.contract_path, *staged.annex_paths]
         await session.rollback()
         try:
             await store.reopen(upload_id)
             await session.commit()
         except Exception:
             logger.warning("upload.session.reopen_failed", upload_id=upload_id, exc_info=True)
+        if staged_paths:
+            background_tasks.add_task(delete_objects_quietly, staged_paths)
         raise
 
     if not staged.split_pending:

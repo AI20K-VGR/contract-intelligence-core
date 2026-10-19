@@ -167,7 +167,13 @@ class UploadSessionStore:
         return int((await self._session.execute(stmt)).scalar_one())
 
     async def oldest_open(self, user_id: str, *, limit: int) -> list[UploadSessionORM]:
-        """Up to ``limit`` of the user's ``open`` (not completing) sessions, oldest first."""
+        """Up to ``limit`` of the user's ``open`` (not completing) sessions, least-recently active first.
+
+        Ordering by ``updated_at`` avoids evicting a session that is still sending
+        chunks (the user's other tabs may be uploading in parallel).  A session that
+        received a chunk most recently stays alive; one that has been idle the
+        longest is evicted to make room.
+        """
         stmt = (
             select(UploadSessionORM)
             .where(
@@ -176,7 +182,7 @@ class UploadSessionStore:
                 UploadSessionORM.status == OPEN,
                 UploadSessionORM.expires_at > utcnow(),
             )
-            .order_by(UploadSessionORM.created_at, UploadSessionORM.id)
+            .order_by(UploadSessionORM.updated_at, UploadSessionORM.id)
             .limit(max(limit, 0))
         )
         return list((await self._session.execute(stmt)).scalars())
@@ -222,6 +228,24 @@ class UploadSessionStore:
             UploadSessionORM.id == upload_id,
             UploadSessionORM.tenant_id == self._tenant_id,
             UploadSessionORM.user_id == user_id,
+        )
+        return (await self._session.execute(stmt)).scalar_one_or_none()
+
+    async def get_refreshed(self, upload_id: str, user_id: str) -> UploadSessionORM | None:
+        """Like ``get`` but re-reads every column, overwriting the identity-map copy.
+
+        Use this after a statement that ran with ``synchronize_session=False`` (e.g.
+        ``claim_for_completion``) so that the returned object reflects the current DB
+        state instead of the stale cached one.
+        """
+        stmt = (
+            select(UploadSessionORM)
+            .where(
+                UploadSessionORM.id == upload_id,
+                UploadSessionORM.tenant_id == self._tenant_id,
+                UploadSessionORM.user_id == user_id,
+            )
+            .execution_options(populate_existing=True)
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
@@ -324,17 +348,24 @@ class UploadSessionStore:
 
 
 async def sweep_expired_sessions(session: AsyncSession, *, limit: int = 200) -> list[str]:
-    """Delete sessions past ``expires_at`` (any tenant); returns their chunk objects.
+    """Delete expired ``open`` and ``cancelled`` sessions (any tenant); returns their chunk objects.
 
     Commits. The caller deletes the returned MinIO objects afterwards: an object
     left behind by a failed delete is only storage, never reachable again.
+
+    ``completed`` sessions are kept (repeated /complete must still return the
+    dossier).  ``completing`` sessions are excluded: the claim timeout
+    (``COMPLETING_STALE_AFTER``) lets another request take over a dead one.
     """
     now = utcnow()
     expired = list(
         (
             await session.execute(
                 select(UploadSessionORM.id)
-                .where(UploadSessionORM.expires_at <= now)
+                .where(
+                    UploadSessionORM.expires_at <= now,
+                    UploadSessionORM.status.in_((OPEN, CANCELLED)),
+                )
                 .order_by(UploadSessionORM.expires_at)
                 .limit(limit)
             )

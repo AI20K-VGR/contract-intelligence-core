@@ -162,6 +162,7 @@ class StagedDossier:
     dossier_id: str
     job_id: str | None
     contract_path: str
+    annex_paths: list[str]
     split_pending: bool
 
 
@@ -201,14 +202,16 @@ async def stage_new_dossier(
         role=DocumentRole.CONTRACT,
         order_index=0,
     )
+    annex_paths: list[str] = []
     for index, annex in enumerate(annexes, start=1):
-        await ingest_upload_file(
+        _, _, annex_path = await ingest_upload_file(
             svc=svc,
             dossier_id=dossier.id,
             upload=annex,
             role=DocumentRole.ANNEX,
             order_index=index,
         )
+        annex_paths.append(annex_path)
 
     # A file holding a contract and its annexes (metadata.split_pending) waits
     # for POST /dossiers/{id}/split: no OCR yet, so no page is read twice.
@@ -222,6 +225,7 @@ async def stage_new_dossier(
         dossier_id=dossier.id,
         job_id=job.id if job else None,
         contract_path=contract_path,
+        annex_paths=annex_paths,
         split_pending=split_pending,
     )
 

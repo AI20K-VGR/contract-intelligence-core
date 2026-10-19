@@ -141,6 +141,20 @@ function isTransient(cause: unknown) {
   )
 }
 
+/**
+ * Lỗi đáng chờ rồi hỏi lại `/complete`: Cloudflare hoặc gateway trả lỗi tạm
+ * nhưng server có thể đã tiếp nhận request. Các lỗi 5xx khác (500, 501, 504…)
+ * thường là bug server, không retry vì có thể tạo hồ sơ trùng.
+ */
+const COMPLETE_RETRY_CODES = new Set([502, 503, 524])
+
+function isCompleteRetryable(cause: unknown) {
+  return (
+    cause instanceof ApiError &&
+    (cause.code === 'UPLOAD_COMPLETING' || COMPLETE_RETRY_CODES.has(cause.status))
+  )
+}
+
 /** `details` của lỗi /uploads: khung `{"error": {code, message, details}}` (DOC-05b §3.3). */
 function errorDetails(cause: ApiError): Record<string, unknown> {
   const body = cause.details as
@@ -273,7 +287,7 @@ export async function uploadDossierInChunks(
         // Request khác đang ghép phiên này: chờ rồi hỏi lại, đừng tải lại.
         const completing =
           cause instanceof ApiError && cause.code === 'UPLOAD_COMPLETING'
-        if (!completing && !isTransient(cause)) throw cause
+        if (!completing && !isCompleteRetryable(cause)) throw cause
         if (Date.now() > deadline) throw cause
       }
       // Request bị cắt hay phiên đang được ghép: hỏi xem đã thành hồ sơ chưa.
