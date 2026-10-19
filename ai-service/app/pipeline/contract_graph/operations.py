@@ -61,6 +61,19 @@ _REWRITE = re.compile(
     r"(?<!hoàn\s)thành\s+\S",
     re.I | re.S,
 )
+_UNCLEAR_OPERATION = re.compile(
+    r"\bkhong\s+(?:ghi|neu|xac dinh|noi)\s+ro\b.*\b(?:thay the|sua doi|bo sung)\b", re.I | re.S
+)
+_REFERENT_REPLACE = re.compile(
+    r"^(?:n\u1ed9i dung|quy \u0111\u1ecbnh|ph\u1ee5 l\u1ee5c|v\u0103n b\u1ea3n)\s+n\xe0y\s+"
+    r"thay th\u1ebf(?:\s+ri\xeang)?\s+(?P<target>.+)$",
+    re.I | re.S,
+)
+_ITEM_REPLACE = re.compile(
+    r"^thay(?:\s+\u0111\u1ed5i)?\s+(?P<item>.+?)\s+(?:\u1edf|t\u1ea1i)\s+"
+    r"(?P<target>.+?)\s+(?:th\xe0nh|b\u1eb1ng)\s+(?P<new>.+)$",
+    re.I | re.S,
+)
 # anchored heads, longest first (gold OPS order)
 _HEADS = (
     (re.compile(r"^sửa\s+đổi\s*,\s*bổ\s+sung(?![\wđ])", re.I), EdgeOp.SUBSTITUTION, "amend"),
@@ -172,10 +185,37 @@ def parse_operation(unit_text: str) -> Operation | None:
 
     span = head_of(unit_text)
     head = _nfc(span).strip()
-    if not head or _NEGATION.search(head):
+    if not head or _NEGATION.search(head) or _UNCLEAR_OPERATION.search(_fold_ascii(head)):
         return None
     masked = _mask_quotes(head)
     new_text = _new_text(unit_text)
+    if m := _ITEM_REPLACE.match(masked):
+        target = m.group("target")
+        # Split independent scopes in "Điều 16 và PL02", while preserving
+        # nested addresses such as "Điều 16 của PL02".
+        independent = re.split(r"\s+và\s+(?=PL\s*\d+\b)", target, flags=re.I)
+        expanded = [
+            re.sub(r"\bPL\s*(\d+)\b", lambda match: f"Phụ lục {match.group(1)}", part, flags=re.I)
+            for part in independent
+        ]
+        if len(expanded) > 1:
+            addresses = tuple(address for part in expanded for address in parse_addresses(part))
+            if addresses:
+                return Operation(
+                    EdgeOp.SUBSTITUTION, target.strip(), addresses, m.group("new"),
+                    None, False, "item_replace", span,
+                )
+        target = expanded[0]
+        return _operation(EdgeOp.SUBSTITUTION, target, m.group("new"), False, "item_replace", span)
+    if m := _REFERENT_REPLACE.match(masked):
+        return _operation(
+            EdgeOp.SUBSTITUTION,
+            m.group("target"),
+            new_text,
+            False,
+            "referent_replace",
+            span,
+        )
     if m := _SCOPE.match(masked):
         return _operation(
             EdgeOp.SCOPE_LIMIT,
@@ -441,3 +481,9 @@ def _line_end(text: str, pos: int) -> int:
 
 def _nfc(text: str) -> str:
     return unicodedata.normalize("NFC", text or "")
+
+
+def _fold_ascii(text: str) -> str:
+    value = unicodedata.normalize("NFD", (text or "").casefold())
+    value = "".join(ch for ch in value if unicodedata.category(ch) != "Mn")
+    return value.replace("đ", "d")

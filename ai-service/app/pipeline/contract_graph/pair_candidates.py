@@ -16,7 +16,7 @@ import math
 import re
 import unicodedata
 from collections import Counter, deque
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -391,7 +391,9 @@ def generate_pair_candidates(
             adjacent.update(_ordered(x, y, pos) for x, y in zip(members, members[1:]))
     if PairSource.EXPLICIT_REF in sources:
         for nid in eligible:
-            for target in _explicit_targets(index, by_id[nid], stats):
+            for target in _explicit_targets(
+                index, by_id[nid], stats, eligible=eligible, by_id=by_id, chains=chains
+            ):
                 if target in eligible_set:
                     add(nid, target, PairSource.EXPLICIT_REF)
                     referrers.setdefault(_ordered(nid, target, pos), nid)
@@ -447,9 +449,25 @@ def generate_pair_candidates(
             if len(key) >= MIN_CLAUSE_CHARS:
                 by_text.setdefault(key, []).append(nid)
         for members in by_text.values():
-            for i, x in enumerate(members):
-                for y in _window(members, i, stats):
+            if len(members) <= _GROUP_PAIR_WINDOW:
+                for i, x in enumerate(members):
+                    for y in _window(members, i, stats):
+                        add(x, y, PairSource.VERBATIM)
+                continue
+            # A clause copied into dozens of sections otherwise creates a dense
+            # clique of equivalent edges. Keep one grounded representative per
+            # source file, plus one within-file example when repeated there.
+            by_file: dict[str | None, list[str]] = {}
+            for nid in members:
+                by_file.setdefault(by_id[nid].source_file_id, []).append(nid)
+            representatives = [group[0] for group in by_file.values()]
+            for i, x in enumerate(representatives):
+                for y in representatives[i + 1 :]:
                     add(x, y, PairSource.VERBATIM)
+            for group in by_file.values():
+                if len(group) > 1:
+                    add(group[0], group[1], PairSource.VERBATIM)
+            stats["verbatim_repeated_group_collapsed"] += len(members) - len(representatives)
 
     if PairSource.STRUCTURED_KEY in sources:
         by_structured_key: dict[str, list[str]] = {}
@@ -570,6 +588,7 @@ def generate_pair_candidates(
         "excluded_non_clause": stats["excluded_non_clause"],
         "excluded_same_article_unrelated": stats["excluded_same_article_unrelated"],
         "group_pairs_windowed": stats["group_pairs_windowed"],
+        "verbatim_repeated_group_collapsed": stats["verbatim_repeated_group_collapsed"],
         "near_duplicate_kept": sum((c.node_a, c.node_b) in near_duplicate for c in kept),
         "candidates_capped": len(candidates) - len(kept),
         "candidates_kept": len(kept),
@@ -583,7 +602,13 @@ def generate_pair_candidates(
 
 
 def _explicit_targets(
-    index: StructureIndex, node: StructuralNode, stats: Counter[str]
+    index: StructureIndex,
+    node: StructuralNode,
+    stats: Counter[str],
+    *,
+    eligible: Sequence[str],
+    by_id: Mapping[str, StructuralNode],
+    chains: Mapping[str, tuple[str, ...]],
 ) -> list[str]:
     targets: list[str] = []
     for m in _SENTENCE.finditer(node.text or ""):
@@ -598,8 +623,76 @@ def _explicit_targets(
             parts = default_target_parts(index, node.node_id, addr)
             res = index.resolve(addr, parts=parts, source_node_id=node.node_id)
             if res.status == Status.UNIQUE and res.node_id and res.node_id != node.node_id:
-                targets.append(res.node_id)
+                descendants = _best_referenced_descendant(
+                    index, node, res.node_id, eligible, by_id, chains
+                )
+                targets.extend(descendants or [res.node_id])
     return targets
+
+
+def _best_referenced_descendant(
+    index: StructureIndex,
+    source: StructuralNode,
+    target_id: str,
+    eligible: Sequence[str],
+    by_id: Mapping[str, StructuralNode],
+    chains: Mapping[str, tuple[str, ...]],
+) -> list[str]:
+    """Resolve a broad article reference to its most relevant clause when possible.
+
+    Pairing an annex provision with only ``Điều 15``'s heading produces a useless
+    REFERENCE edge and hides a 12-versus-24-month discrepancy in ``15.1``. Limit
+    expansion to descendants of that one address and keep a bounded shortlist.
+    """
+    first, last = index.span(target_id)
+    target_levels = index.levels_of(target_id) or {}
+    if "dieu" not in target_levels:
+        return []
+    source_topic = topic_of(_context(chains, by_id, source.node_id), source.text or "")
+    source_words = set(_CONTENT_WORD.findall(_fold(source.text or "")))
+    source_values = unit_values(source.text or "")
+    ranked: list[tuple[int, int, str]] = []
+    for candidate_id in eligible:
+        if candidate_id == target_id:
+            continue
+        position = index.position(candidate_id)
+        if not first < position <= last:
+            continue
+        candidate = by_id[candidate_id]
+        levels = index.levels_of(candidate_id) or {}
+        if levels.get("dieu") != target_levels["dieu"]:
+            continue
+        candidate_topic = topic_of(_context(chains, by_id, candidate_id), candidate.text or "")
+        if source_topic and candidate_topic != source_topic:
+            continue
+        candidate_text = _fold(candidate.text or "")
+        overlap = len(source_words & set(_CONTENT_WORD.findall(candidate_text)))
+        candidate_values = unit_values(candidate.text or "")
+        changed_values = values_differ(source_values, candidate_values)
+        internally_conflicting_values = any(
+            len(values) > 1 and bool(values & source_values.get(key, frozenset()))
+            for key, values in candidate_values.items()
+        )
+        dispute_terms = {"tranh chap", "trong tai", "toa an", "khieu nai"}
+        shared_dispute_term = any(
+            term in _fold(source.text or "") and term in candidate_text for term in dispute_terms
+        )
+        if overlap < 2 and not changed_values and not internally_conflicting_values and not shared_dispute_term:
+            continue
+        score = (
+            overlap + (8 if changed_values or internally_conflicting_values else 0)
+            + (4 if shared_dispute_term else 0) + (3 if source_topic else 0)
+        )
+        ranked.append((-score, position, candidate_id))
+    if not ranked:
+        return []
+    ranked.sort()
+    # Broad article references can cover several related provisions. Keep a
+    # small shortlist when scores are close so a neighboring clause cannot
+    # hide the actual value conflict (for example, 30 versus 45 days).
+    best_score = ranked[0][0]
+    close = [row[2] for row in ranked if row[0] <= best_score + 8]
+    return close[:3]
 
 
 def _addresses_with_end(sentence: str) -> list[tuple[_address.Address, int]]:

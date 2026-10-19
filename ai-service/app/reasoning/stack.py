@@ -47,6 +47,36 @@ class FourLayerReasoner:
             # rather than spending L2's call on a truncated prefix first.
             task = {**task, "scoped_composition": True}
         result = self._run_core(envelope, task)
+        explicit_record = re.search(
+            r"\b(?:bb|tl|yc)\s*[- ]?\s*0*\d+[a-z]?\b",
+            answer_compose.fold(str(task.get("query") or "")),
+        )
+        if explicit_record and result.get("review_state") != ReviewState.BLOCKED.value:
+            source_pages = answer_compose.document_evidence(
+                self.l1.gateway, envelope, str(task.get("query") or "")
+            )
+            if source_pages and not direct:
+                item = source_pages[0]
+                source_text = str(item.get("text") or "").strip()
+                citation = {
+                    **(item.get("citation") or {"node_id": item["node_id"]}),
+                    "node_id": item["node_id"],
+                    "text_span": source_text[:1200],
+                }
+                grounded = self.l3.run(
+                    envelope,
+                    task,
+                    review_state=ReviewState.NEEDS_REVIEW.value,
+                    answer=f"Nội dung trang chứa mã tài liệu được hỏi: {source_text[:1200]}",
+                    citations=[citation],
+                )
+                if grounded.get("citations"):
+                    return {
+                        **result,
+                        **grounded,
+                        "layers_used": [*(result.get("layers_used") or []), "DOCUMENT_SOURCE"],
+                        "used_llm": False,
+                    }
         policy_flags = task.get("policy_flags") or {}
         llm = self.l2.llm
         if not (
@@ -74,6 +104,12 @@ class FourLayerReasoner:
         pairs = list(task.get("pair_relations") or [])
         if pairs and answer_compose.is_conflict_query(query):
             evidence, notes = answer_compose.evidence_from_pairs(gateway, envelope, pairs)
+            # Stored pair relations are only candidate links, not a complete
+            # index of conflicts. Always add source retrieval so a missing edge
+            # cannot make the answer claim that a clause/event is absent.
+            retrieved = self._compose_evidence(envelope, task, result)
+            known = {item["node_id"] for item in evidence}
+            evidence += [item for item in retrieved if item["node_id"] not in known]
         elif direct:
             evidence = answer_compose.scoped_evidence(gateway, envelope, task)
             # Named annexes do not replace the body facts L0/L1 already
@@ -145,9 +181,14 @@ class FourLayerReasoner:
         query = str(task.get("query") or "")
         record = gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
         named = answer_compose.referenced_nodes(record, query) if record else []
-        ids: list[str] = [
+        explicit_documents = answer_compose.document_evidence(gateway, envelope, query)
+        ids: list[str] = [item["node_id"] for item in explicit_documents]
+        ids.extend(
+            item["node_id"] for item in answer_compose.lexical_evidence(gateway, envelope, query)
+        )
+        ids.extend(
             item["node_id"] for item in answer_compose.party_evidence(gateway, envelope, query)
-        ]
+        )
         for citation in [*({"node_id": n} for n in named), *(result.get("citations") or [])]:
             node_id = str((citation or {}).get("node_id") or "")
             if node_id:

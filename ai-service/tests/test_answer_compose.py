@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.contracts.models import SourceFile
 from app.reasoning import answer_compose
 from app.reasoning.query import QueryRouter
 from app.tools.gateway import ToolGateway
@@ -111,6 +112,154 @@ def test_conflict_question_uses_stored_pair_relations() -> None:
     assert result["answer"] == "Có 1 xung đột."
     assert "CONFLICT" in llm.prompts[-1]
     assert result["review_state"] == "NEEDS_REVIEW"
+
+
+def test_conflict_composition_also_retrieves_sources_outside_the_stored_pairs(monkeypatch) -> None:
+    from app.reasoning.stack import FourLayerReasoner
+
+    llm = FakeLLM("Có các điều khoản cần đối chiếu.")
+    store = InMemorySnapshotStore()
+    record = mock_record()
+    store.put(record)
+    reasoner = FourLayerReasoner(ToolGateway(store), llm)
+    extra = {
+        "node_id": "extra",
+        "path": "BB03",
+        "text": "Thông báo sự cố sau 9 giờ.",
+        "citation": {"node_id": "extra"},
+    }
+    monkeypatch.setattr(reasoner, "_compose_evidence", lambda *_: [extra])
+    task = {
+        "type": "unscoped",
+        "query": "Chỉ ra mâu thuẫn",
+        "pair_relations": [
+            {"label": "CONFLICT", "node_a_id": "clause_5_3", "node_b_id": "field_value"}
+        ],
+        "policy_flags": LLM_FLAGS,
+    }
+    result = reasoner.run(envelope(), task)
+
+    assert "BB03" in llm.prompts[-1]
+    assert result["review_state"] == "NEEDS_REVIEW"
+
+
+def test_explicit_document_code_retrieves_only_that_documents_nodes() -> None:
+
+    record = mock_record()
+    record.source_files = [
+        SourceFile(file_id="bb01-file", filename="BB01_scan.pdf", role="annex"),
+        SourceFile(file_id="bb02-file", filename="BB02_scan.pdf", role="annex"),
+    ]
+    record.nodes[0].source_file_id = "bb01-file"
+    record.nodes[1].source_file_id = "bb02-file"
+    store = InMemorySnapshotStore()
+    store.put(record)
+    evidence = answer_compose.document_evidence(
+        ToolGateway(store), envelope(), "BB01 đã giao đủ chưa?"
+    )
+
+    assert [item["node_id"] for item in evidence] == ["sec_1"]
+
+
+def test_high_risk_open_questions_use_scoped_composition_and_lexical_source_recall() -> None:
+    from app.contracts.models import StructuralNode
+
+    record = mock_record()
+    record.nodes.append(
+        StructuralNode(
+            node_id="bb03-event",
+            type="UNNUMBERED_BLOCK",
+            raw_label="BB03",
+            text="Sự cố phát hiện ngày 03/07 lúc 23:00; thông báo ngày 04/07 lúc 08:30.",
+            order=20,
+        )
+    )
+    store = InMemorySnapshotStore()
+    store.put(record)
+    gateway = ToolGateway(store)
+    query = "Sự cố tháng 7 có quá hạn thông báo 6 giờ không?"
+
+    assert answer_compose.needs_scoped_evidence({"query": query})
+    evidence = answer_compose.lexical_evidence(gateway, envelope(), query)
+    assert "bb03-event" in {item["node_id"] for item in evidence}
+    assert answer_compose.needs_scoped_evidence(
+        {"query": "Hai phiên bản PL06-A và PL06-B quy định SLA thế nào?"}
+    )
+
+
+def test_document_code_can_resolve_inside_a_combined_scan_page() -> None:
+    from app.contracts.models import SourceFile
+    from app.reasoning.stack import FourLayerReasoner
+
+    record = mock_record()
+    record.source_files = [
+        SourceFile(file_id="combined-records", filename="scan-p41-43.pdf", role="annex")
+    ]
+    record.pages[0] = record.pages[0].model_copy(
+        update={
+            "source_file_id": "combined-records",
+            "text": "BB01. Giao nhận một phần. Thực nhận 24/25 máy quét; một máy móp và thiếu bộ nguồn.",
+            "line_texts": {
+                "bb01-line": "BB01. Giao nhận một phần. Thực nhận 24/25 máy quét; một máy móp và thiếu bộ nguồn."
+            },
+            "source_hash": "a" * 64,
+        }
+    )
+    store = InMemorySnapshotStore()
+    store.put(record)
+
+    evidence = answer_compose.document_evidence(
+        ToolGateway(store), envelope(), "BB01 đã giao đủ máy quét chưa?"
+    )
+
+    assert [item["node_id"] for item in evidence] == ["page:page_1_rev_1"]
+    assert "24/25" in evidence[0]["text"]
+
+    reasoner = FourLayerReasoner(ToolGateway(store))
+    result = reasoner.run(
+        envelope(),
+        {
+            "type": "unscoped",
+            "query": "BB01 đã giao đủ máy quét chưa?",
+            "policy_flags": {"egress_allowed": False, "use_llm": False},
+        },
+    )
+    assert "24/25" in result["answer"]
+    assert result["citations"][0]["validation_status"] == "VALID"
+
+
+def test_document_heading_outranks_a_contents_page_code_mention() -> None:
+    from app.contracts.models import SourceFile
+
+    record = mock_record()
+    record.source_files = [
+        SourceFile(file_id="combined-records", filename="scan-p01-p50.pdf", role="annex")
+    ]
+    target = record.pages[0].model_copy(
+        update={
+            "source_file_id": "combined-records",
+            "text": "BB01. Giao nhận một phần. Bên B giao 24/25 máy quét.",
+            "line_texts": {"bb01": "BB01. Giao nhận một phần. Bên B giao 24/25 máy quét."},
+        }
+    )
+    contents = target.model_copy(
+        update={
+            "page_number": 34,
+            "page_revision_id": "page_34_rev_1",
+            "text": "Danh mục biên bản thực hiện có mã BB01, BB02, BB03 và TL01.",
+            "line_texts": {"contents": "Danh mục biên bản thực hiện có mã BB01, BB02, BB03 và TL01."},
+        }
+    )
+    record.pages = [contents, target]
+    store = InMemorySnapshotStore()
+    store.put(record)
+
+    evidence = answer_compose.document_evidence(
+        ToolGateway(store), envelope(), "BB01 đã giao đủ máy quét chưa?"
+    )
+
+    assert evidence[0]["node_id"] == f"page:{target.page_revision_id}"
+    assert "24/25" in evidence[0]["text"]
 
 
 def test_bare_clause_lookup_stays_verbatim_but_a_clause_question_is_answered() -> None:

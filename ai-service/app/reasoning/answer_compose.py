@@ -78,6 +78,10 @@ _EXPANSIONS = {
     "trong tai": "giải quyết tranh chấp",
     "toa an": "giải quyết tranh chấp",
     "cham tien do": "phạt vi phạm tiến độ",
+    "su co": "su co thong bao phat hien du lieu",
+    "bb01": "bien ban giao nhan BB01",
+    "bb03": "bien ban su co BB03",
+    "tl01": "thanh ly bao luu cong no bao hanh",
     "boi thuong": "bồi thường thiệt hại",
 }
 
@@ -113,8 +117,11 @@ def is_summary_query(query: str) -> bool:
 
 def needs_scoped_evidence(task: dict[str, Any]) -> bool:
     query = fold(str(task.get("query") or ""))
-    return is_summary_query(query) or bool(
-        re.search(r"\b(phu luc|annex|dieu|article|khoan)\s+\d", query)
+    return (
+        is_summary_query(query)
+        or bool(re.search(r"\b(phu luc|annex|dieu|article|khoan)\s+\d", query))
+        or bool(re.search(r"\b(?:bb|tl|pl|uq|yc)\s*[- ]?\s*0*\d+[a-z]?\b", query))
+        or any(cue in query for cue in ("su co", "toa an", "trong tai"))
     )
 
 
@@ -157,6 +164,129 @@ def party_evidence(gateway: ToolGateway, envelope: Any, query: str) -> list[dict
         if active:
             selected.append(node.node_id)
     return evidence_from_citations(gateway, envelope, [{"node_id": nid} for nid in selected])
+
+
+def lexical_evidence(
+    gateway: ToolGateway, envelope: Any, query: str, *, limit: int = 24
+) -> list[dict[str, Any]]:
+    """Find query-matching source lines across the dossier, not just stored graph edges."""
+    record = gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
+    if record is None:
+        return []
+    stop = {
+        "ben",
+        "cac",
+        "cho",
+        "co",
+        "cua",
+        "duoc",
+        "hay",
+        "la",
+        "nao",
+        "nay",
+        "neu",
+        "nhu",
+        "no",
+        "theo",
+        "trong",
+        "va",
+        "voi",
+        "ve",
+    }
+    terms = {word for word in re.findall(r"[a-z0-9]{2,}", fold(query)) if word not in stop}
+    if not terms:
+        return []
+    ranked: list[tuple[int, int, str]] = []
+    for node in record.evidence_nodes():
+        text = f"{node.raw_label or ''} {node.text or ''}"
+        words = set(re.findall(r"[a-z0-9]{2,}", fold(text)))
+        overlap = terms & words
+        if overlap:
+            label_words = set(re.findall(r"[a-z0-9]{2,}", fold(node.raw_label or "")))
+            score = len(overlap) * 3 + (1 if terms & label_words else 0)
+            ranked.append((score, -node.order, node.node_id))
+    for page in record.pages:
+        text = page.text or "\n".join(page.line_texts.values())
+        overlap = terms & set(re.findall(r"[a-z0-9]{2,}", fold(text)))
+        if overlap:
+            ranked.append((len(overlap) * 3, -page.page_number, f"page:{page.page_revision_id}"))
+    ranked.sort(reverse=True)
+    return evidence_from_citations(
+        gateway, envelope, [{"node_id": nid} for _, _, nid in ranked[:limit]], limit=limit
+    )
+
+
+def document_evidence(gateway: ToolGateway, envelope: Any, query: str) -> list[dict[str, Any]]:
+    """Include a document explicitly named by its short identifier (BB01, TL01...)."""
+    record = gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
+    if record is None:
+        return []
+    folded = fold(query)
+    codes = set(re.findall(r"\b(?:bb|tl|pl|uq|yc)\s*[- ]?\s*0*\d+[a-z]?\b", folded))
+    if "su co" in folded or "du lieu" in folded:
+        codes.add("bb03")
+    if "thanh ly" in folded or "doi soat" in folded:
+        codes.add("tl01")
+    if not codes:
+        return []
+
+    def compact(value: str) -> str:
+        return re.sub(r"[\s-]+", "", fold(value))
+
+    files = {
+        source.file_id
+        for source in record.source_files
+        if any(
+            compact(code) in compact(f"{source.filename} {source.document_number or ''}")
+            for code in codes
+        )
+    }
+    # The upload may combine several signed records into one PDF whose filename
+    # only has a page range. Resolve BB01/TL01 from OCR headings, then scope to
+    # that source file so adjacent records cannot be mistaken for one another.
+    files.update(
+        node.source_file_id
+        for node in record.evidence_nodes()
+        if node.source_file_id
+        and any(
+            compact(code) in compact(f"{node.raw_label or ''} {node.text or ''}") for code in codes
+        )
+    )
+    files.update(
+        page.source_file_id
+        for page in record.pages
+        if page.source_file_id
+        and any(
+            compact(code) in compact(page.text + " " + " ".join(page.line_texts.values()))
+            for code in codes
+        )
+    )
+    matching_pages = []
+    for page in record.pages:
+        page_text = page.text + " " + " ".join(page.line_texts.values())
+        normalized = fold(page_text)
+        matching_codes = [code for code in codes if compact(code) in compact(page_text)]
+        if page.source_file_id not in files or not matching_codes:
+            continue
+        # A code repeated in a contents page is weaker evidence than the page
+        # headed by that record's code. Prefer the record itself for direct
+        # questions such as "BB01 đã giao đủ chưa?".
+        heading = any(
+            re.search(rf"\b{re.escape(code)}\b\s*[.:-]\s*\S", normalized)
+            for code in matching_codes
+        )
+        matching_pages.append((not heading, page.page_number, page.page_revision_id))
+    matching_pages.sort()
+    page_ids = [f"page:{revision_id}" for _, _, revision_id in matching_pages]
+    ids = [
+        n.node_id
+        for n in sorted(record.evidence_nodes(), key=lambda n: n.order)
+        if n.source_file_id in files
+    ]
+    selected = page_ids or ids
+    return evidence_from_citations(
+        gateway, envelope, [{"node_id": nid} for nid in selected], limit=SUMMARY_EVIDENCE
+    )
 
 
 def _descendants(record: Any, seeds: list[str]) -> list[str]:
@@ -316,7 +446,7 @@ def _node(
     text = str(full.get("text") or "").strip()
     if not text or is_furniture(text):
         return None
-    if str(full.get("type")) == "TABLE":
+    if str(full.get("type")) in {"TABLE", "PAGE"}:
         # A table node can hold many rows. Cutting it like a prose sentence
         # hides the last rows even when the correct table was retrieved.
         chars = max(chars, 8000)
