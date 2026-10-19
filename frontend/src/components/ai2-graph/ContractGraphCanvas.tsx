@@ -22,8 +22,8 @@ import {
   relationDotClasses,
   relationFillClasses,
   relationStrokeClasses,
+  relationGroups,
   relationTone,
-  type RelationTone,
 } from './relationTone'
 
 type NodeLabelResolver = (nodeId: string, documentId?: string | null) => string
@@ -87,6 +87,11 @@ export function Ai2GraphDossierView({
   const [retry, setRetry] = useState(0)
   const [view, setView] = useState<GraphView>(readGraphView)
   const [filter, setFilter] = useState<string | null>(null)
+  // Cạnh mà kiểu Danh sách đã tải (gồm các trang tải thêm), cho bộ lọc.
+  const [listEdges, setListEdges] = useState<{
+    edges: ContractGraphEdge[]
+    complete: boolean
+  } | null>(null)
   const [resolvedEvidence, setResolvedEvidence] = useState<
     Record<string, string>
   >({})
@@ -125,6 +130,7 @@ export function Ai2GraphDossierView({
     setData(null)
     setSelectedId(null)
     setFilter(null)
+    setListEdges(null)
     setResolvedEvidence({})
     load(controller.signal)
       .then((result) => {
@@ -224,6 +230,16 @@ export function Ai2GraphDossierView({
 
   function changeView(next: GraphView) {
     setView(next)
+    // Sơ đồ chỉ vẽ trang đầu: loại đang lọc chỉ có ở trang sau thì về "Tất cả",
+    // không để một sơ đồ trống khó hiểu.
+    const shown = data?.page?.edges ?? []
+    if (
+      next === 'diagram' &&
+      filter &&
+      !shown.some((edge) => relationLabel(edge.label) === filter)
+    ) {
+      setFilter(null)
+    }
     try {
       window.localStorage.setItem(GRAPH_VIEW_KEY, next)
     } catch {
@@ -234,7 +250,8 @@ export function Ai2GraphDossierView({
   function changeFilter(next: string | null) {
     setFilter(next)
     // Quan hệ đang chọn bị lọc mất thì chọn quan hệ đầu tiên còn hiện.
-    const edges = data?.page?.edges ?? []
+    const edges =
+      view === 'list' && listEdges ? listEdges.edges : (data?.page?.edges ?? [])
     const selected = edges.find((edge) => edge.id === selectedId)
     if (next && selected && relationLabel(selected.label) !== next) {
       const first = edges.find((edge) => relationLabel(edge.label) === next)
@@ -284,7 +301,15 @@ export function Ai2GraphDossierView({
     >
       <div className="flex flex-wrap items-center justify-between gap-space-sm">
         {showResults ? (
-          <RelationFilter page={page} value={filter} onChange={changeFilter} />
+          <RelationFilter
+            edges={view === 'list' && listEdges ? listEdges.edges : page.edges}
+            exact={
+              view === 'list' && listEdges ? listEdges.complete : !page.has_more
+            }
+            totalCount={page.total_count}
+            value={filter}
+            onChange={changeFilter}
+          />
         ) : (
           <span />
         )}
@@ -361,6 +386,7 @@ export function Ai2GraphDossierView({
           resolveNodeLabel={resolveVisibleNodeLabel}
           resolveNodeTitle={resolveNodeTitle}
           selectedId={selectedId}
+          onEdgesChange={(edges, complete) => setListEdges({ edges, complete })}
         />
       )}
     </section>
@@ -368,24 +394,23 @@ export function Ai2GraphDossierView({
 }
 
 /** Chú thích màu của từng loại quan hệ, bấm để chỉ xem loại đó. */
-function RelationFilter({
-  page,
+export function RelationFilter({
+  edges,
+  exact,
+  totalCount,
   value,
   onChange,
 }: {
-  page: ContractGraphPage
+  /** Mọi cạnh đã tải ở kiểu đang xem (kiểu Danh sách gồm cả các trang tải thêm). */
+  edges: readonly ContractGraphEdge[]
+  /** Đã tải hết: số theo từng loại mới đúng. */
+  exact: boolean
+  totalCount: number
   value: string | null
   onChange: (next: string | null) => void
 }) {
-  const groups = new Map<string, { tone: RelationTone; count: number }>()
-  for (const edge of page.edges) {
-    const label = relationLabel(edge.label)
-    const group = groups.get(label)
-    if (group) group.count += 1
-    else groups.set(label, { tone: relationTone(edge.label), count: 1 })
-  }
+  const groups = relationGroups(edges)
   // Còn trang chưa tải thì số theo loại chưa đúng, chỉ hiện tổng.
-  const exact = !page.has_more
   // Chỉ một loại quan hệ thì "Tất cả" và loại đó là một: không cần lọc, chỉ
   // giữ chú thích màu.
   const only = exact && groups.size === 1 ? [...groups][0] : null
@@ -398,7 +423,7 @@ function RelationFilter({
           className={`h-2 w-2 rounded-full ${relationDotClasses[group.tone]}`}
         />
         {label}
-        <span className="tabular-nums opacity-70">{page.total_count}</span>
+        <span className="tabular-nums opacity-70">{totalCount}</span>
       </span>
     )
   }
@@ -421,7 +446,7 @@ function RelationFilter({
         type="button"
       >
         Tất cả
-        <span className="tabular-nums opacity-70">{page.total_count}</span>
+        <span className="tabular-nums opacity-70">{totalCount}</span>
       </button>
       {[...groups]
         .sort(

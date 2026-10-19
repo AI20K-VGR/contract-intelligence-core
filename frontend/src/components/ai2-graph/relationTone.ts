@@ -91,3 +91,18 @@ export const RELATION_TONES: RelationTone[] = [
   'remove',
   'other',
 ]
+
+/**
+ * Các loại quan hệ (tên hiển thị) có trong `edges` cùng màu và số lượng, cho
+ * chú thích và bộ lọc. Truyền mọi cạnh đã tải, không chỉ trang đầu (PR #143).
+ */
+export function relationGroups(edges: readonly { label: string }[]) {
+  const groups = new Map<string, { tone: RelationTone; count: number }>()
+  for (const edge of edges) {
+    const label = relationLabel(edge.label)
+    const group = groups.get(label)
+    if (group) group.count += 1
+    else groups.set(label, { tone: relationTone(edge.label), count: 1 })
+  }
+  return groups
+}

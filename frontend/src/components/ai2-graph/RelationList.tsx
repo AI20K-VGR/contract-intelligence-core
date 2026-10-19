@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { relationLabel } from '../../structure/displayLabels'
 
 import type {
@@ -29,6 +29,7 @@ export function RelationList({
   selectedId: controlledSelectedId,
   onSelectEdge,
   onResolveEdgeEvidence,
+  onEdgesChange,
 }: {
   page: ContractGraphPage
   /** Chỉ hiện loại quan hệ này (tên hiển thị); null là hiện tất cả. */
@@ -45,8 +46,20 @@ export function RelationList({
     sourceText?: string
     targetText?: string
   } | null>
+  /**
+   * Báo mọi cạnh đã tải (cả các trang tải thêm) và đã tải hết chưa, để chú
+   * thích và bộ lọc ở component cha biết cả các loại quan hệ của trang sau.
+   */
+  onEdgesChange?: (edges: ContractGraphEdge[], complete: boolean) => void
 }) {
   const [state, setState] = useState(() => createRelationListState(page))
+  const reportEdges = useRef(onEdgesChange)
+  useEffect(() => {
+    reportEdges.current = onEdgesChange
+  })
+  useEffect(() => {
+    reportEdges.current?.(state.edges, isRelationListComplete(state))
+  }, [state])
   const [internalSelectedId, setInternalSelectedId] = useState<string | null>(
     () => page.edges[0]?.id ?? null,
   )
