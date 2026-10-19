@@ -367,6 +367,10 @@ export function createDossierErrorMessage(error: unknown) {
     // tiếng Anh, hiển thị theo mã.
     const uploadMessage = error.code ? UPLOAD_ERROR_MESSAGES[error.code] : null
     if (uploadMessage) return uploadMessage
+    // POST /uploads: đủ 3 lượt chưa xong và không lượt nào bỏ dở đủ 5 phút.
+    if (error.status === 429) {
+      return 'Đang có 3 lượt tải lên chưa xong. Chờ một lượt xong hoặc huỷ bớt rồi thử lại.'
+    }
     if (error.status === 401) {
       return 'Phiên đăng nhập hết hạn. Đăng nhập lại.'
     }

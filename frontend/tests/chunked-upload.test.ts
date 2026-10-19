@@ -286,6 +286,26 @@ describe('upload error codes (DOC-05b v4.2.0 §3.3)', () => {
     expect(createDossierErrorMessage(failure)).toContain('lượt tải lên mới hơn')
   })
 
+  it('says 3 uploads are still running when opening a session gets 429', async () => {
+    const deps = setup(session([{ size: 4 }]))
+    vi.mocked(deps.openSession).mockRejectedValueOnce(
+      new ApiError(
+        429,
+        'Too many uploads in progress; finish or cancel one, or try again in a few minutes.',
+      ),
+    )
+    const failure = await uploadDossierInChunks(
+      { contract: pdf('a.pdf', 4), metadata: {} },
+      {},
+      deps,
+    ).catch((cause: unknown) => cause)
+    expect(deps.sendChunk).not.toHaveBeenCalled()
+    expect(deps.legacyCreate).not.toHaveBeenCalled()
+    expect(createDossierErrorMessage(failure)).toBe(
+      'Đang có 3 lượt tải lên chưa xong. Chờ một lượt xong hoặc huỷ bớt rồi thử lại.',
+    )
+  })
+
   it('words every upload code in Vietnamese', () => {
     for (const code of [
       'UPLOAD_CANCELLED',

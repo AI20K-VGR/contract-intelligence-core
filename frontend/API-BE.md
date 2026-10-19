@@ -307,8 +307,8 @@ Cloudflare gói Free cắt request còn đang gửi body sau khoảng 125 giây;
    - `409 UPLOAD_MISSING_CHUNKS` (`error.details.missing_chunks`): gửi bù các khúc đó rồi gọi lại.
    - `409 UPLOAD_COMPLETING`, `524` (Cloudflare chờ quá khoảng 100 s) hay mất mạng: chờ 3 s rồi `GET /api/v1/uploads/{id}`; `status: completed` thì lấy `dossier_id`, `job_id` ở đó (không tạo hồ sơ thứ hai); còn `open` thì gọi lại `complete`. Tối đa 3 phút.
    - `409 UPLOAD_COMPLETED` (khi gửi khúc): phiên đã thành hồ sơ, lấy hồ sơ đó.
-   - `409 UPLOAD_CANCELLED` / `UPLOAD_NOT_OPEN` (backend đã huỷ phiên cũ nhất khi người dùng mở phiên thứ 4), `410 UPLOAD_EXPIRED`, `409 UPLOAD_SIZE_MISMATCH`: dừng, báo người dùng tải lên lại. Câu báo theo mã ở `createDossierErrorMessage` (message của backend là tiếng Anh).
-4. Người dùng huỷ, hay tải lên lỗi hẳn: `DELETE /api/v1/uploads/{id}` (không chờ, lỗi bỏ qua). Phiên bỏ dở vì đóng tab hay F5 thì backend tự huỷ phiên cũ nhất khi người dùng mở phiên thứ 4; chỉ `429` khi cả 3 phiên đều đang `completing`.
+   - `409 UPLOAD_CANCELLED` / `UPLOAD_NOT_OPEN` (backend đã huỷ phiên không nhận khúc nào trong 5 phút khi người dùng mở phiên thứ 4), `410 UPLOAD_EXPIRED`, `409 UPLOAD_SIZE_MISMATCH`: dừng, báo người dùng tải lên lại. Câu báo theo mã ở `createDossierErrorMessage` (message của backend là tiếng Anh).
+4. Người dùng huỷ, hay tải lên lỗi hẳn: `DELETE /api/v1/uploads/{id}` (không chờ, lỗi bỏ qua). Phiên bỏ dở vì đóng tab hay F5 thì backend tự huỷ phiên `open` không nhận khúc nào trong 5 phút khi người dùng mở phiên thứ 4. Không có phiên nào bỏ dở đủ 5 phút (cả 3 lượt còn đang gửi hoặc đang `completing`) thì `POST /uploads` trả `429`: frontend báo "Đang có 3 lượt tải lên chưa xong…" (`createDossierErrorMessage`), không tự gửi lại.
 5. Backend trước v4.2.0 trả `404` ở bước 1: frontend dùng 3b `POST /dossiers` như cũ.
 
 Giới hạn 6 file, đúng 1 hợp đồng và 50 MiB mỗi file được kiểm ngay ở bước 1, trước khi gửi byte nào. Giới hạn 100 MB mỗi request của Cloudflare không còn áp lên cả bộ hồ sơ.
