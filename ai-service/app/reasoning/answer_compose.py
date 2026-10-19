@@ -78,10 +78,6 @@ _EXPANSIONS = {
     "trong tai": "giải quyết tranh chấp",
     "toa an": "giải quyết tranh chấp",
     "cham tien do": "phạt vi phạm tiến độ",
-    "su co": "su co thong bao phat hien du lieu",
-    "bb01": "bien ban giao nhan BB01",
-    "bb03": "bien ban su co BB03",
-    "tl01": "thanh ly bao luu cong no bao hanh",
     "boi thuong": "bồi thường thiệt hại",
 }
 
@@ -120,7 +116,7 @@ def needs_scoped_evidence(task: dict[str, Any]) -> bool:
     return (
         is_summary_query(query)
         or bool(re.search(r"\b(phu luc|annex|dieu|article|khoan)\s+\d", query))
-        or bool(re.search(r"\b(?:bb|tl|pl|uq|yc)\s*[- ]?\s*0*\d+[a-z]?\b", query))
+        or bool(document_codes(query))
         or any(cue in query for cue in ("su co", "toa an", "trong tai"))
     )
 
@@ -216,64 +212,65 @@ def lexical_evidence(
     )
 
 
+def document_codes(text: str) -> set[str]:
+    """Candidate identifiers, without assuming a dossier's numbering prefixes."""
+    return set(
+        re.findall(r"\b[a-z]{2,}(?:[-/][a-z]+)*[\s/-]*\d+[a-z]?(?:[-/][a-z0-9]+)*\b", fold(text))
+    )
+
+
 def document_evidence(gateway: ToolGateway, envelope: Any, query: str) -> list[dict[str, Any]]:
-    """Include a document explicitly named by its short identifier (BB01, TL01...)."""
+    """Resolve requested identifiers against this dossier's metadata/OCR only."""
     record = gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
     if record is None:
         return []
-    folded = fold(query)
-    codes = set(re.findall(r"\b(?:bb|tl|pl|uq|yc)\s*[- ]?\s*0*\d+[a-z]?\b", folded))
-    if "su co" in folded or "du lieu" in folded:
-        codes.add("bb03")
-    if "thanh ly" in folded or "doi soat" in folded:
-        codes.add("tl01")
+    codes = document_codes(query)
     if not codes:
-        return []
+        return document_title_evidence(gateway, envelope, query)
 
     def compact(value: str) -> str:
         return re.sub(r"[\s-]+", "", fold(value))
 
+    def matches(value: str) -> bool:
+        # Match whole identifiers: e.g. AB01 must not resolve AB010.
+        return bool(
+            {compact(code) for code in codes} & {compact(code) for code in document_codes(value)}
+        )
+
     files = {
         source.file_id
         for source in record.source_files
-        if any(
-            compact(code) in compact(f"{source.filename} {source.document_number or ''}")
-            for code in codes
-        )
+        if matches(f"{source.filename.replace('_', ' ')} {source.document_number or ''}")
     }
     # The upload may combine several signed records into one PDF whose filename
-    # only has a page range. Resolve BB01/TL01 from OCR headings, then scope to
+    # only has a page range. Resolve identifiers from OCR headings, then scope to
     # that source file so adjacent records cannot be mistaken for one another.
     files.update(
         node.source_file_id
         for node in record.evidence_nodes()
-        if node.source_file_id
-        and any(
-            compact(code) in compact(f"{node.raw_label or ''} {node.text or ''}") for code in codes
-        )
+        if node.source_file_id and matches(f"{node.raw_label or ''} {node.text or ''}")
     )
     files.update(
         page.source_file_id
         for page in record.pages
-        if page.source_file_id
-        and any(
-            compact(code) in compact(page.text + " " + " ".join(page.line_texts.values()))
-            for code in codes
-        )
+        if page.source_file_id and matches(page.text + " " + " ".join(page.line_texts.values()))
     )
     matching_pages = []
     for page in record.pages:
         page_text = page.text + " " + " ".join(page.line_texts.values())
         normalized = fold(page_text)
-        matching_codes = [code for code in codes if compact(code) in compact(page_text)]
+        matching_codes = [
+            code
+            for code in document_codes(page_text)
+            if compact(code) in {compact(c) for c in codes}
+        ]
         if page.source_file_id not in files or not matching_codes:
             continue
         # A code repeated in a contents page is weaker evidence than the page
         # headed by that record's code. Prefer the record itself for direct
         # questions such as "BB01 đã giao đủ chưa?".
         heading = any(
-            re.search(rf"\b{re.escape(code)}\b\s*[.:-]\s*\S", normalized)
-            for code in matching_codes
+            re.search(rf"\b{re.escape(code)}\b\s*[.:-]\s*\S", normalized) for code in matching_codes
         )
         matching_pages.append((not heading, page.page_number, page.page_revision_id))
     matching_pages.sort()
@@ -286,6 +283,62 @@ def document_evidence(gateway: ToolGateway, envelope: Any, query: str) -> list[d
     selected = page_ids or ids
     return evidence_from_citations(
         gateway, envelope, [{"node_id": nid} for nid in selected], limit=SUMMARY_EVIDENCE
+    )
+
+
+def document_title_evidence(
+    gateway: ToolGateway, envelope: Any, query: str
+) -> list[dict[str, Any]]:
+    """Recall pages by their own OCR titles, including records in combined PDFs."""
+    record = gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
+    if record is None:
+        return []
+    stop = {
+        "ben",
+        "cac",
+        "cho",
+        "co",
+        "cua",
+        "duoc",
+        "gi",
+        "hop",
+        "dong",
+        "phu",
+        "luc",
+        "hay",
+        "khong",
+        "la",
+        "nao",
+        "nay",
+        "neu",
+        "theo",
+        "trong",
+        "va",
+        "voi",
+        "ve",
+    }
+    terms = set(re.findall(r"[a-z]{2,}", fold(query))) - stop
+    acronyms = {fold(word) for word in re.findall(r"\b[A-Z]{2,}\b", query)}
+    ranked = []
+    for page in record.pages:
+        lines = (page.text or "\n".join(page.line_texts.values())).splitlines()
+        # Only the short opening lines describe the record, not an arbitrary
+        # mention elsewhere in the body or a table's individual data rows.
+        title = " ".join(line for line in lines[:3] if len(line) <= 180)
+        words = set(re.findall(r"[a-z]{2,}", fold(title)))
+        overlap = terms & words
+        if len(overlap) >= 2 or acronyms & words:
+            ranked.append((len(overlap), page.page_number, page.page_revision_id))
+    if not ranked:
+        return []
+    best = max(score for score, _, _ in ranked)
+    ids = [
+        f"page:{revision}"
+        for score, _, revision in sorted(ranked, key=lambda x: (-x[0], x[1]))
+        if score == best
+    ]
+    return evidence_from_citations(
+        gateway, envelope, [{"node_id": nid} for nid in ids], limit=MAX_EVIDENCE
     )
 
 

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from app.contracts.models import SourceFile
 from app.reasoning import answer_compose
 from app.reasoning.query import QueryRouter
@@ -247,7 +249,9 @@ def test_document_heading_outranks_a_contents_page_code_mention() -> None:
             "page_number": 34,
             "page_revision_id": "page_34_rev_1",
             "text": "Danh mục biên bản thực hiện có mã BB01, BB02, BB03 và TL01.",
-            "line_texts": {"contents": "Danh mục biên bản thực hiện có mã BB01, BB02, BB03 và TL01."},
+            "line_texts": {
+                "contents": "Danh mục biên bản thực hiện có mã BB01, BB02, BB03 và TL01."
+            },
         }
     )
     record.pages = [contents, target]
@@ -260,6 +264,149 @@ def test_document_heading_outranks_a_contents_page_code_mention() -> None:
 
     assert evidence[0]["node_id"] == f"page:{target.page_revision_id}"
     assert "24/25" in evidence[0]["text"]
+
+
+@pytest.mark.parametrize("code", ["ZXQ17", "RPT/2026/007", "PRJ-QA-042", "NV-93"])
+def test_document_identifiers_are_discovered_without_a_prefix_allowlist(code: str) -> None:
+    record = mock_record()
+    record.source_files = [
+        SourceFile(file_id="custom", filename="attachment.pdf", document_number=code)
+    ]
+    record.nodes[0].source_file_id = "custom"
+    store = InMemorySnapshotStore()
+    store.put(record)
+    evidence = answer_compose.document_evidence(
+        ToolGateway(store), envelope(), f"{code} quy định gì?"
+    )
+    assert [item["node_id"] for item in evidence] == [record.nodes[0].node_id]
+
+
+def test_document_code_matches_whole_identifier_not_a_longer_number() -> None:
+    record = mock_record()
+    record.source_files = [SourceFile(file_id="other", filename="ZXQ170_scan.pdf")]
+    record.nodes[0].source_file_id = "other"
+    store = InMemorySnapshotStore()
+    store.put(record)
+    assert answer_compose.document_evidence(ToolGateway(store), envelope(), "ZXQ17 ghi gì?") == []
+
+
+@pytest.mark.parametrize("query", ["Sự cố dữ liệu xử lý thế nào?", "Thanh lý và đối soát ra sao?"])
+def test_topic_words_do_not_assign_fixture_document_codes(query: str) -> None:
+    record = mock_record()
+    record.source_files = [SourceFile(file_id="other", filename="BB03_TL01.pdf")]
+    record.nodes[0].source_file_id = "other"
+    store = InMemorySnapshotStore()
+    store.put(record)
+    assert answer_compose.document_evidence(ToolGateway(store), envelope(), query) == []
+    assert answer_compose.expanded_query(query) == query
+
+
+def test_named_document_with_llm_is_composed_instead_of_returned_as_raw_page() -> None:
+    from app.reasoning.stack import FourLayerReasoner
+
+    record = mock_record()
+    record.source_files.append(SourceFile(file_id="custom-page", filename="scan.pdf"))
+    record.pages[0] = record.pages[0].model_copy(
+        update={
+            "source_file_id": "custom-page",
+            "text": "ZXQ17. Bên B chưa giao đủ thiết bị.",
+            "line_texts": {"line": "ZXQ17. Bên B chưa giao đủ thiết bị."},
+        }
+    )
+    store = InMemorySnapshotStore()
+    store.put(record)
+    llm = FakeLLM("Chưa giao đủ thiết bị.")
+    result = FourLayerReasoner(ToolGateway(store), llm).run(
+        envelope(),
+        {
+            "type": "unscoped",
+            "query": "ZXQ17 đã giao đủ chưa?",
+            "policy_flags": LLM_FLAGS,
+        },
+    )
+    assert result["answer"] == "Chưa giao đủ thiết bị."
+    assert "COMPOSE" in result["layers_used"]
+    assert result["citations"]
+    assert "ZXQ17. Bên B chưa giao đủ thiết bị." in llm.prompts[-1]
+
+
+def test_named_document_without_llm_is_a_short_labelled_excerpt() -> None:
+    from app.reasoning.stack import FourLayerReasoner
+
+    record = mock_record()
+    text = "ZXQ17. " + "Nội dung chứng minh. " * 100
+    record.source_files.append(SourceFile(file_id="custom-page", filename="scan.pdf"))
+    record.pages[0] = record.pages[0].model_copy(
+        update={"source_file_id": "custom-page", "text": text, "line_texts": {"line": text}}
+    )
+    store = InMemorySnapshotStore()
+    store.put(record)
+    result = FourLayerReasoner(ToolGateway(store)).run(
+        envelope(),
+        {
+            "type": "unscoped",
+            "query": "ZXQ17 ghi gì?",
+            "policy_flags": {"use_llm": False},
+        },
+    )
+    assert result["answer"].startswith("Trích đoạn nguồn")
+    assert len(result["answer"]) < 420
+    assert result["used_llm"] is False
+
+
+def test_document_title_recall_uses_actual_ocr_title_inside_combined_file() -> None:
+    record = mock_record()
+    record.source_files.append(SourceFile(file_id="combined", filename="scan-pages.pdf"))
+    target = record.pages[0].model_copy(
+        update={
+            "source_file_id": "combined",
+            "text": "BỘ HỒ SƠ\nZXQ17. Nhật ký chuyển đổi dữ liệu\nĐã chuyển 93 bản ghi.",
+            "line_texts": {},
+        }
+    )
+    other = target.model_copy(
+        update={
+            "page_revision_id": "other-page",
+            "page_number": 2,
+            "text": "ZXQ18. Biên bản kiểm tra\nCó dẫn chiếu nhật ký chuyển đổi dữ liệu ở cuối trang.",
+        }
+    )
+    record.pages = [target, other]
+    store = InMemorySnapshotStore()
+    store.put(record)
+    evidence = answer_compose.document_title_evidence(
+        ToolGateway(store), envelope(), "Nhật ký chuyển đổi dữ liệu ghi nhận bao nhiêu bản ghi?"
+    )
+    assert evidence[0]["node_id"] == f"page:{target.page_revision_id}"
+    assert "93" in evidence[0]["text"]
+
+
+def test_title_based_table_question_sends_rows_to_composer() -> None:
+    from app.reasoning.stack import FourLayerReasoner
+
+    record = mock_record()
+    record.source_files.append(SourceFile(file_id="service", filename="attachment.pdf"))
+    record.pages[0] = record.pages[0].model_copy(
+        update={
+            "source_file_id": "service",
+            "line_texts": {},
+            "text": "PHỤ LỤC - SLA\n| Mức | Phản hồi |\n| P1 | 17 phút |\n| P4 | 3 ngày |",
+        }
+    )
+    store = InMemorySnapshotStore()
+    store.put(record)
+    llm = FakeLLM("P1 phản hồi 17 phút; P4 phản hồi 3 ngày.")
+    result = FourLayerReasoner(ToolGateway(store), llm).run(
+        envelope(),
+        {
+            "type": "unscoped",
+            "query": "SLA phản hồi P1 và P4 thế nào?",
+            "policy_flags": LLM_FLAGS,
+        },
+    )
+    assert "COMPOSE" in result["layers_used"]
+    assert "| P1 | 17 phút |" in llm.prompts[-1]
+    assert "| P4 | 3 ngày |" in llm.prompts[-1]
 
 
 def test_bare_clause_lookup_stays_verbatim_but_a_clause_question_is_answered() -> None:

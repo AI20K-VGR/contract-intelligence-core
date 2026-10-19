@@ -40,18 +40,28 @@ class FourLayerReasoner:
             and self.l2.llm is not None
             and self.l2.llm.configured()
             and answer_compose.eligible(task)
-            and answer_compose.needs_scoped_evidence(task)
+            and (
+                answer_compose.needs_scoped_evidence(task)
+                or answer_compose.document_title_evidence(
+                    self.l1.gateway, envelope, str(task.get("query") or "")
+                )
+            )
         )
         if direct:
             # One composition call with the whole bounded source scope,
             # rather than spending L2's call on a truncated prefix first.
             task = {**task, "scoped_composition": True}
         result = self._run_core(envelope, task)
-        explicit_record = re.search(
-            r"\b(?:bb|tl|yc)\s*[- ]?\s*0*\d+[a-z]?\b",
-            answer_compose.fold(str(task.get("query") or "")),
-        )
-        if explicit_record and result.get("review_state") != ReviewState.BLOCKED.value:
+        if result.get("review_state") == ReviewState.BLOCKED.value:
+            return result
+        selected = [str(item) for item in task.get("selected_member_ids") or [] if item]
+        if selected:
+            # Core validated membership; retrieval/fallback must keep that scope too.
+            envelope = envelope.model_copy(
+                update={"auth": envelope.auth.model_copy(update={"member_ids": selected})}
+            )
+        explicit_record = answer_compose.document_codes(str(task.get("query") or ""))
+        if explicit_record:
             source_pages = answer_compose.document_evidence(
                 self.l1.gateway, envelope, str(task.get("query") or "")
             )
@@ -61,13 +71,13 @@ class FourLayerReasoner:
                 citation = {
                     **(item.get("citation") or {"node_id": item["node_id"]}),
                     "node_id": item["node_id"],
-                    "text_span": source_text[:1200],
+                    "text_span": source_text[:350],
                 }
                 grounded = self.l3.run(
                     envelope,
                     task,
                     review_state=ReviewState.NEEDS_REVIEW.value,
-                    answer=f"Nội dung trang chứa mã tài liệu được hỏi: {source_text[:1200]}",
+                    answer=f"Trích đoạn nguồn (chưa tổng hợp câu trả lời): {source_text[:350]}",
                     citations=[citation],
                 )
                 if grounded.get("citations"):
@@ -87,15 +97,6 @@ class FourLayerReasoner:
             and answer_compose.eligible(task)
         ):
             return result
-        if result.get("review_state") == ReviewState.BLOCKED.value:
-            return result
-        selected = [str(item) for item in task.get("selected_member_ids") or [] if item]
-        if selected:
-            # _run_core already validates membership. Keep that same scope
-            # for the composer; context expansion must not reopen the dossier.
-            envelope = envelope.model_copy(
-                update={"auth": envelope.auth.model_copy(update={"member_ids": selected})}
-            )
         if result.get("l0_notes") == "missing_clause":
             return result
         query = str(task.get("query") or "")
