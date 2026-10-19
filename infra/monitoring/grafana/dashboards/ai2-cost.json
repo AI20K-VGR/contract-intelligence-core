@@ -1605,7 +1605,7 @@
       "type": "bargauge",
       "id": 29,
       "title": "Phân bố chi phí mỗi job",
-      "description": "Số job (cộng dồn) có chi phí không quá mức ở nhãn.",
+      "description": "Số job theo khoảng chi phí: mỗi dòng đếm job đắt hơn mức của dòng trên và không quá mức ở nhãn.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1623,7 +1623,8 @@
           "min": 0,
           "color": {
             "mode": "continuous-BlYlRd"
-          }
+          },
+          "displayName": "≤ $${__field.name}"
         },
         "overrides": []
       },
@@ -1651,7 +1652,8 @@
           "legendFormat": "≤ ${{le}}",
           "refId": "A",
           "range": false,
-          "instant": true
+          "instant": true,
+          "format": "heatmap"
         }
       ]
     },

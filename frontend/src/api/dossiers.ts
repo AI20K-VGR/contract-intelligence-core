@@ -51,6 +51,26 @@ export type DossierSummary = {
   metadata: Record<string, unknown> | null
   created_at: string
   document_count: number | null
+  /**
+   * v3.3.0: số hợp đồng / phụ lục. `null` khi người gọi không được xem tài liệu
+   * (CITATION_READ); `undefined` khi backend cũ không gửi trường này.
+   */
+  document_counts?: DocumentCounts | null
+  /**
+   * v3.3.0: tình trạng OCR của hợp đồng đầu tiên. `null` khi hồ sơ chưa có tài
+   * liệu hoặc người gọi không được xem trang (QUERY); `undefined` khi backend cũ.
+   */
+  contract_ocr?: ContractOcrSummary | null
+}
+
+export type ContractOcrSummary = {
+  document_id: string
+  filename: string | null
+  /** Số trang đã có kết quả OCR (0 = chưa OCR). */
+  page_count: number
+  failed_pages: number
+  /** Lỗi thô của trang lỗi đầu tiên; null khi trang đó không kèm lỗi. */
+  first_error: string | null
 }
 
 export type DossierListQuery = {
@@ -88,6 +108,27 @@ function asOptionalCount(value: unknown) {
   return null
 }
 
+function readDocumentCounts(value: unknown): DocumentCounts | null {
+  const record = asRecord(value)
+  if (!record) return null
+  return {
+    contracts: asNumber(record.contracts),
+    annexes: asNumber(record.annexes),
+  }
+}
+
+function readContractOcr(value: unknown): ContractOcrSummary | null {
+  const record = asRecord(value)
+  if (!record) return null
+  return {
+    document_id: asString(record.document_id),
+    filename: asString(record.filename) || null,
+    page_count: asNumber(record.page_count),
+    failed_pages: asNumber(record.failed_pages),
+    first_error: asString(record.first_error) || null,
+  }
+}
+
 export function normalizeDossierSummary(value: unknown): DossierSummary | null {
   const row = asRecord(value)
   if (!row) return null
@@ -106,6 +147,13 @@ export function normalizeDossierSummary(value: unknown): DossierSummary | null {
     created_at: asString(row.created_at),
     document_count:
       asOptionalCount(row.document_count) ?? asOptionalCount(row.documents),
+    // Thiếu khoá (backend trước v3.3.0) khác với giá trị null (không có quyền).
+    ...('document_counts' in row
+      ? { document_counts: readDocumentCounts(row.document_counts) }
+      : {}),
+    ...('contract_ocr' in row
+      ? { contract_ocr: readContractOcr(row.contract_ocr) }
+      : {}),
   }
 }
 
@@ -564,6 +612,53 @@ function inspectionFromPages(
   return { state: 'done', detail: null }
 }
 
+/**
+ * Cùng cách đọc như `inspectionFromPages`, nhưng từ `contract_ocr` của danh
+ * sách (v3.3.0), không phải gọi `/documents` và `/pages` cho từng hồ sơ.
+ * `null` (chưa có tài liệu, hoặc không được xem trang) thì chỉ theo trạng thái job.
+ */
+export function inspectionFromContractOcr(
+  jobStatus: string | null,
+  ocr: ContractOcrSummary | null,
+): OcrInspection {
+  if (!ocr || ocr.page_count === 0) return inspectionFromPages(jobStatus, [])
+  if (ocr.failed_pages > 0) {
+    return {
+      state: 'error',
+      detail: ocr.first_error ? ocrErrorMessage(ocr.first_error) : null,
+      technical: ocr.first_error ? ocrErrorDetail(ocr.first_error) : null,
+    }
+  }
+  if (jobStatus === 'processing' || jobStatus === 'uploaded') {
+    return { state: 'running', detail: null }
+  }
+  return { state: 'done', detail: null }
+}
+
+/**
+ * Số tài liệu và tình trạng OCR mà danh sách đã trả sẵn, theo mã hồ sơ. Hồ sơ
+ * nào backend không gửi trường (bản trước v3.3.0) thì không có mặt ở đây, và
+ * trang gọi `loadDocumentCounts` / `inspectDossierOcr` như cũ cho hồ sơ đó.
+ * `null` nghĩa là không có quyền: không gọi bù, vì gọi cũng nhận 403.
+ */
+export function listedDossierFacts(summaries: DossierSummary[]) {
+  const counts: Record<string, DocumentCounts | null> = {}
+  const ocr: Record<string, OcrInspection> = {}
+  for (const summary of summaries) {
+    if (summary.document_counts !== undefined) {
+      counts[summary.id] = summary.document_counts
+    }
+    if (summary.contract_ocr !== undefined) {
+      ocr[summary.id] = inspectionFromContractOcr(
+        summary.latest_job_status,
+        summary.contract_ocr,
+      )
+    }
+  }
+  return { counts, ocr }
+}
+
+/** Gọi `/documents` và `/pages` cho một hồ sơ: chỉ dùng khi backend cũ không trả `contract_ocr`. */
 export async function inspectDossierOcr(
   dossierId: string,
   jobStatus: string | null,
@@ -575,7 +670,10 @@ export async function inspectDossierOcr(
 
 export type DocumentCounts = { contracts: number; annexes: number }
 
-/** Đếm tài liệu của hồ sơ theo vai trò (API danh sách không trả số này). */
+/**
+ * Đếm tài liệu của hồ sơ theo vai trò bằng `/documents`. Từ v3.3.0 danh sách đã
+ * trả `document_counts`; hàm này chỉ dùng khi backend cũ không gửi trường đó.
+ */
 export async function loadDocumentCounts(
   dossierId: string,
   signal?: AbortSignal,

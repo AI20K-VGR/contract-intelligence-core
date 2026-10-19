@@ -108,6 +108,12 @@ def test_missing_target_not_found_never_invents(index):
     assert res.candidates == ()
 
 
+def test_article_level_insertion_uses_existing_article_as_its_container(index):
+    res = _resolve(index, Address(dieu="3"), require_existing=False)
+
+    assert (res.status, res.node_id, res.canonical) == (Status.UNIQUE, "d3", "dieu 3")
+
+
 def test_field_and_table_nodes_are_not_addressable(index):
     assert _resolve(index, Address(dieu="7")).status == Status.NOT_FOUND
     assert _resolve(index, Address(dieu="8")).status == Status.NOT_FOUND

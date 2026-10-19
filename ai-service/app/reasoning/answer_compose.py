@@ -113,8 +113,11 @@ def is_summary_query(query: str) -> bool:
 
 def needs_scoped_evidence(task: dict[str, Any]) -> bool:
     query = fold(str(task.get("query") or ""))
-    return is_summary_query(query) or bool(
-        re.search(r"\b(phu luc|annex|dieu|article|khoan)\s+\d", query)
+    return (
+        is_summary_query(query)
+        or bool(re.search(r"\b(phu luc|annex|dieu|article|khoan)\s+\d", query))
+        or bool(document_codes(query))
+        or any(cue in query for cue in ("su co", "toa an", "trong tai"))
     )
 
 
@@ -157,6 +160,167 @@ def party_evidence(gateway: ToolGateway, envelope: Any, query: str) -> list[dict
         if active:
             selected.append(node.node_id)
     return evidence_from_citations(gateway, envelope, [{"node_id": nid} for nid in selected])
+
+
+def lexical_evidence(
+    gateway: ToolGateway, envelope: Any, query: str, *, limit: int = 24
+) -> list[dict[str, Any]]:
+    """Find query-matching source lines across the dossier, not just stored graph edges."""
+    record = gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
+    if record is None:
+        return []
+    stop = {
+        "ben",
+        "cac",
+        "cho",
+        "co",
+        "cua",
+        "duoc",
+        "hay",
+        "la",
+        "nao",
+        "nay",
+        "neu",
+        "nhu",
+        "no",
+        "theo",
+        "trong",
+        "va",
+        "voi",
+        "ve",
+    }
+    terms = {word for word in re.findall(r"[a-z0-9]{2,}", fold(query)) if word not in stop}
+    if not terms:
+        return []
+    ranked: list[tuple[int, int, str]] = []
+    for node in record.evidence_nodes():
+        text = f"{node.raw_label or ''} {node.text or ''}"
+        words = set(re.findall(r"[a-z0-9]{2,}", fold(text)))
+        overlap = terms & words
+        if overlap:
+            label_words = set(re.findall(r"[a-z0-9]{2,}", fold(node.raw_label or "")))
+            score = len(overlap) * 3 + (1 if terms & label_words else 0)
+            ranked.append((score, -node.order, node.node_id))
+    for page in record.pages:
+        text = page.text or "\n".join(page.line_texts.values())
+        overlap = terms & set(re.findall(r"[a-z0-9]{2,}", fold(text)))
+        if overlap:
+            ranked.append((len(overlap) * 3, -page.page_number, f"page:{page.page_revision_id}"))
+    ranked.sort(reverse=True)
+    return evidence_from_citations(
+        gateway, envelope, [{"node_id": nid} for _, _, nid in ranked[:limit]], limit=limit
+    )
+
+
+def document_codes(text: str) -> set[str]:
+    """Candidate identifiers, without assuming a dossier's numbering prefixes."""
+    return set(re.findall(r"\b[a-z]+(?:[-/][a-z]+)*[-/]*\d+[a-z]?(?:[-/][a-z0-9]+)*\b", fold(text)))
+
+
+def _page_heading(page: Any) -> str:
+    lines = [line.strip() for line in (page.text or "").splitlines() if line.strip()]
+    if not lines:
+        lines = [line.strip() for line in page.line_texts.values() if line.strip()]
+    return "\n".join(line[:180] for line in lines[:3])
+
+
+def document_evidence(gateway: ToolGateway, envelope: Any, query: str) -> list[dict[str, Any]]:
+    """Resolve requested identifiers against this dossier's metadata/OCR only."""
+    record = gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
+    if record is None:
+        return []
+    codes = document_codes(query)
+    if not codes:
+        return document_title_evidence(gateway, envelope, query)
+
+    def compact(value: str) -> str:
+        return re.sub(r"[\s-]+", "", fold(value))
+
+    def matches(value: str) -> bool:
+        # Match whole identifiers: e.g. AB01 must not resolve AB010.
+        return bool(
+            {compact(code) for code in codes} & {compact(code) for code in document_codes(value)}
+        )
+
+    metadata_files = {
+        source.file_id
+        for source in record.source_files
+        if matches(f"{source.filename.replace('_', ' ')} {source.document_number or ''}")
+    }
+    # A mention in body text is not a document identity. Combined scans are
+    # resolved per page heading so neighbouring records cannot leak into scope.
+    matching_pages = []
+    for page in record.pages:
+        heading_match = matches(_page_heading(page))
+        if heading_match or page.source_file_id in metadata_files:
+            matching_pages.append((not heading_match, page.page_number, page.page_revision_id))
+    matching_pages.sort()
+    page_ids = [f"page:{revision_id}" for _, _, revision_id in matching_pages]
+    ids = [
+        n.node_id
+        for n in sorted(record.evidence_nodes(), key=lambda n: n.order)
+        if n.source_file_id in metadata_files
+    ]
+    selected = page_ids or ids
+    return evidence_from_citations(
+        gateway, envelope, [{"node_id": nid} for nid in selected], limit=SUMMARY_EVIDENCE
+    )
+
+
+def document_title_evidence(
+    gateway: ToolGateway, envelope: Any, query: str
+) -> list[dict[str, Any]]:
+    """Recall pages by their own OCR titles, including records in combined PDFs."""
+    record = gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
+    if record is None:
+        return []
+    stop = {
+        "ben",
+        "cac",
+        "cho",
+        "co",
+        "cua",
+        "duoc",
+        "gi",
+        "hop",
+        "dong",
+        "phu",
+        "luc",
+        "hay",
+        "khong",
+        "la",
+        "nao",
+        "nay",
+        "neu",
+        "theo",
+        "trong",
+        "va",
+        "voi",
+        "ve",
+    }
+    terms = set(re.findall(r"[a-z]{2,}", fold(query))) - stop
+    acronyms = {fold(word) for word in re.findall(r"\b[A-Z]{2,}\b", query)}
+    ranked = []
+    for page in record.pages:
+        lines = (page.text or "\n".join(page.line_texts.values())).splitlines()
+        # Only the short opening lines describe the record, not an arbitrary
+        # mention elsewhere in the body or a table's individual data rows.
+        title = " ".join(line for line in lines[:3] if len(line) <= 180)
+        words = set(re.findall(r"[a-z]{2,}", fold(title)))
+        overlap = terms & words
+        if len(overlap) >= 2 or acronyms & words:
+            ranked.append((len(overlap), page.page_number, page.page_revision_id))
+    if not ranked:
+        return []
+    best = max(score for score, _, _ in ranked)
+    ids = [
+        f"page:{revision}"
+        for score, _, revision in sorted(ranked, key=lambda x: (-x[0], x[1]))
+        if score == best
+    ]
+    return evidence_from_citations(
+        gateway, envelope, [{"node_id": nid} for nid in ids], limit=MAX_EVIDENCE
+    )
 
 
 def _descendants(record: Any, seeds: list[str]) -> list[str]:
@@ -316,7 +480,7 @@ def _node(
     text = str(full.get("text") or "").strip()
     if not text or is_furniture(text):
         return None
-    if str(full.get("type")) == "TABLE":
+    if str(full.get("type")) in {"TABLE", "PAGE"}:
         # A table node can hold many rows. Cutting it like a prose sentence
         # hides the last rows even when the correct table was retrieved.
         chars = max(chars, 8000)
