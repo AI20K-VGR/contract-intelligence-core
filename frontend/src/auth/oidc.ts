@@ -1,4 +1,6 @@
 import { UserManager, WebStorageStateStore, type User } from 'oidc-client-ts'
+import { withRenewLock } from './renewLock'
+import { MemoryTokenStorage, purgeStoredOidcUsers } from './tokenStore'
 
 export type KeycloakConfig = {
   url: string
@@ -22,13 +24,11 @@ export function isKeycloakConfigured(): boolean {
 
 let manager: UserManager | null | undefined
 
-function shareExistingSession() {
-  const prefix = 'oidc.user:'
-  for (let index = 0; index < window.sessionStorage.length; index += 1) {
-    const key = window.sessionStorage.key(index)
-    if (!key?.startsWith(prefix) || window.localStorage.getItem(key)) continue
-    const value = window.sessionStorage.getItem(key)
-    if (value) window.localStorage.setItem(key, value)
+function browserStorage(name: 'localStorage' | 'sessionStorage') {
+  try {
+    return window[name]
+  } catch {
+    return null
   }
 }
 
@@ -43,7 +43,11 @@ export function getUserManager(): UserManager | null {
     return null
   }
 
-  shareExistingSession()
+  // Bản trước lưu cả phiên (có refresh token) trong localStorage: xoá đi.
+  purgeStoredOidcUsers([
+    browserStorage('localStorage'),
+    browserStorage('sessionStorage'),
+  ])
   const origin = window.location.origin
   // localtunnel shows an IP gate to the browser. Dev server proxies /keycloak
   // and adds the bypass header, so the SPA never calls loca.lt directly.
@@ -60,12 +64,19 @@ export function getUserManager(): UserManager | null {
     response_type: 'code',
     scope: 'openid profile email',
     disablePKCE: false,
-    automaticSilentRenew: true,
+    // Gia hạn do AuthProvider tự gọi (renewSession): luôn bằng iframe, có khoá.
+    automaticSilentRenew: false,
+    // Tab chạy nền bị trình duyệt làm chậm: cho iframe gia hạn thêm thời gian.
+    silentRequestTimeoutInSeconds: 30,
     includeIdTokenInSilentRenew: true,
     monitorSession: false,
     filterProtocolClaims: true,
     loadUserInfo: false,
-    userStore: new WebStorageStateStore({ store: window.localStorage }),
+    // Phiên chỉ trong bộ nhớ tab, không có refresh token (#130). F5 hay tab
+    // mới lấy lại phiên bằng iframe prompt=none theo cookie SSO của Keycloak.
+    userStore: new WebStorageStateStore({ store: new MemoryTokenStorage() }),
+    // sessionStorage chỉ giữ state/PKCE verifier tạm của lượt redirect, không có token.
+    stateStore: new WebStorageStateStore({ store: window.sessionStorage }),
   })
 
   return manager
@@ -85,6 +96,15 @@ export function requireUserManager(): UserManager {
   return instance
 }
 
+/**
+ * Lấy phiên mới bằng iframe `prompt=none` (cookie phiên SSO HttpOnly của
+ * Keycloak), không dùng refresh token. Mỗi lúc một lần trong cả trình duyệt.
+ * Lỗi `login_required` khi phiên Keycloak đã hết: người gọi về màn đăng nhập.
+ */
+export function renewSession(instance: UserManager) {
+  return withRenewLock(() => instance.signinSilent({ forceIframeAuth: true }))
+}
+
 export async function getAccessToken(): Promise<string | null> {
   const instance = getUserManager()
   if (!instance) {
@@ -97,7 +117,7 @@ export async function getAccessToken(): Promise<string | null> {
   }
 
   try {
-    user = await instance.signinSilent()
+    user = await renewSession(instance)
     return user?.access_token ?? null
   } catch {
     return null
