@@ -1,11 +1,8 @@
 import { useSyncExternalStore } from 'react'
 import { asUploadPdf } from '../pdf/imageToPdf'
 import { STRUCTURE_MODE_KEY, type StructureMode } from '../structure'
-import {
-  createDossier,
-  createDossierErrorMessage,
-  patchDossier,
-} from './dossiers'
+import { uploadDossierInChunks } from './chunkedUpload'
+import { createDossierErrorMessage, patchDossier } from './dossiers'
 
 /**
  * Tải hồ sơ lên ở ngoài trang Tải lên: bấm tải lên là sang trang tiến trình
@@ -93,7 +90,9 @@ async function run(id: string, input: DossierUploadInput) {
     )
     update(id, { status: 'sending', loaded: 0, total })
 
-    const created = await createDossier(
+    // Theo khúc (#145): mỗi khúc một request ngắn, không bị Cloudflare cắt ở
+    // khoảng 125 giây như một POST /dossiers trên mạng chậm.
+    const created = await uploadDossierInChunks(
       {
         contract,
         metadata: input.splitPending
@@ -103,8 +102,8 @@ async function run(id: string, input: DossierUploadInput) {
       },
       {
         signal,
-        // Quá UPLOAD_STALL_TIMEOUT_MS không gửi thêm được byte nào thì client
-        // tự huỷ và ném UploadStalledError: lần tải lên thành 'failed'.
+        // Một khúc quá UPLOAD_STALL_TIMEOUT_MS không gửi thêm được byte nào thì
+        // gửi lại khúc đó; hết lượt gửi lại mới thành 'failed'.
         onProgress: (sent, bodyTotal) =>
           update(id, {
             loaded: sent,

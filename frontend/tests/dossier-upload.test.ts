@@ -10,6 +10,13 @@ vi.mock('../src/api/dossiers', async () => {
   return { ...actual, createDossier, patchDossier }
 })
 
+// Store gửi theo khúc (#145); cùng chữ ký (input, options) như createDossier,
+// nên các test ở đây dùng chung một hàm giả. Chi tiết gửi khúc ở
+// tests/chunked-upload.test.ts.
+vi.mock('../src/api/chunkedUpload', () => ({
+  uploadDossierInChunks: (...args: unknown[]) => createDossier(...args),
+}))
+
 vi.mock('../src/pdf/imageToPdf', () => ({
   asUploadPdf: (file: File) => Promise.resolve(file),
 }))
