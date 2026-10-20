@@ -54,18 +54,30 @@ _ComposeLoader.add_multi_constructor("!", _tagged)
 
 @pytest.mark.parametrize("service", SERVICES)
 def test_application_services_log_to_journald(service: str) -> None:
-    doc = yaml.load(PROD.read_text(encoding="utf-8"), Loader=_ComposeLoader)  # noqa: S506
+    doc = yaml.load(PROD.read_text(encoding="utf-8"), Loader=_ComposeLoader)
     logging = doc["services"][service]["logging"]
     assert logging["driver"] == "journald"
     assert logging["options"]["tag"] == "{{.Name}}"
 
 
-@pytest.mark.skipif(DOCKER is None, reason="docker CLI is required for the render check")
+@pytest.mark.skipif(
+    DOCKER is None, reason="docker CLI is required for the render check"
+)
 def test_rendered_prod_config_uses_journald() -> None:
     text = LOCAL.read_text(encoding="utf-8") + PROD.read_text(encoding="utf-8")
     dummies = {name: "x" for name in re.findall(r"\$\{([A-Z0-9_]+):\?", text)}
     result = subprocess.run(
-        [DOCKER, "compose", "-f", str(LOCAL), "-f", str(PROD), "config", "backend", "caddy"],
+        [
+            DOCKER,
+            "compose",
+            "-f",
+            str(LOCAL),
+            "-f",
+            str(PROD),
+            "config",
+            "backend",
+            "caddy",
+        ],
         cwd=ROOT,
         env={**os.environ, **dummies},
         capture_output=True,
@@ -106,7 +118,9 @@ def test_journald_is_capped_by_default(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(BASH is None, reason="Bash is required")
-def test_limits_come_from_env_and_an_unchanged_file_is_left_alone(tmp_path: Path) -> None:
+def test_limits_come_from_env_and_an_unchanged_file_is_left_alone(
+    tmp_path: Path,
+) -> None:
     env = ["LOG_JOURNAL_MAX_USE=500M", "LOG_RETENTION_DAYS=14"]
     proc, conf = _limits(tmp_path, env)
     assert proc.returncode == 0, proc.stderr
@@ -120,7 +134,8 @@ def test_limits_come_from_env_and_an_unchanged_file_is_left_alone(tmp_path: Path
 
 @pytest.mark.skipif(BASH is None, reason="Bash is required")
 @pytest.mark.parametrize(
-    "line", ["LOG_JOURNAL_MAX_USE=lots", "LOG_JOURNAL_MAX_USE=0G", "LOG_RETENTION_DAYS=two"]
+    "line",
+    ["LOG_JOURNAL_MAX_USE=lots", "LOG_JOURNAL_MAX_USE=0G", "LOG_RETENTION_DAYS=two"],
 )
 def test_a_bad_limit_stops_the_deploy(tmp_path: Path, line: str) -> None:
     proc, conf = _limits(tmp_path, [line])
