@@ -3,7 +3,7 @@
 > **Tệp sinh tự động** bởi `backend/scripts/export_api_doc.py` từ chính ứng dụng FastAPI. Không sửa tay: sửa code rồi chạy lại script.
 
 - Phiên bản backend: `2.0.0+sprint3-backend`
-- Số endpoint: 103
+- Số endpoint: 108
 - Cột **Quyền**: vai trò được gọi (Quản trị luôn được). "Quyền theo hồ sơ" nghĩa là cần đăng nhập, còn được làm gì do ACL của từng hồ sơ quyết định (chủ hồ sơ, người được chia sẻ, Quản trị).
 - Mọi endpoint có token cần header `Authorization: Bearer <access_token>` và `X-Tenant-Id`.
 - Request/response chi tiết: [03c-openapi-backend.json](03c-openapi-backend.json) (mở bằng Swagger Editor hoặc import vào Postman).
@@ -66,7 +66,7 @@
 | `GET` | `/api/v1/documents/{document_id}/lines` | Đã đăng nhập (quyền theo hồ sơ) | OCR lines of every page of a document, in one response | 200, 422 |
 | `GET` | `/api/v1/documents/{document_id}/pages` | Đã đăng nhập (quyền theo hồ sơ) | List pages of document | 200, 422 |
 | `GET` | `/api/v1/documents/{document_id}/pages/{page_no}/image` | Đã đăng nhập (quyền theo hồ sơ) | Stream page image (PNG/WebP) from storage | 200, 404, 422 |
-| `POST` | `/api/v1/documents/{document_id}/re-ocr` | Vận hành, Thẩm định, Quản trị | Tạo yêu cầu re-OCR | 202, 400, 403, 422 |
+| `POST` | `/api/v1/documents/{document_id}/re-ocr` | Vận hành, Thẩm định, Quản trị | Tạo yêu cầu re-OCR | 202, 400, 403, 422, 503 |
 | `GET` | `/api/v1/documents/{document_id}/re-ocr-requests` | Đã đăng nhập (quyền theo hồ sơ) | List re-OCR requests cho document | 200, 422 |
 | `GET` | `/api/v1/documents/{document_id}/tables` | Đã đăng nhập (quyền theo hồ sơ) | Tables detected in document | 200, 422 |
 
@@ -181,7 +181,7 @@
 
 | Method | Đường dẫn | Quyền | Mô tả | Mã trả về |
 |---|---|---|---|---|
-| `GET` | `/api/v1/readyz` | Không cần token | Readiness probe — kiểm tra DB + AI service sẵn sàng | 200 |
+| `GET` | `/api/v1/readyz` | Không cần token | Readiness probe — kiểm tra DB + AI2 sẵn sàng | 200 |
 
 ## `review-items`
 
@@ -213,6 +213,16 @@
 |---|---|---|---|---|
 | `GET` | `/api/v1/tenants/{tenant_id}/lexicon` | Đã đăng nhập (quyền theo hồ sơ) | Read Lexicon | 200, 422 |
 | `POST` | `/api/v1/tenants/{tenant_id}/lexicon/commands` | Đã đăng nhập (quyền theo hồ sơ) | Mutate Lexicon | 200, 422 |
+
+## `uploads`
+
+| Method | Đường dẫn | Quyền | Mô tả | Mã trả về |
+|---|---|---|---|---|
+| `POST` | `/api/v1/uploads` | Vận hành, Quản trị | Mở phiên tải hồ sơ theo khúc | 201, 413, 422, 429 |
+| `GET` | `/api/v1/uploads/{upload_id}` | Vận hành, Quản trị | Trạng thái phiên tải lên: các khúc đã nhận | 200, 404, 410, 422 |
+| `DELETE` | `/api/v1/uploads/{upload_id}` | Vận hành, Quản trị | Huỷ phiên tải lên và xoá các khúc đã gửi | 204, 404, 409, 422 |
+| `POST` | `/api/v1/uploads/{upload_id}/complete` | Vận hành, Quản trị | Ghép các khúc và tạo hồ sơ (như POST /dossiers) | 202, 404, 409, 410, 413, 422 |
+| `PUT` | `/api/v1/uploads/{upload_id}/files/{file_index}/chunks/{chunk_no}` | Vận hành, Quản trị | Gửi một khúc của một tệp (byte thô) | 204, 404, 409, 410, 422 |
 
 ## `users`
 

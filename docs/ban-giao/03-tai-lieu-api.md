@@ -4,9 +4,9 @@
 |---|---|
 | Người phụ trách | Chương (BE) |
 | Phối hợp | Trang (FE), Văn Dũng (AI2) |
-| Cập nhật | 19/10/2026 |
-| Phiên bản hợp đồng API | `v4.1.0` (header `X-API-Contract`); `v4.2.0` khi PR #149 merge |
-| Danh sách endpoint | [03b-api-endpoints.md](03b-api-endpoints.md): 103 endpoint, sinh tự động từ code |
+| Cập nhật | 20/10/2026 |
+| Phiên bản hợp đồng API | `v4.2.0` (header `X-API-Contract`, đang chạy trên production) |
+| Danh sách endpoint | [03b-api-endpoints.md](03b-api-endpoints.md): 108 endpoint, sinh tự động từ code |
 | OpenAPI (Swagger) | [03c-openapi-backend.json](03c-openapi-backend.json): sinh tự động từ FastAPI |
 
 Tài liệu này mô tả cách gọi API của backend: địa chỉ, xác thực, định dạng request và response, lỗi, giới hạn. Nó cũng mô tả hai giao tiếp nội bộ: backend với AI2 (HTTP có ký HMAC) và backend với AI1 (Kafka).
@@ -76,7 +76,7 @@ Token sống 15 phút. Tài khoản test: xem [12 · Danh sách tài khoản](12
 
 ## 4. Định dạng request và response
 
-- **Body JSON**, UTF-8. Upload dùng `multipart/form-data` (`POST /dossiers`) hoặc byte thô (`PUT /uploads/.../chunks/{n}`, #149).
+- **Body JSON**, UTF-8. Upload dùng `multipart/form-data` (`POST /dossiers`) hoặc byte thô (`PUT /uploads/.../chunks/{n}`).
 - **Response thành công:** envelope `{ "data": …, "meta": { … } }`. Danh sách có `meta.total`, `meta.page`, `meta.page_size`.
 - **Response lỗi:** hai dạng.
 
@@ -98,7 +98,7 @@ Token sống 15 phút. Tài khoản test: xem [12 · Danh sách tài khoản](12
 
 | Luồng | Endpoint (theo thứ tự) |
 |---|---|
-| Tạo hồ sơ | `POST /dossiers` (multipart: `contract`, `annexes[]`, `metadata`) → `202 {dossier_id, job_id}` → OCR tự chạy |
+| Tạo hồ sơ | Frontend dùng tải theo khúc: `POST /uploads` → `PUT /uploads/{id}/files/{i}/chunks/{n}` → `POST /uploads/{id}/complete` → `202 {dossier_id, job_id}` → OCR tự chạy. Một request: `POST /dossiers` (multipart: `contract`, `annexes[]`, `metadata`), cho file nhỏ hoặc script |
 | Theo dõi xử lý | `GET /runs?dossier_id=…` → `GET /runs/{id}/steps` + SSE `GET /runs/{id}/events` (sự kiện `step.changed`, `run.completed`, heartbeat 15 giây) |
 | Xem kết quả OCR | `GET /dossiers/{id}/documents` → `GET /documents/{id}/pages`, `/lines`, `/content` (PDF, có `Range`) |
 | Cây điều khoản | `GET /documents/{id}/clauses` |
@@ -121,9 +121,25 @@ Request và response mẫu của từng luồng: DOC-05b §5, theo 10 màn hình
 | Hỏi đáp mỗi tenant | 2.000 lần/24 giờ (`QUERY_DAILY_QUOTA_PER_TENANT`) | `429` |
 | Người nhận chia sẻ mỗi lần | 100 | `422` |
 
-**Tải hồ sơ lớn trên mạng chậm:** từ PR #149 (API v4.2.0), dùng `/uploads`.
-- Mở phiên, gửi từng khúc 1 MiB, rồi `complete`. Cách này tránh được giới hạn 125 giây và 100 MB mỗi request.
-- Chi tiết: DOC-05b §Màn hình 3 "Tải hồ sơ theo khúc".
+| Phiên tải theo khúc chưa xong, mỗi người dùng | 3 (`UPLOAD_SESSIONS_PER_USER`); phiên `open` không nhận khúc nào trong 5 phút bị huỷ để nhường chỗ | `429` |
+| Kích thước khúc | 1 MiB (`UPLOAD_CHUNK_BYTES`), khúc cuối mỗi tệp nhỏ hơn | `422` |
+| Thời hạn phiên tải theo khúc | 24 giờ (`UPLOAD_SESSION_TTL_SECONDS`) | `410 UPLOAD_EXPIRED` |
+
+**Tải hồ sơ theo khúc (`/uploads`, API v4.2.0, #145):** tránh giới hạn 125 giây và 100 MB mỗi request của Cloudflare.
+1. `POST /uploads` khai các tệp (vai trò, tên, kích thước) và metadata. Server kiểm mọi điều kiện của `POST /dossiers` trước khi nhận byte nào, rồi trả `upload_id`, `chunk_size` và số khúc của mỗi tệp. Hợp đồng luôn là `index` 0.
+2. `PUT /uploads/{id}/files/{index}/chunks/{n}` gửi từng khúc (byte thô). Gửi lại một khúc là an toàn: bản mới thay bản cũ. `GET /uploads/{id}` cho biết các khúc đã nhận, để tiếp tục khi mất mạng.
+3. `POST /uploads/{id}/complete` ghép các khúc rồi tạo hồ sơ như `POST /dossiers`. Gọi lại sau khi đã thành công thì trả đúng hồ sơ cũ, nên client mất phản hồi có thể gọi lại.
+4. `DELETE /uploads/{id}` huỷ phiên và xoá các khúc.
+
+Lỗi riêng (`{"error": {"code": …}}`):
+- `409`: `UPLOAD_MISSING_CHUNKS` (kèm `details.missing_chunks`), `UPLOAD_SIZE_MISMATCH`, `UPLOAD_COMPLETING`, `UPLOAD_COMPLETED`, `UPLOAD_CANCELLED`;
+- `410`: `UPLOAD_EXPIRED`.
+
+Chi tiết: DOC-05b §Màn hình 3 "Tải hồ sơ theo khúc" và §3.3.
+
+**Không có trên production:**
+- **Đọc lại từng trang** (`POST /documents/{id}/re-ocr`, #152) trả `503`, vì AI1 chỉ nhận lệnh OCR qua Kafka, theo cả tài liệu. Đọc lại cả hồ sơ dùng `POST /dossiers/{id}/ocr`.
+- **`/readyz`** của backend kiểm DB và AI2 (`GET {AI2_BASE_URL}/healthz`). Khi cả hai cùng ổn thì `status` là `ready` và `ai_service_mode` là `live`.
 
 ## 7. Backend ↔ AI2 (HTTP nội bộ, ký HMAC)
 
@@ -135,7 +151,7 @@ AI2 (`ci-ai2-service`) chỉ nghe trong mạng Docker nội bộ; trình duyệt
 | Hỏi đáp | `POST {AI2_BASE_URL}/query` (mặc định `http://ai2-service:8002/query`; envelope trong body, trường `service_envelope`) |
 | Đọc graph và vết xử lý | `GET /internal/contract-graph/{job_id}`, `…/evidence`, `GET /internal/processing-trace/{job_id}` |
 | Xoá dữ liệu AI2 của hồ sơ | `DELETE /api/v1/dossiers/{dossier_id}` (scope `ai2.dossier.delete`, #131) |
-| Kiểm tra sống | `GET /healthz`, `GET /readyz` |
+| Kiểm tra sống | `GET /healthz`: `/readyz` của backend gọi endpoint này (3 giây). `GET /readyz` của AI2 gọi nhà cung cấp LLM, nên chỉ `deploy.sh` gọi, mỗi lần deploy một lần |
 
 **Envelope ký** (`ai2.service-envelope.v1`; code: `backend/.../infrastructure/ai_adapters.py: _service_envelope`):
 - Gửi trong header `X-AI2-Service-Envelope` (JSON), hoặc trong body với `/query`:

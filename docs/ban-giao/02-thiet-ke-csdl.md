@@ -4,13 +4,13 @@
 |---|---|
 | Người phụ trách | Chương (BE) |
 | Phối hợp | Đức Dũng (AI1), Văn Dũng (AI2) |
-| Cập nhật | 19/10/2026 |
-| Phiên bản schema | Backend `v25__revoked_session` · AI2 `0009_dossier_purge` |
+| Cập nhật | 20/10/2026 |
+| Phiên bản schema | Backend `v26__upload_session` · AI2 `0009_dossier_purge` |
 | Chi tiết từng bảng | [02b-csdl-chi-tiet.md](02b-csdl-chi-tiet.md) (sinh tự động từ PostgreSQL) |
 
-Tài liệu này giải thích dữ liệu được lưu ở đâu, các bảng thuộc nhóm nghiệp vụ nào, quan hệ giữa chúng, và các quy ước chung. Danh sách cột, kiểu, khoá, index và trigger của **61 bảng** nằm ở phụ lục [02b](02b-csdl-chi-tiet.md). Phụ lục đó được xuất từ một PostgreSQL đã chạy hết migration của backend và AI2, không chép từ tài liệu thiết kế cũ.
+Tài liệu này giải thích dữ liệu được lưu ở đâu, các bảng thuộc nhóm nghiệp vụ nào, quan hệ giữa chúng, và các quy ước chung. Danh sách cột, kiểu, khoá, index và trigger của **63 bảng** nằm ở phụ lục [02b](02b-csdl-chi-tiet.md). Phụ lục đó được xuất từ một PostgreSQL đã chạy hết migration của backend và AI2, không chép từ tài liệu thiết kế cũ.
 
-> `docs/DOC-04b-postgres-schema.sql` và `docs/DOC-04c-database-erd.md` (17/09/2026) là bản **thiết kế ban đầu**. Từ đó tới nay đã có 25 migration, nên hai tài liệu đó **không còn khớp** với database thật. Khi cần biết database đang có gì, dùng tài liệu này và phụ lục 02b.
+> `docs/DOC-04b-postgres-schema.sql` và `docs/DOC-04c-database-erd.md` (17/09/2026) là bản **thiết kế ban đầu**. Từ đó tới nay đã có 26 migration, nên hai tài liệu đó **không còn khớp** với database thật. Khi cần biết database đang có gì, dùng tài liệu này và phụ lục 02b.
 
 ---
 
@@ -21,7 +21,7 @@ Tài liệu này giải thích dữ liệu được lưu ở đâu, các bảng 
 | Database `contract_intelligence`, schema `public` | PostgreSQL 16 + pgvector | Hồ sơ, tài liệu, kết quả OCR, điều khoản, fact, finding, thẩm định, phê duyệt, nhật ký | Backend (role `ci`) |
 | Database `contract_intelligence`, schema `ai2` | cùng PostgreSQL | Snapshot truy vấn, vector, graph hợp đồng, vết xử lý, job AI2 | AI2 (role `ai2`, chỉ có quyền trên schema `ai2`) |
 | Database `keycloak` | PostgreSQL 16 (instance riêng) | Người dùng, mật khẩu (hash), role, phiên đăng nhập | Keycloak |
-| Bucket `dossiers` | MinIO (S3) | File PDF gốc, ảnh render trang, kết quả OCR lớn của AI1 (`result_ref`) | Backend, AI1 |
+| Bucket `dossiers` | MinIO (S3) | File PDF gốc, ảnh render trang, kết quả OCR lớn của AI1 (`result_ref`), khúc tải lên tạm thời (`uploads/…`, mục 2) | Backend, AI1 |
 
 Trên production (AWS Sydney):
 - Hai PostgreSQL chạy trên máy **`ci-db`** (t4g.small), chỉ nghe trên IP nội bộ: backend ở cổng 5432, Keycloak ở cổng 5433. Security group chỉ cho máy `ci-app` vào.
@@ -40,12 +40,14 @@ Chuỗi kết nối, lấy từ `deploy/compose.prod.yml`; mật khẩu nằm tr
 | | `document` | Một file PDF trong hồ sơ: vai trò `CONTRACT`/`ANNEX`, `order_index`, `blob_uri` (MinIO), `page_count`, `sha256` |
 | | `batch` | Lô nhiều hồ sơ tải cùng lúc |
 | | `manifest`, `manifest_item`, `manifest_relation` | Phân loại tài liệu (hợp đồng, phụ lục) và quan hệ giữa chúng; backend tự xác nhận khi tải lên |
+| **Tải hồ sơ theo khúc** | `upload_session` | Một lượt tải hồ sơ qua `/api/v1/uploads` (#145): các tệp đã khai, `status` (`open` → `completing` → `completed`, hoặc `cancelled`), hồ sơ đã tạo, `expires_at` (24 giờ) |
+| | `upload_session_chunk` | Một khúc đã nhận (khoá `upload_id`, `file_index`, `chunk_no`): kích thước, `sha256`, `object_path` trỏ tới object MinIO `uploads/{tenant}/{upload_id}/{file}/{chunk}.{ngẫu nhiên}` |
 | **Xử lý (pipeline)** | `job` | Một lượt xử lý hồ sơ; giữ `current_run_id`, trạng thái, lease cho worker |
 | | `pipeline_run` | Một lần chạy 11 bước S0–S10; giữ kết quả AI2 (`ai2_result_json`, `ai2_job_status`…) |
 | | `pipeline_step` | Trạng thái từng bước S0–S10, kèm `progress` |
 | | `run_event` | Sự kiện tiến độ theo thứ tự commit, nguồn của SSE `/runs/{id}/events` |
 | | `processed_event` | Khoá chống xử lý trùng message Kafka (idempotency) |
-| | `reocr_request` | Yêu cầu OCR lại một số trang |
+| | `reocr_request` | Yêu cầu OCR lại một số trang (production chưa có service xử lý, API trả `503`: [03](03-tai-lieu-api.md) §7) |
 | **Kết quả OCR (AI1)** | `page` | Một trang: kích thước, xoay, ảnh render, `features` (trạng thái OCR, lỗi) |
 | | `ocr_line` | Một dòng OCR: text, `bbox` theo hệ toạ độ CPS, vị trí ký tự trong tài liệu |
 | | `doc_table` | Bảng phát hiện trong tài liệu |
@@ -69,7 +71,16 @@ Chuỗi kết nối, lấy từ `deploy/compose.prod.yml`; mật khẩu nằm tr
 | **Tối ưu (chưa dùng)** | `optimization_campaign`, `_candidate`, `_experiment` | Khung benchmark prompt/heuristic theo DOC-04; chưa có màn hình dùng |
 | Hệ thống | `alembic_version` | Phiên bản migration hiện tại |
 
-> **PR #149** (đang chờ review, tải hồ sơ theo khúc, #145) thêm hai bảng `upload_session` và `upload_session_chunk` (migration `v26`). Khi PR đó merge, chạy lại script ở mục 6 để cập nhật phụ lục 02b.
+**Tải theo khúc (migration `v26`, PR #149):**
+- Mỗi lần gửi một khúc có object MinIO **riêng**, không bao giờ ghi đè. `/complete` chỉ ghép các object mà dòng `upload_session_chunk` trỏ tới.
+- Mọi lần đổi `status` là một câu `UPDATE … WHERE status = …` có điều kiện, nên hai request cùng lúc không ghi đè kết quả của nhau.
+- Mỗi người dùng tối đa 3 phiên chưa xong; việc mở phiên được khoá theo người dùng bằng `pg_advisory_xact_lock`.
+- Vòng bảo trì của API, 10 phút một lần, xoá:
+  - phiên `open` hoặc `cancelled` đã hết hạn;
+  - phiên `completing` vừa hết hạn vừa không tiến triển 10 phút;
+  - phiên `completed` sau 7 ngày.
+
+  Khúc của các phiên đó bị xoá theo.
 
 ## 3. Quan hệ chính
 
@@ -98,9 +109,11 @@ erDiagram
     dossier ||..o{ query_trace : "dossier_id"
     query_trace ||--o{ query_answer : "trace_id (FK)"
     dossier ||..o| deletion_ledger : "dossier_id"
+    upload_session ||--o{ upload_session_chunk : "upload_id (FK, cascade)"
+    upload_session ||..o| dossier : "dossier_id (khi completed)"
 ```
 
-Toàn bộ 20 khoá ngoại có trong database được vẽ ở phụ lục [02b](02b-csdl-chi-tiet.md), theo từng schema.
+Toàn bộ 21 khoá ngoại có trong database được vẽ ở phụ lục [02b](02b-csdl-chi-tiet.md), theo từng schema.
 
 **Vì sao nhiều liên kết không có khoá ngoại:**
 - **Bảng nhật ký phải sống lâu hơn dữ liệu chúng ghi lại** (`audit_event`, `review_action`, `query_trace`, `deletion_ledger`): khoá ngoại sẽ chặn hoặc kéo xoá theo khi xoá hồ sơ.

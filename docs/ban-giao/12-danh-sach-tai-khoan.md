@@ -4,36 +4,37 @@
 |---|---|
 | Người phụ trách | Chương (BE) |
 | Phối hợp | Trang (Lead) |
-| Cập nhật | 19/10/2026 |
+| Cập nhật | 20/10/2026 |
 
 > **Tài liệu này không chứa mật khẩu, khoá hay token nào, và không bao giờ được thêm vào.** Repo có nhiều người đọc, và lịch sử Git không xoá được.
 >
 > Tài liệu chỉ ghi: tài khoản nào tồn tại, dùng làm gì, **bí mật nằm ở đâu**, ai giữ, và đổi thế nào. Khi bàn giao, người giữ chuyển bí mật cho người nhận **qua kênh riêng** (trình quản lý mật khẩu của nhóm, hoặc gặp trực tiếp), rồi cập nhật cột "Người giữ" ở đây bằng PR.
 >
-> Các ô **"Cần xác nhận"** là chỗ chưa rõ người giữ: Lead điền khi chốt biên bản bàn giao (tài liệu 14).
+> Người giữ ở mọi dòng đã được xác nhận ngày 20/10/2026. Đổi người giữ thì cập nhật bằng PR.
 
 ## 1. Hạ tầng và dịch vụ ngoài
 
 | Hệ thống | Tài khoản / định danh | Dùng để | Bí mật nằm ở | Người giữ |
 |---|---|---|---|---|
-| AWS | Account `706421610602`, đăng nhập bằng role `AccountFullAccessRole` (account nằm trong Organization của bên cấp) | Chạy `ci-app`, `ci-db`, `ci-staging` | Phiên đăng nhập AWS (`aws login --region ap-southeast-2`) | Chương (vận hành); chủ Organization: **Cần xác nhận** |
+| AWS | Account `706421610602`, thành viên của một AWS Organization (management account `311419364511`); đăng nhập bằng role `AccountFullAccessRole` | Chạy `ci-app`, `ci-db`, `ci-staging`; bucket backup | Phiên đăng nhập AWS (`aws login --region ap-southeast-2`) | Chương (vận hành và chủ Organization) |
 | AWS IAM | User `ci-github-deploy` (inline policy `ssh-window-on-ci-app`: chỉ mở và đóng cổng 22 trên security group của `ci-app`, `ci-staging`) | GitHub Actions mở SSH lúc deploy | Secret GitHub `AWS_DEPLOY_ACCESS_KEY_ID`, `AWS_DEPLOY_SECRET_ACCESS_KEY` | Admin repo |
 | SSH server | User `ubuntu`, key pair AWS `ci-deploy` | SSH vào `ci-app`, `ci-staging`; `ci-db` qua `ci-app` | File `ci-deploy-aws.pem` trên máy người vận hành | Chương |
 | SSH cho GitHub Actions | Khoá riêng cho runner | Workflow `deploy` | Secret `DEPLOY_SSH_KEY`, `STAGING_DEPLOY_SSH_KEY` | Admin repo |
 | Cloudflare | Tài khoản sở hữu zone `contract-intelligence.tech` (gói Free) | DNS, proxy, WAF, chứng chỉ origin | Tài khoản Cloudflare; API token của zone (token cũ hết hạn 17/10/2026) | Chương (Lead chốt 14/10/2026) |
 | Nhà đăng ký tên miền | Tài khoản sở hữu `contract-intelligence.tech` | Gia hạn tên miền, thêm bản ghi DS cho DNSSEC (**chưa thêm**) | Tài khoản nhà đăng ký | Chương (Lead chốt 14/10/2026) |
 | Chứng chỉ origin | Cloudflare Origin Certificate (hạn 10/2041); CA riêng cho Authenticated Origin Pulls | TLS giữa Cloudflare và server | `deploy/certs/` trên server (quyền 600); khoá của CA AOP **không** để trên server | Chương |
-| GitHub | Repo `AI20K-VGR/contract-intelligence-core`; environment `production`, `staging` | Mã nguồn, CI/CD | Secret của repo (mục 4) | Admin repo: **Cần xác nhận** |
-| Supabase Storage | Bucket backup + S3 access key | Bản backup mã hoá ngoài máy | `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY` trong `deploy/.env.prod` | Chương (Lead chốt 14/10/2026) |
-| SMTP | Tài khoản gửi thư (nếu dùng) | Thư mời, đặt lại mật khẩu, thông báo chia sẻ | `SMTP_*` trong `deploy/.env.prod` | **Cần xác nhận** |
+| GitHub | Repo `AI20K-VGR/contract-intelligence-core`; environment `production`, `staging` | Mã nguồn, CI/CD | Secret của repo (mục 4) | Admin repo và admin organization `AI20K-VGR`: `hieubui2409` |
+| AWS S3 (backup) | Bucket `ci-backups-706421610602` (Sydney; chặn truy cập công khai, mã hoá SSE-S3, versioning, lifecycle 7 ngày) | Bản backup mã hoá ngoài máy ([11](11-admin-guide.md) §4) | Quản trị qua tài khoản AWS ở trên | Chương (Lead chốt S3 ngày 19/10/2026) |
+| AWS IAM | User `ci-backup-writer` (inline policy `write-ci-backups`: chỉ liệt kê, ghi và đọc trên bucket backup, **không có quyền xoá**) | `deploy/backup.sh` đẩy bản backup lên S3 | `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY` trong `deploy/.env.prod` (tạo ngày 20/10/2026) | Chương |
+| SMTP | Tài khoản gửi thư (Gmail, app password) | Thư mời, đặt lại mật khẩu, thông báo chia sẻ | `SMTP_*` trong `deploy/.env.prod` | Trang |
 | Langfuse (tuỳ chọn) | Project AI2 | Vết gọi LLM của AI2 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | Văn Dũng |
 
 ## 2. Khoá AI
 
 | Khoá | Dùng cho | Nằm ở | Người giữ | Ghi chú |
 |---|---|---|---|---|
-| OpenAI production | AI2: LLM, embedding, phân loại cặp điều khoản (`AI2_LLM_API_KEY`, `AI2_EMBEDDING_API_KEY`, `AI2_CONTRACT_GRAPH_PAIRS_API_KEY`); AI1 (`OPENAI_API_KEY`) | `deploy/.env.prod`, `ai-service/.env` trên `ci-app` | **Cần xác nhận** (khoá mới cấp ngày 18/10/2026, Lead và AI2 đồng ý) | Có trần chi tiêu tháng. Hết tiền thì deploy dừng ở preflight AI2 |
-| Mistral | OCR của AI1 (`MISTRAL_API_KEY`) | `ai-service/.env` trên `ci-app` | Đức Dũng: **Cần xác nhận** | |
+| OpenAI production | AI2: LLM, embedding, phân loại cặp điều khoản (`AI2_LLM_API_KEY`, `AI2_EMBEDDING_API_KEY`, `AI2_CONTRACT_GRAPH_PAIRS_API_KEY`); AI1 (`OPENAI_API_KEY`) | `deploy/.env.prod`, `ai-service/.env` trên `ci-app` | Chương (khoá mới cấp ngày 18/10/2026, Lead và AI2 đồng ý) | Có trần chi tiêu tháng. Hết tiền thì deploy dừng ở preflight AI2 |
+| Mistral | OCR của AI1 (`MISTRAL_API_KEY`) | `ai-service/.env` trên `ci-app` | Đức Dũng | |
 | OpenAI staging | AI2 trên staging | `deploy/.env.prod` trên `ci-staging` | Văn Dũng (Lead chốt 16/10/2026) | Hạn mức thấp, riêng với production |
 
 ## 3. Tài khoản trong hệ thống (production)
@@ -53,7 +54,7 @@ Mọi mật khẩu dưới đây được `deploy/bootstrap.sh` **sinh ngẫu nh
 | Backend ↔ AI2 | | Ký HMAC mỗi request ([03](03-tai-lieu-api.md) §7) | `AI2_SERVICE_HMAC_SECRET` |
 | Grafana | `admin` | Grafana nội bộ (người dùng vào qua app, không dùng tài khoản này) | `GRAFANA_ADMIN_PASSWORD` |
 | Cookie giám sát | | Ký cookie phiên `/grafana` | `MONITORING_SESSION_SECRET` |
-| Backup | | Mã hoá bản backup ngoài máy | `BACKUP_ENCRYPTION_PASSPHRASE`: **phải có bản lưu ngoài server**, người giữ: Chương (Lead chốt 14/10/2026) |
+| Backup | | Mã hoá bản backup trên S3 | `BACKUP_ENCRYPTION_PASSPHRASE` (đặt ngày 20/10/2026): **có bản lưu ngoài server**, người giữ: Chương (Lead chốt 14/10/2026) |
 
 Tài khoản người dùng thật do Quản trị tạo trong app ([11](11-admin-guide.md) §1); mỗi người tự đặt mật khẩu qua email mời.
 
@@ -115,4 +116,5 @@ Khoá AI cho local thì mỗi người tự điền vào `ai-service/.env` (bị
 | Khoá LLM, OCR | Tạo khoá mới ở nhà cung cấp, thay trong `deploy/.env.prod`/`ai-service/.env`, deploy lại, **rồi** thu hồi khoá cũ | Preflight AI2 kiểm khoá mới trước khi restart |
 | Khoá SSH `ci-deploy` | Tạo key pair mới, thêm vào `~/.ssh/authorized_keys` trên các server, cập nhật secret GitHub, rồi gỡ khoá cũ | |
 | Khoá IAM `ci-github-deploy` | Tạo access key mới, cập nhật hai secret GitHub, xoá key cũ | |
+| Khoá IAM `ci-backup-writer` | `aws iam create-access-key --user-name ci-backup-writer` **trong terminal của mình** (lệnh in secret ra màn hình), sửa hai dòng `BACKUP_S3_*` trong `deploy/.env.prod`, chạy thử `sudo deploy/backup.sh`, rồi xoá key cũ | Lần backup tiếp theo dùng key mới |
 | `BACKUP_ENCRYPTION_PASSPHRASE` | Đổi trong `deploy/.env.prod` **và** nơi lưu ngoài server | Bản backup cũ vẫn cần passphrase cũ: giữ passphrase cũ tới khi các bản đó hết hạn (7 ngày) |

@@ -4,7 +4,7 @@
 |---|---|
 | Người phụ trách | Chương (BE) |
 | Phối hợp | Trang (FE), Đức Dũng (AI1), Văn Dũng (AI2) |
-| Cập nhật | 19/10/2026 |
+| Cập nhật | 20/10/2026 |
 | Đã kiểm với | `docker-compose.yml` trên `develop` (19/10/2026) |
 
 Hướng dẫn chạy toàn bộ hệ thống trên một máy: frontend, backend, worker, AI1 (OCR), AI2, Keycloak, PostgreSQL, Kafka, MinIO và giám sát. Mọi thứ chạy bằng Docker Compose từ **một checkout** của repo.
@@ -169,7 +169,7 @@ uv run ruff check src/ tests/ && uv run ruff format --check src/ tests/
 uv run mypy src/
 uv run python -m import_linter --config .importlinter
 uv run pytest tests/unit/ tests/architecture/
-uv run pytest tests/integration/ -m "not ai2_local_e2e"      # SQLite; test Postgres tự bỏ qua
+uv run pytest tests/integration/ -m "not ai2_local_e2e"      # SQLite; test Postgres, MinIO tự bỏ qua
 
 # Frontend
 cd frontend && npm ci && npm run lint && npm run build && npm test
@@ -192,6 +192,16 @@ AI2_REQUIRE_DATABASE=false uv run pytest -m "not live and not integration" \
   LEXICON_TEST_DATABASE_URL=postgresql+asyncpg://ci:ci@127.0.0.1:55432/ci_lexicon \
     uv run pytest tests/integration/ -m "not ai2_local_e2e"
   ```
+- **Test tải theo khúc trên MinIO thật** (CI chạy; local thì tuỳ chọn). Dùng cùng image với production:
+  ```bash
+  docker run -d --name ci-minio-test --user 0:0 -p 127.0.0.1:59000:9000 \
+    -e MINIO_ROOT_USER=citest -e MINIO_ROOT_PASSWORD=citest-secret-123 \
+    cgr.dev/chainguard/minio:latest server /data
+  CI_TEST_MINIO_URL=http://127.0.0.1:59000 CI_TEST_MINIO_USER=citest CI_TEST_MINIO_PASSWORD=citest-secret-123 \
+    uv run pytest tests/integration/test_upload_sessions_minio.py
+  docker rm -f ci-minio-test
+  ```
+- `uv sync --frozen` **không kèm** `--extra dev` sẽ gỡ pytest khỏi `.venv`. Sau đó `uv run pytest` lấy nhầm pytest cài ở máy, và báo lỗi import lạ (ví dụ `starlette`). Chạy lại `uv sync --frozen --extra dev`.
 
 ## 9. Dừng, xem log, dọn dữ liệu
 

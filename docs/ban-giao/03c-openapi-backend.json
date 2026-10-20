@@ -3055,6 +3055,439 @@
         }
       }
     },
+    "/api/v1/uploads": {
+      "post": {
+        "tags": [
+          "Contract"
+        ],
+        "summary": "Mở phiên tải hồ sơ theo khúc",
+        "description": "Declare the files and metadata; nothing is stored until the chunks come.\n\nEverything ``POST /dossiers`` checks before reading a file is checked here,\nbefore any byte is sent: file count, one contract, sizes, metadata.",
+        "operationId": "open_upload_session_api_v1_uploads_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadSessionCreateBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_UploadSessionDTO_"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "A file is larger than upload_max_file_bytes"
+          },
+          "422": {
+            "description": "Not exactly one contract, invalid metadata, or more than 6 files (`DOSSIER_TOO_MANY_DOCUMENTS`)"
+          },
+          "429": {
+            "description": "3 unfinished sessions and none idle for 5 minutes: uploads still sending or completing are never cancelled (idle ones make room instead)"
+          }
+        }
+      }
+    },
+    "/api/v1/uploads/{upload_id}/files/{file_index}/chunks/{chunk_no}": {
+      "put": {
+        "tags": [
+          "Contract"
+        ],
+        "summary": "Gửi một khúc của một tệp (byte thô)",
+        "description": "Store one chunk. Sending the same chunk again replaces it (safe to retry).",
+        "operationId": "put_chunk_api_v1_uploads__upload_id__files__file_index__chunks__chunk_no__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "title": "Upload Id"
+            }
+          },
+          {
+            "name": "file_index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 49,
+              "minimum": 0,
+              "title": "File Index"
+            }
+          },
+          {
+            "name": "chunk_no",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Chunk No"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No such session for this user, or no such file/chunk"
+          },
+          "409": {
+            "description": "`UPLOAD_COMPLETING`, `UPLOAD_COMPLETED` or `UPLOAD_CANCELLED`"
+          },
+          "410": {
+            "description": "`UPLOAD_EXPIRED`"
+          },
+          "422": {
+            "description": "Chunk size differs from the expected size"
+          }
+        }
+      }
+    },
+    "/api/v1/uploads/{upload_id}": {
+      "get": {
+        "tags": [
+          "Contract"
+        ],
+        "summary": "Trạng thái phiên tải lên: các khúc đã nhận",
+        "description": "What was received, so a client resumes after a dropped connection or a reload.",
+        "operationId": "get_upload_session_api_v1_uploads__upload_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "title": "Upload Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_UploadSessionDTO_"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session for this user"
+          },
+          "410": {
+            "description": "`UPLOAD_EXPIRED`"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Contract"
+        ],
+        "summary": "Huỷ phiên tải lên và xoá các khúc đã gửi",
+        "description": "Cancel an unfinished upload. Cancelling twice is not an error.",
+        "operationId": "cancel_upload_session_api_v1_uploads__upload_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "title": "Upload Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No such session for this user"
+          },
+          "409": {
+            "description": "`UPLOAD_COMPLETED` (delete the dossier instead) or `UPLOAD_COMPLETING`"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/uploads/{upload_id}/complete": {
+      "post": {
+        "tags": [
+          "Contract"
+        ],
+        "summary": "Ghép các khúc và tạo hồ sơ (như POST /dossiers)",
+        "description": "Join the chunks, then create the dossier exactly as POST /dossiers does.\n\nCalling it again after success returns the same dossier, so a client that\nlost the first response can safely retry.",
+        "operationId": "complete_upload_session_api_v1_uploads__upload_id__complete_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "title": "Upload Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse_DossierCreatedDTO_"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such session for this user"
+          },
+          "409": {
+            "description": "`UPLOAD_MISSING_CHUNKS` (details.missing_chunks), `UPLOAD_SIZE_MISMATCH`, `UPLOAD_COMPLETING` (call again later) or `UPLOAD_CANCELLED`"
+          },
+          "410": {
+            "description": "`UPLOAD_EXPIRED`"
+          },
+          "413": {
+            "description": "A file is larger than upload_max_file_bytes"
+          },
+          "422": {
+            "description": "A file is not a readable PDF, or invalid metadata"
+          }
+        }
+      }
+    },
     "/api/v1/dossiers/{dossier_id}/ai2-content-sharing-consent": {
       "patch": {
         "tags": [
@@ -6885,6 +7318,9 @@
           "403": {
             "description": "Insufficient role"
           },
+          "503": {
+            "description": "No re-OCR service is reachable; nothing is saved"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -8913,8 +9349,8 @@
           "AI-Service",
           "AI-Service"
         ],
-        "summary": "Readiness probe — kiểm tra DB + AI service sẵn sàng",
-        "description": "Trả 503 nếu AI service không available (chỉ trong HTTP mode).",
+        "summary": "Readiness probe — kiểm tra DB + AI2 sẵn sàng",
+        "description": "503 khi DB lỗi, hoặc AI2 không trả lời và ``AI_REQUIRE_READY=1``.",
         "operationId": "backend_readyz_api_v1_readyz_get",
         "responses": {
           "200": {
@@ -9920,6 +10356,23 @@
           "data"
         ],
         "title": "ApiResponse[StorageUsageDTO]"
+      },
+      "ApiResponse_UploadSessionDTO_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UploadSessionDTO"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta",
+            "default": {}
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "ApiResponse[UploadSessionDTO]"
       },
       "ApiResponse_UserDTO_": {
         "properties": {
@@ -16151,6 +16604,172 @@
           "col_idx"
         ],
         "title": "TableCellDTO"
+      },
+      "UploadFileBody": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "contract",
+              "annex"
+            ],
+            "title": "Role"
+          },
+          "filename": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Filename"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Size",
+            "description": "Bytes of the PDF as it will be sent."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "role",
+          "filename",
+          "size"
+        ],
+        "title": "UploadFileBody"
+      },
+      "UploadFileStateDTO": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "chunks": {
+            "type": "integer",
+            "title": "Chunks"
+          },
+          "received": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Received",
+            "description": "Chunk numbers already stored, ascending."
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "role",
+          "filename",
+          "size",
+          "chunks",
+          "received"
+        ],
+        "title": "UploadFileStateDTO"
+      },
+      "UploadSessionCreateBody": {
+        "properties": {
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/UploadFileBody"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Files"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "title": "UploadSessionCreateBody",
+        "description": "Same ``metadata`` as POST /dossiers, plus the files to come."
+      },
+      "UploadSessionDTO": {
+        "properties": {
+          "upload_id": {
+            "type": "string",
+            "title": "Upload Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "completing",
+              "completed",
+              "cancelled"
+            ],
+            "title": "Status"
+          },
+          "chunk_size": {
+            "type": "integer",
+            "title": "Chunk Size",
+            "description": "Bytes of every chunk but the last of each file."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/UploadFileStateDTO"
+            },
+            "type": "array",
+            "title": "Files",
+            "description": "Contract first (index 0)."
+          },
+          "dossier_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dossier Id"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "upload_id",
+          "status",
+          "chunk_size",
+          "expires_at",
+          "files"
+        ],
+        "title": "UploadSessionDTO"
       },
       "UserCreateRequest": {
         "properties": {

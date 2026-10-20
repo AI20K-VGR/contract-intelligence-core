@@ -4,7 +4,7 @@
 |---|---|
 | Người phụ trách | Chương (BE) |
 | Phối hợp | Trang (FE) |
-| Cập nhật | 19/10/2026 |
+| Cập nhật | 20/10/2026 |
 
 Tài liệu cho người quản trị hệ thống production, gồm hai nhóm việc:
 - **Trong ứng dụng** (mục 1–2): quản lý người dùng, xem nhật ký và giám sát. Chỉ cần tài khoản vai trò Quản trị.
@@ -99,22 +99,38 @@ Production hiện thoả các điều kiện trên. File nào không thoả thì
 ## 4. Backup và khôi phục
 
 **Backup** (`deploy/backup.sh`):
-- **Nội dung:** dump hai database (`backend.dump`, `keycloak.dump`, chạy qua mạng tới `ci-db`) cùng toàn bộ MinIO.
-- **Nơi lưu:** `/var/backups/contract-intelligence/<thời điểm>/`, giữ 7 ngày.
-- **Bản ngoài máy:** khi cấu hình `BACKUP_S3_*`, script còn mã hoá AES-256 rồi đẩy lên Supabase Storage. Cách bật: `deploy/README.md` §"Backup ra ngoài máy".
+- **Nội dung:** dump hai database (`backend.dump`, `keycloak.dump`, chạy qua mạng tới `ci-db`) cùng toàn bộ MinIO. Mỗi bản khoảng 1,8 GB.
+- **Lịch:** tự động lúc **02:00 giờ Việt Nam** (`0 19 * * *` UTC) mỗi đêm.
+  - `deploy.sh` ghi lịch vào `/etc/cron.d/ci-backup` ở mỗi lần deploy, theo `BACKUP_SCHEDULE` trong `deploy/.env.prod`; `off` thì xoá lịch (#150).
+  - Không cần sửa crontab bằng tay.
+- **Trên server:** `/var/backups/contract-intelligence/<thời điểm>/`, giữ **3 ngày** (`BACKUP_KEEP_DAYS`). Đĩa `ci-app` 38 GB, nên không giữ lâu hơn.
+- **Ngoài máy (AWS S3):** sau mỗi lần backup, script mã hoá AES-256 bằng `BACKUP_ENCRYPTION_PASSPHRASE`, chia thành các phần, rồi đẩy lên bucket `ci-backups-706421610602` (Sydney).
+  - Lần đầu chạy ngày 20/10/2026: 42 object, 1,89 GB.
+  - Thiết kế **chống xoá:**
+    - IAM user `ci-backup-writer` trên server chỉ ghi và đọc được, không có quyền xoá;
+    - bucket bật versioning;
+    - lifecycle của bucket tự xoá bản cũ sau **7 ngày** (`BACKUP_REMOTE_KEEP_DAYS=0`).
+
+    Ai chiếm được `ci-app` cũng không xoá được bản ngoài máy.
+  - Chi phí khoảng 0,3 USD/tháng. Cách dựng: `deploy/README.md` §"Backup ra ngoài máy: AWS S3".
 
 | Việc | Lệnh |
 |---|---|
 | Backup ngay | `sudo deploy/backup.sh` |
-| Kiểm lịch tự động | `sudo crontab -l`. Phải có dòng `0 2 * * * /opt/contract-intelligence/deploy/backup.sh >> /var/log/ci-backup.log 2>&1` |
-| Xem các bản đã có | `sudo ls -lh /var/backups/contract-intelligence/` |
-| Xem kết quả lần chạy gần nhất | `sudo tail -n 20 /var/log/ci-backup.log` (dòng `[backup] off-site: …` khi có bản ngoài máy) |
+| Kiểm lịch tự động | `cat /etc/cron.d/ci-backup` |
+| Xem các bản trên server | `sudo ls -lh /var/backups/contract-intelligence/` |
+| Xem kết quả lần chạy gần nhất | `sudo tail -n 20 /var/log/ci-backup.log`. Phải có dòng `[backup] off-site: ci-backups-706421610602/<thời điểm> … part(s)` |
+| Xem các bản trên S3 (máy người vận hành, AWS CLI đã đăng nhập) | `aws s3 ls s3://ci-backups-706421610602/ --region ap-southeast-2`; tổng dung lượng: thêm `--recursive --summarize` |
 
 **Luôn backup tay trước** khi: merge một migration xoá hoặc đổi dữ liệu, đổi image database, hoặc chuyển máy.
 
 **Khôi phục:** theo `deploy/README.md`:
 - **Một database:** dòng "Khôi phục DB backend" ở bảng "Việc vận hành".
-- **Cả hai database và MinIO** (ví dụ sang máy mới): mục "Chuyển sang máy mới cùng dữ liệu", bước 5.
+- **Cả hai database và MinIO** (ví dụ sang máy mới): mục "Chuyển sang máy mới cùng dữ liệu", bước 5 và 8.
+- **Từ S3** (khi server mất cả bản tại chỗ):
+  1. Dùng tài khoản quản trị AWS, không dùng `ci-backup-writer`: `aws s3 cp --recursive s3://ci-backups-706421610602/<thời điểm>/ .`.
+  2. Kiểm `SHA256SUMS`, ghép các phần, rồi giải mã bằng `BACKUP_ENCRYPTION_PASSPHRASE`. Lệnh ở `deploy/README.md`, đoạn "Khôi phục từ bucket".
+  3. Khôi phục như hai dòng trên.
 
 Ba điểm phải nhớ:
 1. **Role `ai2` phải có trước** khi khôi phục database backend (`pg_dump` không lưu role). Chạy stack một lần để backend tạo role, rồi mới `pg_restore`.
@@ -193,7 +209,10 @@ Cấu hình đầy đủ: `deploy/README.md` §"Đứng sau Cloudflare".
 |---|---|---|
 | Không vào được site | https://www.cloudflarestatus.com; `dc ps` trên server | Container chết thì xem log rồi `dc restart <dịch vụ>`; không SSH được thì xem mục 6 |
 | Đăng nhập được nhưng mọi API trả 401 | Giờ của server (`timedatectl`); log `backend` có `Session has ended`? | Token của phiên đã đăng xuất là bình thường; nếu lỗi hàng loạt, `dc restart backend keycloak` |
-| Tải lên báo lỗi với file lớn | Mạng người dùng chậm, Cloudflare cắt ở khoảng 125 s (#145) | Dùng tải theo khúc (sau PR #149); file > 50 MB thì nén hoặc tách |
+| Tải lên báo lỗi với file lớn | Mạng người dùng chậm; Cloudflare cắt một request sau khoảng 125 s (#145) | Frontend đã tải theo khúc (`/uploads`, từ 20/10/2026), nên mất mạng thì tiếp tục từ khúc đang dở. Lỗi `429` là người đó đang có 3 lượt tải chưa xong: chờ, hoặc huỷ một lượt. File > 50 MiB thì nén hoặc tách |
+| `/api/v1/readyz` báo `degraded` | `checks.db_ok`, `checks.ai_service_ok` trong kết quả | `db_ok: false` thì xem `ci-db`; `ai_service_ok: false` thì `dc logs ai2-service` (backend không gọi được `/healthz` của AI2) |
+| Bấm "Đọc lại N trang" báo chưa hỗ trợ | Bình thường: production chưa có service đọc lại từng trang (#152) | Dùng "Đọc lại" cả hồ sơ |
+| Không có bản backup mới hoặc thiếu dòng `off-site` | `sudo tail -n 20 /var/log/ci-backup.log`; `cat /etc/cron.d/ci-backup`; `df -h /` | Hết đĩa thì xoá bớt bản cũ trên server; `off-site copy FAILED` thì kiểm `BACKUP_S3_*` (mục 4) rồi chạy `sudo deploy/backup.sh` |
 | OCR không chạy | `dc logs ai1-worker`; khoá Mistral, OpenAI trong `ai-service/.env` | Sửa khoá, `dc restart ai1-worker`, bấm chạy lại phần lỗi |
 | AI2 báo lỗi hoặc treo | `dc logs ai2-service`; OOM (mục 3); khoá LLM còn hạn mức | Sửa khoá hoặc tăng RAM (cần PR), chạy lại AI2 |
 | Deploy dừng ở `AI2 preflight` | Log workflow: lỗi provider (`credit_balance_exhausted`, model không tồn tại) | Đổi khoá (mục 5); production vẫn chạy bản cũ trong lúc chờ |

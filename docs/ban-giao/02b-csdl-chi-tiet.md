@@ -3,9 +3,9 @@
 > **Tệp sinh tự động** bởi `backend/scripts/export_schema_doc.py` từ PostgreSQL đã chạy hết migration. Không sửa tay: sửa migration rồi chạy lại script (cách chạy ở đầu script).
 
 - PostgreSQL: `16.15 (Debian 16.15-1.pgdg12+2)`
-- Backend (`public.alembic_version`): `v25__revoked_session`
+- Backend (`public.alembic_version`): `v26__upload_session`
 - AI2 (`ai2.alembic_version`): `0009_dossier_purge`
-- Số bảng: `public` 43, `ai2` 18 (kể cả `alembic_version`)
+- Số bảng: `public` 45, `ai2` 18 (kể cả `alembic_version`)
 
 Ký hiệu cột **Null**: `NOT NULL` hoặc để trống (cho phép NULL). Ràng buộc: `PK` khoá chính, `FK` khoá ngoại, `UQ` duy nhất, `CK` kiểm tra.
 
@@ -56,6 +56,8 @@ Ký hiệu cột **Null**: `NOT NULL` hoặc để trống (cho phép NULL). Rà
 | [`tenant_lexicon_head`](#public-tenant_lexicon_head) | 2 |  |
 | [`tenant_lexicon_proposal`](#public-tenant_lexicon_proposal) | 8 |  |
 | [`tenant_lexicon_version`](#public-tenant_lexicon_version) | 4 |  |
+| [`upload_session`](#public-upload_session) | 12 |  |
+| [`upload_session_chunk`](#public-upload_session_chunk) | 7 | `upload_session` |
 
 ### Sơ đồ khoá ngoại (`public`)
 
@@ -81,6 +83,7 @@ erDiagram
     document ||--o{ reocr_request : "reocr_request_document_id_fkey"
     review_item ||--o{ review_action : "review_action_review_item_id_fkey"
     tenant_lexicon_version ||--o{ tenant_lexicon_alias : "tenant_lexicon_alias_tenant_id_version_fkey"
+    upload_session ||--o{ upload_session_chunk : "upload_session_chunk_upload_id_fkey"
 ```
 
 ### <a id="public-activity_event"></a>`public.activity_event`
@@ -1210,6 +1213,50 @@ Ràng buộc:
 Trigger:
 
 - `CREATE TRIGGER tenant_lexicon_version_immutable BEFORE DELETE OR UPDATE ON public.tenant_lexicon_version FOR EACH ROW EXECUTE FUNCTION tenant_lexicon_immutable()`
+
+### <a id="public-upload_session"></a>`public.upload_session`
+
+| Cột | Kiểu | Null | Mặc định | Ghi chú |
+|---|---|---|---|---|
+| `id` | `text` | NOT NULL |  |  |
+| `tenant_id` | `text` | NOT NULL |  |  |
+| `user_id` | `text` | NOT NULL |  |  |
+| `status` | `text` | NOT NULL |  |  |
+| `dossier_metadata` | `json` | NOT NULL |  |  |
+| `files` | `json` | NOT NULL |  |  |
+| `chunk_bytes` | `integer` | NOT NULL |  |  |
+| `dossier_id` | `text` |  |  |  |
+| `job_id` | `text` |  |  |  |
+| `created_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `expires_at` | `timestamp with time zone` | NOT NULL |  |  |
+
+Ràng buộc:
+
+- CK `ck_upload_session_status`: `CHECK ((status = ANY (ARRAY['open'::text, 'completing'::text, 'completed'::text, 'cancelled'::text])))`
+- PK `upload_session_pkey`: `PRIMARY KEY (id)`
+
+Index:
+
+- `CREATE INDEX ix_upload_session_expires_at ON public.upload_session USING btree (expires_at)`
+- `CREATE INDEX ix_upload_session_owner ON public.upload_session USING btree (tenant_id, user_id, status)`
+
+### <a id="public-upload_session_chunk"></a>`public.upload_session_chunk`
+
+| Cột | Kiểu | Null | Mặc định | Ghi chú |
+|---|---|---|---|---|
+| `upload_id` | `text` | NOT NULL |  |  |
+| `file_index` | `integer` | NOT NULL |  |  |
+| `chunk_no` | `integer` | NOT NULL |  |  |
+| `size_bytes` | `integer` | NOT NULL |  |  |
+| `sha256` | `text` | NOT NULL |  |  |
+| `object_path` | `text` | NOT NULL |  |  |
+| `received_at` | `timestamp with time zone` | NOT NULL |  |  |
+
+Ràng buộc:
+
+- FK `upload_session_chunk_upload_id_fkey`: `FOREIGN KEY (upload_id) REFERENCES upload_session(id) ON DELETE CASCADE`
+- PK `upload_session_chunk_pkey`: `PRIMARY KEY (upload_id, file_index, chunk_no)`
 
 ## Schema `ai2`: AI2 (Alembic `ai-service/app/db/migrations`)
 

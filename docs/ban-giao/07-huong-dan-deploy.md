@@ -4,7 +4,7 @@
 |---|---|
 | Người phụ trách | Chương (BE) |
 | Phối hợp | Đức Dũng (AI1) |
-| Cập nhật | 19/10/2026 |
+| Cập nhật | 20/10/2026 |
 | Tài liệu chi tiết | `deploy/README.md` (từng lệnh, các tình huống đặc biệt), `docs/DOC-12-ke-hoach-deploy-backend.md` (kế hoạch, rủi ro), `docs/DOC-15-cicd-github-actions.md` (CI/CD) |
 
 Tài liệu này cho người tiếp quản biết hệ thống đang chạy ở đâu, mỗi lần merge thì deploy diễn ra thế nào, và cách tự deploy, kiểm tra hay quay lại bản cũ. Các lệnh chi tiết hơn và các tình huống ít gặp nằm trong `deploy/README.md`; tài liệu này dẫn tới đúng mục ở đó.
@@ -35,9 +35,10 @@ Người dùng ──HTTPS──▶ Cloudflare (gói Free, WAF, proxy)
 | Tài khoản AWS | `706421610602`, chỉ dùng vùng `ap-southeast-2` (Sydney), gói Free |
 | `ci-app` | `i-0ba58095660bd8aa1`, security group `sg-070e3d258f1793c3e` |
 | `ci-db` | `i-064e05b6e1fff946f`, IP nội bộ `172.31.17.169`, security group `sg-0130139f71d6e1e71`; SSH chỉ qua `ci-app` |
-| Staging (`ci-staging`) | `i-0ff88ddd45b1dc39b`, Elastic IP `13.236.32.157`, `https://app-13-236-32-157.sslip.io`; **bình thường tắt** (mục 6) |
+| Staging (`ci-staging`) | `i-0ff88ddd45b1dc39b`, Elastic IP `13.236.32.157`, `https://app-13-236-32-157.sslip.io`; **đang bật** từ 20/10/2026, mọi lần merge chạy qua đây trước (mục 6) |
 | Thư mục trên server | `/opt/contract-intelligence` (bản clone của repo, chạy bằng `sudo`) |
 | Cấu hình bí mật | `deploy/.env.prod` và `ai-service/.env` trên server, quyền 600, không có trong repo |
+| Backup | Tự động 02:00 giờ Việt Nam mỗi đêm: giữ 3 ngày trên server, bản mã hoá trên S3 `ci-backups-706421610602` giữ 7 ngày ([11](11-admin-guide.md) §4) |
 | SSH | user `ubuntu`, khoá `ci-deploy` (`~/.ssh/ci-deploy-aws.pem` trên máy người vận hành; xem [12](12-danh-sach-tai-khoan.md)) |
 
 **Những gì không ra Internet:**
@@ -54,7 +55,7 @@ Mọi thay đổi lên production đi qua PR vào `develop`:
 ```text
 merge PR ──▶ GitHub Actions "deploy"
    1. preflight     kiểm cấu hình deploy, test deploy/tests
-   2. staging       chỉ khi biến repo STAGING_ENABLED=true; lỗi thì dừng, production giữ bản cũ
+   2. staging       khi biến repo STAGING_ENABLED=true (đang bật); lỗi thì dừng, production giữ bản cũ
    3. deploy        (deploy-target.yml, environment "production")
       - mở cổng 22 của ci-app cho đúng IP runner (IAM user ci-github-deploy)
       - SSH, fast-forward checkout tới đúng SHA vừa merge, chạy deploy/deploy.sh
@@ -74,7 +75,8 @@ merge PR ──▶ GitHub Actions "deploy"
 | 6 | Prometheus: `prometheus.yml` đổi thì `promtool check config` rồi restart (#142) | Dừng, Prometheus giữ cấu hình cũ |
 | 7 | Chờ backend healthy, Keycloak sẵn sàng, AI2 đủ khả năng (LLM, vector) | Báo lỗi |
 | 8 | `keycloak_configure.py`: redirect URI, secret client backend, mật khẩu tài khoản demo, SMTP, chống dò mật khẩu, back-channel logout, tắt refresh token | |
-| 9 | Smoke test trên server: `/health`, issuer OIDC, `/admin` 404, back-channel 404, `/grafana` 401, frontend 200, API trên domain app | In `WARNING` |
+| 9 | Lịch backup: ghi `/etc/cron.d/ci-backup` theo `BACKUP_SCHEDULE` (mặc định `0 19 * * *` UTC = 02:00 giờ Việt Nam; `off` thì xoá lịch) (#150) | |
+| 10 | Smoke test trên server: `/health`, issuer OIDC, `/admin` 404, back-channel 404, `/grafana` 401, frontend 200, API trên domain app | In `WARNING` |
 
 **Theo dõi một lần deploy:**
 
@@ -151,6 +153,8 @@ Sau đó vẫn phải mở PR revert, để `develop` khớp với server.
 
 Staging là một máy riêng, dựng giống production, dùng để thử nhánh trước khi merge. Chi tiết: `deploy/README.md` §Staging.
 
+**Hiện trạng (20/10/2026):** máy **đang bật** và `STAGING_ENABLED=true`. Mỗi lần merge vào `develop` deploy lên staging trước, xong mới tới production; staging lỗi thì production giữ bản cũ. Máy chạy liên tục tốn khoảng 87 USD/tháng, trừ vào credit AWS.
+
 | Việc | Lệnh hoặc thao tác |
 |---|---|
 | Bật máy | AWS Console → EC2 → `ci-staging` → Start, hoặc `aws ec2 start-instances --region ap-southeast-2 --instance-ids i-0ff88ddd45b1dc39b` |
@@ -186,7 +190,7 @@ Ví dụ khi đổi máy, đổi nhà cung cấp, hoặc dựng lại sau sự c
 | Secret | `STAGING_DEPLOY_HOST`, `STAGING_DEPLOY_USER`, `STAGING_DEPLOY_SSH_KEY`, `STAGING_DEPLOY_KNOWN_HOSTS` | Như trên, cho staging |
 | Biến | `DEPLOY_SECURITY_GROUP_ID`, `DEPLOY_AWS_REGION`, `STAGING_SECURITY_GROUP_ID` | Security group để mở cổng 22 cho runner. Hiện tại: `sg-070e3d258f1793c3e`, `ap-southeast-2`, `sg-06f1c382fab7f8a53` |
 | Biến | `DEPLOY_BEHIND_CLOUDFLARE` | `true`: bước kiểm từ ngoài gọi thẳng IP origin và kiểm origin từ chối người gọi không phải Cloudflare |
-| Biến | `STAGING_ENABLED` | Mục 6. Hiện tại: `false` (từ 18/10/2026, staging đang tắt) |
+| Biến | `STAGING_ENABLED` | Mục 6. Hiện tại: `true` (từ 20/10/2026) |
 
 ## 8. Những lỗi đã gặp và bài học
 
@@ -197,4 +201,5 @@ Ví dụ khi đổi máy, đổi nhà cung cấp, hoặc dựng lại sau sự c
 | 18/10/2026 | Khoá OpenAI hết tiền, mọi lần deploy dừng ở preflight | Theo dõi hạn mức khoá LLM; người giữ khoá ở [12](12-danh-sach-tai-khoan.md) |
 | 19/10/2026 | Image AI2 thiếu module AI1 (`contract_ocr`), deploy dừng ở preflight (#135, revert #137) | CI giờ dựng `Dockerfile.ai2` và import thử trong image (#139) |
 | 19/10/2026 | Sửa `Caddyfile`, `prometheus.yml` mà container vẫn chạy bản cũ (mount từng file) | `deploy.sh` tự so sha256, kiểm cấu hình rồi restart (#134, #142) |
-| 19/10/2026 | Upload qua Cloudflare bị cắt ở khoảng 125 giây (#145) | Gói Free không đổi được; tải theo khúc (`/uploads`, PR #149) |
+| 19/10/2026 | Upload qua Cloudflare bị cắt ở khoảng 125 giây (#145) | Gói Free không đổi được; tải theo khúc (`/uploads`, #149, merge 20/10/2026) |
+| 19/10/2026 | Production chưa từng có lịch backup tự động (crontab trống) | `deploy.sh` tự cài lịch, kèm bản ngoài máy trên S3 không xoá được từ server (#150) |
