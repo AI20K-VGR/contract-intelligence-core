@@ -422,6 +422,7 @@ services:
       SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
       # Thư mời bị trả về: đọc hộp thư gửi qua IMAP. Trống host = imap.gmail.com khi
       # SMTP_HOST là smtp.gmail.com; trống user/password = SMTP_USER/SMTP_PASSWORD.
+      INVITE_BOUNCE_CHECK_ENABLED: ${INVITE_BOUNCE_CHECK_ENABLED:-true}
       INVITE_BOUNCE_IMAP_HOST: ${INVITE_BOUNCE_IMAP_HOST:-}
       INVITE_BOUNCE_IMAP_PORT: ${INVITE_BOUNCE_IMAP_PORT:-993}
       INVITE_BOUNCE_IMAP_USER: ${INVITE_BOUNCE_IMAP_USER:-}

@@ -408,6 +408,8 @@ class _FakeImap:
     search_statuses: list[str] = []
     # Đặt UID sau literal: ``* 1 FETCH (BODY[]<0> {n} … UID 7)``.
     uid_after_literal = False
+    # Gmail từ chối đăng nhập (app password sai hoặc đã thu hồi).
+    refuse_login = False
 
     def __init__(self, host: str, port: int, timeout: float) -> None:
         type(self).opened += 1
@@ -421,7 +423,12 @@ class _FakeImap:
         return None
 
     def login(self, user: str, password: str) -> None:
-        return None
+        if type(self).refuse_login:
+            # imaplib đưa nguyên dòng NO của server vào lỗi, dạng bytes.
+            raise invite_bounces.imaplib.IMAP4.error(
+                b"[AUTHENTICATIONFAILED] Invalid credentials (Failure)"
+            )
+        return
 
     def select(self, mailbox: str, readonly: bool) -> tuple[str, list[bytes]]:
         return "OK", [str(len(self.mailbox)).encode()]
@@ -465,6 +472,7 @@ def imap(monkeypatch: pytest.MonkeyPatch) -> Iterator[type[_FakeImap]]:
     _FakeImap.fetch_statuses = []
     _FakeImap.search_statuses = []
     _FakeImap.uid_after_literal = False
+    _FakeImap.refuse_login = False
     invite_bounces.clear_cache()
     yield _FakeImap
     invite_bounces.clear_cache()
@@ -557,3 +565,61 @@ def test_a_message_missing_from_the_fetch_is_read_again_later(
 
     assert read is not None
     assert list(read.bounces) == ["sai.ten@gmail.com"]
+
+
+class _Clock:
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def test_a_refused_login_waits_an_hour_before_trying_again(
+    imap: type[_FakeImap], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Production 20/10/2026: Gmail answered AUTHENTICATIONFAILED. Retrying every
+    minute is a stream of failed logins on the account that sends the invites."""
+    clock = _Clock()
+    monkeypatch.setattr(invite_bounces.time, "monotonic", clock)
+    imap.refuse_login = True
+    since = datetime(2026, 10, 19, tzinfo=UTC)
+
+    assert invite_bounces.recent_bounces(since) is None
+    clock.now += 61
+    assert invite_bounces.recent_bounces(since) is None
+    clock.now += 1800
+    assert invite_bounces.recent_bounces(since) is None
+    assert imap.opened == 1
+
+    # After an hour it tries again, and works once the password is fixed.
+    imap.refuse_login = False
+    clock.now += 1800
+    read = invite_bounces.recent_bounces(since)
+    assert read is not None
+    assert imap.opened == 2
+
+
+def test_other_imap_errors_are_still_retried_after_a_minute(
+    imap: type[_FakeImap], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = _Clock()
+    monkeypatch.setattr(invite_bounces.time, "monotonic", clock)
+    imap.fail = True
+    since = datetime(2026, 10, 19, tzinfo=UTC)
+
+    assert invite_bounces.recent_bounces(since) is None
+    clock.now += 61
+    imap.fail = False
+    assert invite_bounces.recent_bounces(since) is not None
+    assert imap.opened == 2
+
+
+def test_the_check_can_be_turned_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    from contract_intelligence.config.settings import Settings
+
+    monkeypatch.setenv("SMTP_HOST", "smtp.gmail.com")
+    monkeypatch.setenv("SMTP_USER", "sender@gmail.com")
+    monkeypatch.setenv("SMTP_PASSWORD", "app-password")
+    assert Settings().invite_bounce_imap() is not None
+    assert Settings(invite_bounce_check_enabled=False).invite_bounce_imap() is None

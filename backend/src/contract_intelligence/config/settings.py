@@ -540,6 +540,10 @@ class Settings(BaseSettings):
     # dùng imap.gmail.com khi SMTP_HOST là smtp.gmail.com; trống user/password
     # thì dùng SMTP_USER/SMTP_PASSWORD. Không có host thì không kiểm tra.
     # -------------------------------------------------------------------------
+    invite_bounce_check_enabled: bool = Field(
+        default=True,
+        description="False: không đọc hộp thư gửi; trạng thái thư mời luôn là null.",
+    )
     invite_bounce_imap_host: str = Field(
         default="",
         description="IMAP host của hộp thư gửi thư mời (trống: suy ra từ SMTP_HOST).",
@@ -559,6 +563,8 @@ class Settings(BaseSettings):
 
     def invite_bounce_imap(self) -> tuple[str, int, str, str] | None:
         """(host, port, user, password) của hộp thư gửi; None khi không kiểm tra bounce."""
+        if not self.invite_bounce_check_enabled:
+            return None
         smtp_host = os.environ.get("SMTP_HOST", "").strip().lower()
         host = self.invite_bounce_imap_host.strip()
         if not host and smtp_host == "smtp.gmail.com":

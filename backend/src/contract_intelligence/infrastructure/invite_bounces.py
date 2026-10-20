@@ -36,6 +36,9 @@ logger = structlog.get_logger(__name__)
 
 _CACHE_SECONDS = 20.0
 _FAILURE_CACHE_SECONDS = 60.0
+# Đăng nhập bị từ chối (sai mật khẩu, app password bị thu hồi): thử lại sau 1 giờ.
+# Đăng nhập sai liên tục có thể khiến Google khoá tài khoản gửi thư mời.
+_AUTH_FAILURE_CACHE_SECONDS = 3600.0
 _IMAP_TIMEOUT_SECONDS = 10.0
 # Thư báo lỗi mới nhất được đọc trong một lần; hộp thư gửi ít khi có nhiều hơn.
 _MAX_MESSAGES = 200
@@ -72,7 +75,9 @@ class MailboxRead:
 
 _lock = threading.Lock()
 # (lúc đọc theo time.monotonic, ngày SINCE đã dùng, kết quả; None khi lần đó lỗi)
-_cache: tuple[float, date, MailboxRead | None] | None = None
+# (lúc đọc theo time.monotonic, ngày SINCE, kết quả hoặc None khi lỗi,
+#  số giây giữ kết quả lỗi)
+_cache: tuple[float, date, MailboxRead | None, float] | None = None
 # Thư đã parse, theo (UIDVALIDITY, UID).
 _parsed: dict[tuple[bytes, bytes], list[Bounce]] = {}
 
@@ -95,23 +100,42 @@ def recent_bounces(since: datetime) -> MailboxRead | None:
     day = since.astimezone(UTC).date()
     with _lock:
         if _cache is not None:
-            read_at, cached_day, cached = _cache
+            read_at, cached_day, cached, retry_after = _cache
             age = time.monotonic() - read_at
-            if cached is None and age < _FAILURE_CACHE_SECONDS:
+            if cached is None and age < retry_after:
                 return None
             if cached is not None and age < _CACHE_SECONDS and cached_day <= day:
                 return cached
         try:
             found = _read_bounces(*conf, day=day)
         except (imaplib.IMAP4.error, OSError) as exc:
+            if _is_auth_failure(exc):
+                logger.error(
+                    "invite_bounces.imap_auth_failed",
+                    host=conf[0],
+                    retry_in_seconds=int(_AUTH_FAILURE_CACHE_SECONDS),
+                    hint=(
+                        "the mailbox refused the login: check SMTP_PASSWORD (Gmail app"
+                        " password) or set INVITE_BOUNCE_IMAP_USER/PASSWORD, or turn the"
+                        " check off with INVITE_BOUNCE_CHECK_ENABLED=false"
+                    ),
+                )
+                _cache = (time.monotonic(), day, None, _AUTH_FAILURE_CACHE_SECONDS)
+                return None
             logger.warning(
                 "invite_bounces.imap_failed", host=conf[0], error_type=type(exc).__name__
             )
-            _cache = (time.monotonic(), day, None)
+            _cache = (time.monotonic(), day, None, _FAILURE_CACHE_SECONDS)
             return None
         result = MailboxRead(at=datetime.now(UTC), bounces=found)
-        _cache = (time.monotonic(), day, result)
+        _cache = (time.monotonic(), day, result, _FAILURE_CACHE_SECONDS)
         return result
+
+
+def _is_auth_failure(exc: BaseException) -> bool:
+    """The server refused the login (wrong or revoked password), not a passing error."""
+    text = str(exc).upper()
+    return "AUTHENTICATIONFAILED" in text or "INVALID CREDENTIALS" in text
 
 
 def clear_cache() -> None:
