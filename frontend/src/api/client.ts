@@ -208,14 +208,33 @@ export async function postMultipartWithProgress<T>(
   formData: FormData,
   options: UploadOptions = {},
 ): Promise<{ data: T; meta?: ApiMeta }> {
+  // Browser must set multipart boundary. Do not set Content-Type.
+  return sendWithProgress<T>('POST', path, formData, options)
+}
+
+/**
+ * Gửi một body bằng XMLHttpRequest, có tiến độ và đồng hồ treo như
+ * `postMultipartWithProgress`; dùng chung cho POST multipart và PUT một khúc
+ * byte thô của tải lên theo khúc (#145).
+ */
+export async function sendWithProgress<T>(
+  method: 'POST' | 'PUT',
+  path: string,
+  body: Blob | FormData,
+  options: UploadOptions & { contentType?: string } = {},
+): Promise<{ data: T; meta?: ApiMeta }> {
   const {
     onProgress,
     stallTimeoutMs = UPLOAD_STALL_TIMEOUT_MS,
     signal,
+    contentType,
   } = options
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
   const token = await getAccessToken()
+  // Huỷ trong lúc chờ token thì không mở request nữa.
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
   const headers = withApiHeaders(new Headers(), token)
+  if (contentType) headers.set('Content-Type', contentType)
 
   const { status, payload } = await new Promise<{
     status: number
@@ -248,8 +267,7 @@ export async function postMultipartWithProgress<T>(
       xhr.abort()
     }
 
-    xhr.open('POST', `${apiBaseUrl}${path}`)
-    // Browser must set multipart boundary. Do not set Content-Type.
+    xhr.open(method, `${apiBaseUrl}${path}`)
     headers.forEach((value, key) => xhr.setRequestHeader(key, value))
     xhr.upload.onprogress = (event) => {
       armStallTimer()
@@ -274,7 +292,7 @@ export async function postMultipartWithProgress<T>(
     signal?.addEventListener('abort', onAbort)
 
     armStallTimer()
-    xhr.send(formData)
+    xhr.send(body)
   })
 
   if (status === 401 && token) {

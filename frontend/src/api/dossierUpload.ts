@@ -1,9 +1,9 @@
 import { useSyncExternalStore } from 'react'
 import { asUploadPdf } from '../pdf/imageToPdf'
 import { STRUCTURE_MODE_KEY, type StructureMode } from '../structure'
+import { uploadDossierInChunks } from './chunkedUpload'
 import { ApiError } from './client'
 import {
-  createDossier,
   createDossierErrorMessage,
   patchDossier,
   splitDossier,
@@ -78,9 +78,18 @@ export function canRetryUpload(upload: DossierUpload | null | undefined) {
   )
 }
 
-/** Backend đã trả lời là từ chối (4xx): chắc chắn chưa tạo hồ sơ. */
+/**
+ * Backend đã trả lời là từ chối (4xx): chắc chắn chưa tạo hồ sơ. Trừ
+ * `409 UPLOAD_COMPLETING`: chờ /complete hết hạn mà backend vẫn đang ghép phiên,
+ * tức là đang tạo hồ sơ.
+ */
 function refusedByBackend(cause: unknown) {
-  return cause instanceof ApiError && cause.status >= 400 && cause.status < 500
+  return (
+    cause instanceof ApiError &&
+    cause.status >= 400 &&
+    cause.status < 500 &&
+    cause.code !== 'UPLOAD_COMPLETING'
+  )
 }
 
 const uploads = new Map<string, DossierUpload>()
@@ -126,7 +135,9 @@ async function run(id: string, input: DossierUploadInput) {
     )
     update(id, { status: 'sending', loaded: 0, total })
 
-    const created = await createDossier(
+    // Theo khúc (#145): mỗi khúc một request ngắn, không bị Cloudflare cắt ở
+    // khoảng 125 giây như một POST /dossiers trên mạng chậm.
+    const created = await uploadDossierInChunks(
       {
         contract,
         metadata: input.splitPending
@@ -136,8 +147,8 @@ async function run(id: string, input: DossierUploadInput) {
       },
       {
         signal,
-        // Quá UPLOAD_STALL_TIMEOUT_MS không gửi thêm được byte nào thì client
-        // tự huỷ và ném UploadStalledError: lần tải lên thành 'failed'.
+        // Một khúc quá UPLOAD_STALL_TIMEOUT_MS không gửi thêm được byte nào thì
+        // gửi lại khúc đó; hết lượt gửi lại mới thành 'failed'.
         onProgress: (sent, bodyTotal) =>
           update(id, {
             loaded: sent,

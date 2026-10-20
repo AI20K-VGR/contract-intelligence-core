@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, Path, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from contract_intelligence.api.dossier_guard import (
@@ -26,11 +26,21 @@ from contract_intelligence.extraction.interfaces.api.dependencies_reocr import (
     ReOcrServiceDep,
 )
 from contract_intelligence.shared.acl import AclAction
+from contract_intelligence.shared.ai.client import get_ai_service_client
 from contract_intelligence.shared.auth import AuthenticatedUser, get_current_user, require_role
 from contract_intelligence.shared.persistence import get_async_session
 from contract_intelligence.shared.responses import ApiResponse
 
 router = APIRouter(tags=["ReOCR"])
+
+# Page re-OCR goes to the DOC-05c AI service (AI_SERVICE_URL). AI1 takes OCR
+# commands over Kafka only, per document and without profiles, so production
+# has no service for this: refuse up front instead of saving a request that
+# fails with a 500 and never finishes.
+REOCR_UNAVAILABLE_MESSAGE = (
+    "Hệ thống chưa hỗ trợ đọc lại từng trang. "
+    'Người vận hành hồ sơ có thể bấm "Đọc lại" để đọc lại cả hồ sơ.'
+)
 
 
 @router.post(
@@ -41,6 +51,7 @@ router = APIRouter(tags=["ReOCR"])
     responses={
         400: {"description": "Invalid payload"},
         403: {"description": "Insufficient role"},
+        503: {"description": "No re-OCR service is reachable; nothing is saved"},
     },
 )
 async def create_reocr_request(
@@ -59,6 +70,8 @@ async def create_reocr_request(
     """
     action = AclAction.REVIEW_MUTATE if user.role == "REVIEWER" else AclAction.DOSSIER_EDIT
     await require_dossier_action(session, user, action=action, document_id=document_id)
+    if not await get_ai_service_client().healthcheck():
+        raise HTTPException(status_code=503, detail=REOCR_UNAVAILABLE_MESSAGE)
     record = await svc.create_request(
         document_id=document_id,
         profile=body.profile,

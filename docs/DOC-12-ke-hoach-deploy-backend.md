@@ -267,6 +267,7 @@ Mỗi lần cập nhật báo trước trong nhóm. Không cập nhật trong l�
 | Kafka không lưu ra đĩa | Thấp | Restart mất message đang bay | Watchdog fail run với mã lỗi, người dùng chạy lại. Không mất dữ liệu đã lưu |
 | Máy chủ hỏng hoặc mất dữ liệu | Thấp | Mất hồ sơ | Backup đêm, thử khôi phục ở bước 5.9. Nên chép backup ra ngoài máy (việc sau) |
 | Let's Encrypt giới hạn số lần cấp | Thấp | Chưa có HTTPS vài giờ | Không xoá volume `caddy_data` khi deploy lại |
+| Cloudflare cắt upload chậm (#145) | Chắc chắn trên mạng chậm | Cloudflare gói Free cắt một request còn đang gửi body sau khoảng **125 giây** (đo 19/10: bản thử 25 MB ở 150 KB/s bị reset ở 124,4 s qua Cloudflare, còn gửi thẳng vào Caddy trên máy chủ thì xong sau 162,7 s). Mạng người dùng đo được 35–87 KB/s nên `POST /dossiers` chỉ gửi kịp 4–10 MB; Caddy ghi `502` vì body không tới đủ | Tải theo khúc `POST /uploads` (DOC-05b v4.2.0): mỗi khúc 1 MiB (`UPLOAD_CHUNK_BYTES`) là một request riêng, khoảng 30 s ở 35 KB/s. Khúc lưu ở MinIO dưới `uploads/{tenant_id}/{upload_id}/`, bảng `upload_session` và `upload_session_chunk` (migration v26). Phiên hết hạn sau 24 giờ (`UPLOAD_SESSION_TTL_SECONDS`), vòng bảo trì của API xoá phiên và khúc 10 phút một lần; mỗi người tối đa 3 phiên mở (`UPLOAD_SESSIONS_PER_USER`). Gói Free không đổi được giới hạn này, nên không dùng một request dài cho file lớn |
 
 ---
 

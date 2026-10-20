@@ -65,6 +65,8 @@ __version__ = "2.0.0"
 #         gửi q; không gửi thư tới tên miền dành riêng. Thu hẹp hành vi nên MAJOR.
 # v4.1.0: phiên Keycloak đã kết thúc (back-channel logout) → token của phiên đó
 #         nhận 401 "Session has ended" ngay, không chờ hết hạn.
+# v4.2.0: tải hồ sơ theo khúc (/uploads) vì Cloudflare Free cắt request còn gửi body
+#         sau ~125 s (#145). Chỉ thêm endpoint; POST /dossiers không đổi.
 # v5.0.0: không gửi được thư thì không có quyền. PUT /dossiers/{id}/access từ chối
 #         người nhận mới có tên miền không nhận thư (422 share_recipient_undeliverable)
 #         và gỡ người gửi thư lỗi, trả họ trong email_not_sent. Thu hẹp hành vi nên MAJOR.

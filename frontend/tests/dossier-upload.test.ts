@@ -12,6 +12,13 @@ vi.mock('../src/api/dossiers', async () => {
   return { ...actual, createDossier, patchDossier, splitDossier }
 })
 
+// Store gửi theo khúc (#145); cùng chữ ký (input, options) như createDossier,
+// nên các test ở đây dùng chung một hàm giả. Chi tiết gửi khúc ở
+// tests/chunked-upload.test.ts.
+vi.mock('../src/api/chunkedUpload', () => ({
+  uploadDossierInChunks: (...args: unknown[]) => createDossier(...args),
+}))
+
 vi.mock('../src/api/structure', () => ({ getDossierStructure }))
 
 vi.mock('../src/pdf/imageToPdf', () => ({
@@ -220,6 +227,20 @@ describe('failure after every byte was sent', () => {
     await settle()
 
     expect(getDossierUpload(id)?.mayBeCreated).toBe(true)
+  })
+
+  it('flags a session the server is still completing when the wait runs out', async () => {
+    // /complete chờ tối đa 3 phút; backend vẫn đang ghép, tức là đang tạo hồ sơ.
+    failAfterSending(
+      new ApiError(409, 'Upload session is completing', 'UPLOAD_COMPLETING'),
+    )
+
+    const id = startDossierUpload(input())
+    await settle()
+
+    const failed = getDossierUpload(id)!
+    expect(failed.mayBeCreated).toBe(true)
+    expect(canRetryUpload(failed)).toBe(false)
   })
 
   it('does not flag a refusal from the backend', async () => {

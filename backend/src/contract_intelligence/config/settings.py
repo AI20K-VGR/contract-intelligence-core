@@ -299,6 +299,27 @@ class Settings(BaseSettings):
         ge=1,
         description="Max size of one uploaded PDF (AI1 refuses sources above 50 MB).",
     )
+    # Chunked dossier upload (POST /uploads, issue #145). Cloudflare Free ends a
+    # request that is still sending its body after about 125 s, so each chunk
+    # must arrive well within that on a slow line: 1 MiB at 35 KB/s is ~30 s.
+    upload_chunk_bytes: int = Field(
+        default=1024 * 1024,
+        ge=64 * 1024,
+        le=8 * 1024 * 1024,
+        description="Size of every chunk but the last in a chunked upload.",
+    )
+    upload_session_ttl_seconds: int = Field(
+        default=24 * 3600,
+        ge=600,
+        le=7 * 24 * 3600,
+        description="An upload session not completed by then is deleted with its chunks.",
+    )
+    upload_sessions_per_user: int = Field(
+        default=3,
+        ge=1,
+        le=20,
+        description="Open upload sessions one user may hold at once (429 above).",
+    )
 
     # -------------------------------------------------------------------------
     # OpenTelemetry
