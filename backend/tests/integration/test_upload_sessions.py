@@ -271,6 +271,16 @@ class TestChunks:
             await _put(client, h, session["upload_id"], 0, 0, b"x" * len(first))
         ).status_code == 204
         await _send_all(client, h, session["upload_id"], [pdf])  # sends chunk 0 again, right bytes
+        # Each send has its own object; the replaced one is deleted, not left behind.
+        sent = [
+            call.args[0]  # the key passed to upload_file
+            for call in storage.upload_file.await_args_list  # type: ignore[attr-defined]
+            if f"/{session['upload_id']}/0/00000." in call.args[0]
+        ]
+        assert len(sent) == 2 and sent[0] != sent[1]
+        with pytest.raises(FileNotFoundError):
+            await storage.download_object(f"s3://dossiers/{sent[0]}")
+        assert await storage.download_object(f"s3://dossiers/{sent[1]}") == _chunks(pdf)[0]
         done = await client.post(f"/api/v1/uploads/{session['upload_id']}/complete", headers=h)
         assert done.status_code == 202, done.text
 
@@ -965,3 +975,84 @@ class TestConcurrency:
         # The late object is not left behind in MinIO.
         with pytest.raises(FileNotFoundError):
             await storage.download_object(written[0])
+
+    @pytest.mark.asyncio
+    async def test_a_refused_send_with_other_bytes_never_reaches_the_dossier(
+        self,
+        client: AsyncClient,
+        headers: Any,
+        db: async_sessionmaker[AsyncSession],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """vdungx on 522dad30: same length, other bytes, PUT stored before /complete read.
+
+        The PUT has read "open" and waits; /complete claims the session and waits
+        before reading its chunks; the PUT then stores its object and is refused;
+        /complete goes on. The dossier must hold the accepted bytes.
+        """
+        h = headers()
+        pdf = make_pdf()
+        parts = _chunks(pdf)
+        other = bytes(b ^ 0xFF for b in parts[0])  # same length, every byte differs
+        session = await _open(client, h, [("contract", "a.pdf", pdf)])
+        upload_id = session["upload_id"]
+        await _send_all(client, h, upload_id, [pdf])
+
+        claimed = asyncio.Event()
+        put_finished = asyncio.Event()
+        real_claim = upload_session_store.UploadSessionStore.claim_for_completion
+        real_chunks = upload_session_store.UploadSessionStore.chunks
+        real_upload = storage.upload_file
+        after_claim = False
+
+        async def claim(self: Any, *args: Any, **kwargs: Any) -> Any:
+            nonlocal after_claim
+            won = await real_claim(self, *args, **kwargs)
+            after_claim = won
+            return won
+
+        async def chunks(self: Any, *args: Any, **kwargs: Any) -> Any:
+            if after_claim:  # committed the claim, about to read what to join
+                claimed.set()
+                await put_finished.wait()
+            return await real_chunks(self, *args, **kwargs)
+
+        refused: list[str] = []
+
+        async def upload(key: str, data: bytes) -> str:
+            await claimed.wait()  # the PUT read "open" before the claim
+            path = await real_upload(key, data)
+            refused.append(path)
+            return path
+
+        joined: list[bytes] = []
+        real_check = upload_session_router.check_pdf
+
+        async def check(filename: str, data: bytes) -> Any:
+            joined.append(data)
+            return await real_check(filename, data)
+
+        monkeypatch.setattr(upload_session_store.UploadSessionStore, "claim_for_completion", claim)
+        monkeypatch.setattr(upload_session_store.UploadSessionStore, "chunks", chunks)
+        monkeypatch.setattr(storage, "upload_file", upload)
+        monkeypatch.setattr(upload_session_router, "check_pdf", check)
+
+        async def late_put() -> Any:
+            try:
+                return await _put(client, h, upload_id, 0, 0, other)
+            finally:
+                put_finished.set()
+
+        put, done = await asyncio.gather(
+            late_put(), client.post(f"/api/v1/uploads/{upload_id}/complete", headers=h)
+        )
+
+        assert put.status_code == 409
+        assert _code(put) == "UPLOAD_COMPLETING"
+        assert done.status_code == 202, done.text
+        assert joined == [pdf]  # byte for byte, not only the length
+        # The refused object is not left in storage either.
+        async with db() as s:
+            assert (await s.execute(select(UploadChunkORM))).first() is None
+        with pytest.raises(FileNotFoundError):
+            await storage.download_object(refused[0])

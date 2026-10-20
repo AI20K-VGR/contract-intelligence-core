@@ -406,20 +406,19 @@ async def put_chunk(
     object_path = await storage.upload_file(
         chunk_key(tenant_id, row.id, file_index, chunk_no), data
     )
+    # The object has a key of its own (chunk_key), so writing it changed
+    # nothing anyone reads. It counts only once its row is saved below.
     if not await store.touch_open(row.id):
-        # Cancelled, claimed or completed after the check above.
+        # Cancelled, claimed or completed after the check above: refused, and
+        # the object is not referenced by any chunk row.
         await session.rollback()
+        await delete_objects_quietly([object_path])
         current = await store.get_refreshed(upload_id, user.user_id)
-        if current is None or current.status in (CANCELLED, COMPLETED):
-            # Its chunk rows and objects are already gone, so this object would
-            # be left behind. A session being completed still reads this key
-            # (same name, same bytes): it is kept then.
-            await delete_objects_quietly([object_path])
         if current is None:
             raise _not_found()
         raise _not_open(current)
     try:
-        await store.save_chunk(
+        replaced = await store.save_chunk(
             row,
             file_index=file_index,
             chunk_no=chunk_no,
@@ -429,10 +428,15 @@ async def put_chunk(
         )
         await session.commit()
     except IntegrityError as exc:
-        # The same chunk sent twice at the same moment: the other copy won and
-        # holds the same bytes (same key), so this one is not an error.
+        # The same chunk sent twice at the same moment: the other send was
+        # recorded first and is the one kept; this object is not referenced.
         await session.rollback()
+        await delete_objects_quietly([object_path])
         logger.info("upload.chunk.concurrent_duplicate", upload_id=row.id, error=str(exc))
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    if replaced is not None:
+        # The previous send of this chunk, no longer referenced since the commit.
+        await delete_objects_quietly([replaced])
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

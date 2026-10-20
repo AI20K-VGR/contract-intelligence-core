@@ -16,6 +16,7 @@ one exception: the maintenance loop runs it for every tenant.
 from __future__ import annotations
 
 import asyncio
+import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -150,8 +151,13 @@ def declared_files(row: UploadSessionORM) -> list[DeclaredFile]:
 
 
 def chunk_key(tenant_id: str, upload_id: str, file_index: int, chunk_no: int) -> str:
-    """MinIO key from server-made values only (never the client's file name)."""
-    return f"uploads/{tenant_id}/{upload_id}/{file_index}/{chunk_no:05d}"
+    """A new MinIO key for one send of one chunk, from server-made values only.
+
+    Every send gets its own key and an object is never overwritten: /complete
+    reads exactly the objects its chunk rows point to, so a send that was
+    refused (session already claimed) cannot change the bytes being joined.
+    """
+    return f"uploads/{tenant_id}/{upload_id}/{file_index}/{chunk_no:05d}.{secrets.token_hex(8)}"
 
 
 def aware(value: datetime) -> datetime:
@@ -309,10 +315,14 @@ class UploadSessionStore:
         size_bytes: int,
         sha256: str,
         object_path: str,
-    ) -> None:
-        """Record one stored chunk; sending the same chunk again replaces it."""
+    ) -> str | None:
+        """Record one stored chunk; sending the same chunk again replaces it.
+
+        Returns the object of the replaced send (to delete after the commit).
+        """
         existing = await self._session.get(UploadChunkORM, (row.id, file_index, chunk_no))
         now = utcnow()
+        replaced: str | None = None
         if existing is None:
             self._session.add(
                 UploadChunkORM(
@@ -326,12 +336,15 @@ class UploadSessionStore:
                 )
             )
         else:
+            if existing.object_path != object_path:
+                replaced = existing.object_path
             existing.size_bytes = size_bytes
             existing.sha256 = sha256
             existing.object_path = object_path
             existing.received_at = now
         row.updated_at = now
         await self._session.flush()
+        return replaced
 
     async def touch_open(self, upload_id: str) -> bool:
         """Mark the session active, only if it is still ``open``.
