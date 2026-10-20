@@ -26,8 +26,20 @@
 # Needs Docker Compose >= 2.24 (`!reset`).
 # =============================================================================
 
+# Logs of the application services go to the host's journald instead of the
+# per-container json-file: those files are deleted with the container, so every
+# deploy (which recreates containers) lost the logs of the run before. journald
+# keeps them across deploys and reboots; deploy.sh caps its size and age
+# (LOG_JOURNAL_MAX_USE, LOG_RETENTION_DAYS). `docker logs` still works; older
+# lines: `journalctl CONTAINER_NAME=ci-backend --since "2 days ago"`.
+x-service-logging: &service-logging
+  driver: journald
+  options:
+    tag: "{{.Name}}"
+
 services:
   frontend:
+    logging: *service-logging
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -53,6 +65,7 @@ services:
       POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?set in deploy/.env.prod}
 
   keycloak:
+    logging: *service-logging
     command: !override
       - start
       - --import-realm
@@ -91,6 +104,7 @@ services:
       POSTGRES_PASSWORD: ${BACKEND_DB_PASSWORD:?set in deploy/.env.prod}
 
   kafka:
+    logging: *service-logging
     ports: !reset []
     environment:
       # Internal listeners only; no host (EXTERNAL) listener.
@@ -102,6 +116,7 @@ services:
       KAFKA_HEAP_OPTS: ${KAFKA_HEAP_OPTS:--Xmx512m -Xms128m}
 
   backend:
+    logging: *service-logging
     environment:
       ENV: prod
       DATABASE_URL: postgresql+asyncpg://ci:${BACKEND_DB_PASSWORD:?set in deploy/.env.prod}@${BACKEND_DB_HOST:-backend-db}:${BACKEND_DB_PORT:-5432}/contract_intelligence
@@ -140,6 +155,7 @@ services:
     volumes: !reset []
 
   backend-worker:
+    logging: *service-logging
     environment:
       ENV: prod
       DATABASE_URL: postgresql+asyncpg://ci:${BACKEND_DB_PASSWORD:?set in deploy/.env.prod}@${BACKEND_DB_HOST:-backend-db}:${BACKEND_DB_PORT:-5432}/contract_intelligence
@@ -156,9 +172,11 @@ services:
 
   # AI1 reads and writes MinIO only through presigned URLs from the backend.
   ai1-worker:
+    logging: *service-logging
     volumes: !reset []
 
   ai2-service:
+    logging: *service-logging
     env_file: !reset []
     environment:
       AI2_DATABASE_URL: postgresql+psycopg://ai2:${AI2_DB_PASSWORD:?set in deploy/.env.prod}@${BACKEND_DB_HOST:-backend-db}:${BACKEND_DB_PORT:-5432}/contract_intelligence
@@ -206,6 +224,7 @@ services:
     ports: !reset []
 
   minio:
+    logging: *service-logging
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set in deploy/.env.prod}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set in deploy/.env.prod}
@@ -246,6 +265,7 @@ services:
       - /:/host:ro,rslave
 
   caddy:
+    logging: *service-logging
     image: caddy:2.8-alpine
     container_name: ci-caddy
     restart: unless-stopped
