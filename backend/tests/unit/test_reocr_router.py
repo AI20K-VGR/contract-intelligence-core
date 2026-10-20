@@ -56,6 +56,15 @@ def _allow_dossier_edit(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
     return guard
 
 
+@pytest.fixture(autouse=True)
+def ai_client(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """A reachable re-OCR service unless a test says otherwise."""
+    fake = AsyncMock()
+    fake.healthcheck.return_value = True
+    monkeypatch.setattr(reocr_router, "get_ai_service_client", lambda: fake)
+    return fake
+
+
 @pytest_asyncio.fixture
 async def mock_svc() -> AsyncMock:
     return AsyncMock(spec=ReOcrService)
@@ -98,6 +107,19 @@ class TestCreateReOcr:
         kwargs = mock_svc.create_request.call_args.kwargs
         assert kwargs["profile"] == "high_res_binarize"
         assert kwargs["page_numbers"] == [1, 2]
+
+    async def test_no_reocr_service_is_503_and_saves_nothing(
+        self, client: AsyncClient, mock_svc: AsyncMock, ai_client: AsyncMock
+    ) -> None:
+        # Production: AI1 is Kafka-only and nothing listens on AI_SERVICE_URL.
+        ai_client.healthcheck.return_value = False
+        resp = await client.post(
+            "/api/v1/documents/doc_1/re-ocr",
+            json={"profile": "high_res_binarize", "page_numbers": [1]},
+        )
+        assert resp.status_code == 503
+        assert resp.json()["detail"] == reocr_router.REOCR_UNAVAILABLE_MESSAGE
+        mock_svc.create_request.assert_not_called()
 
     async def test_rejects_invalid_profile(self, client: AsyncClient, mock_svc: AsyncMock) -> None:
         resp = await client.post(

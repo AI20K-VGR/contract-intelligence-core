@@ -85,7 +85,7 @@ from contract_intelligence.shared.ai import (
     reset_ai_service_client,
     reset_background_dispatcher,
 )
-from contract_intelligence.shared.ai.health_router import router as ai_health_router
+from contract_intelligence.shared.ai.health_router import ai2_alive, router as ai_health_router
 from contract_intelligence.shared.ai.job_worker import (
     start_maintenance_loop,
     stop_maintenance_loop,
@@ -190,12 +190,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as exc:
             logger.warning("auth.revoked_sessions.load_failed", error=str(exc))
 
-    # Initialize AI service client (singleton) — verify connectivity
-    ai_client = get_ai_service_client()
-    if await ai_client.healthcheck():
-        logger.info("ai_client.ready")
+    # Initialize AI service client (singleton); AI2 is the service to reach.
+    get_ai_service_client()
+    if await ai2_alive():
+        logger.info("ai2.ready")
     else:
-        logger.warning("ai_client.healthcheck_failed")
+        logger.warning("ai2.healthcheck_failed")
 
     # Initialize background dispatcher
     _dispatcher = get_background_dispatcher()
