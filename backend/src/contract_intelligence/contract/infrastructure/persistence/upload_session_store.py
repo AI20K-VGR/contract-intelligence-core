@@ -299,10 +299,18 @@ class UploadSessionStore:
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
     async def chunks(self, upload_id: str) -> list[UploadChunkORM]:
+        """The chunk rows as the database has them now.
+
+        ``populate_existing``: rows already loaded in this session (an earlier
+        call; the request session keeps objects across commits) are overwritten
+        with the current columns. Otherwise a chunk resent by another request in
+        between keeps its old ``object_path``, an object that is deleted by then.
+        """
         stmt = (
             select(UploadChunkORM)
             .where(UploadChunkORM.upload_id == upload_id)
             .order_by(UploadChunkORM.file_index, UploadChunkORM.chunk_no)
+            .execution_options(populate_existing=True)
         )
         return list((await self._session.execute(stmt)).scalars())
 

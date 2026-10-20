@@ -1056,3 +1056,56 @@ class TestConcurrency:
             assert (await s.execute(select(UploadChunkORM))).first() is None
         with pytest.raises(FileNotFoundError):
             await storage.download_object(refused[0])
+
+    @pytest.mark.asyncio
+    async def test_a_resend_accepted_before_the_claim_is_the_one_joined(
+        self,
+        client: AsyncClient,
+        headers: Any,
+        db: async_sessionmaker[AsyncSession],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """vdungx on 61fecb30: /complete has read the chunk rows, then a resend lands.
+
+        The resend is accepted (204): its row points to a new object and the old
+        one is deleted. /complete must join the new object, not the one it loaded
+        before the claim.
+        """
+        h = headers()
+        pdf = make_pdf()
+        session = await _open(client, h, [("contract", "a.pdf", pdf)])
+        upload_id = session["upload_id"]
+        await _send_all(client, h, upload_id, [pdf])
+        async with db() as s:
+            before = (
+                await s.execute(
+                    select(UploadChunkORM.object_path).where(UploadChunkORM.chunk_no == 0)
+                )
+            ).scalar_one()
+
+        real_claim = upload_session_store.UploadSessionStore.claim_for_completion
+        resent: list[Any] = []
+
+        async def resend_then_claim(self: Any, *args: Any, **kwargs: Any) -> Any:
+            # /complete checked the chunks; a resend of chunk 0 finishes now.
+            resent.append(await _put(client, h, upload_id, 0, 0, _chunks(pdf)[0]))
+            return await real_claim(self, *args, **kwargs)
+
+        joined: list[bytes] = []
+        real_check = upload_session_router.check_pdf
+
+        async def check(filename: str, data: bytes) -> Any:
+            joined.append(data)
+            return await real_check(filename, data)
+
+        monkeypatch.setattr(
+            upload_session_store.UploadSessionStore, "claim_for_completion", resend_then_claim
+        )
+        monkeypatch.setattr(upload_session_router, "check_pdf", check)
+        done = await client.post(f"/api/v1/uploads/{upload_id}/complete", headers=h)
+
+        assert resent[0].status_code == 204
+        assert done.status_code == 202, done.text
+        assert joined == [pdf]
+        with pytest.raises(FileNotFoundError):
+            await storage.download_object(before)  # the old send is gone
