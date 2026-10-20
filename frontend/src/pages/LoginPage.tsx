@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { Navigate } from 'react-router-dom'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { LOGIN_NETWORK_MESSAGE, userErrorMessage } from '../api/errorMessage'
 import { homePath, validateWorkEmail } from '../auth/session'
 import { useAuth } from '../auth/useAuth'
@@ -12,6 +12,35 @@ export function LoginPage() {
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [params] = useSearchParams()
+  // Vừa đặt mật khẩu xong (info.ftl gửi về /?sso=1&login_hint=…): mở đăng nhập
+  // Keycloak luôn, không bắt nhập lại email ở đây.
+  const autoSso = params.get('sso') === '1'
+  const autoStarted = useRef(false)
+
+  useEffect(() => {
+    if (!autoSso || !ready || user || !configured || autoStarted.current) return
+    autoStarted.current = true
+    const hint = params.get('login_hint')?.trim() ?? ''
+    let email = ''
+    try {
+      email = hint ? validateWorkEmail(hint) : ''
+    } catch {
+      email = ''
+    }
+    setBusy(true)
+    loginWithSso(email).catch((cause: unknown) => {
+      setEmail(email)
+      setError(
+        userErrorMessage(
+          cause,
+          'Chưa đăng nhập được. Vui lòng thử lại.',
+          LOGIN_NETWORK_MESSAGE,
+        ),
+      )
+      setBusy(false)
+    })
+  }, [autoSso, configured, loginWithSso, params, ready, user])
 
   if (ready && user) {
     return <Navigate to={homePath(user.role)} replace />
@@ -20,6 +49,10 @@ export function LoginPage() {
   // biết đã đăng nhập chưa. Như các route bảo vệ, chưa vẽ gì trong lúc chờ để
   // người đã đăng nhập không thấy form đăng nhập nháy lên.
   if (!ready) {
+    return null
+  }
+  // Đang tự chuyển sang Keycloak: không vẽ form để khỏi nháy lên rồi mất.
+  if (autoSso && configured && !error) {
     return null
   }
 
@@ -186,19 +219,6 @@ export function LoginPage() {
           </div>
         </div>
       </main>
-
-      <footer className="relative z-10 w-full py-gutter-sm px-gutter-lg">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-space-sm text-outline font-label-sm text-label-sm">
-          <div className="flex items-center gap-space-md">
-            <span>Chính sách bảo mật</span>
-            <span className="text-outline-variant">•</span>
-            <span>Điều khoản sử dụng</span>
-          </div>
-          <span className="tracking-wide">
-            © Lexis Contract Intelligence. All rights reserved.
-          </span>
-        </div>
-      </footer>
     </div>
   )
 }

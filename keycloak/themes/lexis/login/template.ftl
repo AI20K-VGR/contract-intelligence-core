@@ -52,16 +52,6 @@
         </div>
     </main>
 
-    <footer class="lexis-footer">
-        <div class="lexis-footer-inner">
-            <div class="lexis-footer-links">
-                <span>Chính sách bảo mật</span>
-                <span class="lexis-dot">•</span>
-                <span>Điều khoản sử dụng</span>
-            </div>
-            <span>© 2025 Lexis Contract Intelligence. All rights reserved.</span>
-        </div>
-    </footer>
     <script>
         // Nút con mắt cạnh ô mật khẩu: bấm để ẩn/hiện.
         document.querySelectorAll('[data-password-toggle]').forEach(function (button) {

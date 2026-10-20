@@ -216,3 +216,9 @@ Realm export chưa có `smtpServer`, nên `execute-actions-email` không gửi �
 Local có thể trỏ SMTP tới một mailbox bắt thư (Mailhog hoặc tương đương) để admin bấm link đặt mật khẩu mà không cần hộp thư thật.
 
 Sau khi user đặt mật khẩu, `UPDATE_PASSWORD` rời `requiredActions`, `status` thành `active`. Lần đăng nhập sau đi SSO bình thường.
+
+### Thư mời bị trả về (DOC-05b v5.1.0)
+
+Gmail nhận thư mời cả khi địa chỉ không tồn tại, rồi gửi thư "Address not found" về hộp thư gửi. Backend đọc INBOX của hộp thư đó qua IMAP (chỉ đọc) và trả `invite_delivery` trên user. Với Gmail chỉ cần `SMTP_HOST=smtp.gmail.com` cùng `SMTP_USER`/`SMTP_PASSWORD` (app password): backend tự dùng `imap.gmail.com:993` và cùng tài khoản. Hộp thư khác: đặt `INVITE_BOUNCE_IMAP_HOST`, `INVITE_BOUNCE_IMAP_USER`, `INVITE_BOUNCE_IMAP_PASSWORD`. Mailpit thì không kiểm tra (`invite_delivery = null`).
+
+Ba thuộc tính `invite_sent_at`, `invite_bounced_at`, `invite_bounce_reason` phải có trong user profile của realm (chỉ admin xem/sửa). Realm mới import từ `realm-export.json` đã có; realm đang chạy thì `deploy/keycloak_configure.py` thêm vào. Ở máy local đã import realm từ trước, thêm ba thuộc tính trong Admin Console (Realm settings → User profile) hoặc import lại realm.

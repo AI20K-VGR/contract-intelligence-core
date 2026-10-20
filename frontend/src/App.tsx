@@ -123,6 +123,7 @@ export default function App() {
                 element={<QueryHistoryPage />}
               />
               <Route path="/ocr/:dossierId" element={<OcrProgressPage />} />
+              <Route path="/tach-file" element={<SplitConfirmPage />} />
               <Route
                 path="/tach-file/:dossierId"
                 element={<SplitConfirmPage />}

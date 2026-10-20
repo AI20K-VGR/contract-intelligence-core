@@ -199,16 +199,3 @@ body,
 .pf-m-danger {
   color: #ba1a1a !important;
 }
-
-.lexis-sso-footer {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 24px;
-  color: #75777e;
-  font-size: 11px;
-}

@@ -2,7 +2,7 @@
 
 Spec: **Contract Intelligence API** `1.1.0+sprint4-ai-integration` (DOC-05b + DOC-05c).  
 Đã chốt theo OpenAPI backend (envelope `{ data, meta }`, header `X-Backend-Version`).
-Hợp đồng FE-BE: **DOC-05b `v4.2.0`**, header response `X-API-Contract: v4.2.0`. 4 endpoint `/notifications` của `v1.6.0` vẫn là đề xuất, backend chưa có ([24](#24-thông-báo-cá-nhân-đề-xuất-be-chưa-có)).
+Hợp đồng FE-BE: **DOC-05b `v5.1.0`**, header response `X-API-Contract: v5.1.0`. 4 endpoint `/notifications` của `v1.6.0` vẫn là đề xuất, backend chưa có ([24](#24-thông-báo-cá-nhân-đề-xuất-be-chưa-có)).
 
 Từ `v2.1.0`:
 
@@ -13,6 +13,8 @@ Từ `v2.1.0`:
 - `v4.0.0` (**breaking**): chia sẻ hồ sơ chỉ với người dùng có thật trong cùng tenant ([20](#20-chia-sẻ-hồ-sơ-chỉ-đọc--được-sửa-có-hạn)); thêm `GET /users/lookup`; OPERATOR gọi `/users/directory` phải có `q` từ 3 ký tự (frontend không gọi danh bạ); `POST /users`, `/invite` trả `422 email_domain_undeliverable` ([18](#18-quản-lý-người-dùng)).
 - `v4.1.0`: đăng xuất có hiệu lực ngay. Keycloak báo phiên kết thúc qua back-channel logout (`POST /api/v1/auth/backchannel-logout`, chỉ Keycloak gọi trong mạng nội bộ, Caddy trả 404 từ Internet); access token của phiên đó nhận `401` `{"detail": "Session has ended"}` thay vì chờ hết hạn. Frontend không phải sửa ([1](#1-auth)).
 - `v4.2.0`: tải hồ sơ theo khúc (`/uploads`) để Cloudflare không cắt lần tải lên dài quá khoảng 125 giây (#145). Frontend tạo hồ sơ qua `/uploads` ([3c](#3c-tải-hồ-sơ-theo-khúc-uploads-v420)).
+- `v5.0.0` (**breaking**): không gửi được thư thì không có quyền. `PUT /dossiers/{id}/access` trả `422 share_recipient_undeliverable` khi người nhận mới có tên miền không nhận thư (không lưu gì), và gỡ người gửi thư lỗi, trả họ trong `email_not_sent: [{email, reason}]` ([20](#20-chia-sẻ-hồ-sơ-chỉ-đọc--được-sửa-có-hạn)).
+- `v5.1.0`: thư mời bị trả về. Người dùng trong `GET /users`, `POST /users`... có thêm `invite_delivery` (`pending`, `sent`, `bounced`, `null`) và `invite_delivery_reason` ([18](#18-quản-lý-người-dùng)).
 
 Dùng file này khi bỏ mock: mở mục tương ứng màn hình / file `src/data/*`, copy endpoint + shape, nối `src/api/client.ts`.
 
@@ -1198,6 +1200,8 @@ RBAC: **ADMINISTRATOR** only, trừ `GET /users/lookup` (cả **OPERATOR**, đ�
 
 **v4.0.0:** email thuộc tên miền không nhận thư (`.local`, `.test`, `.example`, `.invalid`, `localhost`, `example.com/net/org`) thì `POST /users` và `POST /users/{id}/invite` trả `422 email_domain_undeliverable`, không tạo người dùng, không gửi thư. FE hiện "Tên miền email không nhận được thư, vui lòng kiểm tra lại." (`userAdminErrorMessage`).
 
+**v5.1.0, thư mời bị trả về:** Gmail nhận thư mời cả khi địa chỉ không tồn tại, rồi mới gửi thư "Address not found" về hộp thư gửi. Backend đọc thư đó qua IMAP và trả `invite_delivery` (`pending` khi vừa gửi, `sent` khi quá 10 phút và một lần đọc hộp thư sau đó không thấy thư trả về, `bounced` khi bị trả thư, `null` khi không biết, kể cả khi đọc hộp thư lỗi) cùng `invite_delivery_reason` (`mailbox_not_found` hoặc `rejected`). FE: `UsersPage` hiện "Đang chờ xác nhận gửi thư" dưới nhãn "Đã mời" khi `pending`, và nhãn đỏ "Không gửi được thư" khi `bounced`. Trong lúc còn người `pending` trên trang hoặc người vừa tạo, vừa gửi lại lời mời, trang hỏi lại `GET /users` mỗi 10 giây (người vừa tạo được hỏi bằng `q=<email>`). Khi một người chuyển sang `bounced`, trang hiện cảnh báo không tự đóng do `inviteBounceMessage` (`src/api/users.ts`) dựng: "Không gửi được email mời tới <email> vì không tìm thấy địa chỉ này. Kiểm tra lại email và tạo người dùng với địa chỉ đúng." Backend không đọc được hộp thư (`invite_delivery = null`) thì trang giữ như trước.
+
 ### `GET /api/v1/users/lookup?email=` (v4.0.0)
 
 OPERATOR, ADMINISTRATOR. Trả `{ id, email, display_name, role }` khi có đúng một người **đã kích hoạt** cùng tenant trùng đúng email (không phân biệt hoa thường). Khác tenant, bị khoá, chưa kích hoạt (`invited`) hay không tồn tại đều trả `404 user_not_found` cùng một câu. FE: `lookupUserByEmail` (`src/api/users.ts`) trả `null` khi 404, màn Quyền truy cập báo "Không tìm thấy email này trong đơn vị của bạn, hoặc người này chưa kích hoạt tài khoản. Vui lòng kiểm tra lại." Chỉ chia sẻ bằng email với người đã kích hoạt (Lead chốt 18/10, PR #128). `OPERATOR` và `REVIEWER` vẫn vào cùng giao diện user; chỉ `ADMINISTRATOR` vào trang này.
@@ -1253,6 +1257,8 @@ Người có quyền `read` gọi API sửa thì nhận **403**, `detail`: "Bạ
 
 **v4.0.0, kiểm tra người nhận:** người nhận mới (`id` chưa có trong `shared_with` đang lưu) phải là người dùng đang bật cùng tenant với người gọi; `id`, `email`, `display_name`, `status` lấy từ Keycloak, không lấy từ body. Có người không hợp lệ thì trả `422 share_recipient_not_found` (`details.rejected_emails`), Keycloak không trả lời thì `503 keycloak_unavailable`; cả hai trường hợp đều không lưu gì, không gửi thư. Người đã được chia sẻ gửi lại thì giữ danh tính đã lưu, chỉ đổi `permission`/`expires_at`. Thư chia sẻ tới tên miền không nhận thư bị bỏ qua, quyền vẫn lưu. FE: `accessSaveErrorMessage` (`src/api/dossiers.ts`) hiện câu không tìm thấy kèm các email bị từ chối.
 
+**v5.0.0, không gửi được thư thì không có quyền** (`scope=shared_out`, người nhận mới): email trống hoặc thuộc tên miền không nhận thư (`.local`, `.test`…) trả `422 share_recipient_undeliverable` (`details.rejected_emails`), không lưu gì. Gửi thư lỗi (Keycloak/SMTP) thì backend gỡ người đó khỏi `shared_with` sau khi gửi và trả `email_not_sent: { email: string; reason: 'undeliverable' | 'send_failed' }[]` (rỗng khi ai cũng nhận được); gỡ hết thì `scope` là `mine`. Lượt chia sẻ cũ giữ nguyên. FE: `accessSaveErrorMessage` hiện lỗi 422 trong hộp chia sẻ; `shareEmailNotice` (`src/api/dossiers.ts`) dựng cảnh báo cho `email_not_sent`, `AccessPage` hiện và không tự đóng.
+
 `DELETE /dossiers/{id}` và `PUT /dossiers/{id}/access` chỉ chủ hồ sơ hoặc ADMINISTRATOR. `PATCH /dossiers/{id}` bỏ qua `created_by`, `access_scope`, `shared_with` trong `metadata`. Muốn đổi quyền thì dùng endpoint này.
 
 ## 21. Lịch sử hỏi đáp
@@ -1305,6 +1311,8 @@ Dùng khi hồ sơ lỗi ở bước OCR (`latest_job_status = failed` với mã
 `POST /dossiers/{id}/ocr` (chạy lại OCR toàn bộ) vẫn giữ nguyên hành vi cũ.
 
 ## 23. Tách file trộn (hợp đồng + phụ lục trong một PDF)
+
+FE cắt file trộn trên trình duyệt (`src/pdf/splitPdf.ts`, pdf-lib) rồi tải các phần lên như từng tệp riêng. Hai bước dưới chỉ dùng khi pdf-lib không mở được file (`PdfSplitUnsupportedError`, hay gặp với PDF chỉ khoá in/sao chép): `SplitConfirmPage` tải nguyên file với `split_pending: true`, rồi `dossierUpload.ts` gọi `POST /dossiers/{id}/split` với đúng các phần đã chọn. Tách lỗi thì hồ sơ vẫn chờ tách và trang tiến trình chuyển sang trang tách file.
 
 **Bước 1: tải lên nhưng chưa xử lý.** `POST /api/v1/dossiers` như cũ, thêm `"split_pending": true` vào `metadata`:
 

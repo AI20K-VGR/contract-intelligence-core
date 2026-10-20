@@ -186,9 +186,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginWithSso = useCallback(async (email: string) => {
     ssoCallbackTask = null
     const manager = requireUserManager()
-    await manager.signinRedirect({
-      extraQueryParams: { login_hint: email },
-    })
+    await manager.signinRedirect(
+      email ? { extraQueryParams: { login_hint: email } } : undefined,
+    )
   }, [])
 
   const completeSsoCallback = useCallback(() => {

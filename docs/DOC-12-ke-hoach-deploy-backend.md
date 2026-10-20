@@ -84,7 +84,7 @@ flowchart LR
 | Mạng | IPv4 công khai, mở 22/80/443 | | Firewall `ufw` chỉ mở 3 cổng này |
 | Mistral API key | Có | | AI1 OCR. Có trần chi tiêu |
 | LLM API key cho AI2 | Có | | Lead chốt nhà cung cấp, người giữ key và trần chi tiêu (DOC-11 hạn 30/09). Không demo trên gói miễn phí |
-| SMTP thật | Không bắt buộc | Nên có khi mời người ngoài nhóm | Chưa có thì thư mời và đặt lại mật khẩu vào mailpit, đọc qua SSH tunnel |
+| SMTP thật | Không bắt buộc | Nên có khi mời người ngoài nhóm | Chưa có thì thư mời và đặt lại mật khẩu vào mailpit, đọc qua SSH tunnel. Báo thư mời bị trả về (DOC-05b v5.1.0) cần hộp thư gửi đọc được qua IMAP: Gmail (`SMTP_HOST=smtp.gmail.com`) tự dùng `imap.gmail.com` với `SMTP_USER`/`SMTP_PASSWORD`; hộp thư khác đặt `INVITE_BOUNCE_IMAP_*` trong `deploy/.env.prod`. Mailpit thì không báo được |
 
 RAM **ước tính** theo cấu hình hiện tại, chưa đo trên máy thật:
 
@@ -158,7 +158,7 @@ Chỉ nâng phía backend thì upload qua, nhưng AI1 từ chối file khi tải
 | 5.3 | Clone repo vào `/opt/contract-intelligence`, checkout tag `deploy-2026MMDD-1` từ `develop` | Chương | `git describe` đúng tag |
 | 5.4 | `sudo deploy/bootstrap.sh` | Chương | Docker, firewall 22/80/443, swap, `deploy/.env.prod` có secret |
 | 5.5 | Điền `AI2_LLM_*` trong `deploy/.env.prod`, `MISTRAL_API_KEY` trong `ai-service/.env` | Chương + người giữ key | Không key nào nằm trong git |
-| 5.6 | `sudo deploy/deploy.sh`, rồi chạy kiểm tra **từ ngoài**: workflow `deploy-external-check` trên GitHub Actions (hoặc `deploy/check_external.sh` trên máy dev) | Chương | Build, chạy, migrate DB tới v16, cấu hình Keycloak. Nhóm A của mục 6 qua, **kể cả A2 chạy từ ngoài** |
+| 5.6 | `sudo deploy/deploy.sh`, rồi chạy kiểm tra **từ ngoài**: workflow `deploy-external-check` trên GitHub Actions (hoặc `deploy/check_external.sh` trên máy dev) | Chương | Build, chạy, migrate DB tới v16, cấu hình Keycloak (`keycloak_configure.py`, gồm khai báo thuộc tính `tenant_id`, `invite_sent_at`, `invite_bounced_at`, `invite_bounce_reason` trong user profile). Nhóm A của mục 6 qua, **kể cả A2 chạy từ ngoài** |
 | 5.7 | Gửi nhóm: 4 biến `VITE_*`, mật khẩu demo (kênh riêng) | Chương | Frontend trên máy dev đăng nhập được vào server |
 | 5.8 | Chạy kiểm thử nghiệm thu (mục 6, nhóm B, C) | Cả nhóm | Bảng mục 6 điền đủ số đo |
 | 5.9 | Bật cron backup, thử khôi phục một lần | Chương | Có bản backup và khôi phục được vào DB tạm |

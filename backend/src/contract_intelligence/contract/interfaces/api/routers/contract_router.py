@@ -108,7 +108,10 @@ from contract_intelligence.shared.auth import (
 )
 from contract_intelligence.shared.auth.tenant import get_tenant_id
 from contract_intelligence.shared.base import utcnow
-from contract_intelligence.shared.email_delivery import skip_undeliverable
+from contract_intelligence.shared.email_delivery import (
+    is_undeliverable_email,
+    skip_undeliverable,
+)
 from contract_intelligence.shared.exceptions import (
     DomainErrorCode,
     DossierTooManyDocuments,
@@ -205,12 +208,24 @@ class DossierAccessBody(BaseModel):
     )
 
 
+class EmailNotSentDTO(BaseModel):
+    """Người nhận mới không nhận được thư báo chia sẻ nên chưa được cấp quyền (v5.0.0)."""
+
+    email: str
+    # "send_failed": đã thử gửi nhưng Keycloak hoặc SMTP báo lỗi.
+    # "undeliverable": địa chỉ Keycloak trả về thuộc tên miền dành riêng; tên miền
+    # dành riêng trong grant đã bị từ chối trước khi lưu (share_recipient_undeliverable).
+    reason: Literal["undeliverable", "send_failed"]
+
+
 class DossierAccessDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     dossier_id: str
     scope: Literal["mine", "shared_out", "shared_in"]
     shared_with: list[AccessGrantBody]
+    # Chỉ có ở response của PUT: những người này đã bị gỡ khỏi shared_with.
+    email_not_sent: list[EmailNotSentDTO] = Field(default_factory=list)
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -240,6 +255,7 @@ SHARE_RECIPIENT_NOT_FOUND_MESSAGE = (
     "Không tìm thấy email này trong đơn vị của bạn, hoặc người này chưa kích hoạt "
     "tài khoản. Vui lòng kiểm tra lại."
 )
+SHARE_RECIPIENT_UNDELIVERABLE_MESSAGE = "Không gửi được email vì không tìm thấy email này."
 
 
 class ShareRecipientsRejectedError(Exception):
@@ -431,8 +447,11 @@ def _send_share_emails(
     dossier_id: str,
     sender_name: str,
     recipients: list[dict[str, Any]],
-) -> None:
-    """Người chưa đăng nhập nhận lại thư đặt mật khẩu. Người đã đăng nhập nhận thư mở hồ sơ."""
+) -> list[dict[str, str]]:
+    """Người chưa đăng nhập nhận lại thư đặt mật khẩu. Người đã đăng nhập nhận thư mở hồ sơ.
+
+    Trả về ``[{email, reason}]`` của những người không nhận được thư.
+    """
     import os
     import smtplib
     import ssl
@@ -441,12 +460,18 @@ def _send_share_emails(
 
     from contract_intelligence.infrastructure.keycloak_admin import send_share_login_email_sync
 
+    not_sent: list[dict[str, str]] = []
+
+    def _not_sent(person: dict[str, Any], reason: str) -> None:
+        not_sent.append({"email": str(person.get("email") or ""), "reason": reason})
+
     pending: list[dict[str, Any]] = []
     for person in recipients:
         user_id = str(person.get("id") or "").strip()
         if skip_undeliverable(
             str(person.get("email") or ""), purpose="share", dossier_id=dossier_id, user_id=user_id
         ):
+            _not_sent(person, "undeliverable")
             continue
         must_set_password = person.get("status") == "invited"
         if user_id:
@@ -462,12 +487,14 @@ def _send_share_emails(
             except Exception:
                 logger.warning("dossiers.access.login_email_failed", user_id=user_id, exc_info=True)
                 if must_set_password:
+                    _not_sent(person, "send_failed")
                     continue
         elif must_set_password:
+            _not_sent(person, "send_failed")
             continue
         pending.append(person)
     if not pending:
-        return
+        return not_sent
 
     host = os.environ.get("SMTP_HOST", "mailpit")
     port = int(os.environ.get("SMTP_PORT", "1025"))
@@ -509,26 +536,39 @@ def _send_share_emails(
 <p style="margin:16px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;
  line-height:16px;color:#545f73;">© 2025 Lexis Contract Intelligence</p>
 </td></tr></table></body></html>"""
-    with smtplib.SMTP(host, port, timeout=20) as smtp:
-        smtp.ehlo()
-        if starttls:
-            smtp.starttls(context=ssl.create_default_context())
+    done = 0
+    try:
+        with smtplib.SMTP(host, port, timeout=20) as smtp:
             smtp.ehlo()
-        if user and password:
-            smtp.login(user, password)
-        for person in pending:
-            address = str(person.get("email") or "").strip()
-            if not address:
-                continue
-            message = EmailMessage()
-            message["Subject"] = f"Bạn được chia sẻ hồ sơ {dossier_name}"
-            message["From"] = sender
-            message["To"] = address
-            message.set_content(
-                f'{sender_name} đã chia sẻ hồ sơ "{dossier_name}" với bạn.\n\nMở hồ sơ:\n{link}\n'
-            )
-            message.add_alternative(html, subtype="html")
-            smtp.send_message(message)
+            if starttls:
+                smtp.starttls(context=ssl.create_default_context())
+                smtp.ehlo()
+            if user and password:
+                smtp.login(user, password)
+            for person in pending:
+                address = str(person.get("email") or "").strip()
+                if address:
+                    message = EmailMessage()
+                    message["Subject"] = f"Bạn được chia sẻ hồ sơ {dossier_name}"
+                    message["From"] = sender
+                    message["To"] = address
+                    message.set_content(
+                        f'{sender_name} đã chia sẻ hồ sơ "{dossier_name}" với bạn.'
+                        f"\n\nMở hồ sơ:\n{link}\n"
+                    )
+                    message.add_alternative(html, subtype="html")
+                    try:
+                        smtp.send_message(message)
+                    except smtplib.SMTPRecipientsRefused:
+                        logger.warning("dossiers.access.email_refused", dossier_id=dossier_id)
+                        _not_sent(person, "send_failed")
+                done += 1
+    except Exception:
+        # Không kết nối được SMTP hoặc phiên SMTP hỏng giữa chừng: ai chưa gửi đều thiếu thư.
+        logger.warning("dossiers.access.email_failed", dossier_id=dossier_id, exc_info=True)
+        for person in pending[done:]:
+            _not_sent(person, "send_failed")
+    return not_sent
 
 
 # -----------------------------------------------------------------------------
@@ -1828,7 +1868,8 @@ async def get_dossier_access(
         422: {
             "model": ErrorResponse,
             "description": "share_recipient_not_found: a new recipient is not an enabled "
-            "member of the caller's tenant (details.rejected_emails)",
+            "member of the caller's tenant; share_recipient_undeliverable: a new recipient's "
+            "email domain cannot receive mail (details.rejected_emails); nothing saved",
         },
         503: {"model": ErrorResponse, "description": "Keycloak unavailable; nothing saved"},
     },
@@ -1850,6 +1891,11 @@ async def update_dossier_access(
     cùng tenant với người gọi; ``id``/``email``/``display_name`` lấy từ Keycloak. Có
     người không hợp lệ thì trả 422 ``share_recipient_not_found``, không lưu, không gửi
     thư. Grant cũ gửi lại thì giữ nguyên danh tính đã lưu và không kiểm tra lại.
+
+    Không gửi được thư thì không có quyền (v5.0.0): với ``shared_out``, người nhận
+    mới có email thuộc tên miền không nhận thư bị từ chối trước khi lưu (422
+    ``share_recipient_undeliverable``); người gửi thư lỗi bị gỡ khỏi grant sau khi
+    gửi và có trong ``email_not_sent``.
     """
     dossier = await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_MANAGE)
     now = utcnow()
@@ -1894,6 +1940,25 @@ async def update_dossier_access(
             )
         except UserAdminError as exc:
             return _error_json(exc.status_code, exc.code, exc.message, exc.details)
+    if body.scope == "shared_out":
+        unreachable = [
+            str(item.get("email") or "")
+            for item in grants
+            if item["id"] not in previous_ids
+            and is_undeliverable_email(str(item.get("email") or ""))
+        ]
+        if unreachable:
+            logger.info(
+                "dossiers.access.recipients_undeliverable",
+                dossier_id=dossier_id,
+                count=len(unreachable),
+            )
+            return _error_json(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "share_recipient_undeliverable",
+                SHARE_RECIPIENT_UNDELIVERABLE_MESSAGE,
+                {"rejected_emails": unreachable},
+            )
     current.setdefault("created_by", user.user_id)
     current.setdefault("created_by_name", user.display_name)
     if body.scope == "shared_in" and user.user_id not in {item["id"] for item in grants}:
@@ -1918,9 +1983,10 @@ async def update_dossier_access(
         kind="dossier.access",
     )
     fresh = [item for item in grants if item["id"] not in previous_ids and item.get("email")]
+    not_sent: list[dict[str, str]] = []
     if body.scope == "shared_out" and fresh:
         try:
-            await asyncio.to_thread(
+            not_sent = await asyncio.to_thread(
                 _send_share_emails,
                 dossier_name=dossier.name,
                 dossier_id=dossier_id,
@@ -1929,11 +1995,31 @@ async def update_dossier_access(
             )
         except Exception:
             logger.warning("dossiers.access.email_failed", dossier_id=dossier_id, exc_info=True)
+            not_sent = [{"email": str(item["email"]), "reason": "send_failed"} for item in fresh]
+    scope = body.scope
+    if not_sent:
+        # Không gửi được thư thì không có quyền: gỡ đúng những người mới đó.
+        missed = {item["email"].strip().lower() for item in not_sent}
+        grants = [
+            item
+            for item in grants
+            if item["id"] in previous_ids
+            or str(item.get("email") or "").strip().lower() not in missed
+        ]
+        if not grants:
+            scope = "mine"
+        current["access_scope"] = scope
+        current["shared_with"] = grants
+        await svc.patch_dossier(dossier_id, name=None, metadata=current, acl_update=True)
+        logger.info(
+            "dossiers.access.revoked_without_mail", dossier_id=dossier_id, count=len(missed)
+        )
     return ApiResponse(
         data=DossierAccessDTO(
             dossier_id=dossier_id,
-            scope=body.scope,
+            scope=scope,
             shared_with=[AccessGrantBody.model_validate(item) for item in grants],
+            email_not_sent=[EmailNotSentDTO.model_validate(item) for item in not_sent],
         )
     )
 

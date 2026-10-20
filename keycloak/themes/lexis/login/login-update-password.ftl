@@ -1,10 +1,17 @@
 <#import "template.ftl" as layout>
-<@layout.registrationLayout displayMessage=!messagesPerField.existsError('password','password-confirm'); section>
+<#-- Câu nhắc "You need to change your password…" (warning) của Keycloak trông như lỗi:
+     chỉ hiện khung khi là lỗi thật, lời nhắc thay bằng dòng chữ thường bên dưới. -->
+<@layout.registrationLayout displayMessage=(!messagesPerField.existsError('password','password-confirm') && message?has_content && message.type == 'error'); section>
     <#if section = "header">
         Đặt mật khẩu
-    <#elseif section = "subtitle">
-        Chọn mật khẩu để kích hoạt tài khoản
     <#elseif section = "form">
+        <p class="lexis-note">Bạn cần đặt mật khẩu mới để kích hoạt tài khoản.</p>
+        <script>
+            // Email này được điền sẵn ở bước đăng nhập ngay sau khi đặt mật khẩu (info.ftl).
+            (function (hint) {
+                try { if (hint) sessionStorage.setItem('lexis-login-hint', hint); } catch (e) {}
+            })('${((auth.attemptedUsername)!'')?js_string?no_esc}');
+        </script>
         <form id="kc-passwd-update-form" class="lexis-form" action="${url.loginAction}" method="post">
             <div class="lexis-field">
                 <label class="lexis-label" for="password-new">Mật khẩu mới</label>

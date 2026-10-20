@@ -262,7 +262,7 @@ describe('dossier AI2 graph integration', () => {
       renderToStaticMarkup(
         <RelationList
           page={fixturePage}
-          onOpenCitation={() => {}}
+          onOpenEvidence={() => {}}
           resolveNodeLabel={resolveNodeLabel}
         />,
       )

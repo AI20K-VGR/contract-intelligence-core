@@ -5,12 +5,14 @@ import {
   accessSaveErrorMessage,
   listDossiersErrorMessage,
   SHARE_EMAIL_NOT_FOUND,
+  shareEmailNotice,
   updateDossierAccess,
+  type DossierShareGrant,
 } from '../api/dossiers'
 import {
-  listUsers,
+  listUserDirectory,
   lookupUserByEmail,
-  type ManagedUser,
+  type TenantUser,
   type ManagedUserStatus,
 } from '../api/users'
 import { homePath, validateWorkEmail } from '../auth/session'
@@ -67,7 +69,7 @@ export function AccessPage() {
   const [params, setParams] = useSearchParams()
   const selectedId = params.get('dossier')
   const [dossiers, setDossiers] = useState<Dossier[]>([])
-  const [people, setPeople] = useState<ManagedUser[]>([])
+  const [people, setPeople] = useState<TenantUser[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<AccessFilter>(
@@ -77,13 +79,19 @@ export function AccessPage() {
   const [options, setOptions] = useState<Record<string, GrantOption>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<{ text: string; icon: string } | null>(
-    null,
-  )
+  const [notice, setNotice] = useState<{
+    text: string
+    icon: string
+    /** Cảnh báo cần đọc kỹ: không tự đóng. */
+    sticky?: boolean
+  } | null>(null)
   const [found, setFound] = useState<SharePerson[]>([])
   const [emailInput, setEmailInput] = useState('')
   const [emailError, setEmailError] = useState<string | null>(null)
   const [checkingEmail, setCheckingEmail] = useState(false)
+  /** Hồ sơ đang mở hộp ngừng chia sẻ và những người được chọn để thu hồi. */
+  const [revokeId, setRevokeId] = useState<string | null>(null)
+  const [revoking, setRevoking] = useState<string[]>([])
 
   const selected = dossiers.find((item) => item.id === selectedId) ?? null
   const tenants = useMemo(
@@ -138,11 +146,11 @@ export function AccessPage() {
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
       })
-    // Danh sách người dùng chỉ Quản trị xem được; Vận hành nhập email để tra.
+    // Danh bạ cả đơn vị chỉ Quản trị tải không cần gõ; Vận hành nhập email để tra.
     if (isAdmin) {
-      listUsers({ limit: 100, offset: 0, signal: controller.signal })
-        .then((result) => {
-          if (!controller.signal.aborted) setPeople(result.users)
+      listUserDirectory({ limit: 100, offset: 0, signal: controller.signal })
+        .then((users) => {
+          if (!controller.signal.aborted) setPeople(users)
         })
         .catch(() => {
           if (!controller.signal.aborted) setPeople([])
@@ -171,13 +179,14 @@ export function AccessPage() {
   }, [selected])
 
   useEffect(() => {
-    if (!notice) return
+    if (!notice || notice.sticky) return
     const timer = window.setTimeout(() => setNotice(null), 5000)
     return () => window.clearTimeout(timer)
   }, [notice])
 
   function select(id: string) {
     setParams({ dossier: id })
+    if (id) setRevokeId(null)
   }
 
   function choose(id: string) {
@@ -232,14 +241,37 @@ export function AccessPage() {
     }
   }
 
-  async function saveAccess(
+  function openRevoke(id: string | null) {
+    setRevokeId(id)
+    setRevoking([])
+    setSaveError(null)
+    if (id) setParams({})
+  }
+
+  // API ghi đè cả danh sách: gửi lại những người còn giữ nguyên quyền và hạn
+  // (lượt đã hết hạn gửi lại y nguyên vẫn được backend giữ). Bỏ hết thì về "của tôi".
+  function revokeAccess(dossier: Dossier, removeIds: string[]) {
+    const remaining = (dossier.shares ?? []).filter(
+      (grant) => !removeIds.includes(grant.id),
+    )
+    if (remaining.length === 0) {
+      void applyAccess(dossier, 'mine', [])
+      return
+    }
+    void applyAccess(
+      dossier,
+      'shared_out',
+      remaining,
+      `Đã ngừng chia sẻ với ${removeIds.length} người.`,
+    )
+  }
+
+  function saveAccess(
     dossier: Dossier,
     nextScope: Dossier['access'],
     shareIds: string[],
     shareOptions: Record<string, GrantOption> = {},
   ) {
-    setSavingId(dossier.id)
-    setSaveError(null)
     const shares =
       nextScope === 'mine'
         ? []
@@ -256,6 +288,17 @@ export function AccessPage() {
                 (shareOptions[person.id] ?? DEFAULT_OPTION).expires,
               ),
             }))
+    void applyAccess(dossier, nextScope, shares)
+  }
+
+  async function applyAccess(
+    dossier: Dossier,
+    nextScope: Dossier['access'],
+    shares: DossierShareGrant[],
+    savedText = 'Đã lưu quyền truy cập.',
+  ) {
+    setSavingId(dossier.id)
+    setSaveError(null)
     try {
       const saved = await updateDossierAccess(dossier.id, nextScope, shares)
       setDossiers((current) =>
@@ -268,13 +311,19 @@ export function AccessPage() {
       setChosen(saved.shared_with.map((item) => item.id))
       // Đóng hộp và báo đã lưu để người dùng biết thao tác thành công.
       setParams({})
-      setNotice({
-        text:
-          nextScope === 'mine'
-            ? 'Đã đổi thành hồ sơ của bạn, không còn chia sẻ.'
-            : 'Đã lưu quyền truy cập.',
-        icon: 'check_circle',
-      })
+      setRevokeId(null)
+      const mailWarning = shareEmailNotice(saved.email_not_sent)
+      setNotice(
+        mailWarning
+          ? { text: mailWarning, icon: 'warning', sticky: true }
+          : {
+              text:
+                nextScope === 'mine'
+                  ? 'Đã đổi thành hồ sơ của bạn, không còn chia sẻ.'
+                  : savedText,
+              icon: 'check_circle',
+            },
+      )
     } catch (cause: unknown) {
       setSaveError(accessSaveErrorMessage(cause))
     } finally {
@@ -487,21 +536,21 @@ export function AccessPage() {
                             </button>
                             {item.access === 'shared_out' ? (
                               <button
+                                aria-expanded={revokeId === item.id}
                                 aria-label="Ngừng chia sẻ"
-                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-outline-variant bg-white hover:bg-surface-container-low disabled:opacity-50"
+                                className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-outline-variant hover:bg-surface-container-low disabled:opacity-50 ${
+                                  revokeId === item.id
+                                    ? 'bg-surface-container-low'
+                                    : 'bg-white'
+                                }`}
                                 disabled={savingId === item.id}
-                                title="Ngừng chia sẻ: thu hồi quyền của mọi người"
+                                title="Ngừng chia sẻ: chọn người cần thu hồi quyền"
                                 type="button"
-                                onClick={() => {
-                                  if (
-                                    !window.confirm(
-                                      'Ngừng chia sẻ hồ sơ này? Mọi người được chia sẻ sẽ mất quyền truy cập.',
-                                    )
-                                  ) {
-                                    return
-                                  }
-                                  void saveAccess(item, 'mine', [])
-                                }}
+                                onClick={() =>
+                                  openRevoke(
+                                    revokeId === item.id ? null : item.id,
+                                  )
+                                }
                               >
                                 <MaterialIcon
                                   name={
@@ -515,12 +564,22 @@ export function AccessPage() {
                                 />
                               </button>
                             ) : null}
+                            {revokeId === item.id && item.access === 'shared_out' ? (
+                              <RevokePanel
+                                error={saveError}
+                                grants={item.shares ?? []}
+                                saving={savingId === item.id}
+                                selected={revoking}
+                                onCancel={() => openRevoke(null)}
+                                onChange={setRevoking}
+                                onConfirm={() => revokeAccess(item, revoking)}
+                              />
+                            ) : null}
                             {active ? (
                               <div className="absolute right-0 top-10 z-50 flex text-left w-[26rem] max-w-[calc(100vw-2rem)] flex-col gap-space-sm rounded-lg border border-surface-container bg-surface-container-lowest p-space-md shadow-[0_8px_24px_rgba(15,23,42,0.12)]">
                                 <p className="font-label-sm text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">
                                   Chia sẻ với
                                 </p>
-                                <AccessLegend />
                                 <form
                                   className="flex flex-col gap-1"
                                   onSubmit={(event) => {
@@ -579,7 +638,7 @@ export function AccessPage() {
                                   {candidates.length === 0 ? (
                                     <p className="px-1 font-body-sm text-body-sm text-secondary">
                                       {isAdmin
-                                        ? 'Chưa có người dùng nào khác trong hệ thống.'
+                                        ? 'Chưa có người dùng nào khác đã kích hoạt trong đơn vị của bạn.'
                                         : 'Nhập email người nhận ở trên để thêm vào danh sách chia sẻ.'}
                                     </p>
                                   ) : (
@@ -741,14 +800,14 @@ export function AccessPage() {
                                       )
                                     }
                                     type="button"
-                                    onClick={() => {
-                                      void saveAccess(
+                                    onClick={() =>
+                                      saveAccess(
                                         item,
                                         'shared_out',
                                         chosen,
                                         options,
                                       )
-                                    }}
+                                    }
                                   >
                                     {savingId === item.id
                                       ? 'Đang lưu…'
@@ -810,7 +869,7 @@ type GrantRow = {
 function grantRows(
   dossier: Dossier,
   me: { email?: string; backendRole?: ShareRole } | null | undefined,
-  people: ManagedUser[],
+  people: TenantUser[],
 ): GrantRow[] {
   if (dossier.access === 'shared_out') {
     return (dossier.shares ?? []).map((grant) => ({
@@ -955,35 +1014,123 @@ function ExpiryCell({ rows }: { rows: GrantRow[] }) {
   )
 }
 
+/** Hộp ngừng chia sẻ: chọn những người cần thu hồi, người còn lại giữ nguyên quyền. */
+function RevokePanel({
+  grants,
+  selected,
+  saving,
+  error,
+  onChange,
+  onCancel,
+  onConfirm,
+}: {
+  grants: DossierShareGrant[]
+  selected: string[]
+  saving: boolean
+  error: string | null
+  onChange: (ids: string[]) => void
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const allSelected =
+    grants.length > 0 && grants.every((grant) => selected.includes(grant.id))
+  return (
+    <div className="absolute right-0 top-10 z-50 flex text-left w-[22rem] max-w-[calc(100vw-2rem)] flex-col gap-space-sm rounded-lg border border-surface-container bg-surface-container-lowest p-space-md shadow-[0_8px_24px_rgba(15,23,42,0.12)]">
+      <div className="flex items-center justify-between gap-space-sm">
+        <p className="font-label-sm text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">
+          Ngừng chia sẻ với
+        </p>
+        <button
+          className="font-label-sm text-label-sm font-semibold text-brand-700 hover:underline"
+          type="button"
+          onClick={() =>
+            onChange(allSelected ? [] : grants.map((grant) => grant.id))
+          }
+        >
+          {allSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+        </button>
+      </div>
+      <div className="flex max-h-72 flex-col gap-space-xs overflow-auto">
+        {grants.map((grant) => {
+          const isSelected = selected.includes(grant.id)
+          const name = grant.display_name || grant.email
+          return (
+            <label
+              key={grant.id}
+              className={`flex cursor-pointer items-center gap-space-sm rounded-lg border px-space-sm py-space-sm ${
+                isSelected
+                  ? 'border-error/30 bg-error-container/30'
+                  : 'border-transparent hover:bg-surface-container-low'
+              }`}
+            >
+              <input
+                checked={isSelected}
+                className="h-4 w-4 shrink-0"
+                type="checkbox"
+                onChange={() =>
+                  onChange(
+                    isSelected
+                      ? selected.filter((id) => id !== grant.id)
+                      : [...selected, grant.id],
+                  )
+                }
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-body-sm text-body-sm font-semibold text-on-surface">
+                  {name}
+                </span>
+                {grant.email && grant.email !== name ? (
+                  <span className="block truncate font-label-sm text-label-sm text-on-surface-variant">
+                    {grant.email}
+                  </span>
+                ) : null}
+              </span>
+              <span className="shrink-0 font-label-sm text-label-sm text-on-surface-variant">
+                {permissionLabels[grantPermission(grant)]}
+              </span>
+            </label>
+          )
+        })}
+      </div>
+      <p className="font-label-sm text-label-sm text-secondary">
+        {allSelected
+          ? 'Bỏ hết người được chia sẻ: hồ sơ trở về chỉ mình bạn.'
+          : 'Người được chọn mất quyền truy cập, người còn lại giữ nguyên quyền và hạn.'}
+      </p>
+      {error ? (
+        <p className="font-body-sm text-body-sm text-error">{error}</p>
+      ) : null}
+      <div className="flex gap-space-sm">
+        <button
+          className="h-8 px-space-md rounded bg-surface-container-low text-on-surface font-label-sm text-label-sm hover:bg-surface-container disabled:opacity-50"
+          disabled={saving}
+          type="button"
+          onClick={onCancel}
+        >
+          Hủy
+        </button>
+        <button
+          className="h-8 flex-1 px-space-sm rounded bg-error text-on-error hover:opacity-90 font-label-sm text-label-sm font-semibold disabled:opacity-50"
+          disabled={saving || selected.length === 0}
+          type="button"
+          onClick={onConfirm}
+        >
+          {saving
+            ? 'Đang lưu…'
+            : selected.length === 0
+              ? 'Chọn người cần thu hồi'
+              : `Ngừng chia sẻ với ${selected.length} người`}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function RoleBadge({ role }: { role: ShareRole }) {
   return (
     <span className="shrink-0 rounded-full bg-brand-50 px-2 font-label-sm text-[11px] font-semibold leading-5 text-brand-700">
       {shareRoleLabels[role]}
     </span>
-  )
-}
-
-/** Quyền chia sẻ chỉ mở hồ sơ; việc làm được còn tùy vai trò của người nhận. */
-function AccessLegend() {
-  return (
-    <div className="rounded-lg bg-surface-container-low px-space-sm py-space-sm font-label-sm text-label-sm text-on-surface-variant">
-      <p className="text-on-surface">
-        Người nhận làm được gì phụ thuộc cả <b>vai trò</b> lẫn <b>quyền</b> bạn
-        chọn ở đây:
-      </p>
-      <ul className="mt-1 list-disc space-y-0.5 pl-4">
-        <li>
-          <b>Chỉ xem</b>: xem hồ sơ, kết quả và trích dẫn.
-        </li>
-        <li>
-          <b>Được sửa</b>: Vận hành sửa hồ sơ và chạy lại; Thẩm định rà soát
-          trích dẫn, xung đột.
-        </li>
-        <li>
-          Chỉ Quản trị duyệt hồ sơ. Chỉ chủ hồ sơ hoặc Quản trị đổi được quyền.
-        </li>
-      </ul>
-    </div>
   )
 }
 

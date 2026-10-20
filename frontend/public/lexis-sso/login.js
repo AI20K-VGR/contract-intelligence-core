@@ -50,14 +50,6 @@ function paintLexisLogin() {
 
   const submit = document.getElementById('kc-login')
   if (submit) submit.textContent = 'Đăng nhập'
-
-  if (!document.querySelector('.lexis-sso-footer')) {
-    const footer = document.createElement('footer')
-    footer.className = 'lexis-sso-footer'
-    footer.innerHTML =
-      '<span>Chính sách bảo mật · Điều khoản sử dụng</span><span>© 2025 Lexis Contract Intelligence</span>'
-    document.body.append(footer)
-  }
 }
 
 if (document.readyState === 'loading') {

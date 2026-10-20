@@ -12,7 +12,8 @@ vi.mock('../src/api/client', async () => {
 
 const { lookupUserByEmail, userAdminErrorMessage } =
   await import('../src/api/users')
-const { accessSaveErrorMessage } = await import('../src/api/dossiers')
+const { accessSaveErrorMessage, shareEmailNotice } =
+  await import('../src/api/dossiers')
 const { ApiError } = await import('../src/api/client')
 
 const ALICE = {
@@ -58,8 +59,13 @@ describe('accessSaveErrorMessage (PUT /access, v4.0.0)', () => {
   it('names the rejected emails', () => {
     expect(
       accessSaveErrorMessage(
+        // requestJson đưa cả body lỗi vào details.
         new ApiError(422, NOT_FOUND, 'share_recipient_not_found', {
-          rejected_emails: ['ghost@congty.vn'],
+          error: {
+            code: 'share_recipient_not_found',
+            message: NOT_FOUND,
+            details: { rejected_emails: ['ghost@congty.vn'] },
+          },
         }),
       ),
     ).toBe(`${NOT_FOUND} (ghost@congty.vn)`)
@@ -71,6 +77,51 @@ describe('accessSaveErrorMessage (PUT /access, v4.0.0)', () => {
         new ApiError(503, 'Keycloak unavailable', 'keycloak_unavailable'),
       ),
     ).toContain('Chưa lưu gì')
+  })
+})
+
+describe('accessSaveErrorMessage: share_recipient_undeliverable (v5.0.0)', () => {
+  it('names the recipient whose domain receives no mail', () => {
+    expect(
+      accessSaveErrorMessage(
+        new ApiError(422, 'x', 'share_recipient_undeliverable', {
+          error: {
+            code: 'share_recipient_undeliverable',
+            details: { rejected_emails: ['operator@ci.local'] },
+          },
+        }),
+      ),
+    ).toBe(
+      'Không gửi được email tới operator@ci.local vì không tìm thấy email này.',
+    )
+  })
+})
+
+describe('shareEmailNotice (PUT /access, v5.0.0)', () => {
+  it('says nothing when every recipient got mail', () => {
+    expect(shareEmailNotice([])).toBeNull()
+    expect(shareEmailNotice(undefined)).toBeNull()
+  })
+
+  it('says the email was not found on a domain that receives no mail', () => {
+    expect(
+      shareEmailNotice([
+        { email: 'operator@ci.local', reason: 'undeliverable' },
+      ]),
+    ).toBe(
+      'Không gửi được email tới operator@ci.local vì không tìm thấy email này.',
+    )
+  })
+
+  it('says who was not shared with because the mail failed', () => {
+    expect(
+      shareEmailNotice([
+        { email: 'alice@congty.vn', reason: 'send_failed' },
+        { email: 'bob@congty.vn', reason: 'send_failed' },
+      ]),
+    ).toBe(
+      'Không gửi được email tới alice@congty.vn, bob@congty.vn vì máy chủ email bị lỗi, vui lòng thử lại sau.',
+    )
   })
 })
 

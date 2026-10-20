@@ -2,7 +2,14 @@ import { useSyncExternalStore } from 'react'
 import { asUploadPdf } from '../pdf/imageToPdf'
 import { STRUCTURE_MODE_KEY, type StructureMode } from '../structure'
 import { uploadDossierInChunks } from './chunkedUpload'
-import { createDossierErrorMessage, patchDossier } from './dossiers'
+import { ApiError } from './client'
+import {
+  createDossierErrorMessage,
+  patchDossier,
+  splitDossier,
+  type SplitPartRequest,
+} from './dossiers'
+import { getDossierStructure } from './structure'
 
 /**
  * Tải hồ sơ lên ở ngoài trang Tải lên: bấm tải lên là sang trang tiến trình
@@ -17,6 +24,12 @@ export type DossierUploadInput = {
   contract: File
   annexes: File[]
   splitPending: boolean
+  /**
+   * Chỉ khi `splitPending`: các phần đã chọn ở trang tách file mà trình duyệt
+   * không cắt được (PDF khoá in/sao chép). Tạo xong hồ sơ thì nhờ backend tách
+   * theo đúng các phần đó, người dùng không phải chọn lại.
+   */
+  serverSplit?: SplitPartRequest[]
 }
 
 export type DossierUploadStatus =
@@ -45,6 +58,38 @@ export type DossierUpload = {
   finishedAt: number | null
   dossierId: string | null
   error: string | null
+  /**
+   * Lỗi sau khi đã gửi hết byte mà không có phản hồi của backend (mất mạng,
+   * Cloudflare cắt lúc chờ): máy chủ có thể đã tạo hồ sơ và gửi đi OCR. Không
+   * cho tải lại một chạm, kẻo tạo hồ sơ thứ hai và OCR lại cả bộ tệp.
+   */
+  mayBeCreated: boolean
+}
+
+export const UPLOAD_MAY_BE_CREATED_MESSAGE =
+  'Mất kết nối sau khi đã gửi hết tệp, nên có thể máy chủ đã tạo hồ sơ. Kiểm tra danh sách hồ sơ trước khi tải lại, để không tạo hồ sơ trùng và đọc tài liệu hai lần.'
+
+/** Nút "Tải lại" một chạm: lần này dừng hẳn và chắc chắn máy chủ chưa có hồ sơ. */
+export function canRetryUpload(upload: DossierUpload | null | undefined) {
+  return (
+    (upload?.status === 'failed' || upload?.status === 'cancelled') &&
+    upload.input !== null &&
+    !upload.mayBeCreated
+  )
+}
+
+/**
+ * Backend đã trả lời là từ chối (4xx): chắc chắn chưa tạo hồ sơ. Trừ
+ * `409 UPLOAD_COMPLETING`: chờ /complete hết hạn mà backend vẫn đang ghép phiên,
+ * tức là đang tạo hồ sơ.
+ */
+function refusedByBackend(cause: unknown) {
+  return (
+    cause instanceof ApiError &&
+    cause.status >= 400 &&
+    cause.status < 500 &&
+    cause.code !== 'UPLOAD_COMPLETING'
+  )
 }
 
 const uploads = new Map<string, DossierUpload>()
@@ -134,6 +179,9 @@ async function run(id: string, input: DossierUploadInput) {
       // POST đã tạo hồ sơ. PATCH chỉ ghi field UI thừa so với OpenAPI.
       // Loại cấu trúc vẫn được truyền qua state để trang cây dùng ngay.
     }
+    if (input.splitPending && input.serverSplit?.length) {
+      await splitOnServer(created.dossier_id, input.serverSplit)
+    }
     update(id, { status: 'done', input: null, finishedAt: Date.now() })
   } catch (cause) {
     controllers.delete(id)
@@ -141,13 +189,34 @@ async function run(id: string, input: DossierUploadInput) {
       update(id, { status: 'cancelled', finishedAt: Date.now() })
       return
     }
+    // 'saving' lúc lỗi: đã gửi hết byte, đang chờ máy chủ trả lời.
+    const mayBeCreated =
+      uploads.get(id)?.status === 'saving' && !refusedByBackend(cause)
     update(id, {
       status: 'failed',
-      error:
-        createDossierErrorMessage(cause) ??
-        'Không tải lên được. Vui lòng thử lại.',
+      error: mayBeCreated
+        ? UPLOAD_MAY_BE_CREATED_MESSAGE
+        : (createDossierErrorMessage(cause) ??
+          'Không tải lên được. Vui lòng thử lại.'),
       finishedAt: Date.now(),
+      mayBeCreated,
     })
+  }
+}
+
+/**
+ * POST /dossiers/{id}/split cho tệp vừa tải lên. Lỗi thì hồ sơ vẫn chờ tách:
+ * trang tiến trình chuyển sang trang tách file để người dùng xác nhận lại.
+ */
+async function splitOnServer(dossierId: string, parts: SplitPartRequest[]) {
+  try {
+    const structure = await getDossierStructure(dossierId)
+    const source =
+      structure.documents.find((item) => item.role === 'contract') ??
+      structure.documents[0]
+    if (source) await splitDossier(dossierId, source.id, parts)
+  } catch {
+    // Hồ sơ đã tạo: không báo lỗi tải lên, chỉ chưa tách.
   }
 }
 
@@ -178,6 +247,7 @@ export function startDossierUpload(input: DossierUploadInput) {
     finishedAt: null,
     dossierId: null,
     error: null,
+    mayBeCreated: false,
   })
   controllers.set(id, new AbortController())
   update(id, {})

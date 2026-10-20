@@ -219,16 +219,17 @@ function PagePreview({
 
 /*
  * Xem trước từng trang của file gốc để chọn chỗ cắt. Chưa OCR nên chưa có ảnh
- * trang từ backend; vẽ thẳng từ PDF gốc (GET /documents/{id}/content) bằng pdf.js.
+ * trang từ backend; vẽ thẳng từ PDF gốc bằng pdf.js: `source` là mã tài liệu đã
+ * tải lên (GET /documents/{id}/content) hoặc tệp trên máy chưa tải lên.
  */
 export function SplitPageStrip({
-  documentId,
+  source,
   pageCount,
   parts,
   disabled,
   onStartAnnex,
 }: {
-  documentId: string
+  source: string | File
   pageCount: number
   parts: ResolvedPart[]
   disabled: boolean
@@ -251,7 +252,10 @@ export function SplitPageStrip({
     setZoom(null)
 
     async function open() {
-      const bytes = await loadDocumentPdf(documentId, controller.signal)
+      const bytes =
+        typeof source === 'string'
+          ? await loadDocumentPdf(source, controller.signal)
+          : new Uint8Array(await source.arrayBuffer())
       if (cancelled) return
       const task = getDocument({ data: bytes.slice() })
       destroy = () => task.destroy()
@@ -305,7 +309,7 @@ export function SplitPageStrip({
       controller.abort()
       void destroy?.().catch(() => undefined)
     }
-  }, [documentId])
+  }, [source])
 
   if (error) {
     return (

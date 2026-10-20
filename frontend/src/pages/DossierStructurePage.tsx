@@ -70,6 +70,12 @@ import { StructureOutline } from '../components/StructureOutline'
 import { Ai2GraphDossierView } from '../components/ai2-graph/ContractGraphCanvas'
 import { ContentSharingConsent } from '../components/ai2-graph/ContentSharingConsent'
 import {
+  GraphEvidencePane,
+  type GraphEvidence,
+  type GraphEvidenceSide,
+} from '../components/ai2-graph/GraphEvidencePane'
+import { relationLabel } from '../structure/displayLabels'
+import {
   AI2_GRAPH_UI_ENABLED,
   createLatestRequestGuard,
   isLegacyCitationFallbackAllowed,
@@ -169,6 +175,15 @@ import {
 import { conflictPagePath, progressPath } from '../data/dossiers'
 
 type Phase = 'loading' | 'ocr' | 'ready' | 'failed' | 'error'
+
+/**
+ * Nút đồ thị AI2 mang mã dòng của AI1 (`line:3:doc_x:s1:p003:l007`), khác mã
+ * dòng OCR backend trả về (`ln_…`): đọc trang + số dòng để dò dòng OCR.
+ */
+function graphLinePosition(nodeId: string) {
+  const match = nodeId.match(/^line:\d+:(?:.*:)?p(\d+):l(\d+)(?::|$)/i)
+  return match ? { pageNo: Number(match[1]), lineNo: Number(match[2]) } : null
+}
 
 function stateStructureMode(state: unknown): StructureMode | null {
   if (!state || typeof state !== 'object') return null
@@ -278,14 +293,19 @@ export function DossierStructurePage() {
     Record<string, ClauseNode[]>
   >({})
   const [graphLines, setGraphLines] = useState<
-    Record<string, { id: string; pageNo: number; text: string }[]>
+    Record<
+      string,
+      Pick<
+        OcrLine,
+        'id' | 'pageNo' | 'lineNo' | 'text' | 'bbox' | 'confidence'
+      >[]
+    >
   >({})
-  const [ai2Citation, setAi2Citation] = useState<Record<
-    string,
-    unknown
-  > | null>(null)
-  const [ai2CitationError, setAi2CitationError] = useState(false)
-  const [ai2CitationLoading, setAi2CitationLoading] = useState(false)
+  // Bằng chứng của quan hệ đang mở từ đồ thị: hai tài liệu (nguồn, đích) bên
+  // phải như màn đối soát.
+  const [graphCite, setGraphCite] = useState<
+    (GraphEvidence & { edgeId: string }) | null
+  >(null)
   const ai2CitationRequests = useRef(createLatestRequestGuard())
   const prefs = useReadingPrefs()
   const [spots, setSpots] = useState<ReviewSpot[]>([])
@@ -339,11 +359,16 @@ export function DossierStructurePage() {
           {
             lines:
               documentLines.status === 'fulfilled'
-                ? documentLines.value.map(({ id, pageNo, text }) => ({
-                    id,
-                    pageNo,
-                    text,
-                  }))
+                ? documentLines.value.map(
+                    ({ id, pageNo, lineNo, text, bbox, confidence }) => ({
+                      id,
+                      pageNo,
+                      lineNo,
+                      text,
+                      bbox,
+                      confidence,
+                    }),
+                  )
                 : [],
             clauses: clauses.status === 'fulfilled' ? clauses.value : [],
           },
@@ -378,9 +403,7 @@ export function DossierStructurePage() {
     setShowAi2Graph(false)
     setGraphClauses({})
     setGraphLines({})
-    setAi2Citation(null)
-    setAi2CitationError(false)
-    setAi2CitationLoading(false)
+    setGraphCite(null)
     ai2CitationRequests.current.invalidate()
   }, [dossierId])
   // "Hỏi lại" từ trang lịch sử: điền sẵn câu hỏi, một lần cho mỗi bước lịch sử
@@ -906,17 +929,25 @@ export function DossierStructurePage() {
   const cited = citeId ? findClause(nodes, citeId) : null
   const pdfFile =
     detail?.documents.find((document) => document.id === pdfDocumentId) ?? null
+  // Khung bằng chứng của đồ thị chỉ hiện cùng đồ thị.
+  const graphCiteShown =
+    graphCite && showAi2Graph && !qaMode && !reviewCiteId ? graphCite : null
   const splitView = Boolean(
-    cited || tableCite || searchCite || showLines || pdfFile,
+    cited || tableCite || searchCite || showLines || pdfFile || graphCiteShown,
   )
-  // Mở khung PDF / trích dẫn bên cạnh: thu gọn menu để nội dung không bị ép.
-  useCompactSidebar(splitView)
+  // Đồ thị đang hiện (cùng điều kiện với khối đồ thị bên dưới).
+  const graphShown =
+    showAi2Graph && phase === 'ready' && !qaMode && !reviewCiteId
+  // Mở khung PDF / trích dẫn bên cạnh hoặc mở đồ thị: thu gọn menu để nội dung
+  // không bị ép.
+  useCompactSidebar(splitView || graphShown)
 
   const openTreeCite = useCallback((id: string) => {
     setShowLines(false)
     setPdfDocumentId(null)
     setTableCite(null)
     setSearchCite(null)
+    setGraphCite(null)
     setCiteId(id)
   }, [])
 
@@ -924,10 +955,20 @@ export function DossierStructurePage() {
     (nodeId: string, sourceDocumentId?: string | null) => {
       const endpointDocumentId = sourceDocumentId ?? null
       if (!endpointDocumentId) return null
-      const line = (graphLines[endpointDocumentId] ?? []).find((item) => {
-        const graphLineId = `line:${item.pageNo}:${item.id}`
-        return nodeId === graphLineId || nodeId.startsWith(`${graphLineId}:`)
-      })
+      const documentLines = graphLines[endpointDocumentId] ?? []
+      const position = graphLinePosition(nodeId)
+      const line =
+        documentLines.find((item) => {
+          const graphLineId = `line:${item.pageNo}:${item.id}`
+          return nodeId === graphLineId || nodeId.startsWith(`${graphLineId}:`)
+        }) ??
+        (position
+          ? documentLines.find(
+              (item) =>
+                item.pageNo === position.pageNo &&
+                item.lineNo === position.lineNo,
+            )
+          : undefined)
       if (!line) return null
       const clauseTree =
         endpointDocumentId === documentId
@@ -1025,75 +1066,167 @@ export function DossierStructurePage() {
     [ai2GraphKind, detail, dossierId],
   )
 
-  const clearAi2Citation = useCallback(() => {
+  const clearGraphEvidence = useCallback(() => {
     ai2CitationRequests.current.invalidate()
-    setAi2Citation(null)
-    setAi2CitationError(false)
-    setAi2CitationLoading(false)
+    setGraphCite(null)
   }, [])
 
-  const openAi2Citation = useCallback(
-    async (
-      citationRef: string,
-      nodeId: string,
-      sourceDocumentId?: string | null,
-    ) => {
+  // Một đầu của quan hệ trên tài liệu: khoanh cả điều khoản chứa dòng như trên
+  // cây, không khớp được điều khoản thì khoanh đúng dòng đó. Chưa dò được dòng
+  // OCR thì đánh dấu đang tìm để hỏi máy chủ trang của bằng chứng.
+  const graphEvidenceSide = useCallback(
+    (nodeId: string, sourceDocumentId: string | null): GraphEvidenceSide => {
+      const document = detail?.documents.find(
+        (item) => item.id === sourceDocumentId,
+      )
+      const endpoint = findGraphEndpoint(nodeId, sourceDocumentId)
+      const clause = endpoint?.clause ?? null
+      const line = endpoint?.line ?? null
+      const regions =
+        clause && clause.regions.length > 0
+          ? clause.regions
+          : line?.bbox
+            ? [
+                {
+                  pageNo: line.pageNo,
+                  bbox: line.bbox,
+                  confidence: line.confidence ?? null,
+                },
+              ]
+            : []
+      const label = clause?.label
+        .replace(/\s+/g, ' ')
+        .replace(/[.:]+$/, '')
+        .trim()
+      return {
+        documentId: document?.id ?? null,
+        filename: document?.filename ?? '',
+        title: label && label.length <= 30 ? label : '',
+        quote: (clause?.text || line?.text || '').replace(/\s+/g, ' ').trim(),
+        pageNo: regions[0]?.pageNo ?? line?.pageNo ?? 1,
+        regions,
+        locating: Boolean(document) && !endpoint,
+        note: document ? '' : 'Không tìm thấy tài liệu chứa điều khoản này.',
+      }
+    },
+    [detail?.documents, findGraphEndpoint],
+  )
+
+  // Bấm "Mở bằng chứng": mở cả hai đầu của quan hệ như màn đối soát.
+  const openGraphEvidence = useCallback(
+    (edge: ContractGraphEdge) => {
+      if (graphCite?.edgeId === edge.id) {
+        clearGraphEvidence()
+        return
+      }
       const requestId = ai2CitationRequests.current.start()
-      setAi2Citation(null)
-      setAi2CitationError(false)
-      setAi2CitationLoading(true)
-      try {
-        const record = citationRef.startsWith('cite:')
-          ? await getContractGraphEvidence({
-              dossierId,
-              jobId: detail?.ai2JobId ?? '',
-              snapshotDigest: detail?.snapshotDigest ?? '',
-              graphKind: ai2GraphKind,
-              nodeId,
-              citationRef,
-            })
-          : await getInspectorRecord('citation', citationRef)
-        if (ai2CitationRequests.current.isCurrent(requestId))
-          setAi2Citation({
-            ...record,
-            __node_id: nodeId,
-            __document_id: sourceDocumentId,
-          })
-      } catch (error) {
-        if (!ai2CitationRequests.current.isCurrent(requestId)) return
-        // A legacy opaque handle may not be a Backend citation ID; use the already-loaded OCR clause if it maps exactly.
-        const responseStatus =
-          error && typeof error === 'object' && 'status' in error
-            ? error.status
-            : null
-        if (
-          isLegacyCitationFallbackAllowed(
-            citationRef,
-            typeof responseStatus === 'number' ? responseStatus : null,
-            sourceDocumentId,
-            documentId,
-          ) &&
-          findClause(nodes, nodeId) &&
-          citeOf.has(nodeId)
-        ) {
-          openTreeCite(nodeId)
-          return
+      const ends = {
+        source: {
+          nodeId: edge.source_node_id,
+          documentId: edge.source_document_id ?? null,
+          citationRef: edge.source_citation_ref,
+        },
+        target: {
+          nodeId: edge.target_node_id,
+          documentId: edge.target_document_id ?? null,
+          citationRef: edge.target_citation_ref,
+        },
+      }
+      const source = graphEvidenceSide(
+        ends.source.nodeId,
+        ends.source.documentId,
+      )
+      const target = graphEvidenceSide(
+        ends.target.nodeId,
+        ends.target.documentId,
+      )
+      setShowLines(false)
+      setPdfDocumentId(null)
+      setCiteId(null)
+      setTableCite(null)
+      setSearchCite(null)
+      setGraphCite({
+        edgeId: edge.id,
+        relation: relationLabel(edge.label),
+        source,
+        target,
+      })
+      for (const key of ['source', 'target'] as const) {
+        if (!(key === 'source' ? source : target).locating) continue
+        const end = ends[key]
+        const settle = (patch: Partial<GraphEvidenceSide>) => {
+          if (!ai2CitationRequests.current.isCurrent(requestId)) return
+          setGraphCite((current) =>
+            current?.edgeId === edge.id
+              ? {
+                  ...current,
+                  [key]: { ...current[key], ...patch, locating: false },
+                }
+              : current,
+          )
         }
-        setAi2CitationError(true)
-      } finally {
-        if (ai2CitationRequests.current.isCurrent(requestId))
-          setAi2CitationLoading(false)
+        void (
+          end.citationRef.startsWith('cite:')
+            ? getContractGraphEvidence({
+                dossierId,
+                jobId: detail?.ai2JobId ?? '',
+                snapshotDigest: detail?.snapshotDigest ?? '',
+                graphKind: ai2GraphKind,
+                nodeId: end.nodeId,
+                citationRef: end.citationRef,
+              })
+            : getInspectorRecord('citation', end.citationRef)
+        )
+          .then((record) => {
+            // Chưa dò được dòng OCR của nút: vẫn mở đúng trang bằng chứng,
+            // không khoanh.
+            const page = typeof record.page === 'number' ? record.page : null
+            settle({
+              ...(page ? { pageNo: page } : {}),
+              ...(typeof record.quote === 'string'
+                ? { quote: record.quote }
+                : {}),
+              note: page ? '' : 'Chưa tìm được trang của bằng chứng này.',
+            })
+          })
+          .catch((error: unknown) => {
+            // Mã trích dẫn kiểu cũ có thể không phải mã của Backend: dùng điều
+            // khoản đã có trên cây nếu khớp đúng.
+            const status =
+              error && typeof error === 'object' && 'status' in error
+                ? error.status
+                : null
+            const clause = isLegacyCitationFallbackAllowed(
+              end.citationRef,
+              typeof status === 'number' ? status : null,
+              end.documentId,
+              documentId,
+            )
+              ? findClause(nodes, end.nodeId)
+              : null
+            settle(
+              clause && clause.regions.length > 0
+                ? {
+                    pageNo: clause.regions[0].pageNo,
+                    regions: clause.regions,
+                    quote: clause.text,
+                    note: '',
+                  }
+                : { note: 'Không tải được bằng chứng của điều khoản này.' },
+            )
+          })
       }
     },
     [
       ai2GraphKind,
-      citeOf,
+      clearGraphEvidence,
       detail?.ai2JobId,
       detail?.snapshotDigest,
-      dossierId,
       documentId,
+      dossierId,
+      graphCite?.edgeId,
+      graphEvidenceSide,
       nodes,
-      openTreeCite,
     ],
   )
 
@@ -1103,6 +1236,7 @@ export function DossierStructurePage() {
     setSearchCite(null)
     setTableCite(null)
     setReviewCiteId(null)
+    setGraphCite(null)
     setPdfDocumentId(id)
   }
 
@@ -1342,6 +1476,7 @@ export function DossierStructurePage() {
                           type="button"
                           onClick={() => {
                             setCiteId(null)
+                            setGraphCite(null)
                             setShowLines((open) => !open)
                           }}
                         >
@@ -1377,11 +1512,14 @@ export function DossierStructurePage() {
                         ai2Locked ? 'Graph AI2 · đang phân tích' : 'Graph AI2'
                       }
                       type="button"
-                      onClick={() =>
-                        ai2Locked
-                          ? remindAnalysis('Đồ thị quan hệ')
-                          : setShowAi2Graph((shown) => !shown)
-                      }
+                      onClick={() => {
+                        if (ai2Locked) {
+                          remindAnalysis('Đồ thị quan hệ')
+                          return
+                        }
+                        setGraphCite(null)
+                        setShowAi2Graph((shown) => !shown)
+                      }}
                     >
                       <MaterialIcon name="hub" className="text-[18px]" />
                       {ai2Locked ? <LockBadge /> : null}
@@ -1861,7 +1999,10 @@ export function DossierStructurePage() {
                         : 'text-on-surface-variant hover:bg-surface-container-high hover:text-primary'
                     }`}
                     type="button"
-                    onClick={() => setAi2GraphKind(kind)}
+                    onClick={() => {
+                      setGraphCite(null)
+                      setAi2GraphKind(kind)
+                    }}
                   >
                     <MaterialIcon
                       name={kind === 'pair' ? 'link' : 'edit_note'}
@@ -1910,12 +2051,13 @@ export function DossierStructurePage() {
                     graphKind={ai2GraphKind}
                     resolveNodeLabel={resolveGraphNodeLabel}
                     resolveNodeTitle={resolveGraphNodeTitle}
-                    onOpenCitation={openAi2Citation}
-                    onSelectRelation={clearAi2Citation}
+                    onOpenEvidence={openGraphEvidence}
+                    evidenceEdgeId={graphCiteShown?.edgeId ?? null}
+                    onSelectRelation={(edgeId) => {
+                      // Chọn quan hệ khác thì đóng bằng chứng của quan hệ cũ.
+                      if (edgeId !== graphCite?.edgeId) clearGraphEvidence()
+                    }}
                     onResolveEdgeEvidence={resolveSelectedGraphEdgeEvidence}
-                    citationRecord={ai2Citation}
-                    citationError={ai2CitationError}
-                    citationLoading={ai2CitationLoading}
                   />
                 ) : (
                   <p
@@ -1960,59 +2102,68 @@ export function DossierStructurePage() {
             </div>
           ) : null}
         </div>
-        {pdfFile ? (
-          <UploadedPdfPane
-            documentId={pdfFile.id}
-            filename={pdfFile.filename}
-            files={detail?.documents ?? []}
-            onClose={() => setPdfDocumentId(null)}
-            onSelect={openUploadedPdf}
-          />
-        ) : null}
-        {showLines && lines ? (
-          <OcrLinesPane lines={lines} onClose={() => setShowLines(false)} />
-        ) : null}
-        {searchCite && documentId ? (
-          <CitationPane
-            key={searchCite.node.id}
-            citeNo={searchCite.citeNo}
-            documentId={searchCite.documentId}
-            filename={
-              detail?.documents.find(
-                (document) => document.id === searchCite.documentId,
-              )?.filename ?? filename
-            }
-            node={searchCite.node}
-            onClose={() => setSearchCite(null)}
-          />
-        ) : cited && documentId ? (
-          <CitationPane
-            key={cited.id}
-            banner={
-              anchors.get(cited.id)?.length ? (
-                <ConflictNotice
-                  documentId={documentId}
-                  dossierId={dossierId}
-                  nodeId={cited.id}
-                  spots={anchors.get(cited.id) ?? []}
-                  onOpen={openConflict}
-                />
-              ) : null
-            }
-            citeNo={citeOf.get(cited.id) ?? 0}
-            documentId={documentId}
-            node={cited}
-            onClose={() => setCiteId(null)}
-          />
-        ) : tableCite && documentId && activeMode === 'tables' ? (
-          <CitationPane
-            key={tableCite.node.id}
-            citeNo={tableCite.citeNo}
-            documentId={documentId}
-            node={tableCite.node}
-            onClose={() => setTableCite(null)}
-          />
-        ) : null}
+        {/* Khung xem bên cạnh: bấm vào đây không bỏ chọn điều khoản trên sơ đồ. */}
+        <div className="contents" data-graph-keep-pin>
+          {pdfFile ? (
+            <UploadedPdfPane
+              documentId={pdfFile.id}
+              filename={pdfFile.filename}
+              files={detail?.documents ?? []}
+              onClose={() => setPdfDocumentId(null)}
+              onSelect={openUploadedPdf}
+            />
+          ) : null}
+          {showLines && lines ? (
+            <OcrLinesPane lines={lines} onClose={() => setShowLines(false)} />
+          ) : null}
+          {graphCiteShown ? (
+            <GraphEvidencePane
+              key={`graph:${graphCiteShown.edgeId}`}
+              evidence={graphCiteShown}
+              onClose={clearGraphEvidence}
+            />
+          ) : searchCite && documentId ? (
+            <CitationPane
+              key={searchCite.node.id}
+              citeNo={searchCite.citeNo}
+              documentId={searchCite.documentId}
+              filename={
+                detail?.documents.find(
+                  (document) => document.id === searchCite.documentId,
+                )?.filename ?? filename
+              }
+              node={searchCite.node}
+              onClose={() => setSearchCite(null)}
+            />
+          ) : cited && documentId ? (
+            <CitationPane
+              key={cited.id}
+              banner={
+                anchors.get(cited.id)?.length ? (
+                  <ConflictNotice
+                    documentId={documentId}
+                    dossierId={dossierId}
+                    nodeId={cited.id}
+                    spots={anchors.get(cited.id) ?? []}
+                    onOpen={openConflict}
+                  />
+                ) : null
+              }
+              citeNo={citeOf.get(cited.id) ?? 0}
+              documentId={documentId}
+              node={cited}
+              onClose={() => setCiteId(null)}
+            />
+          ) : tableCite && documentId && activeMode === 'tables' ? (
+            <CitationPane
+              key={tableCite.node.id}
+              citeNo={tableCite.citeNo}
+              documentId={documentId}
+              node={tableCite.node}
+              onClose={() => setTableCite(null)}
+            />
+          ) : null}
+        </div>
       </div>
     </div>
   )

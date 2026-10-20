@@ -2243,6 +2243,9 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   # ─── Users ───────────────────────────────────────────────────────────────
+  # Quản trị người dùng (GET/POST /users, PATCH /users/{id}, /users/{id}/disable|enable|invite)
+  # chưa được ghi vào file này; hợp đồng của chúng ở DOC-05b (Màn hình quản lý người dùng),
+  # kể cả invite_delivery / invite_delivery_reason của v5.1.0.
   /users/directory:
     get:
       tags: [users]
@@ -2351,9 +2354,16 @@ paths:
         người khác không bị chặn. Nhiều phần tử trùng một người thì chỉ lưu phần tử đầu.
 
         Người nhận mới (với `scope=shared_out`) nhận thư: thư đặt mật khẩu nếu còn `invited`,
-        thư mở hồ sơ nếu không. Địa chỉ thuộc tên miền dành riêng (`.local`, `.test`,
-        `.example`, `.invalid`, `localhost`, `example.com|net|org`) không được gửi thư
-        (log `email.skipped_undeliverable`), việc chia sẻ vẫn được lưu.
+        thư mở hồ sơ nếu không.
+
+        **v5.0.0, không gửi được thư thì không có quyền** (chỉ `scope=shared_out`, người nhận mới):
+        - Email trống hoặc thuộc tên miền không nhận thư (`.local`, `.test`, `.example`,
+          `.invalid`, `localhost`, `example.com|net|org`): `422 share_recipient_undeliverable`
+          kèm `details.rejected_emails`, **không lưu gì và không gửi thư nào**.
+        - Gửi thư lỗi (Keycloak hay SMTP báo lỗi, kể cả không kết nối được): người đó bị gỡ
+          khỏi `shared_with` ngay trong request và có trong `email_not_sent`; các thay đổi khác
+          vẫn được lưu. Gỡ hết thì `scope` thành `mine`.
+        - Lượt chia sẻ đã có từ trước (cùng `id`) không gửi thư lại và không bị kiểm tra lại.
       operationId: updateDossierAccess
       x-rbac: [OPERATOR, ADMINISTRATOR]
       requestBody:
@@ -2381,6 +2391,34 @@ paths:
       responses:
         '200':
           description: Quyền đã lưu, `shared_with` theo danh tính đã kiểm tra
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [dossier_id, scope, shared_with, email_not_sent]
+                    properties:
+                      dossier_id: { type: string }
+                      scope: { type: string, enum: [mine, shared_out, shared_in] }
+                      shared_with: { type: array, items: { type: object } }
+                      email_not_sent:
+                        type: array
+                        description: |
+                          v5.0.0. Người nhận mới không nhận được thư nên đã bị gỡ khỏi `shared_with`;
+                          `[]` khi ai cũng nhận được. `GET /dossiers/{id}/access` luôn trả `[]`.
+                        items:
+                          type: object
+                          required: [email, reason]
+                          properties:
+                            email: { type: string }
+                            reason:
+                              type: string
+                              enum: [undeliverable, send_failed]
+                              description: |
+                                `send_failed`: Keycloak hay SMTP báo lỗi. `undeliverable`: địa chỉ
+                                Keycloak dùng để gửi khác email đã kiểm tra và không nhận thư.
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2389,7 +2427,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           description: |
-            `share_recipient_not_found` (`details.rejected_emails`), hoặc `expires_at` mới đặt đã ở quá khứ
+            `share_recipient_not_found` hoặc `share_recipient_undeliverable` (v5.0.0), cả hai kèm
+            `details.rejected_emails` và không lưu gì; hoặc `expires_at` mới đặt đã ở quá khứ
         '503':
           description: Keycloak không trả lời (`keycloak_unavailable`); không lưu gì
 

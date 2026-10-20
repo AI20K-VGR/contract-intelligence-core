@@ -4,6 +4,15 @@ export type ManagedUserRole = 'OPERATOR' | 'REVIEWER' | 'ADMINISTRATOR'
 
 export type ManagedUserStatus = 'invited' | 'active' | 'disabled'
 
+/**
+ * Thư mời gần nhất của người còn "invited" (DOC-05b v5.1.0). pending: chưa đủ
+ * thời gian để biết; sent: quá thời gian chờ mà không có thư trả về; bounced:
+ * máy chủ thư báo không gửi được. null khi backend không biết.
+ */
+export type InviteDelivery = 'pending' | 'sent' | 'bounced'
+
+export type InviteBounceReason = 'mailbox_not_found' | 'rejected'
+
 export type ManagedUser = {
   id: string
   email: string
@@ -13,6 +22,17 @@ export type ManagedUser = {
   created_at: string
   invited_at?: string | null
   last_login_at?: string | null
+  invite_delivery?: InviteDelivery | null
+  invite_delivery_reason?: InviteBounceReason | null
+}
+
+/** Câu báo thư mời không tới được; null khi thư mời không bị trả về. */
+export function inviteBounceMessage(user: ManagedUser) {
+  if (user.invite_delivery !== 'bounced') return null
+  if (user.invite_delivery_reason === 'mailbox_not_found') {
+    return `Không gửi được email mời tới ${user.email} vì không tìm thấy địa chỉ này. Kiểm tra lại email và tạo người dùng với địa chỉ đúng.`
+  }
+  return `Không gửi được email mời tới ${user.email} vì máy chủ thư bên nhận từ chối. Kiểm tra lại email rồi gửi lại lời mời.`
 }
 
 export type UserListQuery = {
@@ -58,6 +78,27 @@ export type TenantUser = {
   email: string
   display_name: string
   role: ManagedUserRole
+}
+
+/**
+ * Thành viên đang bật cùng tenant để chọn người nhận (GET /users/directory).
+ * Khác GET /users: không có người bị khoá hay thiếu tenant_id trong Keycloak,
+ * đúng tập người PUT /dossiers/{id}/access chấp nhận.
+ */
+export async function listUserDirectory(query: {
+  limit: number
+  offset: number
+  signal?: AbortSignal
+}) {
+  const params = new URLSearchParams({
+    limit: String(query.limit),
+    offset: String(query.offset),
+  })
+  const { data } = await requestJson<TenantUser[]>(
+    `${USERS_PATH}/directory?${params.toString()}`,
+    { signal: query.signal },
+  )
+  return data
 }
 
 /**
@@ -131,8 +172,18 @@ export function userAdminErrorMessage(error: unknown) {
     if (error.code === 'cannot_change_own_role') {
       return 'Không đổi được vai trò của tài khoản đang đăng nhập.'
     }
-    if (error.code === 'invite_not_applicable') {
-      return 'Chỉ gửi lại email khi người dùng còn ở trạng thái đã mời.'
+    // Backend trả invalid_invite_state (409); invite_not_applicable là tên cũ.
+    if (
+      error.code === 'invalid_invite_state' ||
+      error.code === 'invite_not_applicable'
+    ) {
+      return 'Người này đã đặt mật khẩu và kích hoạt tài khoản nên không cần gửi lại lời mời. Danh sách đã được cập nhật.'
+    }
+    if (error.code === 'keycloak_forbidden') {
+      return 'Dịch vụ đăng nhập từ chối thao tác này. Vui lòng báo quản trị viên.'
+    }
+    if (error.code === 'keycloak_error') {
+      return 'Dịch vụ đăng nhập gặp lỗi nên chưa thực hiện được. Thử lại sau.'
     }
     if (error.code === 'email_domain_undeliverable') {
       return 'Tên miền email không nhận được thư, vui lòng kiểm tra lại.'

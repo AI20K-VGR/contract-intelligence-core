@@ -9,6 +9,7 @@ import { ApiError } from '../api/client'
 import { MaterialIcon } from '../components/icons'
 import {
   createUser,
+  inviteBounceMessage,
   listUsers,
   resendUserInvite,
   setUserEnabled,
@@ -24,6 +25,8 @@ import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
 import { userErrorMessage } from '../api/errorMessage'
 
 const PAGE_SIZE = 20
+// Hỏi lại thư mời đang chờ: Gmail thường báo "Address not found" sau vài giây.
+const INVITE_POLL_MS = 10_000
 
 const roleOptions: {
   value: ManagedUserRole
@@ -102,6 +105,112 @@ export function UsersPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [lockTarget, setLockTarget] = useState<ManagedUser | null>(null)
+  // Người vừa tạo hoặc vừa gửi lại lời mời, có thể không nằm trên trang đang xem.
+  const [watched, setWatched] = useState<ManagedUser[]>([])
+  // Thư mời bị trả về trong lúc xem trang: không tự đóng như notice.
+  const [bounceAlerts, setBounceAlerts] = useState<
+    { id: string; message: string }[]
+  >([])
+  const [pollTick, setPollTick] = useState(0)
+  const waitingOnPage = users.some((item) => item.invite_delivery === 'pending')
+
+  function watchInvite(target: ManagedUser) {
+    setBounceAlerts((current) =>
+      current.filter((alert) => alert.id !== target.id),
+    )
+    if (target.invite_delivery !== 'pending') return
+    setWatched((current) => [
+      ...current.filter((item) => item.id !== target.id),
+      target,
+    ])
+  }
+
+  useEffect(() => {
+    if (loading || (!waitingOnPage && watched.length === 0)) return
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => {
+      const pageQuery = {
+        q: query || undefined,
+        role: roleFilter === 'all' ? undefined : roleFilter,
+        status: statusFilter === 'all' ? undefined : statusFilter,
+        limit: PAGE_SIZE,
+        offset,
+        signal: controller.signal,
+      }
+      Promise.all([
+        waitingOnPage ? listUsers(pageQuery) : Promise.resolve(null),
+        ...watched.map((item) =>
+          listUsers({
+            q: item.email,
+            limit: 5,
+            offset: 0,
+            signal: controller.signal,
+          }),
+        ),
+      ])
+        .then(([pageResult, ...lookups]) => {
+          if (controller.signal.aborted) return
+          const fresh = new Map<string, ManagedUser>()
+          pageResult?.users.forEach((item) => fresh.set(item.id, item))
+          lookups.forEach((result, index) => {
+            const hit = result?.users.find(
+              (item) => item.id === watched[index].id,
+            )
+            if (hit) fresh.set(hit.id, hit)
+          })
+          const before = new Map(
+            [...users, ...watched].map((item) => [item.id, item]),
+          )
+          const bounced = [...fresh.values()].flatMap((item) => {
+            const message = inviteBounceMessage(item)
+            return message && before.get(item.id)?.invite_delivery === 'pending'
+              ? [{ id: item.id, message }]
+              : []
+          })
+          if (bounced.length > 0) {
+            setBounceAlerts((current) => [
+              ...current.filter(
+                (alert) => !bounced.some((next) => next.id === alert.id),
+              ),
+              ...bounced,
+            ])
+          }
+          if (pageResult) {
+            setUsers(pageResult.users)
+            setTotal(pageResult.total)
+          } else {
+            setUsers((current) =>
+              current.map((item) => fresh.get(item.id) ?? item),
+            )
+          }
+          setWatched((current) =>
+            current.flatMap((item) => {
+              const next = fresh.get(item.id)
+              return next?.invite_delivery === 'pending' ? [next] : []
+            }),
+          )
+        })
+        // Lỗi mạng: bỏ qua lần này, lần sau hỏi lại.
+        .catch(() => undefined)
+        .finally(() => {
+          if (!controller.signal.aborted) setPollTick((tick) => tick + 1)
+        })
+    }, INVITE_POLL_MS)
+    return () => {
+      controller.abort()
+      window.clearTimeout(timer)
+    }
+  }, [
+    loading,
+    waitingOnPage,
+    watched,
+    users,
+    query,
+    roleFilter,
+    statusFilter,
+    offset,
+    pollTick,
+  ])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -189,10 +298,18 @@ export function UsersPage() {
     try {
       const updated = await resendUserInvite(target.id)
       applyUser(updated)
+      watchInvite(updated)
       setNotice(`Đã gửi lại email đặt mật khẩu tới ${updated.email}.`)
     } catch (err) {
       const message = userAdminErrorMessage(err)
-      if (message) setError(message)
+      // 409: người này đã đặt mật khẩu sau lúc tải danh sách. Không phải lỗi:
+      // báo thường và tải lại để thôi hiện "Đã mời".
+      if (err instanceof ApiError && err.status === 409) {
+        if (message) setNotice(message)
+        setReloadKey((key) => key + 1)
+      } else if (message) {
+        setError(message)
+      }
     } finally {
       setPendingId(null)
     }
@@ -316,6 +433,28 @@ export function UsersPage() {
           </div>
         ) : null}
 
+        {bounceAlerts.length > 0 ? (
+          <div
+            className="mx-space-lg mb-space-md px-space-md py-space-sm rounded bg-error-container text-on-error-container font-body-sm text-body-sm flex items-start gap-space-md"
+            role="alert"
+          >
+            <MaterialIcon name="error" className="text-[20px] shrink-0" />
+            <div className="flex-1 flex flex-col gap-1">
+              {bounceAlerts.map((alert) => (
+                <p key={alert.id}>{alert.message}</p>
+              ))}
+            </div>
+            <button
+              className="shrink-0 opacity-80 hover:opacity-100"
+              type="button"
+              aria-label="Đóng cảnh báo"
+              onClick={() => setBounceAlerts([])}
+            >
+              <MaterialIcon name="close" className="text-[18px]" />
+            </button>
+          </div>
+        ) : null}
+
         <div className="w-full overflow-x-auto">
           <table className="w-full text-left text-on-surface font-body-sm text-body-sm min-w-[880px]">
             <thead>
@@ -419,7 +558,12 @@ export function UsersPage() {
           onClose={() => setCreateOpen(false)}
           onCreated={(created) => {
             setCreateOpen(false)
-            setNotice(`Đã gửi lời mời đặt mật khẩu tới ${created.email}.`)
+            watchInvite(created)
+            setNotice(
+              created.invite_delivery === 'pending'
+                ? `Đã gửi lời mời đặt mật khẩu tới ${created.email}. Nếu địa chỉ này không nhận được thư, trang sẽ báo lại.`
+                : `Đã gửi lời mời đặt mật khẩu tới ${created.email}.`,
+            )
             setOffset(0)
             setReloadKey((current) => current + 1)
           }}
@@ -534,7 +678,7 @@ function UserRow({
         </div>
       </td>
       <td className="py-3.5 px-space-md">
-        <StatusBadge status={member.status} />
+        <StatusBadge member={member} />
       </td>
       <td className="py-3.5 px-space-md text-secondary">
         {member.status === 'invited'
@@ -573,7 +717,36 @@ function UserRow({
   )
 }
 
-function StatusBadge({ status }: { status: ManagedUserStatus }) {
+function StatusBadge({ member }: { member: ManagedUser }) {
+  const status = member.status
+  if (status === 'invited' && member.invite_delivery === 'bounced') {
+    return (
+      <div className="flex flex-col items-start gap-0.5">
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap px-2 py-0.5 rounded bg-error-container text-on-error-container font-label-sm text-label-sm">
+          <span className="w-1.5 h-1.5 rounded-full bg-error" />
+          Không gửi được thư
+        </span>
+        <span className="font-body-sm text-body-sm text-error">
+          {member.invite_delivery_reason === 'mailbox_not_found'
+            ? 'Không tìm thấy địa chỉ email'
+            : 'Máy chủ thư bên nhận từ chối'}
+        </span>
+      </div>
+    )
+  }
+  if (status === 'invited' && member.invite_delivery === 'pending') {
+    return (
+      <div className="flex flex-col items-start gap-0.5">
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container-high text-secondary font-label-sm text-label-sm">
+          <span className="w-1.5 h-1.5 rounded-full bg-outline" />
+          Đã mời
+        </span>
+        <span className="font-body-sm text-body-sm text-secondary whitespace-nowrap">
+          Đang chờ xác nhận gửi thư
+        </span>
+      </div>
+    )
+  }
   if (status === 'active') {
     return (
       <span className="inline-flex items-center gap-1.5 whitespace-nowrap px-2 py-0.5 rounded bg-surface-container text-on-surface font-label-sm text-label-sm">

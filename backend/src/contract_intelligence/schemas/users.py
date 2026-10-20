@@ -16,6 +16,11 @@ from contract_intelligence.shared.email_delivery import (
 
 UserRole = Literal["OPERATOR", "REVIEWER", "ADMINISTRATOR"]
 UserStatus = Literal["invited", "active", "disabled"]
+# Thư mời của người còn "invited": pending = chưa đủ thời gian để biết, sent = quá
+# thời gian chờ mà không có thư trả về, bounced = máy chủ thư báo không gửi được.
+InviteDelivery = Literal["pending", "sent", "bounced"]
+# mailbox_not_found: địa chỉ không tồn tại (5.1.1); rejected: bị từ chối vì lý do khác.
+InviteBounceReason = Literal["mailbox_not_found", "rejected"]
 
 
 class UserDTO(BaseModel):
@@ -31,6 +36,9 @@ class UserDTO(BaseModel):
     created_at: datetime | None = None
     invited_at: datetime | None = None
     last_login_at: datetime | None = None
+    # None: không phải "invited", hoặc backend không đọc được hộp thư gửi.
+    invite_delivery: InviteDelivery | None = None
+    invite_delivery_reason: InviteBounceReason | None = None
 
 
 class UserDirectoryEntryDTO(BaseModel):
@@ -86,6 +94,8 @@ class UserInviteRequest(BaseModel):
 
 
 __all__ = [
+    "InviteBounceReason",
+    "InviteDelivery",
     "UserCreateRequest",
     "UserDTO",
     "UserDirectoryEntryDTO",
