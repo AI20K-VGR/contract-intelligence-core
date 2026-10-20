@@ -76,6 +76,41 @@ actual_sha=$(git rev-parse HEAD)
 }
 echo "[deploy] deploying SHA $actual_sha"
 
+# Service logs (deploy/compose.prod.yml sends them to journald). Kept on disk
+# across deploys and reboots, capped so they cannot fill the disk: at most
+# LOG_JOURNAL_MAX_USE (default 2G) and LOG_RETENTION_DAYS days (default 30),
+# and journald always leaves 4G free. The burst limit is raised so a busy
+# service is not cut off mid-incident. Checked and written here, before
+# anything is built or restarted: a bad value stops the deploy with the old
+# stack untouched, and the limits apply before containers switch to journald.
+log_max_use=$(envval LOG_JOURNAL_MAX_USE || true)
+log_max_use=${log_max_use:-2G}
+log_days=$(envval LOG_RETENTION_DAYS || true)
+log_days=${log_days:-30}
+if [[ ! "$log_max_use" =~ ^[1-9][0-9]*[MG]$ ]] || [[ ! "$log_days" =~ ^[1-9][0-9]*$ ]]; then
+  echo "[deploy] LOG_JOURNAL_MAX_USE must look like 2G or 500M and LOG_RETENTION_DAYS a number of days" >&2
+  exit 1
+fi
+journald_conf=${JOURNALD_CONF_FILE:-/etc/systemd/journald.conf.d/ci-logs.conf}
+journald_entry="# Managed by deploy/deploy.sh: LOG_JOURNAL_MAX_USE, LOG_RETENTION_DAYS in deploy/.env.prod.
+[Journal]
+Storage=persistent
+SystemMaxUse=$log_max_use
+SystemKeepFree=4G
+MaxRetentionSec=${log_days}day
+RateLimitIntervalSec=30s
+RateLimitBurst=50000"
+if [ "$(cat "$journald_conf" 2>/dev/null || true)" != "$journald_entry" ]; then
+  mkdir -p "$(dirname "$journald_conf")"
+  printf '%s\n' "$journald_entry" > "$journald_conf.new"
+  chmod 644 "$journald_conf.new"
+  mv "$journald_conf.new" "$journald_conf"
+  if command -v systemctl >/dev/null; then
+    systemctl restart systemd-journald
+  fi
+  echo "[deploy] service logs: journald keeps up to $log_max_use, $log_days days -> $journald_conf"
+fi
+
 "${COMPOSE[@]}" config --quiet
 "${COMPOSE[@]}" build
 
