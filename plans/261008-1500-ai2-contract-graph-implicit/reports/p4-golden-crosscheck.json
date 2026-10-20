@@ -1,0 +1,17 @@
+{
+  "status": "OBSERVED",
+  "base_commit": "bffe37e3d0084b000d00ea6d3fbe26a56e23fa60",
+  "isolation": "detached git worktree tmp/golden-p3-base; unchanged production code",
+  "copied_capture_inputs": [
+    "ai-service/scripts/capture_idp_golden.py",
+    "ai-service/fixtures/contract_graph_pair_records.py"
+  ],
+  "python": "3.12",
+  "PYTHONHASHSEED": "0",
+  "profile": "graph_on",
+  "n_cases": 69,
+  "captured_sha256": "64ea9e599f9c8f5c1b1fd1ea376287ec772315c08f3bc46f5a17488a631eba74",
+  "fixture_sha256": "64ea9e599f9c8f5c1b1fd1ea376287ec772315c08f3bc46f5a17488a631eba74",
+  "byte_match": true,
+  "command": "ai-service/.venv/Scripts/python.exe tmp/golden-p3-base/ai-service/scripts/capture_idp_golden.py --profile graph_on --out plans/261008-1500-ai2-contract-graph-implicit/reports/golden-p3-crosscheck.json"
+}

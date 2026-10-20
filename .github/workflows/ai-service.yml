@@ -1,24 +1,94 @@
-# CI for ai-service/. The team fills in the steps once the stack is chosen (install, lint, test, build).
-# Runs only when ai-service/ changes. Ask the mentor to make it a required check when it is stable.
-name: ai-service
+name: AI service CI
 
 on:
   pull_request:
-    paths: ["ai-service/**"]
+    branches: [main, develop]
+    paths:
+      - "ai-service/**"
+      - ".github/workflows/ai-service.yml"
   push:
-    branches: [develop, main]
-    paths: ["ai-service/**"]
+    branches: [develop, main, "feature/**"]
+    paths:
+      - "ai-service/**"
+      - ".github/workflows/ai-service.yml"
 
 permissions:
   contents: read
 
+concurrency:
+  group: ai-service-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
+    name: AI service checks
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AI2_REQUIRE_DATABASE: "false"
+      AI2_TEST_DATABASE_URL: postgresql+psycopg://ci@127.0.0.1:5432/ci_test
     defaults:
       run:
         working-directory: ai-service
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_DB: ci_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v4
-      - name: TODO (team) — install, lint, test
-        run: echo "no CI defined for ai-service yet"
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: ai-service/uv.lock
+
+      - name: Install locked dependencies
+        run: uv sync --frozen --extra dev --extra web --extra kafka --extra mistral
+
+      - name: Ruff lint and format changed Python files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          mapfile -d '' changed_python < <(git diff --name-only -z "$BASE_SHA"...HEAD -- 'ai-service/*.py' 'ai-service/**/*.py')
+          if ((${#changed_python[@]})); then
+            uv run ruff check "${changed_python[@]#ai-service/}"
+            uv run ruff format --check "${changed_python[@]#ai-service/}"
+          else
+            echo "No changed Python files in ai-service; Ruff checks are not applicable."
+          fi
+
+      - name: Deterministic tests
+        run: |
+          echo "Skipping PDF-only contract goldens: their generated PDFs are gitignored and are not in a clean checkout."
+          uv run pytest -m "not live and not integration" \
+            --ignore=tests/test_hd_gold.py \
+            --ignore=tests/test_structure_reconstruction.py \
+            --deselect=tests/test_ingest.py::test_hd_tong_hop_sample_pdf_extracts_and_answers_dieu_9
+
+      # The AI2 image (Dockerfile.ai2) ships app/ and fixtures/ only, with the web
+      # and openai extras. Tests run with AI1's src/ installed, so an AI2 import of
+      # AI1 code passed CI and stopped the production deploy (#137). Import AI2 in
+      # the image it really runs in.
+      - name: AI2 image imports its modules without AI1 code
+        run: |
+          docker build -f Dockerfile.ai2 -t ai2-import-check .
+          docker run --rm -e AI2_REQUIRE_DATABASE=false ai2-import-check \
+            uv run --no-sync python -c "import app.llm.client, app.llm.observability, app.llm.metrics, app.llm.embeddings, app.pipeline.job_metrics, app.api.main; print('AI2 image imports: ok')"

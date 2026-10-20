@@ -1,0 +1,21 @@
+{
+  "schema_version": "ai1.snapshot.v1",
+  "snapshot_id": "duplicate-line-id",
+  "dossier_id": "duplicate_line_id",
+  "document_id": "doc-duplicate-line-id",
+  "run_id": "run-duplicate-line-id",
+  "source_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "execution": {"ocr_engine": "fixture", "attempt": 1},
+  "producer": {"name": "AI1 coverage fixture", "version": "1"},
+  "status": "SUCCESS",
+  "pages": [{
+    "page_no": 1,
+    "status": "SUCCESS",
+    "table_coverage": {"status": "NOT_PRESENT"},
+    "lines": [
+      {"line_id": "same-line", "raw_text": "DIEU 1.", "bbox": [0.1, 0.1, 0.9, 0.2], "words": []},
+      {"line_id": "same-line", "raw_text": "DIEU 2.", "bbox": [0.1, 0.2, 0.9, 0.3], "words": []}
+    ],
+    "tables": []
+  }]
+}

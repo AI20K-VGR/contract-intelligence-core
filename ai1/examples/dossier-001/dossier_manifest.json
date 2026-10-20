@@ -1,0 +1,15 @@
+{
+  "dossier_id": "dossier-001",
+  "documents": [
+    {
+      "document_id": "contract-001",
+      "filename": "hop-dong-mau.pdf",
+      "document_role": "contract"
+    },
+    {
+      "document_id": "annex-001",
+      "filename": "phu-luc-mau.pdf",
+      "document_role": "annex"
+    }
+  ]
+}

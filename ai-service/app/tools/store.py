@@ -1,0 +1,137 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+from app.contracts.models import (
+    BoqCheckProjection,
+    Chunk,
+    Citation,
+    ContractEvent,
+    Fact,
+    HandoffIssue,
+    LifecycleState,
+    PageSnapshot,
+    PaymentScheduleProjection,
+    RelationGraph,
+    ReviewItem,
+    SemanticExtension,
+    SemanticProfile,
+    SourceFile,
+    StructuralNode,
+    TableSnapshot,
+    TenantProfile,
+    VersionPins,
+)
+from app.tools.bounded import BoundedDict
+
+if TYPE_CHECKING:  # flag off must not import the contract-graph model
+    from app.contracts.contract_graph import ContractEdge, PairRelation
+
+
+@dataclass
+class DossierRecord:
+    tenant_id: str
+    dossier_id: str
+    lifecycle: LifecycleState
+    pins: VersionPins
+    pages: list[PageSnapshot]
+    nodes: list[StructuralNode]
+    tables: list[TableSnapshot]
+    profile: TenantProfile
+    acl_revision: int
+    permissions_by_actor: dict[str, list[str]]
+    source_files: list[SourceFile] = field(default_factory=list)
+    facts: list[Fact] = field(default_factory=list)
+    input_facts: list[Fact] | None = None
+    chunks: list[Chunk] = field(default_factory=list)
+    active_index_version: str | None = None
+    processing_index: bool = False
+    legal_hold: bool = False
+    # Backward-compatible legacy flag. New inputs should use explicit gates.
+    egress_approved: bool = True
+    budget_exceeded: bool = False
+    processing_budget_exceeded: bool = False
+    embedding_budget_exceeded: bool = False
+    index_status: str = "READY"
+    case_id: str | None = None
+    handoff_issues: list[HandoffIssue] = field(default_factory=list)
+    relation_graph: RelationGraph | None = None
+    active_nodes: list[StructuralNode] | None = None
+    citation_index: dict[str, Citation] = field(default_factory=dict)
+    review_items: list[ReviewItem] = field(default_factory=list)
+    events: list[ContractEvent] = field(default_factory=list)
+    # D8: edges reach the job store on the record, never on ``JobResult`` (its dump is persisted).
+    # Not part of ``record_to_dict``; the latest successful job replaces the
+    # persisted edge view with this list, including an empty list when graph
+    # enrichment did not run.
+    contract_edges: list[ContractEdge] = field(default_factory=list)
+    contract_graph_ran: bool = False
+    contract_graph_stage_status: str | None = None
+    content_sharing_consent: bool = False
+    pair_relations: list[PairRelation] = field(default_factory=list)
+    pair_relations_ran: bool = False
+    pair_relations_stage_status: str | None = None
+    semantic_profile: SemanticProfile | None = None
+    semantic_extension: SemanticExtension | None = None
+    semantic_snapshots: dict[str, str] = field(default_factory=dict)
+    # Typed projections are derived per run and remain separate from immutable OCR.
+    payment_schedules: list[PaymentScheduleProjection] = field(default_factory=list)
+    boq_checks: list[BoqCheckProjection] = field(default_factory=list)
+
+    def evidence_nodes(self) -> list[StructuralNode]:
+        """Nodes allowed for UI/reasoning; raw ``nodes`` remains immutable."""
+
+        return self.active_nodes if self.active_nodes is not None else self.nodes
+
+    def processing_budget_hit(self) -> bool:
+        if self.processing_budget_exceeded:
+            return True
+        return self.budget_exceeded and not self.embedding_budget_exceeded
+
+    def embedding_budget_hit(self) -> bool:
+        if self.embedding_budget_exceeded:
+            return True
+        return self.budget_exceeded and not self.processing_budget_exceeded
+
+
+class InMemorySnapshotStore:
+    """Dossier records by (tenant, dossier).
+
+    ``max_entries=None`` keeps every record: right when this store is the only
+    copy (no database). With Postgres behind it, it is a cache and keeps only
+    the ``max_entries`` most recently used records.
+    """
+
+    def __init__(self, max_entries: int | None = None) -> None:
+        self._dossiers: BoundedDict[tuple[str, str], DossierRecord] = BoundedDict(max_entries)
+
+    def put(self, rec: DossierRecord) -> None:
+        self._dossiers[(rec.tenant_id, rec.dossier_id)] = rec
+
+    def get(self, tenant_id: str, dossier_id: str) -> DossierRecord | None:
+        key = (tenant_id, dossier_id)
+        self._dossiers.touch(key)
+        return self._dossiers.get(key)
+
+    def discard(self, tenant_id: str, dossier_id: str) -> None:
+        self._dossiers.pop((tenant_id, dossier_id), None)
+
+    def get_for_scope(
+        self, tenant_id: str, dossier_id: str, snapshot_digest: str
+    ) -> DossierRecord | None:
+        """Return a record only when its immutable snapshot pin matches scope."""
+
+        record = self.get(tenant_id, dossier_id)
+        if record is None:
+            return None
+        record_digest = record.pins.snapshot_digest or record.pins.source_snapshot_digest
+        return record if _same_digest(record_digest, snapshot_digest) else None
+
+
+def _same_digest(left: str | None, right: str | None) -> bool:
+    def normalized(value: str | None) -> str:
+        text = str(value or "").strip().lower()
+        return text[7:] if text.startswith("sha256:") else text
+
+    return bool(normalized(left)) and normalized(left) == normalized(right)

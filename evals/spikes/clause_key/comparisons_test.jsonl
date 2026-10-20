@@ -1,0 +1,15 @@
+{"a": "T01", "b": "T02", "expected": "COMPARABLE_DIFFERENCE", "why": "same breach, same threshold, 10tr vs 20tr"}
+{"a": "T01", "b": "T03", "expected": "CUMULATIVE", "why": "'quá 15 ngày' and 'từ 16 ngày trở lên' are the same threshold in whole days; penalty + termination at the same point"}
+{"a": "T01", "b": "T04", "expected": "COMPARABLE_DIFFERENCE", "why": "two different penalty regimes (fixed vs per-day rate) for the same breach"}
+{"a": "T01", "b": "T53", "expected": "CUMULATIVE", "why": "penalty and termination at the same threshold"}
+{"a": "T02", "b": "T51", "expected": "COMPARABLE_DIFFERENCE", "why": "both flat penalties apply beyond 15 days (20tr vs 12tr)"}
+{"a": "T03", "b": "T53", "expected": "DUPLICATE", "why": "both give termination from day 16"}
+{"a": "T01", "b": "T16", "expected": "GENERAL_VS_SPECIFIC", "why": "general 8% clause vs specific late-delivery clause"}
+{"a": "T08", "b": "T54", "expected": "CUMULATIVE", "why": "late-payment interest plus penalty is allowed together"}
+{"a": "T08", "b": "T11", "expected": "CUMULATIVE", "why": "interest (>30d) and penalty (>20d) are different kinds of consequence"}
+{"a": "T19", "b": "T57", "expected": "GRADUATED", "why": "interest after 10 days, termination after 15 days"}
+{"a": "T23", "b": "T58", "expected": "COMPARABLE_DIFFERENCE", "why": "0.05%/day vs 1%/week of contract value for the same delay"}
+{"a": "T36", "b": "T37", "expected": "CUMULATIVE", "why": "damages and penalty for unauthorised disclosure"}
+{"a": "T36", "b": "T59", "expected": "COMPARABLE_DIFFERENCE", "why": "two fixed damages amounts (500tr vs 300tr) for the same disclosure"}
+{"a": "T31", "b": "T56", "expected": null, "why": "different bearers (CUSTOMER vs BUYER): must not be compared"}
+{"a": "T01", "b": "T08", "expected": null, "why": "late delivery vs late payment: must not be compared"}

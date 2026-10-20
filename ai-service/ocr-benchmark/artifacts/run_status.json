@@ -1,0 +1,23 @@
+[
+  {
+    "document_id": "DOC-101",
+    "provider": "mistral",
+    "experiment": "raw",
+    "status": "SUCCESS",
+    "error": ""
+  },
+  {
+    "document_id": "DOC-102",
+    "provider": "mistral",
+    "experiment": "raw",
+    "status": "SUCCESS",
+    "error": ""
+  },
+  {
+    "document_id": "DOC-103",
+    "provider": "mistral",
+    "experiment": "raw",
+    "status": "SUCCESS",
+    "error": ""
+  }
+]

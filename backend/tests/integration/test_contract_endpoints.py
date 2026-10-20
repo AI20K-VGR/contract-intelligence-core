@@ -1,0 +1,705 @@
+"""Integration tests for Phase 1 Contract endpoints — FastAPI + SQLite in-memory.
+
+Tests use httpx.AsyncClient with dependency overrides (no Docker required).
+Covers the endpoints from openapi.yaml:
+
+    POST /dossiers            — multipart upload (aligned with spec)
+    GET  /dossiers            — list with pagination
+    GET  /dossiers/{id}      — detail
+    PATCH /dossiers/{id}     — update metadata
+    GET  /dossiers/{id}/documents
+    GET  /documents/{id}
+    GET  /documents/{id}/content
+
+Chạy:
+    cd backend
+    uv run pytest tests/integration/test_contract_endpoints.py -v
+"""
+
+from __future__ import annotations
+
+import json as _json
+from collections.abc import AsyncGenerator
+from typing import Any
+
+import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from tests.pdf_bytes import make_pdf
+from tests.unit.conftest_contract import FakeFileStorage
+
+from contract_intelligence.config.settings import get_settings
+from contract_intelligence.main import app
+from contract_intelligence.shared.persistence import Base, bind_engine, reset_engine
+from contract_intelligence.shared.persistence.session import get_async_session
+
+# ---------------------------------------------------------------------------
+# Settings override — SQLite in-memory + Keycloak mode
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _override_settings() -> Any:
+    """Force settings to test values (SQLite + Keycloak JWT mode)."""
+    get_settings.cache_clear()
+    settings = get_settings()
+    settings.database_url = "sqlite+aiosqlite:///:memory:"
+    settings.auth_mode = "keycloak"
+    settings.keycloak_server_url = "https://test-keycloak.local"
+    settings.keycloak_realm = "test-realm"
+    settings.keycloak_client_id = "ci-backend"
+    settings.keycloak_audience = "ci-backend"
+    settings.keycloak_role_map = {
+        "ci_operator": "OPERATOR",
+        "ci_reviewer": "REVIEWER",
+        "ci_administrator": "ADMINISTRATOR",
+    }
+    settings.env = "test"
+    settings.job_queue_enabled = False
+    yield
+    get_settings.cache_clear()
+
+
+# ---------------------------------------------------------------------------
+# DB setup — use tempfile SQLite so all sessions share the same DB
+# ---------------------------------------------------------------------------
+
+
+@pytest_asyncio.fixture(scope="function")
+async def db_engine(tmp_path: Any) -> Any:
+    """Fresh SQLite file-based engine + schema per test.
+
+    Using a file (not :memory:) ensures all async sessions share the same DB
+    without SQLite shared-cache mode issues.
+    """
+    db_path = tmp_path / "test_contract.db"
+    engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}", echo=False)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    bind_engine(engine)
+    yield engine
+    reset_engine()
+    await engine.dispose()
+
+
+# ---------------------------------------------------------------------------
+# Test client
+# ---------------------------------------------------------------------------
+
+
+@pytest_asyncio.fixture
+async def client(
+    db_engine: Any,
+    cached_keycloak_jwks: str,
+    mock_keycloak_settings: Any,
+) -> AsyncGenerator[AsyncClient, None]:
+    """AsyncClient bound to FastAPI app with dependency overrides.
+
+    Uses FakeFileStorage (in-memory) to avoid async executor deadlocks from
+    LocalFileStorage.run_in_executor() in pytest-asyncio context.
+
+    MinIO/Kafka are stubbed globally via ``mock_minio_and_kafka`` (tests/conftest.py).
+    """
+    # Override storage singleton with in-memory fake — avoids run_in_executor hangs
+    # in pytest-asyncio context (asyncio.get_event_loop() inside executor is unreliable).
+    from contract_intelligence.shared.storage import set_file_storage
+
+    fake_storage = FakeFileStorage()
+    set_file_storage(fake_storage)
+
+    factory = async_sessionmaker(bind=db_engine, expire_on_commit=False, class_=AsyncSession)
+
+    async def override_get_async_session() -> AsyncGenerator[AsyncSession, None]:
+        async with factory() as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
+
+    # Override the session dependency
+
+    app.dependency_overrides[get_async_session] = override_get_async_session
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+    app.dependency_overrides.clear()
+    # Reset storage singleton to allow next test to re-override cleanly
+    from contract_intelligence.shared.storage import reset_file_storage
+
+    reset_file_storage()
+
+
+def _auth_headers(token: str) -> dict[str, str]:
+    """Standard auth headers — includes X-Tenant-Id extracted from token claims."""
+    return {
+        "Authorization": f"Bearer {token}",
+        "X-Tenant-Id": "tenant_vgr_01",  # matches make_keycloak_token default tenant
+    }
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
+class TestDossierEndpoints:
+    """Phase 1: Core Document Ingestion endpoints."""
+
+    @pytest.mark.asyncio
+    async def test_create_dossier_multipart_upload_returns_202(
+        self,
+        client: AsyncClient,
+        make_keycloak_token: Any,
+    ) -> None:
+        """POST /dossiers with contract PDF → 202 Accepted."""
+        token = make_keycloak_token(role="OPERATOR")
+        response = await client.post(
+            "/api/v1/dossiers",
+            files=[("contract", ("test.pdf", make_pdf(marker="content"), "application/pdf"))],
+            data={"metadata": '{"name": "Test Contract"}'},
+            headers=_auth_headers(token),
+        )
+        assert response.status_code == 202, (
+            f"Expected 202, got {response.status_code}: {response.text}"
+        )
+        body = response.json()
+        assert "data" in body
+        assert "dossier_id" in body["data"]
+        assert body["data"]["dossier_id"].startswith("dos_")
+        assert body["data"]["job_id"] is not None
+        assert body["data"]["job_id"].startswith("job_")
+
+    @pytest.mark.asyncio
+    async def test_create_dossier_requires_auth(
+        self,
+        client: AsyncClient,
+    ) -> None:
+        """POST /dossiers without token → 401."""
+        response = await client.post(
+            "/api/v1/dossiers",
+            files=[("contract", ("x.pdf", make_pdf(), "application/pdf"))],
+            data={"metadata": "{}"},
+        )
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_create_dossier_requires_operator_or_admin(
+        self,
+        client: AsyncClient,
+        make_keycloak_token: Any,
+    ) -> None:
+        """POST /dossiers with REVIEWER role → 403."""
+        token = make_keycloak_token(role="REVIEWER")
+        response = await client.post(
+            "/api/v1/dossiers",
+            files=[("contract", ("x.pdf", make_pdf(), "application/pdf"))],
+            data={"metadata": "{}"},
+            headers=_auth_headers(token),
+        )
+        assert response.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_create_dossier_with_annex(
+        self,
+        client: AsyncClient,
+        make_keycloak_token: Any,
+    ) -> None:
+        """POST /dossiers with contract + annex → 202."""
+        token = make_keycloak_token(role="OPERATOR")
+        response = await client.post(
+            "/api/v1/dossiers",
+            files=[
+                ("contract", ("contract.pdf", make_pdf(marker="contract"), "application/pdf")),
+                ("annexes", ("annex_1.pdf", make_pdf(marker="annex 1"), "application/pdf")),
+            ],
+            data={"metadata": '{"name": "Multi-doc dossier"}'},
+            headers=_auth_headers(token),
+        )
+        assert response.status_code == 202, response.text
+
+    @pytest.mark.asyncio
+    async def test_list_dossiers_requires_auth(
+        self,
+        client: AsyncClient,
+    ) -> None:
+        """GET /dossiers without token → 401."""
+        response = await client.get("/api/v1/dossiers")
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_list_dossiers_returns_empty_list(
+        self,
+        client: AsyncClient,
+        make_keycloak_token: Any,
+    ) -> None:
+        """GET /dossiers with no dossiers → empty array."""
+        token = make_keycloak_token(role="OPERATOR")
+        response = await client.get(
+            "/api/v1/dossiers",
+            headers=_auth_headers(token),
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["data"] == []
+
+    @pytest.mark.asyncio
+    async def test_list_dossiers_returns_created_dossiers(
+        self,
+        client: AsyncClient,
+        make_keycloak_token: Any,
+    ) -> None:
+        """POST + GET → dossier appears in list."""
+        token = make_keycloak_token(role="OPERATOR")
+
+        for name in ["Dossier A", "Dossier B"]:
+            r = await client.post(
+                "/api/v1/dossiers",
+                files=[("contract", ("x.pdf", make_pdf(), "application/pdf"))],
+                data={"metadata": _json.dumps({"name": name})},
+                headers=_auth_headers(token),
+            )
+            assert r.status_code == 202, r.text
+
+        response = await client.get(
+            "/api/v1/dossiers",
+            headers=_auth_headers(token),
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert len(body["data"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_list_dossiers_carries_document_counts_and_contract_ocr(
+        self,
+        client: AsyncClient,
+        db_engine: Any,
+        make_keycloak_token: Any,
+    ) -> None:
+        """Each list item carries what the list screen used to fetch per dossier."""
+        from contract_intelligence.extraction.infrastructure.persistence.orm import PageORM
+
+        token = make_keycloak_token(role="OPERATOR")
+        r = await client.post(
+            "/api/v1/dossiers",
+            files=[
+                ("contract", ("main.pdf", make_pdf(marker="main"), "application/pdf")),
+                ("annexes", ("a1.pdf", make_pdf(marker="a1"), "application/pdf")),
+                ("annexes", ("a2.pdf", make_pdf(marker="a2"), "application/pdf")),
+            ],
+            data={"metadata": _json.dumps({"name": "With OCR"})},
+            headers=_auth_headers(token),
+        )
+        assert r.status_code == 202, r.text
+        dossier_id = r.json()["data"]["dossier_id"]
+        docs = (
+            await client.get(
+                f"/api/v1/dossiers/{dossier_id}/documents", headers=_auth_headers(token)
+            )
+        ).json()["data"]
+        contract_id = next(d["id"] for d in docs if d["role"].lower() == "contract")
+        annex_id = next(d["id"] for d in docs if d["role"].lower() == "annex")
+
+        factory = async_sessionmaker(bind=db_engine, expire_on_commit=False, class_=AsyncSession)
+        async with factory() as session:
+            rows = [
+                (contract_id, 1, {"ai1_page_status": "ok"}),
+                (contract_id, 2, {"ai1_page_status": "failed", "error": "RuntimeError: blank"}),
+                (contract_id, 3, {"ai1_page_status": "ok", "error": "SKIPPED: too dark"}),
+                (annex_id, 1, {"ai1_page_status": "failed", "error": "annex only"}),
+            ]
+            for doc_id, page_no, features in rows:
+                session.add(
+                    PageORM(
+                        id=f"page-{doc_id}-{page_no}",
+                        tenant_id="tenant_vgr_01",
+                        document_id=doc_id,
+                        page_no=page_no,
+                        width_pt="595",
+                        height_pt="842",
+                        features=_json.dumps(features),
+                    )
+                )
+            await session.commit()
+
+        body = (await client.get("/api/v1/dossiers", headers=_auth_headers(token))).json()
+        item = next(d for d in body["data"] if d["id"] == dossier_id)
+        assert item["document_counts"] == {"contracts": 1, "annexes": 2}
+        assert item["contract_ocr"] == {
+            "document_id": contract_id,
+            "filename": "main.pdf",
+            "page_count": 3,
+            "failed_pages": 2,
+            "first_error": "RuntimeError: blank",
+        }
+        assert item["latest_job_status"] is not None
+
+    @pytest.mark.asyncio
+    async def test_list_first_error_is_the_first_failed_pages_error(
+        self,
+        client: AsyncClient,
+        db_engine: Any,
+        make_keycloak_token: Any,
+    ) -> None:
+        """A first failed page without a message gives first_error null, as the list screen did."""
+        from contract_intelligence.extraction.infrastructure.persistence.orm import PageORM
+
+        token = make_keycloak_token(role="OPERATOR")
+        r = await client.post(
+            "/api/v1/dossiers",
+            files=[("contract", ("main.pdf", make_pdf(marker="first-error"), "application/pdf"))],
+            data={"metadata": _json.dumps({"name": "First error"})},
+            headers=_auth_headers(token),
+        )
+        assert r.status_code == 202, r.text
+        dossier_id = r.json()["data"]["dossier_id"]
+        docs = (
+            await client.get(
+                f"/api/v1/dossiers/{dossier_id}/documents", headers=_auth_headers(token)
+            )
+        ).json()["data"]
+        contract_id = docs[0]["id"]
+
+        factory = async_sessionmaker(bind=db_engine, expire_on_commit=False, class_=AsyncSession)
+        async with factory() as session:
+            rows = [
+                (1, {"ai1_page_status": "failed"}),
+                (2, {"ai1_page_status": "failed", "error": "RuntimeError: later page"}),
+            ]
+            for page_no, features in rows:
+                session.add(
+                    PageORM(
+                        id=f"page-{contract_id}-{page_no}",
+                        tenant_id="tenant_vgr_01",
+                        document_id=contract_id,
+                        page_no=page_no,
+                        width_pt="595",
+                        height_pt="842",
+                        features=_json.dumps(features),
+                    )
+                )
+            await session.commit()
+
+        body = (await client.get("/api/v1/dossiers", headers=_auth_headers(token))).json()
+        ocr = next(d for d in body["data"] if d["id"] == dossier_id)["contract_ocr"]
+        assert ocr["failed_pages"] == 2
+        assert ocr["first_error"] is None
+
+    def test_list_document_fields_follow_the_documents_acl(self) -> None:
+        """List items carry documents only when /documents would allow the caller."""
+        from types import SimpleNamespace
+
+        from contract_intelligence.contract.interfaces.api.routers.contract_router import (
+            _may_read_documents,
+        )
+        from contract_intelligence.shared.auth.schemas import AuthenticatedUser
+
+        def user(user_id: str, role: str) -> AuthenticatedUser:
+            return AuthenticatedUser(
+                user_id=user_id, tenant_id="t1", email="", display_name="", role=role
+            )
+
+        dossier = SimpleNamespace(id="dos_1", tenant_id="t1", metadata={"created_by": "owner"})
+        assert _may_read_documents(dossier, user("owner", "OPERATOR"))
+        assert not _may_read_documents(dossier, user("admin", "ADMINISTRATOR"))
+        other_tenant = SimpleNamespace(id="dos_1", tenant_id="t2", metadata={"created_by": "owner"})
+        assert not _may_read_documents(other_tenant, user("owner", "OPERATOR"))
+
+    def test_list_contract_ocr_follows_the_pages_acl(self) -> None:
+        """A citation_read-only grant sees the counts, not contract_ocr (/pages needs QUERY)."""
+        from types import SimpleNamespace
+
+        from contract_intelligence.contract.interfaces.api.routers.contract_router import (
+            _may_read_documents,
+            _may_read_pages,
+        )
+        from contract_intelligence.shared.auth.schemas import AuthenticatedUser
+
+        reader = AuthenticatedUser(
+            user_id="reader", tenant_id="t1", email="", display_name="", role="OPERATOR"
+        )
+
+        def shared(actions: list[str] | None) -> SimpleNamespace:
+            grant: dict[str, Any] = {"id": "reader", "permission": "read"}
+            if actions is not None:
+                grant["actions"] = actions
+            return SimpleNamespace(
+                id="dos_1",
+                tenant_id="t1",
+                metadata={"created_by": "owner", "shared_with": [grant]},
+            )
+
+        limited = shared(["citation_read"])
+        assert _may_read_documents(limited, reader)
+        assert not _may_read_pages(limited, reader)
+        full = shared(None)
+        assert _may_read_documents(full, reader)
+        assert _may_read_pages(full, reader)
+
+    @pytest.mark.asyncio
+    async def test_dossier_detail_reads_the_dossier_once(
+        self,
+        client: AsyncClient,
+        db_engine: Any,
+        make_keycloak_token: Any,
+    ) -> None:
+        """GET /dossiers/{id}: dossier, latest job, documents, review counts, lifecycle.
+
+        It used to load the dossier and its latest job twice (with a job count
+        each time) and check the deletion_ledger table on every read: 11
+        statements, each a round trip to the database.
+        """
+        from sqlalchemy import event
+
+        token = make_keycloak_token(role="OPERATOR")
+        r = await client.post(
+            "/api/v1/dossiers",
+            files=[("contract", ("m.pdf", make_pdf(marker="m"), "application/pdf"))],
+            data={"metadata": _json.dumps({"name": "Queries"})},
+            headers=_auth_headers(token),
+        )
+        dossier_id = r.json()["data"]["dossier_id"]
+
+        statements: list[str] = []
+
+        def record(_conn: Any, _cursor: Any, statement: str, *_: Any) -> None:
+            statements.append(statement)
+
+        event.listen(db_engine.sync_engine, "before_cursor_execute", record)
+        try:
+            response = await client.get(
+                f"/api/v1/dossiers/{dossier_id}", headers=_auth_headers(token)
+            )
+        finally:
+            event.remove(db_engine.sync_engine, "before_cursor_execute", record)
+
+        assert response.status_code == 200, response.text
+        assert response.json()["data"]["latest_job_status"] is not None
+        assert len(response.json()["data"]["documents"]) == 1
+        assert len(statements) == 5, statements
+        assert response.headers["server-timing"].endswith('desc="5 queries"')
+        assert not any("count(*)" in s.lower() and "job" in s.lower() for s in statements)
+
+    @pytest.mark.asyncio
+    async def test_get_dossier_detail(
+        self,
+        client: AsyncClient,
+        make_keycloak_token: Any,
+    ) -> None:
+        """GET /dossiers/{id} → detail with documents."""
+        token = make_keycloak_token(role="OPERATOR")
+
+        r = await client.post(
+            "/api/v1/dossiers",
+            files=[("contract", ("main.pdf", make_pdf(marker="main"), "application/pdf"))],
+            data={"metadata": '{"name": "Detail Test"}'},
+            headers=_auth_headers(token),
+        )
+        dossier_id = r.json()["data"]["dossier_id"]
+
+        response = await client.get(
+            f"/api/v1/dossiers/{dossier_id}",
+            headers=_auth_headers(token),
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["data"]["id"] == dossier_id
+        assert body["data"]["name"] == "Detail Test"
+        assert "documents" in body["data"]
+
+    @pytest.mark.asyncio
+    async def test_get_dossier_not_found_returns_404(
+        self,
+        client: AsyncClient,
+        make_keycloak_token: Any,
+    ) -> None:
+        """GET /dossiers/{missing_id} → 404."""
+        token = make_keycloak_token(role="OPERATOR")
+        response = await client.get(
+            "/api/v1/dossiers/dos_MISSING",
+            headers=_auth_headers(token),
+        )
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_patch_dossier_updates_name(
+        self,
+        client: AsyncClient,
+        make_keycloak_token: Any,
+    ) -> None:
+        """PATCH /dossiers/{id} → name updated."""
+        token = make_keycloak_token(role="OPERATOR")
+
+        r = await client.post(
+            "/api/v1/dossiers",
+            files=[("contract", ("x.pdf", make_pdf(), "application/pdf"))],
+            data={"metadata": '{"name": "Old Name"}'},
+            headers=_auth_headers(token),
+        )
+        dossier_id = r.json()["data"]["dossier_id"]
+
+        response = await client.patch(
+            f"/api/v1/dossiers/{dossier_id}",
+            json={"name": "New Name"},
+            headers=_auth_headers(token),
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["data"]["name"] == "New Name"
+
+    @pytest.mark.asyncio
+    async def test_patch_dossier_requires_write_role(
+        self,
+        client: AsyncClient,
+        make_keycloak_token: Any,
+    ) -> None:
+        """PATCH with REVIEWER role → 403 (hierarchy restricts to OPERATOR+)."""
+        token = make_keycloak_token(role="REVIEWER")
+        token_op = make_keycloak_token(role="OPERATOR")
+
+        r = await client.post(
+            "/api/v1/dossiers",
+            files=[("contract", ("x.pdf", make_pdf(), "application/pdf"))],
+            data={"metadata": "{}"},
+            headers=_auth_headers(token_op),
+        )
+        dossier_id = r.json()["data"]["dossier_id"]
+
+        response = await client.patch(
+            f"/api/v1/dossiers/{dossier_id}",
+            json={"name": "X"},
+            headers=_auth_headers(token),
+        )
+        assert response.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_list_dossier_documents(
+        self,
+        client: AsyncClient,
+        make_keycloak_token: Any,
+    ) -> None:
+        """GET /dossiers/{id}/documents → document list."""
+        token = make_keycloak_token(role="OPERATOR")
+
+        r = await client.post(
+            "/api/v1/dossiers",
+            files=[
+                ("contract", ("c.pdf", make_pdf(marker="contract"), "application/pdf")),
+                ("annexes", ("a.pdf", make_pdf(marker="annex"), "application/pdf")),
+            ],
+            data={"metadata": '{"name": "Doc List"}'},
+            headers=_auth_headers(token),
+        )
+        dossier_id = r.json()["data"]["dossier_id"]
+
+        response = await client.get(
+            f"/api/v1/dossiers/{dossier_id}/documents",
+            headers=_auth_headers(token),
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert len(body["data"]) == 2
+        roles = {d["role"] for d in body["data"]}
+        assert "CONTRACT" in roles
+        assert "ANNEX" in roles
+
+    @pytest.mark.asyncio
+    async def test_get_document_detail(
+        self,
+        client: AsyncClient,
+        make_keycloak_token: Any,
+    ) -> None:
+        """GET /documents/{id} → document detail."""
+        token = make_keycloak_token(role="OPERATOR")
+
+        r = await client.post(
+            "/api/v1/dossiers",
+            files=[("contract", ("doc.pdf", make_pdf(marker="content"), "application/pdf"))],
+            data={"metadata": '{"name": "Doc Test"}'},
+            headers=_auth_headers(token),
+        )
+        dossier_id = r.json()["data"]["dossier_id"]
+
+        docs_r = await client.get(
+            f"/api/v1/dossiers/{dossier_id}/documents",
+            headers=_auth_headers(token),
+        )
+        doc_id = docs_r.json()["data"][0]["id"]
+
+        response = await client.get(
+            f"/api/v1/documents/{doc_id}",
+            headers=_auth_headers(token),
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["data"]["id"] == doc_id
+        assert "file_size_bytes" in body["data"]
+        assert body["data"]["file_size_bytes"] > 0
+        assert "storage_path" in body["data"]
+        assert "ocr_status" in body["data"]
+
+    @pytest.mark.asyncio
+    async def test_stream_document_content(
+        self,
+        client: AsyncClient,
+        make_keycloak_token: Any,
+    ) -> None:
+        """GET /documents/{id}/content → binary PDF stream."""
+        token = make_keycloak_token(role="OPERATOR")
+        content = make_pdf(marker="full content here")
+
+        r = await client.post(
+            "/api/v1/dossiers",
+            files=[("contract", ("stream.pdf", content, "application/pdf"))],
+            data={"metadata": '{"name": "Stream Test"}'},
+            headers=_auth_headers(token),
+        )
+        dossier_id = r.json()["data"]["dossier_id"]
+
+        docs_r = await client.get(
+            f"/api/v1/dossiers/{dossier_id}/documents",
+            headers=_auth_headers(token),
+        )
+        doc_id = docs_r.json()["data"][0]["id"]
+
+        response = await client.get(
+            f"/api/v1/documents/{doc_id}/content",
+            headers=_auth_headers(token),
+        )
+        assert response.status_code == 200, response.text
+        assert response.headers["content-type"] == "application/pdf"
+        assert response.content == content
+
+    @pytest.mark.asyncio
+    async def test_read_ops_accessible_by_reviewer(
+        self,
+        client: AsyncClient,
+        make_keycloak_token: Any,
+    ) -> None:
+        """GET endpoints are accessible by REVIEWER (hierarchy allows)."""
+        token_op = make_keycloak_token(role="OPERATOR")
+        token_reviewer = make_keycloak_token(role="REVIEWER")
+
+        # Create dossier as OPERATOR
+        r = await client.post(
+            "/api/v1/dossiers",
+            files=[("contract", ("x.pdf", make_pdf(), "application/pdf"))],
+            data={"metadata": "{}"},
+            headers=_auth_headers(token_op),
+        )
+        dossier_id = r.json()["data"]["dossier_id"]
+
+        # All GET endpoints should work as REVIEWER
+        for path in [
+            "/api/v1/dossiers",
+            f"/api/v1/dossiers/{dossier_id}",
+            f"/api/v1/dossiers/{dossier_id}/documents",
+        ]:
+            resp = await client.get(path, headers=_auth_headers(token_reviewer))
+            assert resp.status_code == 200, f"GET {path} failed as REVIEWER: {resp.status_code}"

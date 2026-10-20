@@ -1,0 +1,796 @@
+import {
+  STRUCTURE_MODE_KEY,
+  parseStructureMode,
+  type OcrLine,
+  type StructureMode,
+} from '../structure/types'
+import { ApiError, apiFetch, getJson, requestJson } from './client'
+import { isNetworkError, NETWORK_MESSAGE } from './errorMessage'
+import { patchDossier } from './dossiers'
+import { isAi2Failure, isCancelledJob, type StepStatuses } from './jobErrors'
+import {
+  normalizeAi2SearchResult,
+  type Ai2SearchHit,
+  type Ai2SearchResult,
+} from './ai2'
+import { buildStructureTree, inferStructureMode } from '../structure'
+import { asConfidence } from '../structure/confidence'
+import { decodeFindingSemantic, type FindingSemantic } from './semanticResults'
+
+export type StructureDocument = {
+  id: string
+  role: string
+  filename: string
+  pageCount: number
+}
+
+export type DossierStructure = {
+  id: string
+  name: string
+  latestJobId: string | null
+  ai2JobId: string | null
+  latestJobStatus: string | null
+  /** Mã lỗi của job mới nhất (AI2_TIMEOUT, RUN_CANCELLED...): chọn endpoint chạy lại. */
+  latestJobErrorCode: string | null
+  snapshotDigest: string | null
+  documents: StructureDocument[]
+  metadata: Record<string, unknown> | null
+  hasConflicts: boolean
+  pendingConflicts: number
+  openReviewItems: number
+  /** metadata.structure_mode do người dùng chọn khi tải lên. */
+  structureMode: StructureMode | null
+}
+
+export type DocumentPage = {
+  id: string
+  pageNo: number
+  widthPt: number
+  heightPt: number
+}
+
+export type ClauseRegion = {
+  pageNo: number
+  /** [x1, y1, x2, y2] chuẩn hóa 0..1 theo trang. */
+  bbox: [number, number, number, number]
+  /** Độ tin cậy OCR của chữ trong vùng (0..1); không có nếu engine không báo. */
+  confidence?: number | null
+}
+
+export type ClauseNode = {
+  id: string
+  nodeType: string
+  label: string
+  number: string | null
+  title: string | null
+  text: string
+  pageStart: number
+  pageEnd: number
+  confidence: number | null
+  regions: ClauseRegion[]
+  children: ClauseNode[]
+}
+
+/** Lượt thẩm định xung đột gần nhất, đủ để cây và banner hiện trạng thái. */
+export type ReviewSpotLatest = {
+  action: string
+  comment: string | null
+  reviewerId: string
+  reviewerName: string | null
+  reviewerEmail: string | null
+  reviewedAt: string | null
+  actionCount: number
+}
+
+export type ReviewSpotLink = {
+  itemId: string
+  status: string
+  version: number
+  latest: ReviewSpotLatest | null
+}
+
+export type ReviewSpotSide = {
+  label: string
+  value: string
+  quote: string
+  documentId: string
+  clauseId: string
+  /** Trang và dòng OCR của citation. Bbox 0,0,0,0 không dùng được. */
+  pageNo: number | null
+  lineNo: number | null
+  /** Bbox thật từ citation. Rỗng thì UI lấy region của nút cây cấu trúc. */
+  regions: ClauseRegion[]
+  valueSnapshot?: unknown
+  semantic?: FindingSemantic | null
+}
+
+export type ReviewSpot = {
+  id: string
+  topic: string
+  rationale: string
+  severity: string
+  clauseIds: string[]
+  sides: ReviewSpotSide[]
+  review: ReviewSpotLink | null
+  semantic?: FindingSemantic | null
+  runId?: string | null
+  /** Số thứ tự trong danh sách xung đột của hồ sơ (từ 1), như trên trang đối soát. */
+  no?: number
+}
+
+/** Tên hiển thị của xung đột. key_or_topic thường là mã băm, không đọc được. */
+export function conflictName(spot: Pick<ReviewSpot, 'no'>) {
+  return spot.no ? `Xung đột ${spot.no}` : 'Xung đột'
+}
+
+// Job đã tới bước rà soát: AI2 xong. 'extracted' đứng trước đó.
+const REVIEW_STATUSES = new Set(['pending_review', 'reviewed', 'approved'])
+const DONE_STATUSES = new Set(['extracted', ...REVIEW_STATUSES])
+
+export function isOcrComplete(status: string | null) {
+  return status !== null && DONE_STATUSES.has(status)
+}
+
+// 'extracted' chỉ là OCR/dựng cấu trúc xong: AI2 (S4–S10) còn chạy sau đó,
+// nên run chỉ xong hẳn khi job sang bước rà soát.
+export function isRunFinished(status: string | null | undefined) {
+  return status != null && REVIEW_STATUSES.has(status)
+}
+
+/**
+ * Phần phân tích (AI2) của hồ sơ sau khi OCR xong. Worker giữ job ở
+ * 'extracted' suốt lúc AI2 chạy; null khi OCR chưa xong hoặc OCR lỗi.
+ *
+ * Trang tiến trình và trang cây dùng chung hàm này, kèm trạng thái các bước
+ * của run (`loadStepStatuses`): S8 xong nghĩa là OCR đã xong, nên một job lỗi
+ * khi đó là lỗi AI2 dù AI2 trả mã lạ (errors[0].code), và một run bị huỷ khi
+ * đó là huỷ phần phân tích ('cancelled'), không phải huỷ OCR.
+ */
+export type AnalysisState = 'running' | 'done' | 'failed' | 'cancelled'
+
+export function analysisState(
+  status: string | null | undefined,
+  errorCode: string | null | undefined,
+  steps: StepStatuses = {},
+): AnalysisState | null {
+  if (status === 'extracted') return 'running'
+  if (isRunFinished(status)) return 'done'
+  if (status !== 'failed' && status !== 'cancelled') return null
+  if (isCancelledJob(status, errorCode)) {
+    return steps.S8?.status === 'succeeded' ? 'cancelled' : null
+  }
+  return isAi2Failure(errorCode, steps) ? 'failed' : null
+}
+
+/** Job đã dừng (lỗi hoặc huỷ): cần trạng thái các bước để biết dừng ở OCR hay AI2. */
+export function needsStepStatuses(status: string | null | undefined) {
+  return status === 'failed' || status === 'cancelled'
+}
+
+export function countClauses(nodes: ClauseNode[]): number {
+  return nodes.reduce(
+    (total, node) => total + 1 + countClauses(node.children),
+    0,
+  )
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
+function asString(value: unknown) {
+  return typeof value === 'string' ? value : ''
+}
+
+function asNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function asClause(value: unknown): ClauseNode | null {
+  const row = asRecord(value)
+  if (!row) return null
+  const id = asString(row.id)
+  if (!id) return null
+  const children = Array.isArray(row.children)
+    ? row.children
+        .map(asClause)
+        .filter((node): node is ClauseNode => node !== null)
+    : []
+  return {
+    id,
+    nodeType: asString(row.node_type) || 'clause',
+    label: asString(row.label),
+    number: typeof row.number === 'string' ? row.number : null,
+    title: typeof row.title === 'string' ? row.title : null,
+    text: asString(row.text),
+    pageStart: asNumber(row.page_start),
+    pageEnd: asNumber(row.page_end),
+    confidence:
+      typeof row.confidence === 'number' && Number.isFinite(row.confidence)
+        ? row.confidence
+        : null,
+    regions: asRegions(row.regions),
+    children,
+  }
+}
+
+function asRegions(value: unknown): ClauseRegion[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    const row = asRecord(item)
+    if (!row) return []
+    const bbox = asBBox(row.bbox, 0, 0)
+    if (!bbox) return []
+    const pageNo = asNumber(row.page_no)
+    return [{ pageNo: pageNo > 0 ? pageNo : 1, bbox }]
+  })
+}
+
+export function contractDocument(detail: DossierStructure) {
+  return (
+    detail.documents.find(
+      (document) => document.role.toLowerCase() === 'contract',
+    ) ??
+    detail.documents[0] ??
+    null
+  )
+}
+
+export type DossierStructurePreview = {
+  detail: DossierStructure
+  document: StructureDocument | null
+  mode: StructureMode
+  nodes: ClauseNode[]
+  lines: OcrLine[]
+  tableCount: number
+}
+
+/** Load the same dossier-grounded structure used by the full structure page. */
+export async function loadDossierStructurePreview(
+  dossierId: string,
+  signal?: AbortSignal,
+): Promise<DossierStructurePreview> {
+  const detail = await getDossierStructure(dossierId, signal)
+  const document = contractDocument(detail)
+  if (!document) {
+    return {
+      detail,
+      document: null,
+      mode: 'numbered',
+      nodes: [],
+      lines: [],
+      tableCount: 0,
+    }
+  }
+
+  const pages = await listPages(document.id, signal)
+  const lines = (
+    await Promise.all(pages.map((page) => getPageLines(page, signal)))
+  ).flat()
+  const explicitMode = detail.structureMode
+  let tableCount = 0
+  let mode = explicitMode
+  if (!mode) {
+    const numberedNodes = buildStructureTree(lines, 'numbered')
+    if (numberedNodes.length > 0) {
+      mode = 'numbered'
+    } else {
+      tableCount = (await listDocumentTables(document.id, signal)).length
+      mode = inferStructureMode(lines, tableCount > 0)
+    }
+  }
+  const nodes = mode === 'tables' ? [] : buildStructureTree(lines, mode)
+  if (nodes.length > 0 || mode === 'tables') {
+    return { detail, document, mode, nodes, lines, tableCount }
+  }
+  return {
+    detail,
+    document,
+    mode,
+    nodes: await listClauses(document.id, signal),
+    lines,
+    tableCount,
+  }
+}
+
+export async function getDossierStructure(
+  dossierId: string,
+  signal?: AbortSignal,
+) {
+  const data = await getJson<unknown>(
+    `/api/v1/dossiers/${encodeURIComponent(dossierId)}`,
+    { signal },
+  )
+  const row = asRecord(data)
+  const id = asString(row?.id)
+  if (!row || !id) {
+    throw new Error('Backend không trả chi tiết hồ sơ.')
+  }
+  const documents = Array.isArray(row.documents)
+    ? row.documents.flatMap((item) => {
+        const document = asRecord(item)
+        const documentId = asString(document?.id)
+        if (!document || !documentId) return []
+        return [
+          {
+            id: documentId,
+            role: asString(document.role),
+            filename: asString(document.filename) || 'Tài liệu',
+            pageCount: asNumber(document.page_count),
+          },
+        ]
+      })
+    : []
+  const metadata = asRecord(row.metadata)
+  return {
+    id,
+    name: asString(row.name) || 'Hồ sơ chưa đặt tên',
+    latestJobId:
+      typeof row.latest_job_id === 'string' ? row.latest_job_id : null,
+    ai2JobId:
+      typeof metadata?.ai2_job_id === 'string' && metadata.ai2_job_id
+        ? metadata.ai2_job_id
+        : null,
+    latestJobStatus:
+      typeof row.latest_job_status === 'string' ? row.latest_job_status : null,
+    latestJobErrorCode:
+      typeof row.latest_job_error_code === 'string' && row.latest_job_error_code
+        ? row.latest_job_error_code
+        : null,
+    snapshotDigest:
+      typeof metadata?.ai2_snapshot_digest === 'string' &&
+      metadata.ai2_snapshot_digest
+        ? metadata.ai2_snapshot_digest
+        : null,
+    documents,
+    metadata,
+    hasConflicts: row.has_conflicts === true,
+    pendingConflicts: asNumber(row.pending_conflicts),
+    openReviewItems: asNumber(row.open_review_items),
+    structureMode: parseStructureMode(metadata?.[STRUCTURE_MODE_KEY]),
+  } satisfies DossierStructure
+}
+
+/**
+ * PATCH thay toàn bộ metadata, nên gộp với metadata hiện có rồi mới ghi.
+ */
+export async function saveStructureMode(
+  dossierId: string,
+  current: Record<string, unknown> | null,
+  mode: StructureMode,
+) {
+  await patchDossier(dossierId, {
+    metadata: { ...(current ?? {}), [STRUCTURE_MODE_KEY]: mode },
+  })
+}
+
+function asBBox(
+  value: unknown,
+  widthPt: number,
+  heightPt: number,
+): [number, number, number, number] | null {
+  let raw: unknown = value
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw) as unknown
+    } catch {
+      return null
+    }
+  }
+  if (!Array.isArray(raw) || raw.length < 4) return null
+  const box = raw.slice(0, 4).map(Number)
+  if (box.some((item) => !Number.isFinite(item))) return null
+  // AI1 trả bbox chuẩn hóa 0..1. Nếu gặp tọa độ điểm (pt) thì tự chuẩn hóa.
+  if (box.some((item) => item > 1.5) && widthPt > 0 && heightPt > 0) {
+    return [
+      box[0] / widthPt,
+      box[1] / heightPt,
+      box[2] / widthPt,
+      box[3] / heightPt,
+    ]
+  }
+  return [box[0], box[1], box[2], box[3]]
+}
+
+const pdfCache = new Map<string, Uint8Array>()
+
+export async function loadDocumentPdf(
+  documentId: string,
+  signal?: AbortSignal,
+) {
+  const cached = pdfCache.get(documentId)
+  if (cached) return cached
+  const response = await apiFetch(
+    `/api/v1/documents/${encodeURIComponent(documentId)}/content`,
+    { signal },
+  )
+  if (!response.ok) {
+    throw new Error('Không tải được file hợp đồng.')
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer())
+  if (!signal?.aborted) pdfCache.set(documentId, bytes)
+  return bytes
+}
+
+export async function loadPagePreview(
+  documentId: string,
+  pageNo: number,
+  signal?: AbortSignal,
+) {
+  const response = await apiFetch(
+    `/api/v1/documents/${encodeURIComponent(documentId)}/pages/${pageNo}/image?variant=preview`,
+    { signal },
+  )
+  if (!response.ok) {
+    throw new Error('Không tải được trang hợp đồng.')
+  }
+  return response.blob()
+}
+
+export async function listPages(documentId: string, signal?: AbortSignal) {
+  const data = await getJson<unknown>(
+    `/api/v1/documents/${encodeURIComponent(documentId)}/pages`,
+    { signal },
+  )
+  if (!Array.isArray(data)) return []
+  return data
+    .flatMap((item): DocumentPage[] => {
+      const row = asRecord(item)
+      const id = asString(row?.id)
+      if (!row || !id) return []
+      return [
+        {
+          id,
+          pageNo: asNumber(row.page_no),
+          widthPt: asNumber(row.width_pt),
+          heightPt: asNumber(row.height_pt),
+        },
+      ]
+    })
+    .sort((a, b) => a.pageNo - b.pageNo)
+}
+
+function pageLines(page: DocumentPage, rows: unknown, fallbackId: string) {
+  if (!Array.isArray(rows)) return []
+  return rows.flatMap((item, index): OcrLine[] => {
+    const line = asRecord(item)
+    if (!line) return []
+    const text = asString(line.text)
+    if (!text.trim()) return []
+    return [
+      {
+        id: asString(line.id) || `${fallbackId}-${index}`,
+        pageNo: page.pageNo,
+        lineNo: asNumber(line.line_no) || index + 1,
+        text,
+        bbox: asBBox(line.bbox, page.widthPt, page.heightPt),
+        pageWidth: page.widthPt,
+        pageHeight: page.heightPt,
+        confidence: asConfidence(line.confidence),
+      },
+    ]
+  })
+}
+
+export async function getPageLines(page: DocumentPage, signal?: AbortSignal) {
+  const data = await getJson<unknown>(
+    `/api/v1/pages/${encodeURIComponent(page.id)}`,
+    { signal },
+  )
+  return pageLines(page, asRecord(data)?.ocr_lines, page.id)
+}
+
+const PAGE_FETCH_BATCH = 4
+
+/** Cách cũ: một request mỗi trang, cho backend chưa có `/documents/{id}/lines`. */
+async function loadLinesPerPage(documentId: string, signal?: AbortSignal) {
+  const pages = await listPages(documentId, signal)
+  const lines: OcrLine[] = []
+  for (let start = 0; start < pages.length; start += PAGE_FETCH_BATCH) {
+    const batch = pages.slice(start, start + PAGE_FETCH_BATCH)
+    const results = await Promise.all(
+      batch.map((page) => getPageLines(page, signal)),
+    )
+    for (const result of results) lines.push(...result)
+  }
+  return lines
+}
+
+/** Toàn bộ dòng OCR của tài liệu, theo thứ tự trang rồi thứ tự dòng. */
+export async function loadDocumentLines(
+  documentId: string,
+  signal?: AbortSignal,
+) {
+  let data: unknown
+  try {
+    data = await getJson<unknown>(
+      `/api/v1/documents/${encodeURIComponent(documentId)}/lines`,
+      { signal },
+    )
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return loadLinesPerPage(documentId, signal)
+    }
+    throw error
+  }
+  if (!Array.isArray(data)) return []
+  return data
+    .flatMap((item) => {
+      const row = asRecord(item)
+      if (!row) return []
+      const page: DocumentPage = {
+        id: `${documentId}-p${asNumber(row.page_no)}`,
+        pageNo: asNumber(row.page_no),
+        widthPt: asNumber(row.width_pt),
+        heightPt: asNumber(row.height_pt),
+      }
+      return [{ page, lines: pageLines(page, row.ocr_lines, page.id) }]
+    })
+    .sort((a, b) => a.page.pageNo - b.page.pageNo)
+    .flatMap(({ lines }) => lines)
+}
+
+function lineNoOf(row: Record<string, unknown>) {
+  const direct = asNumber(row.line_no)
+  if (direct > 0) return direct
+  const id = asString(row.line_id)
+  const match = id.match(/(?:^|:)l(\d+)$/i)
+  return match ? Number(match[1]) : null
+}
+
+function usableBBox(bbox: [number, number, number, number]) {
+  const area = Math.max(0, bbox[2] - bbox[0]) * Math.max(0, bbox[3] - bbox[1])
+  return area > 0.0001 && area <= 1
+}
+
+function citationAnchor(citation: Record<string, unknown> | null): {
+  regions: ClauseRegion[]
+  pageNo: number | null
+  lineNo: number | null
+} {
+  if (!citation) return { regions: [], pageNo: null, lineNo: null }
+  let segments: unknown = citation.segments
+  if (typeof segments === 'string') {
+    try {
+      segments = JSON.parse(segments) as unknown
+    } catch {
+      return { regions: [], pageNo: null, lineNo: null }
+    }
+  }
+  if (!Array.isArray(segments))
+    return { regions: [], pageNo: null, lineNo: null }
+  let pageNo: number | null = null
+  let lineNo: number | null = null
+  const regions: ClauseRegion[] = []
+  for (const item of segments) {
+    const row = asRecord(item)
+    if (!row) continue
+    const page = asNumber(row.page_no) || asNumber(row.page_number)
+    if (pageNo === null && page > 0) pageNo = page
+    if (lineNo === null) lineNo = lineNoOf(row)
+    const bbox = asBBox(row.bbox, 0, 0)
+    if (!bbox || !usableBBox(bbox) || page <= 0) continue
+    regions.push({ pageNo: page, bbox })
+  }
+  return { regions, pageNo, lineNo }
+}
+
+function snapshotText(value: unknown) {
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  const row = asRecord(value)
+  if (!row) return ''
+  const semantic = decodeFindingSemantic(row.semantic)
+  if (semantic) return semantic.frame.evidence.map((e) => e.raw).join('\n')
+  return (
+    asString(row.value) ||
+    asString(row.text) ||
+    asString(row.normalized_value) ||
+    asString(row.raw_text)
+  )
+}
+
+function asReviewSpot(value: unknown): ReviewSpot | null {
+  const row = asRecord(value)
+  const id = asString(row?.id)
+  if (!row || !id) return null
+  const sides = Array.isArray(row.sides)
+    ? row.sides.flatMap((item) => {
+        const side = asRecord(item)
+        if (!side) return []
+        const citation = asRecord(side.citation)
+        const anchor = citationAnchor(citation)
+        return [
+          {
+            label:
+              asString(side.document_role) || asString(side.side) || 'Nguồn',
+            value: snapshotText(side.value_snapshot) || '—',
+            quote: asString(citation?.quote),
+            documentId:
+              asString(side.document_id) || asString(citation?.document_id),
+            clauseId: asString(side.clause_node_id),
+            pageNo: anchor.pageNo,
+            lineNo: anchor.lineNo,
+            regions: anchor.regions,
+            valueSnapshot: side.value_snapshot ?? null,
+            semantic: decodeFindingSemantic(
+              asRecord(side.value_snapshot)?.semantic ?? side.semantic,
+            ),
+          },
+        ]
+      })
+    : []
+  const clauseIds = Array.isArray(row.sides)
+    ? row.sides.flatMap((item) => {
+        const side = asRecord(item)
+        const clauseId = asString(side?.clause_node_id)
+        return clauseId ? [clauseId] : []
+      })
+    : []
+  const reviewRow = asRecord(row.review)
+  const reviewId = asString(reviewRow?.item_id)
+  return {
+    id,
+    topic: asString(row.key_or_topic) || 'Nội dung cần kiểm tra',
+    rationale: asString(row.rationale),
+    severity: asString(row.severity),
+    clauseIds,
+    sides,
+    semantic: sides.find((side) => side.semantic)?.semantic ?? null,
+    runId: typeof row.run_id === 'string' ? row.run_id : null,
+    review: reviewId
+      ? {
+          itemId: reviewId,
+          status: asString(reviewRow?.status) || 'open',
+          version:
+            typeof reviewRow?.current_version === 'number'
+              ? reviewRow.current_version
+              : 1,
+          latest: asReviewLatest(reviewRow?.latest),
+        }
+      : null,
+  }
+}
+
+function asReviewLatest(value: unknown): ReviewSpotLatest | null {
+  const row = asRecord(value)
+  const action = asString(row?.action)
+  if (!row || !action) return null
+  return {
+    action,
+    comment: typeof row.comment === 'string' ? row.comment : null,
+    reviewerId: asString(row.reviewer_id),
+    reviewerName:
+      typeof row.reviewer_name === 'string' ? row.reviewer_name : null,
+    reviewerEmail:
+      typeof row.reviewer_email === 'string' ? row.reviewer_email : null,
+    reviewedAt: typeof row.reviewed_at === 'string' ? row.reviewed_at : null,
+    actionCount: asNumber(row.action_count),
+  }
+}
+
+export async function listReviewSpots(dossierId: string, signal?: AbortSignal) {
+  const data = await getJson<unknown>(
+    `/api/v1/dossiers/${encodeURIComponent(dossierId)}/conflicts?limit=100&offset=0`,
+    { signal },
+  )
+  if (!Array.isArray(data)) return []
+  return data
+    .map(asReviewSpot)
+    .filter((spot): spot is ReviewSpot => spot !== null)
+    .map((spot, index) => ({ ...spot, no: index + 1 }))
+}
+
+export type DocumentTableCell = {
+  // Backend chưa trả id ô; có thì dùng để khớp cell_id của citation.
+  id?: string
+  row: number
+  column: number
+  rowSpan: number
+  colSpan: number
+  text: string
+  header: boolean
+  pageNo: number
+  bbox: [number, number, number, number] | null
+}
+
+export type DocumentTable = {
+  id: string
+  pageNo: number
+  rows: number
+  columns: number
+  continued: boolean
+  continuedFrom: string | null
+  bbox: [number, number, number, number] | null
+  cells: DocumentTableCell[]
+}
+
+export async function listDocumentTables(
+  documentId: string,
+  signal?: AbortSignal,
+) {
+  const data = await getJson<unknown>(
+    `/api/v1/documents/${encodeURIComponent(documentId)}/tables`,
+    { signal },
+  )
+  if (!Array.isArray(data)) return []
+  return data.flatMap((item): DocumentTable[] => {
+    const row = asRecord(item)
+    const id = asString(row?.id)
+    if (!row || !id) return []
+    const cells = Array.isArray(row.cells)
+      ? row.cells.flatMap((cell): DocumentTableCell[] => {
+          const record = asRecord(cell)
+          if (!record) return []
+          return [
+            {
+              id: asString(record.cell_id ?? record.id) || undefined,
+              row: asNumber(record.row_idx),
+              column: asNumber(record.col_idx),
+              rowSpan: Math.max(1, asNumber(record.row_span) || 1),
+              colSpan: Math.max(1, asNumber(record.col_span) || 1),
+              text: asString(record.text),
+              header: record.is_header === true,
+              pageNo: asNumber(row.page_no),
+              bbox: asBBox(record.bbox, 612, 792),
+            },
+          ]
+        })
+      : []
+    return [
+      {
+        id,
+        pageNo: asNumber(row.page_no),
+        rows: asNumber(row.rows_count),
+        columns: asNumber(row.cols_count),
+        continued: row.is_multi_page === true || Boolean(row.continued_from),
+        continuedFrom:
+          typeof row.continued_from === 'string' ? row.continued_from : null,
+        bbox: asBBox(row.bbox, 612, 792),
+        cells,
+      },
+    ]
+  })
+}
+
+export async function listClauses(documentId: string, signal?: AbortSignal) {
+  const data = await getJson<unknown>(
+    `/api/v1/documents/${encodeURIComponent(documentId)}/clauses`,
+    { signal },
+  )
+  if (!Array.isArray(data)) {
+    throw new Error('Backend không trả cây điều khoản.')
+  }
+  return data.map(asClause).filter((node): node is ClauseNode => node !== null)
+}
+
+export type DossierSearchHit = Ai2SearchHit
+export type DossierSearchResult = Ai2SearchResult
+
+export async function searchDossier(dossierId: string, query: string) {
+  const { data } = await requestJson<unknown>(
+    `/api/v1/dossiers/${encodeURIComponent(dossierId)}/search`,
+    { method: 'POST', json: { query } },
+  )
+  const result = normalizeAi2SearchResult(data, dossierId)
+  return { ...result, query: result.query || query }
+}
+
+export function structureErrorMessage(error: unknown) {
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return null
+  }
+  if (error instanceof ApiError) {
+    if (error.status === 401) return 'Phiên đăng nhập hết hạn. Đăng nhập lại.'
+    if (error.status === 403)
+      return 'Bạn không còn quyền mở hồ sơ này: quyền chia sẻ đã bị thu hồi hoặc đã hết hạn. Chờ chủ hồ sơ chia sẻ lại.'
+    if (error.status === 404) return 'Không tìm thấy hồ sơ hoặc cây điều khoản.'
+    return error.message
+  }
+  if (error instanceof TypeError || isNetworkError(error)) {
+    return NETWORK_MESSAGE
+  }
+  if (error instanceof Error && error.message) return error.message
+  return 'Không tải được cấu trúc hợp đồng. Thử lại.'
+}

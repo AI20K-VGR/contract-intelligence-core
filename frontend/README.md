@@ -1,25 +1,48 @@
-# frontend/
+# Frontend — Contract Intelligence (ST-006)
 
-> **Sẽ generate chi tiết ở bước tiếp theo — phụ trách: Frontend Engineer**
+Vite + **React 19** + **TypeScript**. Chốt stack tại đây; chưa có màn HITL (mockup ST-005 nằm ở `docs/hitl-wireframe/`, không phải app này).
 
-Thư mục này chứa ứng dụng web cho **Contract Intelligence**.
+Yêu cầu: **Node.js 20+** (có `.nvmrc`).
 
-## Tech stack dự kiến
+## Chạy local
 
-- Node.js (phiên bản chưa chốt)
-- Framework: React **hoặc** Vue 3 (sẽ chốt sau)
-- Build tool: Vite / Next.js (sẽ chốt sau)
-- HTTP client: Axios hoặc native fetch
-- UI Component library: dự kiến TailwindCSS + shadcn/ui (chưa final)
+```bash
+cd frontend
+npm i
+npm run dev
+```
 
-## Màn hình dự kiến
+Dev server mặc định: [http://localhost:5173](http://localhost:5173).
 
-| STT | Màn hình | Mô tả |
-|-----|----------|--------|
-| 1 | Dashboard | Tổng quan số hợp đồng, trạng thái |
-| 2 | Upload | Upload đơn / lô hợp đồng (PDF, ảnh) |
-| 3 | Clause Viewer | Xem cấu trúc cây Điều > Khoản > Điểm |
-| 4 | Conflict Review | Danh sách conflict + UI resolve |
-| 5 | Approve | Reviewer duyệt hợp đồng cuối cùng |
+## Lint
 
-> Chi tiết sẽ được generate khi Frontend Engineer nhận task. Thư mục này giữ trống trước.
+```bash
+cd frontend
+npm run lint
+```
+
+Prettier (không bắt buộc cho AC, dùng khi format):
+
+```bash
+npm run format
+npm run format:check
+```
+
+Build: `npm run build`.
+
+## Cấu trúc (cố ý trống HITL)
+
+```
+frontend/
+├── src/
+│   ├── api/           # stub client — chưa gọi backend
+│   ├── components/    # stub — chưa HITL
+│   ├── pages/         # stub — màn HITL vào ticket sau
+│   ├── App.tsx
+│   └── main.tsx
+├── package.json
+├── eslint.config.js
+└── README.md          # file này
+```
+
+`npm run lint` dùng **ESLint** (không dùng oxlint).

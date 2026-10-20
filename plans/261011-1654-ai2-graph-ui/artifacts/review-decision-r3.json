@@ -1,0 +1,10 @@
+{
+  "verdict": "BLOCKED",
+  "reviewer": "agent:p5_review",
+  "role": "reviewer",
+  "rationale": "P5 còn blocker Important: job của dossier gộp nhiều snapshot/tài liệu, nhưng graph DTO chỉ trả node IDs và target_address cho operation; UI phân giải cả hai đầu theo OCR nodes và filename của tài liệu đang chọn. Vì vậy quan hệ liên tài liệu bị gán sai filename hoặc chỉ hiện ID thô, không thể đáp ứng yêu cầu nhóm theo document/address. 320 CSS px và live citation vẫn chưa được kiểm chứng thủ công.",
+  "plan_hash": "3ae3749f3aeea755d1701648c568f3898e5b3974e8f7719c6bcf2a9a94b5dc0d",
+  "effort": "xhigh",
+  "rounds_run": 3,
+  "run_seq": null
+}

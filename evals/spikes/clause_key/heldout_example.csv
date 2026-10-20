@@ -1,0 +1,5 @@
+﻿clause_id,profile,text,context_parties,frame_type,bearer,action,qualifier,param,object,anchor,consequence_type,consequence_value,note
+VD1,SALES,Nếu Bên B giao hàng chậm quá 10 ngày thì phải chịu phạt 5.000.000 đồng; quá 30 ngày Bên A có quyền chấm dứt hợp đồng.,Bên A=BUYER; Bên B=SELLER,REMEDY,SELLER,DELIVER,LATE,,,phải chịu phạt 5.000.000 đồng,PENALTY_FIXED,5000000,VÍ DỤ - xóa trước khi dùng
+VD1,,,,REMEDY,SELLER,DELIVER,LATE,,,có quyền chấm dứt hợp đồng,TERMINATION,,"cùng khoản, mệnh đề thứ 2"
+VD2,SUPPLY_SERVICE,Thời gian phản hồi sự cố vượt quá 2 giờ thì Bên cung cấp chịu phạt 1.000.000 đồng.,,REMEDY,SUPPLIER,NONE,,,,chịu phạt 1.000.000 đồng,PENALTY_FIXED,1000000,không có key phù hợp -> NONE
+VD3,LEASE,"Tiền thuê hàng tháng là 40.000.000 đồng, chưa gồm VAT.",,PARAMETER,,,,RENT,,Tiền thuê,,,

@@ -1,0 +1,5322 @@
+[
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g01-q01-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G01-Q01-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G01",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "8195000",
+        "raw": "8.195.000",
+        "span_id": "G01-Q01-R01",
+        "value_id": "G01-Q01-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [],
+    "question_id": "G01-Q01",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g01-q01-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G01-Q01-R01"
+      }
+    ],
+    "text": "Biểu phí bảo trì quy định mức phụ lục sửa giá là bao nhiêu?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g01-q02-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G01-Q02-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G01",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "date",
+        "normalized": "2026-01-01",
+        "raw": "01/01/2026",
+        "span_id": "G01-Q02-R01",
+        "value_id": "G01-Q02-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [],
+    "question_id": "G01-Q02",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g01-q02-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G01-Q02-R01"
+      }
+    ],
+    "text": "Từ thời điểm nào điều khoản xung đột thân và phụ lục bắt đầu áp dụng?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g01-q03-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G01-Q03-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G01",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "Bên B chịu trách nhiệm",
+        "raw": "Bên B chịu trách nhiệm",
+        "span_id": "G01-Q03-R01",
+        "value_id": "G01-Q03-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [],
+    "question_id": "G01-Q03",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g01-q03-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G01-Q03-R01"
+      }
+    ],
+    "text": "Bên nào phải thực hiện phần việc về phụ lục sửa giá?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g01-q04-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G01-Q04-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g01-q04-s02-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G01-Q04-R02"
+      }
+    ],
+    "comparison": true,
+    "contract_id": "G01",
+    "expected_state": "NOT_COMPARABLE",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "30 ngày",
+        "raw": "30 ngày",
+        "span_id": "G01-Q04-R01",
+        "value_id": "G01-Q04-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "8270000",
+        "raw": "8.270.000",
+        "span_id": "G01-Q04-R02",
+        "value_id": "G01-Q04-V02"
+      }
+    ],
+    "kind": "comparison",
+    "mutations": [
+      "incomparable_quantities"
+    ],
+    "question_id": "G01-Q04",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g01-q04-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G01-Q04-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g01-q04-s02-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G01-Q04-R02"
+      }
+    ],
+    "text": "xung đột thân và phụ lục và phụ lục sửa giá được đo bằng hai đại lượng khác loại phải không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g01-q05-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G01-Q05-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g01-q05-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G01-Q05-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G01",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "8295000",
+        "raw": "8.295.000",
+        "span_id": "G01-Q05-R01",
+        "value_id": "G01-Q05-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "9545000",
+        "raw": "9.545.000",
+        "span_id": "G01-Q05-R02",
+        "value_id": "G01-Q05-V02"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [
+      "body_annex_conflict"
+    ],
+    "question_id": "G01-Q05",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g01-q05-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G01-Q05-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g01-q05-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G01-Q05-R02"
+      }
+    ],
+    "text": "Khi thân hợp đồng khác phụ lục, mức phụ lục sửa giá nào đang được ghi nhận?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g01-q06-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G01-Q06-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g01-q06-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G01-Q06-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G01",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "identifier",
+        "normalized": "0310001016",
+        "raw": "0310001016",
+        "span_id": "G01-Q06-R01",
+        "value_id": "G01-Q06-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [
+      "duplicate_name_different_tax_id"
+    ],
+    "question_id": "G01-Q06",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g01-q06-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G01-Q06-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g01-q06-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G01-Q06-R02"
+      }
+    ],
+    "text": "Tên bên bảo trì xuất hiện hai lần; mã số thuế gắn với xung đột thân và phụ lục là mã nào?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g01-q07-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G01-Q07-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.165,
+          0.92,
+          0.185
+        ],
+        "line_ids": [
+          "g01-q07-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G01-Q07-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G01",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "date",
+        "normalized": "2026-03-01",
+        "raw": "01/03/2026",
+        "span_id": "G01-Q07-R01",
+        "value_id": "G01-Q07-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [
+      "overlapping_amendment"
+    ],
+    "question_id": "G01-Q07",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g01-q07-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G01-Q07-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.165,
+          0.92,
+          0.185
+        ],
+        "line_ids": [
+          "g01-q07-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G01-Q07-R02"
+      }
+    ],
+    "text": "Các lần sửa điều khoản phụ lục sửa giá có chồng lấn thời gian hiệu lực không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.191,
+          0.92,
+          0.211
+        ],
+        "line_ids": [
+          "g01-q08-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G01-Q08-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G01",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "lookup",
+    "mutations": [
+      "missing_annex"
+    ],
+    "question_id": "G01-Q08",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.191,
+          0.92,
+          0.211
+        ],
+        "line_ids": [
+          "g01-q08-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G01-Q08-R01"
+      }
+    ],
+    "text": "Phụ lục được viện dẫn để xác định xung đột thân và phụ lục hiện ở đâu?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g01-q09-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G01-Q09-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G01",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "lookup",
+    "mutations": [
+      "absent_information"
+    ],
+    "question_id": "G01-Q09",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g01-q09-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G01-Q09-R01"
+      }
+    ],
+    "text": "Có ghi rõ phụ lục sửa giá khi đối chiếu với xung đột thân và phụ lục không?"
+  },
+  {
+    "acceptable_spans": [],
+    "comparison": false,
+    "contract_id": "G01",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "broad",
+    "mutations": [],
+    "question_id": "G01-Q10",
+    "required_spans": [],
+    "text": "Tóm tắt mọi nghĩa vụ, ngoại lệ và mốc liên quan tới xung đột thân và phụ lục."
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g01-q11-s01-l01",
+          "g01-q11-s01-l02"
+        ],
+        "page_no": 3,
+        "span_id": "G01-Q11-R01"
+      }
+    ],
+    "comparison": true,
+    "contract_id": "G01",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "8445000",
+        "raw": "8.445.000",
+        "span_id": "G01-Q11-R01",
+        "value_id": "G01-Q11-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "8945000",
+        "raw": "8.945.000",
+        "span_id": "G01-Q11-R01",
+        "value_id": "G01-Q11-V02"
+      }
+    ],
+    "kind": "comparison",
+    "mutations": [
+      "non_conflicting_term"
+    ],
+    "question_id": "G01-Q11",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g01-q11-s01-l01",
+          "g01-q11-s01-l02"
+        ],
+        "page_no": 3,
+        "span_id": "G01-Q11-R01"
+      }
+    ],
+    "text": "Có thể đặt phụ lục sửa giá cạnh xung đột thân và phụ lục để so sánh trên cùng cơ sở không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g01-q12-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G01-Q12-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G01",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "Điều 8.2",
+        "raw": "Điều 8.2",
+        "span_id": "G01-Q12-R01",
+        "value_id": "G01-Q12-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [],
+    "question_id": "G01-Q12",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g01-q12-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G01-Q12-R01"
+      }
+    ],
+    "text": "Điều khoản nào xác lập xung đột thân và phụ lục trước khi phần sửa đổi có hiệu lực?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g02-q01-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G02-Q01-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G02",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "8365000",
+        "raw": "8.365.000",
+        "span_id": "G02-Q01-R01",
+        "value_id": "G02-Q01-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [],
+    "question_id": "G02-Q01",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g02-q01-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G02-Q01-R01"
+      }
+    ],
+    "text": "Bảng đặt hàng ghi đơn giá của bảng hàng hóa ở mức nào?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.165,
+          0.92,
+          0.185
+        ],
+        "line_ids": [
+          "g02-q02-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G02-Q02-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G02",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "date",
+        "normalized": "2026-01-01",
+        "raw": "01/01/2026",
+        "span_id": "G02-Q02-R01",
+        "value_id": "G02-Q02-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [],
+    "question_id": "G02-Q02",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.165,
+          0.92,
+          0.185
+        ],
+        "line_ids": [
+          "g02-q02-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G02-Q02-R01"
+      }
+    ],
+    "text": "Điều khoản nào xác định ngày giao đơn giá và số lượng?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.191,
+          0.92,
+          0.211
+        ],
+        "line_ids": [
+          "g02-q03-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G02-Q03-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G02",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "Bên B chịu trách nhiệm",
+        "raw": "Bên B chịu trách nhiệm",
+        "span_id": "G02-Q03-R01",
+        "value_id": "G02-Q03-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [],
+    "question_id": "G02-Q03",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.191,
+          0.92,
+          0.211
+        ],
+        "line_ids": [
+          "g02-q03-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G02-Q03-R01"
+      }
+    ],
+    "text": "Ai chịu trách nhiệm kiểm đếm bảng hàng hóa khi bàn giao?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.217,
+          0.92,
+          0.237
+        ],
+        "line_ids": [
+          "g02-q04-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G02-Q04-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.243,
+          0.92,
+          0.263
+        ],
+        "line_ids": [
+          "g02-q04-s02-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G02-Q04-R02"
+      }
+    ],
+    "comparison": true,
+    "contract_id": "G02",
+    "expected_state": "NOT_COMPARABLE",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "30 ngày",
+        "raw": "30 ngày",
+        "span_id": "G02-Q04-R01",
+        "value_id": "G02-Q04-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "8440000",
+        "raw": "8.440.000",
+        "span_id": "G02-Q04-R02",
+        "value_id": "G02-Q04-V02"
+      }
+    ],
+    "kind": "comparison",
+    "mutations": [
+      "incomparable_quantities"
+    ],
+    "question_id": "G02-Q04",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.217,
+          0.92,
+          0.237
+        ],
+        "line_ids": [
+          "g02-q04-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G02-Q04-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.243,
+          0.92,
+          0.263
+        ],
+        "line_ids": [
+          "g02-q04-s02-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G02-Q04-R02"
+      }
+    ],
+    "text": "Số lượng đơn giá và số lượng có cùng đơn vị đo với bảng hàng hóa để so sánh không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g02-q05-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G02-Q05-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g02-q05-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G02-Q05-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G02",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "8465000",
+        "raw": "8.465.000",
+        "span_id": "G02-Q05-R01",
+        "value_id": "G02-Q05-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "9715000",
+        "raw": "9.715.000",
+        "span_id": "G02-Q05-R02",
+        "value_id": "G02-Q05-V02"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [
+      "body_annex_conflict"
+    ],
+    "question_id": "G02-Q05",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g02-q05-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G02-Q05-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g02-q05-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G02-Q05-R02"
+      }
+    ],
+    "text": "Nếu phụ lục hàng hóa và phần chính lệch nhau, giá bảng hàng hóa nào được nêu?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g02-q06-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G02-Q06-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g02-q06-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G02-Q06-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G02",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "identifier",
+        "normalized": "0310001026",
+        "raw": "0310001026",
+        "span_id": "G02-Q06-R01",
+        "value_id": "G02-Q06-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [
+      "duplicate_name_different_tax_id"
+    ],
+    "question_id": "G02-Q06",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g02-q06-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G02-Q06-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g02-q06-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G02-Q06-R02"
+      }
+    ],
+    "text": "Hai nhà cung cấp trùng tên; mã số thuế của bên giao đơn giá và số lượng là gì?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g02-q07-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G02-Q07-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.165,
+          0.92,
+          0.185
+        ],
+        "line_ids": [
+          "g02-q07-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G02-Q07-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G02",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "date",
+        "normalized": "2026-03-01",
+        "raw": "01/03/2026",
+        "span_id": "G02-Q07-R01",
+        "value_id": "G02-Q07-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [
+      "overlapping_amendment"
+    ],
+    "question_id": "G02-Q07",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g02-q07-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G02-Q07-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.165,
+          0.92,
+          0.185
+        ],
+        "line_ids": [
+          "g02-q07-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G02-Q07-R02"
+      }
+    ],
+    "text": "Các lần điều chỉnh đơn hàng bảng hàng hóa có hiệu lực trùng nhau không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.191,
+          0.92,
+          0.211
+        ],
+        "line_ids": [
+          "g02-q08-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G02-Q08-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G02",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "lookup",
+    "mutations": [
+      "missing_annex"
+    ],
+    "question_id": "G02-Q08",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.191,
+          0.92,
+          0.211
+        ],
+        "line_ids": [
+          "g02-q08-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G02-Q08-R01"
+      }
+    ],
+    "text": "Tài liệu được dẫn để xác nhận cấu hình đơn giá và số lượng có được đính kèm không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g02-q09-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G02-Q09-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G02",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "lookup",
+    "mutations": [
+      "absent_information"
+    ],
+    "question_id": "G02-Q09",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g02-q09-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G02-Q09-R01"
+      }
+    ],
+    "text": "Hợp đồng có nói rõ bảng hàng hóa trong tương quan với đơn giá và số lượng không?"
+  },
+  {
+    "acceptable_spans": [],
+    "comparison": false,
+    "contract_id": "G02",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "broad",
+    "mutations": [],
+    "question_id": "G02-Q10",
+    "required_spans": [],
+    "text": "Tổng hợp toàn bộ điều kiện đặt hàng, giao nhận và ngoại lệ của đơn giá và số lượng."
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g02-q11-s01-l01",
+          "g02-q11-s01-l02"
+        ],
+        "page_no": 3,
+        "span_id": "G02-Q11-R01"
+      }
+    ],
+    "comparison": true,
+    "contract_id": "G02",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "8615000",
+        "raw": "8.615.000",
+        "span_id": "G02-Q11-R01",
+        "value_id": "G02-Q11-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "9115000",
+        "raw": "9.115.000",
+        "span_id": "G02-Q11-R01",
+        "value_id": "G02-Q11-V02"
+      }
+    ],
+    "kind": "comparison",
+    "mutations": [
+      "non_conflicting_term"
+    ],
+    "question_id": "G02-Q11",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g02-q11-s01-l01",
+          "g02-q11-s01-l02"
+        ],
+        "page_no": 3,
+        "span_id": "G02-Q11-R01"
+      }
+    ],
+    "text": "bảng hàng hóa với đơn giá và số lượng có cùng cơ sở để lập bảng đối chiếu không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g02-q12-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G02-Q12-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G02",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "Điều 8.2",
+        "raw": "Điều 8.2",
+        "span_id": "G02-Q12-R01",
+        "value_id": "G02-Q12-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [],
+    "question_id": "G02-Q12",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g02-q12-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G02-Q12-R01"
+      }
+    ],
+    "text": "Căn cứ nào quyết định thông số đơn giá và số lượng ở đợt giao hàng này?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g03-q01-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G03-Q01-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G03",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "8535000",
+        "raw": "8.535.000",
+        "span_id": "G03-Q01-R01",
+        "value_id": "G03-Q01-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [],
+    "question_id": "G03-Q01",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g03-q01-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G03-Q01-R01"
+      }
+    ],
+    "text": "Tiền thuê ghi cho hai phụ lục là bao nhiêu mỗi kỳ?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g03-q02-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G03-Q02-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G03",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "date",
+        "normalized": "2026-01-01",
+        "raw": "01/01/2026",
+        "span_id": "G03-Q02-R01",
+        "value_id": "G03-Q02-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [],
+    "question_id": "G03-Q02",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g03-q02-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G03-Q02-R01"
+      }
+    ],
+    "text": "Ngày bắt đầu tính thời hạn và tiền thuê được ghi tại điều khoản nào?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g03-q03-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G03-Q03-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G03",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "Bên B chịu trách nhiệm",
+        "raw": "Bên B chịu trách nhiệm",
+        "span_id": "G03-Q03-R01",
+        "value_id": "G03-Q03-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [],
+    "question_id": "G03-Q03",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g03-q03-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G03-Q03-R01"
+      }
+    ],
+    "text": "Bên nào có nghĩa vụ duy trì hai phụ lục trong thời hạn thuê?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g03-q04-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G03-Q04-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g03-q04-s02-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G03-Q04-R02"
+      }
+    ],
+    "comparison": true,
+    "contract_id": "G03",
+    "expected_state": "NOT_COMPARABLE",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "30 ngày",
+        "raw": "30 ngày",
+        "span_id": "G03-Q04-R01",
+        "value_id": "G03-Q04-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "8610000",
+        "raw": "8.610.000",
+        "span_id": "G03-Q04-R02",
+        "value_id": "G03-Q04-V02"
+      }
+    ],
+    "kind": "comparison",
+    "mutations": [
+      "incomparable_quantities"
+    ],
+    "question_id": "G03-Q04",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g03-q04-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G03-Q04-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g03-q04-s02-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G03-Q04-R02"
+      }
+    ],
+    "text": "thời hạn và tiền thuê và hai phụ lục có phải là hai loại đại lượng không thể quy đổi không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g03-q05-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G03-Q05-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g03-q05-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G03-Q05-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G03",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "8635000",
+        "raw": "8.635.000",
+        "span_id": "G03-Q05-R01",
+        "value_id": "G03-Q05-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "9885000",
+        "raw": "9.885.000",
+        "span_id": "G03-Q05-R02",
+        "value_id": "G03-Q05-V02"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [
+      "body_annex_conflict"
+    ],
+    "question_id": "G03-Q05",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g03-q05-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G03-Q05-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g03-q05-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G03-Q05-R02"
+      }
+    ],
+    "text": "Nếu phụ lục và hợp đồng chính nêu giá khác nhau, giá hai phụ lục hiện là bao nhiêu?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g03-q06-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G03-Q06-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g03-q06-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G03-Q06-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G03",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "identifier",
+        "normalized": "0310001036",
+        "raw": "0310001036",
+        "span_id": "G03-Q06-R01",
+        "value_id": "G03-Q06-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [
+      "duplicate_name_different_tax_id"
+    ],
+    "question_id": "G03-Q06",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g03-q06-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G03-Q06-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g03-q06-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G03-Q06-R02"
+      }
+    ],
+    "text": "Có hai đơn vị cùng tên; mã số thuế của chủ thể gắn với thời hạn và tiền thuê là gì?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g03-q07-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G03-Q07-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.165,
+          0.92,
+          0.185
+        ],
+        "line_ids": [
+          "g03-q07-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G03-Q07-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G03",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "date",
+        "normalized": "2026-03-01",
+        "raw": "01/03/2026",
+        "span_id": "G03-Q07-R01",
+        "value_id": "G03-Q07-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [
+      "overlapping_amendment"
+    ],
+    "question_id": "G03-Q07",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g03-q07-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G03-Q07-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.165,
+          0.92,
+          0.185
+        ],
+        "line_ids": [
+          "g03-q07-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G03-Q07-R02"
+      }
+    ],
+    "text": "Các phụ lục sửa kỳ hạn hai phụ lục có khoảng thời gian hiệu lực giao nhau không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.191,
+          0.92,
+          0.211
+        ],
+        "line_ids": [
+          "g03-q08-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G03-Q08-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G03",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "lookup",
+    "mutations": [
+      "missing_annex"
+    ],
+    "question_id": "G03-Q08",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.191,
+          0.92,
+          0.211
+        ],
+        "line_ids": [
+          "g03-q08-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G03-Q08-R01"
+      }
+    ],
+    "text": "Phụ lục được nhắc để mô tả thời hạn và tiền thuê có nằm trong bộ hồ sơ không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g03-q09-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G03-Q09-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G03",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "lookup",
+    "mutations": [
+      "absent_information"
+    ],
+    "question_id": "G03-Q09",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g03-q09-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G03-Q09-R01"
+      }
+    ],
+    "text": "Nội dung về hai phụ lục có được nêu khi xét cùng thời hạn và tiền thuê không?"
+  },
+  {
+    "acceptable_spans": [],
+    "comparison": false,
+    "contract_id": "G03",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "broad",
+    "mutations": [],
+    "question_id": "G03-Q10",
+    "required_spans": [],
+    "text": "Khái quát các quyền, nghĩa vụ và trường hợp ngoại lệ liên quan đến thời hạn và tiền thuê."
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g03-q11-s01-l01",
+          "g03-q11-s01-l02"
+        ],
+        "page_no": 3,
+        "span_id": "G03-Q11-R01"
+      }
+    ],
+    "comparison": true,
+    "contract_id": "G03",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "8785000",
+        "raw": "8.785.000",
+        "span_id": "G03-Q11-R01",
+        "value_id": "G03-Q11-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "9285000",
+        "raw": "9.285.000",
+        "span_id": "G03-Q11-R01",
+        "value_id": "G03-Q11-V02"
+      }
+    ],
+    "kind": "comparison",
+    "mutations": [
+      "non_conflicting_term"
+    ],
+    "question_id": "G03-Q11",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g03-q11-s01-l01",
+          "g03-q11-s01-l02"
+        ],
+        "page_no": 3,
+        "span_id": "G03-Q11-R01"
+      }
+    ],
+    "text": "hai phụ lục và thời hạn và tiền thuê có thể so sánh trực tiếp theo một thước đo không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g03-q12-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G03-Q12-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G03",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "Điều 8.2",
+        "raw": "Điều 8.2",
+        "span_id": "G03-Q12-R01",
+        "value_id": "G03-Q12-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [],
+    "question_id": "G03-Q12",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g03-q12-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G03-Q12-R01"
+      }
+    ],
+    "text": "Điều khoản nào ấn định thời hạn và tiền thuê cho kỳ thuê đang xét?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g04-q01-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G04-Q01-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G04",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "8705000",
+        "raw": "8.705.000",
+        "span_id": "G04-Q01-R01",
+        "value_id": "G04-Q01-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [],
+    "question_id": "G04-Q01",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g04-q01-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G04-Q01-R01"
+      }
+    ],
+    "text": "Mức cam kết ghi cho SLA phần trăm được tính là bao nhiêu phần trăm?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g04-q02-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G04-Q02-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G04",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "date",
+        "normalized": "2026-01-01",
+        "raw": "01/01/2026",
+        "span_id": "G04-Q02-R01",
+        "value_id": "G04-Q02-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [],
+    "question_id": "G04-Q02",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g04-q02-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G04-Q02-R01"
+      }
+    ],
+    "text": "Thời đoạn đo mức phạt phần trăm được quy định trong mục nào?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g04-q03-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G04-Q03-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G04",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "Bên B chịu trách nhiệm",
+        "raw": "Bên B chịu trách nhiệm",
+        "span_id": "G04-Q03-R01",
+        "value_id": "G04-Q03-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [],
+    "question_id": "G04-Q03",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g04-q03-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G04-Q03-R01"
+      }
+    ],
+    "text": "Ai phải khắc phục khi chỉ số SLA phần trăm không đạt?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g04-q04-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G04-Q04-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g04-q04-s02-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G04-Q04-R02"
+      }
+    ],
+    "comparison": true,
+    "contract_id": "G04",
+    "expected_state": "NOT_COMPARABLE",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "30 ngày",
+        "raw": "30 ngày",
+        "span_id": "G04-Q04-R01",
+        "value_id": "G04-Q04-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "8780000",
+        "raw": "8.780.000",
+        "span_id": "G04-Q04-R02",
+        "value_id": "G04-Q04-V02"
+      }
+    ],
+    "kind": "comparison",
+    "mutations": [
+      "incomparable_quantities"
+    ],
+    "question_id": "G04-Q04",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g04-q04-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G04-Q04-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g04-q04-s02-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G04-Q04-R02"
+      }
+    ],
+    "text": "Tỷ lệ mức phạt phần trăm có thể đối chiếu với SLA phần trăm nếu chúng đo hai loại đại lượng khác nhau không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g04-q05-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G04-Q05-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g04-q05-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G04-Q05-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G04",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "8805000",
+        "raw": "8.805.000",
+        "span_id": "G04-Q05-R01",
+        "value_id": "G04-Q05-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "10055000",
+        "raw": "10.055.000",
+        "span_id": "G04-Q05-R02",
+        "value_id": "G04-Q05-V02"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [
+      "body_annex_conflict"
+    ],
+    "question_id": "G04-Q05",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g04-q05-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G04-Q05-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g04-q05-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G04-Q05-R02"
+      }
+    ],
+    "text": "Phần SLA và phụ lục có nêu hai mức khác nhau cho SLA phần trăm; mức nào cần được xem xét?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g04-q06-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G04-Q06-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g04-q06-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G04-Q06-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G04",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "identifier",
+        "normalized": "0310001046",
+        "raw": "0310001046",
+        "span_id": "G04-Q06-R01",
+        "value_id": "G04-Q06-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [
+      "duplicate_name_different_tax_id"
+    ],
+    "question_id": "G04-Q06",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g04-q06-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G04-Q06-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g04-q06-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G04-Q06-R02"
+      }
+    ],
+    "text": "Tên nhà cung cấp lặp lại; mã số thuế gắn với cam kết mức phạt phần trăm là mã nào?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g04-q07-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G04-Q07-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.165,
+          0.92,
+          0.185
+        ],
+        "line_ids": [
+          "g04-q07-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G04-Q07-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G04",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "date",
+        "normalized": "2026-03-01",
+        "raw": "01/03/2026",
+        "span_id": "G04-Q07-R01",
+        "value_id": "G04-Q07-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [
+      "overlapping_amendment"
+    ],
+    "question_id": "G04-Q07",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g04-q07-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G04-Q07-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.165,
+          0.92,
+          0.185
+        ],
+        "line_ids": [
+          "g04-q07-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G04-Q07-R02"
+      }
+    ],
+    "text": "Các phiên bản sửa ngưỡng SLA phần trăm có thời gian áp dụng bị chồng nhau không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.191,
+          0.92,
+          0.211
+        ],
+        "line_ids": [
+          "g04-q08-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G04-Q08-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G04",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "lookup",
+    "mutations": [
+      "missing_annex"
+    ],
+    "question_id": "G04-Q08",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.191,
+          0.92,
+          0.211
+        ],
+        "line_ids": [
+          "g04-q08-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G04-Q08-R01"
+      }
+    ],
+    "text": "Phụ lục mô tả cách tính mức phạt phần trăm được dẫn chiếu nhưng có trong hồ sơ không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g04-q09-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G04-Q09-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G04",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "lookup",
+    "mutations": [
+      "absent_information"
+    ],
+    "question_id": "G04-Q09",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g04-q09-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G04-Q09-R01"
+      }
+    ],
+    "text": "Có dữ liệu về SLA phần trăm để đối chiếu với mức phạt phần trăm không?"
+  },
+  {
+    "acceptable_spans": [],
+    "comparison": false,
+    "contract_id": "G04",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "broad",
+    "mutations": [],
+    "question_id": "G04-Q10",
+    "required_spans": [],
+    "text": "Tóm lược các cam kết dịch vụ, cách đo và ngoại lệ áp dụng cho mức phạt phần trăm."
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g04-q11-s01-l01",
+          "g04-q11-s01-l02"
+        ],
+        "page_no": 3,
+        "span_id": "G04-Q11-R01"
+      }
+    ],
+    "comparison": true,
+    "contract_id": "G04",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "8955000",
+        "raw": "8.955.000",
+        "span_id": "G04-Q11-R01",
+        "value_id": "G04-Q11-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "9455000",
+        "raw": "9.455.000",
+        "span_id": "G04-Q11-R01",
+        "value_id": "G04-Q11-V02"
+      }
+    ],
+    "kind": "comparison",
+    "mutations": [
+      "non_conflicting_term"
+    ],
+    "question_id": "G04-Q11",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g04-q11-s01-l01",
+          "g04-q11-s01-l02"
+        ],
+        "page_no": 3,
+        "span_id": "G04-Q11-R01"
+      }
+    ],
+    "text": "SLA phần trăm và mức phạt phần trăm có cùng loại chỉ số để đem ra so sánh không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g04-q12-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G04-Q12-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G04",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "Điều 8.2",
+        "raw": "Điều 8.2",
+        "span_id": "G04-Q12-R01",
+        "value_id": "G04-Q12-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [],
+    "question_id": "G04-Q12",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g04-q12-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G04-Q12-R01"
+      }
+    ],
+    "text": "Mục nào xác định ngưỡng mức phạt phần trăm cho kỳ báo cáo này?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g05-q01-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G05-Q01-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G05",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "8875000",
+        "raw": "8.875.000",
+        "span_id": "G05-Q01-R01",
+        "value_id": "G05-Q01-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [],
+    "question_id": "G05-Q01",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g05-q01-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G05-Q01-R01"
+      }
+    ],
+    "text": "Bảng khối lượng phân trang ghi bao nhiêu cho khối lượng nhiều trang?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g05-q02-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G05-Q02-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G05",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "date",
+        "normalized": "2026-01-01",
+        "raw": "01/01/2026",
+        "span_id": "G05-Q02-R01",
+        "value_id": "G05-Q02-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [],
+    "question_id": "G05-Q02",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g05-q02-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G05-Q02-R01"
+      }
+    ],
+    "text": "Điều khoản nối sang trang kế tiếp xác định năm phụ lục từ mốc nào?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g05-q03-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G05-Q03-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G05",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "Bên B chịu trách nhiệm",
+        "raw": "Bên B chịu trách nhiệm",
+        "span_id": "G05-Q03-R01",
+        "value_id": "G05-Q03-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [],
+    "question_id": "G05-Q03",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g05-q03-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G05-Q03-R01"
+      }
+    ],
+    "text": "Ai xác nhận khối lượng điều khoản vắt trang sau nghiệm thu?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g05-q04-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G05-Q04-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g05-q04-s02-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G05-Q04-R02"
+      }
+    ],
+    "comparison": true,
+    "contract_id": "G05",
+    "expected_state": "NOT_COMPARABLE",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "30 ngày",
+        "raw": "30 ngày",
+        "span_id": "G05-Q04-R01",
+        "value_id": "G05-Q04-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "8950000",
+        "raw": "8.950.000",
+        "span_id": "G05-Q04-R02",
+        "value_id": "G05-Q04-V02"
+      }
+    ],
+    "kind": "comparison",
+    "mutations": [
+      "incomparable_quantities"
+    ],
+    "question_id": "G05-Q04",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g05-q04-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G05-Q04-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g05-q04-s02-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G05-Q04-R02"
+      }
+    ],
+    "text": "Khối lượng khối lượng nhiều trang và năm phụ lục có cùng đơn vị để so sánh trực tiếp không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g05-q05-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G05-Q05-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g05-q05-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G05-Q05-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G05",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "8975000",
+        "raw": "8.975.000",
+        "span_id": "G05-Q05-R01",
+        "value_id": "G05-Q05-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "10225000",
+        "raw": "10.225.000",
+        "span_id": "G05-Q05-R02",
+        "value_id": "G05-Q05-V02"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [
+      "body_annex_conflict"
+    ],
+    "question_id": "G05-Q05",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g05-q05-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G05-Q05-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g05-q05-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G05-Q05-R02"
+      }
+    ],
+    "text": "Nếu bản chính và phụ lục khối lượng không thống nhất, con số năm phụ lục nào cần rà soát?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g05-q06-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G05-Q06-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g05-q06-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G05-Q06-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G05",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "identifier",
+        "normalized": "0310001056",
+        "raw": "0310001056",
+        "span_id": "G05-Q06-R01",
+        "value_id": "G05-Q06-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [
+      "duplicate_name_different_tax_id"
+    ],
+    "question_id": "G05-Q06",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g05-q06-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G05-Q06-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g05-q06-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G05-Q06-R02"
+      }
+    ],
+    "text": "Tên nhà thầu bị lặp; mã số thuế của bên phụ trách điều khoản vắt trang là gì?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g05-q07-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G05-Q07-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.165,
+          0.92,
+          0.185
+        ],
+        "line_ids": [
+          "g05-q07-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G05-Q07-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G05",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "date",
+        "normalized": "2026-03-01",
+        "raw": "01/03/2026",
+        "span_id": "G05-Q07-R01",
+        "value_id": "G05-Q07-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [
+      "overlapping_amendment"
+    ],
+    "question_id": "G05-Q07",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g05-q07-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G05-Q07-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.165,
+          0.92,
+          0.185
+        ],
+        "line_ids": [
+          "g05-q07-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G05-Q07-R02"
+      }
+    ],
+    "text": "Các phụ lục điều chỉnh hạng mục khối lượng nhiều trang có hiệu lực đồng thời không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.191,
+          0.92,
+          0.211
+        ],
+        "line_ids": [
+          "g05-q08-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G05-Q08-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G05",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "lookup",
+    "mutations": [
+      "missing_annex"
+    ],
+    "question_id": "G05-Q08",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.191,
+          0.92,
+          0.211
+        ],
+        "line_ids": [
+          "g05-q08-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G05-Q08-R01"
+      }
+    ],
+    "text": "Phụ lục được dẫn để nghiệm thu năm phụ lục có trong bộ hồ sơ nhiều phần không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g05-q09-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G05-Q09-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G05",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "lookup",
+    "mutations": [
+      "absent_information"
+    ],
+    "question_id": "G05-Q09",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g05-q09-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G05-Q09-R01"
+      }
+    ],
+    "text": "Hợp đồng có nêu điều khoản vắt trang khi xét cùng khối lượng nhiều trang không?"
+  },
+  {
+    "acceptable_spans": [],
+    "comparison": false,
+    "contract_id": "G05",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "broad",
+    "mutations": [],
+    "question_id": "G05-Q10",
+    "required_spans": [],
+    "text": "Tóm lược các bước nghiệm thu, thanh toán và ngoại lệ của khối lượng nhiều trang."
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g05-q11-s01-l01",
+          "g05-q11-s01-l02"
+        ],
+        "page_no": 3,
+        "span_id": "G05-Q11-R01"
+      }
+    ],
+    "comparison": true,
+    "contract_id": "G05",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "9125000",
+        "raw": "9.125.000",
+        "span_id": "G05-Q11-R01",
+        "value_id": "G05-Q11-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "9625000",
+        "raw": "9.625.000",
+        "span_id": "G05-Q11-R01",
+        "value_id": "G05-Q11-V02"
+      }
+    ],
+    "kind": "comparison",
+    "mutations": [
+      "non_conflicting_term"
+    ],
+    "question_id": "G05-Q11",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g05-q11-s01-l01",
+          "g05-q11-s01-l02"
+        ],
+        "page_no": 3,
+        "span_id": "G05-Q11-R01"
+      }
+    ],
+    "text": "năm phụ lục có cùng cơ sở đo với điều khoản vắt trang để so sánh khối lượng không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g05-q12-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G05-Q12-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G05",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "Điều 8.2",
+        "raw": "Điều 8.2",
+        "span_id": "G05-Q12-R01",
+        "value_id": "G05-Q12-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [],
+    "question_id": "G05-Q12",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g05-q12-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G05-Q12-R01"
+      }
+    ],
+    "text": "Điều khoản nào điều chỉnh điều khoản vắt trang tại ranh giới giữa hai trang?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g06-q01-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G06-Q01-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G06",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "9045000",
+        "raw": "9.045.000",
+        "span_id": "G06-Q01-R01",
+        "value_id": "G06-Q01-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [],
+    "question_id": "G06-Q01",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g06-q01-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G06-Q01-R01"
+      }
+    ],
+    "text": "Lịch vận chuyển ghi thời lượng cho phụ lục được dẫn chiếu nhưng thiếu là bao lâu?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g06-q02-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G06-Q02-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G06",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "date",
+        "normalized": "2026-01-01",
+        "raw": "01/01/2026",
+        "span_id": "G06-Q02-R01",
+        "value_id": "G06-Q02-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [],
+    "question_id": "G06-Q02",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g06-q02-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G06-Q02-R01"
+      }
+    ],
+    "text": "Mốc nhận lịch giao hàng được xác định ở phần nào?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g06-q03-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G06-Q03-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G06",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "Bên B chịu trách nhiệm",
+        "raw": "Bên B chịu trách nhiệm",
+        "span_id": "G06-Q03-R01",
+        "value_id": "G06-Q03-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [],
+    "question_id": "G06-Q03",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g06-q03-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G06-Q03-R01"
+      }
+    ],
+    "text": "Bên nào thu xếp việc bàn giao phụ lục được dẫn chiếu nhưng thiếu?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g06-q04-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G06-Q04-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g06-q04-s02-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G06-Q04-R02"
+      }
+    ],
+    "comparison": true,
+    "contract_id": "G06",
+    "expected_state": "NOT_COMPARABLE",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "30 ngày",
+        "raw": "30 ngày",
+        "span_id": "G06-Q04-R01",
+        "value_id": "G06-Q04-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "9120000",
+        "raw": "9.120.000",
+        "span_id": "G06-Q04-R02",
+        "value_id": "G06-Q04-V02"
+      }
+    ],
+    "kind": "comparison",
+    "mutations": [
+      "incomparable_quantities"
+    ],
+    "question_id": "G06-Q04",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g06-q04-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G06-Q04-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g06-q04-s02-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G06-Q04-R02"
+      }
+    ],
+    "text": "lịch giao hàng và phụ lục được dẫn chiếu nhưng thiếu có phải hai đại lượng không cùng loại không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g06-q05-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G06-Q05-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g06-q05-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G06-Q05-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G06",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "9145000",
+        "raw": "9.145.000",
+        "span_id": "G06-Q05-R01",
+        "value_id": "G06-Q05-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "10395000",
+        "raw": "10.395.000",
+        "span_id": "G06-Q05-R02",
+        "value_id": "G06-Q05-V02"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [
+      "body_annex_conflict"
+    ],
+    "question_id": "G06-Q05",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g06-q05-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G06-Q05-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g06-q05-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G06-Q05-R02"
+      }
+    ],
+    "text": "Nếu nội dung chính và phụ lục dẫn chiếu khác nhau, thời điểm phụ lục được dẫn chiếu nhưng thiếu nào được ghi?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g06-q06-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G06-Q06-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g06-q06-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G06-Q06-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G06",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "identifier",
+        "normalized": "0310001066",
+        "raw": "0310001066",
+        "span_id": "G06-Q06-R01",
+        "value_id": "G06-Q06-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [
+      "duplicate_name_different_tax_id"
+    ],
+    "question_id": "G06-Q06",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g06-q06-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G06-Q06-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g06-q06-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G06-Q06-R02"
+      }
+    ],
+    "text": "Có các chủ thể trùng tên; mã số thuế của bên nhận lịch giao hàng là gì?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g06-q07-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G06-Q07-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.165,
+          0.92,
+          0.185
+        ],
+        "line_ids": [
+          "g06-q07-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G06-Q07-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G06",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "date",
+        "normalized": "2026-03-01",
+        "raw": "01/03/2026",
+        "span_id": "G06-Q07-R01",
+        "value_id": "G06-Q07-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [
+      "overlapping_amendment"
+    ],
+    "question_id": "G06-Q07",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g06-q07-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G06-Q07-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.165,
+          0.92,
+          0.185
+        ],
+        "line_ids": [
+          "g06-q07-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G06-Q07-R02"
+      }
+    ],
+    "text": "Những lần sửa lịch giao phụ lục được dẫn chiếu nhưng thiếu có khoảng hiệu lực trùng nhau không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.191,
+          0.92,
+          0.211
+        ],
+        "line_ids": [
+          "g06-q08-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G06-Q08-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G06",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "lookup",
+    "mutations": [
+      "missing_annex"
+    ],
+    "question_id": "G06-Q08",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.191,
+          0.92,
+          0.211
+        ],
+        "line_ids": [
+          "g06-q08-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G06-Q08-R01"
+      }
+    ],
+    "text": "Phụ lục được viện dẫn để xác định tuyến lịch giao hàng có được cung cấp không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g06-q09-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G06-Q09-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G06",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "lookup",
+    "mutations": [
+      "absent_information"
+    ],
+    "question_id": "G06-Q09",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g06-q09-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G06-Q09-R01"
+      }
+    ],
+    "text": "Thông tin phụ lục được dẫn chiếu nhưng thiếu có xuất hiện bên cạnh điều kiện lịch giao hàng không?"
+  },
+  {
+    "acceptable_spans": [],
+    "comparison": false,
+    "contract_id": "G06",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "broad",
+    "mutations": [],
+    "question_id": "G06-Q10",
+    "required_spans": [],
+    "text": "Tóm lược các cam kết giao nhận và trường hợp ngoại lệ áp dụng cho lịch giao hàng."
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g06-q11-s01-l01",
+          "g06-q11-s01-l02"
+        ],
+        "page_no": 3,
+        "span_id": "G06-Q11-R01"
+      }
+    ],
+    "comparison": true,
+    "contract_id": "G06",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "9295000",
+        "raw": "9.295.000",
+        "span_id": "G06-Q11-R01",
+        "value_id": "G06-Q11-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "9795000",
+        "raw": "9.795.000",
+        "span_id": "G06-Q11-R01",
+        "value_id": "G06-Q11-V02"
+      }
+    ],
+    "kind": "comparison",
+    "mutations": [
+      "non_conflicting_term"
+    ],
+    "question_id": "G06-Q11",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g06-q11-s01-l01",
+          "g06-q11-s01-l02"
+        ],
+        "page_no": 3,
+        "span_id": "G06-Q11-R01"
+      }
+    ],
+    "text": "Có cơ sở đo chung để đối chiếu phụ lục được dẫn chiếu nhưng thiếu với lịch giao hàng không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g06-q12-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G06-Q12-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G06",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "Điều 8.2",
+        "raw": "Điều 8.2",
+        "span_id": "G06-Q12-R01",
+        "value_id": "G06-Q12-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [],
+    "question_id": "G06-Q12",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g06-q12-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G06-Q12-R01"
+      }
+    ],
+    "text": "Điều khoản nào nêu mốc thực hiện lịch giao hàng của chuyến hàng này?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g07-q01-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G07-Q01-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G07",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "9215000",
+        "raw": "9.215.000",
+        "span_id": "G07-Q01-R01",
+        "value_id": "G07-Q01-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [],
+    "question_id": "G07-Q01",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g07-q01-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G07-Q01-R01"
+      }
+    ],
+    "text": "Phí tư vấn cho phần việc trùng tên khác mã số thuế được ghi ở mức nào?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g07-q02-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G07-Q02-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G07",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "date",
+        "normalized": "2026-01-01",
+        "raw": "01/01/2026",
+        "span_id": "G07-Q02-R01",
+        "value_id": "G07-Q02-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [],
+    "question_id": "G07-Q02",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g07-q02-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G07-Q02-R01"
+      }
+    ],
+    "text": "Điều khoản nào đặt thời hạn hoàn thành định danh bên ký?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g07-q03-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G07-Q03-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G07",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "Bên B chịu trách nhiệm",
+        "raw": "Bên B chịu trách nhiệm",
+        "span_id": "G07-Q03-R01",
+        "value_id": "G07-Q03-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [],
+    "question_id": "G07-Q03",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g07-q03-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G07-Q03-R01"
+      }
+    ],
+    "text": "Ai là người chịu trách nhiệm cung cấp trùng tên khác mã số thuế?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g07-q04-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G07-Q04-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g07-q04-s02-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G07-Q04-R02"
+      }
+    ],
+    "comparison": true,
+    "contract_id": "G07",
+    "expected_state": "NOT_COMPARABLE",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "30 ngày",
+        "raw": "30 ngày",
+        "span_id": "G07-Q04-R01",
+        "value_id": "G07-Q04-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "9290000",
+        "raw": "9.290.000",
+        "span_id": "G07-Q04-R02",
+        "value_id": "G07-Q04-V02"
+      }
+    ],
+    "kind": "comparison",
+    "mutations": [
+      "incomparable_quantities"
+    ],
+    "question_id": "G07-Q04",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g07-q04-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G07-Q04-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g07-q04-s02-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G07-Q04-R02"
+      }
+    ],
+    "text": "định danh bên ký với trùng tên khác mã số thuế có thuộc hai nhóm đại lượng khác nhau không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g07-q05-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G07-Q05-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g07-q05-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G07-Q05-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G07",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "9315000",
+        "raw": "9.315.000",
+        "span_id": "G07-Q05-R01",
+        "value_id": "G07-Q05-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "10565000",
+        "raw": "10.565.000",
+        "span_id": "G07-Q05-R02",
+        "value_id": "G07-Q05-V02"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [
+      "body_annex_conflict"
+    ],
+    "question_id": "G07-Q05",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g07-q05-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G07-Q05-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g07-q05-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G07-Q05-R02"
+      }
+    ],
+    "text": "Khi phần chính và phụ lục ghi khác, khoản phí trùng tên khác mã số thuế nào cần xác minh?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g07-q06-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G07-Q06-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g07-q06-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G07-Q06-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G07",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "identifier",
+        "normalized": "0310001076",
+        "raw": "0310001076",
+        "span_id": "G07-Q06-R01",
+        "value_id": "G07-Q06-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [
+      "duplicate_name_different_tax_id"
+    ],
+    "question_id": "G07-Q06",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g07-q06-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G07-Q06-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g07-q06-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G07-Q06-R02"
+      }
+    ],
+    "text": "Hai bên có tên gần giống; mã số thuế của chủ thể thực hiện định danh bên ký là gì?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g07-q07-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G07-Q07-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.165,
+          0.92,
+          0.185
+        ],
+        "line_ids": [
+          "g07-q07-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G07-Q07-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G07",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "date",
+        "normalized": "2026-03-01",
+        "raw": "01/03/2026",
+        "span_id": "G07-Q07-R01",
+        "value_id": "G07-Q07-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [
+      "overlapping_amendment"
+    ],
+    "question_id": "G07-Q07",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g07-q07-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G07-Q07-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.165,
+          0.92,
+          0.185
+        ],
+        "line_ids": [
+          "g07-q07-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G07-Q07-R02"
+      }
+    ],
+    "text": "Các văn bản sửa phạm vi trùng tên khác mã số thuế có thời gian áp dụng bị giao nhau không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.191,
+          0.92,
+          0.211
+        ],
+        "line_ids": [
+          "g07-q08-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G07-Q08-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G07",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "lookup",
+    "mutations": [
+      "missing_annex"
+    ],
+    "question_id": "G07-Q08",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.191,
+          0.92,
+          0.211
+        ],
+        "line_ids": [
+          "g07-q08-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G07-Q08-R01"
+      }
+    ],
+    "text": "Phụ lục được dẫn làm căn cứ cho định danh bên ký có nằm trong hồ sơ ký không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g07-q09-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G07-Q09-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G07",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "lookup",
+    "mutations": [
+      "absent_information"
+    ],
+    "question_id": "G07-Q09",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g07-q09-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G07-Q09-R01"
+      }
+    ],
+    "text": "Có nội dung về trùng tên khác mã số thuế khi so cùng định danh bên ký trong hợp đồng không?"
+  },
+  {
+    "acceptable_spans": [],
+    "comparison": false,
+    "contract_id": "G07",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "broad",
+    "mutations": [],
+    "question_id": "G07-Q10",
+    "required_spans": [],
+    "text": "Nêu khái quát phạm vi, sản phẩm bàn giao và ngoại lệ của định danh bên ký."
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g07-q11-s01-l01",
+          "g07-q11-s01-l02"
+        ],
+        "page_no": 3,
+        "span_id": "G07-Q11-R01"
+      }
+    ],
+    "comparison": true,
+    "contract_id": "G07",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "9465000",
+        "raw": "9.465.000",
+        "span_id": "G07-Q11-R01",
+        "value_id": "G07-Q11-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "9965000",
+        "raw": "9.965.000",
+        "span_id": "G07-Q11-R01",
+        "value_id": "G07-Q11-V02"
+      }
+    ],
+    "kind": "comparison",
+    "mutations": [
+      "non_conflicting_term"
+    ],
+    "question_id": "G07-Q11",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g07-q11-s01-l01",
+          "g07-q11-s01-l02"
+        ],
+        "page_no": 3,
+        "span_id": "G07-Q11-R01"
+      }
+    ],
+    "text": "trùng tên khác mã số thuế và định danh bên ký có cùng đơn vị để so sánh một cách trực tiếp không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g07-q12-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G07-Q12-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G07",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "Điều 8.2",
+        "raw": "Điều 8.2",
+        "span_id": "G07-Q12-R01",
+        "value_id": "G07-Q12-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [],
+    "question_id": "G07-Q12",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g07-q12-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G07-Q12-R01"
+      }
+    ],
+    "text": "Điều khoản nào quy định cách nghiệm thu định danh bên ký?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g08-q01-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G08-Q01-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G08",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "9385000",
+        "raw": "9.385.000",
+        "span_id": "G08-Q01-R01",
+        "value_id": "G08-Q01-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [],
+    "question_id": "G08-Q01",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g08-q01-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G08-Q01-R01"
+      }
+    ],
+    "text": "Dòng OCR nhận dạng được mức bản nhiều lỗi nhận dạng là bao nhiêu?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g08-q02-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G08-Q02-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G08",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "date",
+        "normalized": "2026-01-01",
+        "raw": "01/01/2026",
+        "span_id": "G08-Q02-R01",
+        "value_id": "G08-Q02-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [],
+    "question_id": "G08-Q02",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g08-q02-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G08-Q02-R01"
+      }
+    ],
+    "text": "Mốc thời gian của số tiền và xuống dòng nằm trong điều khoản nào?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g08-q03-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G08-Q03-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G08",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "Bên B chịu trách nhiệm",
+        "raw": "Bên B chịu trách nhiệm",
+        "span_id": "G08-Q03-R01",
+        "value_id": "G08-Q03-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [],
+    "question_id": "G08-Q03",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g08-q03-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G08-Q03-R01"
+      }
+    ],
+    "text": "Bên nào thực hiện bản nhiều lỗi nhận dạng theo nội dung đã nhận dạng?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g08-q04-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G08-Q04-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g08-q04-s02-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G08-Q04-R02"
+      }
+    ],
+    "comparison": true,
+    "contract_id": "G08",
+    "expected_state": "NOT_COMPARABLE",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "30 ngày",
+        "raw": "30 ngày",
+        "span_id": "G08-Q04-R01",
+        "value_id": "G08-Q04-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "9460000",
+        "raw": "9.460.000",
+        "span_id": "G08-Q04-R02",
+        "value_id": "G08-Q04-V02"
+      }
+    ],
+    "kind": "comparison",
+    "mutations": [
+      "incomparable_quantities"
+    ],
+    "question_id": "G08-Q04",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g08-q04-s01-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G08-Q04-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g08-q04-s02-l01"
+        ],
+        "page_no": 1,
+        "span_id": "G08-Q04-R02"
+      }
+    ],
+    "text": "Hai số liệu số tiền và xuống dòng và bản nhiều lỗi nhận dạng có dùng các loại đơn vị khác nhau không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g08-q05-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G08-Q05-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g08-q05-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G08-Q05-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G08",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "9485000",
+        "raw": "9.485.000",
+        "span_id": "G08-Q05-R01",
+        "value_id": "G08-Q05-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "10735000",
+        "raw": "10.735.000",
+        "span_id": "G08-Q05-R02",
+        "value_id": "G08-Q05-V02"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [
+      "body_annex_conflict"
+    ],
+    "question_id": "G08-Q05",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g08-q05-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G08-Q05-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.081
+        ],
+        "line_ids": [
+          "g08-q05-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G08-Q05-R02"
+      }
+    ],
+    "text": "Bản nhận dạng phần chính và phụ lục lệch nhau về bản nhiều lỗi nhận dạng; giá trị nào cần rà soát?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g08-q06-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G08-Q06-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g08-q06-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G08-Q06-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G08",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "identifier",
+        "normalized": "0310001086",
+        "raw": "0310001086",
+        "span_id": "G08-Q06-R01",
+        "value_id": "G08-Q06-V01"
+      }
+    ],
+    "kind": "lookup",
+    "mutations": [
+      "duplicate_name_different_tax_id"
+    ],
+    "question_id": "G08-Q06",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.087,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g08-q06-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G08-Q06-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g08-q06-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G08-Q06-R02"
+      }
+    ],
+    "text": "Tên đơn vị bị đọc lặp; mã số thuế gắn với số tiền và xuống dòng là chuỗi nào?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g08-q07-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G08-Q07-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.165,
+          0.92,
+          0.185
+        ],
+        "line_ids": [
+          "g08-q07-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G08-Q07-R02"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G08",
+    "expected_state": "NEEDS_REVIEW",
+    "gold_values": [
+      {
+        "kind": "date",
+        "normalized": "2026-03-01",
+        "raw": "01/03/2026",
+        "span_id": "G08-Q07-R01",
+        "value_id": "G08-Q07-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [
+      "overlapping_amendment"
+    ],
+    "question_id": "G08-Q07",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.139,
+          0.92,
+          0.159
+        ],
+        "line_ids": [
+          "g08-q07-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G08-Q07-R01"
+      },
+      {
+        "bbox": [
+          0.08,
+          0.165,
+          0.92,
+          0.185
+        ],
+        "line_ids": [
+          "g08-q07-s02-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G08-Q07-R02"
+      }
+    ],
+    "text": "Các phiên bản nhận dạng điều khoản bản nhiều lỗi nhận dạng có thời gian sửa đổi chồng lấn không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.191,
+          0.92,
+          0.211
+        ],
+        "line_ids": [
+          "g08-q08-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G08-Q08-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G08",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "lookup",
+    "mutations": [
+      "missing_annex"
+    ],
+    "question_id": "G08-Q08",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.191,
+          0.92,
+          0.211
+        ],
+        "line_ids": [
+          "g08-q08-s01-l01"
+        ],
+        "page_no": 2,
+        "span_id": "G08-Q08-R01"
+      }
+    ],
+    "text": "Tài liệu được nhắc tới để xác nhận số tiền và xuống dòng có được tải kèm không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g08-q09-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G08-Q09-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G08",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "lookup",
+    "mutations": [
+      "absent_information"
+    ],
+    "question_id": "G08-Q09",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.035,
+          0.92,
+          0.055
+        ],
+        "line_ids": [
+          "g08-q09-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G08-Q09-R01"
+      }
+    ],
+    "text": "Bản OCR có ghi bản nhiều lỗi nhận dạng khi đối chiếu với số tiền và xuống dòng không?"
+  },
+  {
+    "acceptable_spans": [],
+    "comparison": false,
+    "contract_id": "G08",
+    "expected_state": "INSUFFICIENT_EVIDENCE",
+    "gold_values": [],
+    "kind": "broad",
+    "mutations": [],
+    "question_id": "G08-Q10",
+    "required_spans": [],
+    "text": "Tóm tắt các cam kết, mốc và trường hợp ngoại lệ liên quan tới số tiền và xuống dòng."
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g08-q11-s01-l01",
+          "g08-q11-s01-l02"
+        ],
+        "page_no": 3,
+        "span_id": "G08-Q11-R01"
+      }
+    ],
+    "comparison": true,
+    "contract_id": "G08",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "number",
+        "normalized": "9635000",
+        "raw": "9.635.000",
+        "span_id": "G08-Q11-R01",
+        "value_id": "G08-Q11-V01"
+      },
+      {
+        "kind": "number",
+        "normalized": "10135000",
+        "raw": "10.135.000",
+        "span_id": "G08-Q11-R01",
+        "value_id": "G08-Q11-V02"
+      }
+    ],
+    "kind": "comparison",
+    "mutations": [
+      "non_conflicting_term"
+    ],
+    "question_id": "G08-Q11",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.061,
+          0.92,
+          0.107
+        ],
+        "line_ids": [
+          "g08-q11-s01-l01",
+          "g08-q11-s01-l02"
+        ],
+        "page_no": 3,
+        "span_id": "G08-Q11-R01"
+      }
+    ],
+    "text": "Có thể đối chiếu bản nhiều lỗi nhận dạng và số tiền và xuống dòng theo cùng một đại lượng không?"
+  },
+  {
+    "acceptable_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g08-q12-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G08-Q12-R01"
+      }
+    ],
+    "comparison": false,
+    "contract_id": "G08",
+    "expected_state": "ANSWERED",
+    "gold_values": [
+      {
+        "kind": "text",
+        "normalized": "Điều 8.2",
+        "raw": "Điều 8.2",
+        "span_id": "G08-Q12-R01",
+        "value_id": "G08-Q12-V01"
+      }
+    ],
+    "kind": "clause_lookup",
+    "mutations": [],
+    "question_id": "G08-Q12",
+    "required_spans": [
+      {
+        "bbox": [
+          0.08,
+          0.113,
+          0.92,
+          0.133
+        ],
+        "line_ids": [
+          "g08-q12-s01-l01"
+        ],
+        "page_no": 3,
+        "span_id": "G08-Q12-R01"
+      }
+    ],
+    "text": "Đoạn nào quy định số tiền và xuống dòng sau khi làm rõ chỗ xuống dòng?"
+  }
+]

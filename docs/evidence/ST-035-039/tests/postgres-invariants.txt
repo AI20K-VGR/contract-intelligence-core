@@ -1,0 +1,19 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.3, pytest-9.1.1, pluggy-1.6.0 -- E:\Project_OJT\contract-intelligence-core\backend\.venv\Scripts\python.exe
+rootdir: E:\Project_OJT\contract-intelligence-core\backend
+configfile: pyproject.toml
+plugins: anyio-4.15.1, asyncio-1.4.0, cov-7.1.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 9 items
+
+tests/integration/test_postgres_invariants.py::test_concurrent_actions_on_same_version_serialize PASSED [ 11%]
+tests/integration/test_postgres_invariants.py::test_approval_holding_dossier_blocks_then_refuses_action PASSED [ 22%]
+tests/integration/test_postgres_invariants.py::test_unique_index_rejects_duplicate_base_version PASSED [ 33%]
+tests/integration/test_postgres_invariants.py::test_append_only_tables_refuse_update_and_delete[UPDATE {table} SET tenant_id = 'x'-audit_event] PASSED [ 44%]
+tests/integration/test_postgres_invariants.py::test_append_only_tables_refuse_update_and_delete[UPDATE {table} SET tenant_id = 'x'-query_trace] PASSED [ 55%]
+tests/integration/test_postgres_invariants.py::test_append_only_tables_refuse_update_and_delete[UPDATE {table} SET tenant_id = 'x'-review_action] PASSED [ 66%]
+tests/integration/test_postgres_invariants.py::test_append_only_tables_refuse_update_and_delete[DELETE FROM {table}-audit_event] PASSED [ 77%]
+tests/integration/test_postgres_invariants.py::test_append_only_tables_refuse_update_and_delete[DELETE FROM {table}-query_trace] PASSED [ 88%]
+tests/integration/test_postgres_invariants.py::test_append_only_tables_refuse_update_and_delete[DELETE FROM {table}-review_action] PASSED [100%]
+
+============================== 9 passed in 8.48s ==============================

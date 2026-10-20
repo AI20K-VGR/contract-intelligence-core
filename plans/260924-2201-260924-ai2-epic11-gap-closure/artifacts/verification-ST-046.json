@@ -1,0 +1,15 @@
+{
+  "stage": "cook",
+  "plan": "260924-2201-260924-ai2-epic11-gap-closure",
+  "phase": "P3",
+  "checks": [
+    {"name": "st046_targeted", "status": "PASS", "detail": "51 passed"},
+    {"name": "ai2_full_suite", "status": "PASS", "detail": "692 passed, 1 skipped, 27 warnings"},
+    {"name": "backend_adapter_smoke", "status": "PASS", "detail": "version, digest and service envelope asserted"},
+    {"name": "backend_integration_suite", "status": "PASS", "detail": "78 passed, 184 deselected, 7 warnings"}
+  ],
+  "verdict": "PASS",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-09-25T09:30:00+07:00",
+  "run_seq": null
+}

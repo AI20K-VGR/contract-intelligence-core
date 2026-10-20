@@ -1,0 +1,39 @@
+# Manual check of the online stack from a GitHub runner, i.e. from outside the
+# server (DOC-12 §6 A). Run it after every deploy: Actions → "deploy-external-check".
+name: deploy-external-check
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_host:
+        description: "Backend host, e.g. api-1-2-3-4.sslip.io"
+        required: true
+      auth_host:
+        description: "Keycloak host, e.g. auth-1-2-3-4.sslip.io"
+        required: true
+      app_host:
+        description: "Frontend host, e.g. app-1-2-3-4.sslip.io (empty: not hosted on the server)"
+        required: false
+      origin_ip:
+        description: "Server IP when the hosts sit behind Cloudflare's proxy (empty: probe the API host's address)"
+        required: false
+      db_public_ip:
+        description: "Public IP of a DB server of its own (empty: databases on the app server)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  external-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: HTTPS, /admin blocked, internal ports closed
+        env:
+          API_HOST: ${{ inputs.api_host }}
+          AUTH_HOST: ${{ inputs.auth_host }}
+          APP_HOST: ${{ inputs.app_host }}
+          DB_PUBLIC_IP: ${{ inputs.db_public_ip }}
+          ORIGIN_IP: ${{ inputs.origin_ip }}
+        run: bash deploy/check_external.sh "$API_HOST" "$AUTH_HOST" "$APP_HOST" "$DB_PUBLIC_IP"

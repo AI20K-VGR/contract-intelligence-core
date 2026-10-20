@@ -1,0 +1,94 @@
+# Public entry point. Caddy obtains and renews Let's Encrypt certificates for
+# both hosts (sslip.io names resolve to the VPS IP, so no DNS setup is needed).
+#
+# Behind Cloudflare (deploy/compose.cloudflare.yml, deploy/README.md "Đứng sau
+# Cloudflare"): TLS uses a Cloudflare Origin Certificate imported from
+# /etc/caddy/tls/, and the client address comes from CF-Connecting-IP, trusted
+# only on connections from Cloudflare's ranges. Without that override both
+# imports are empty and the defaults below apply.
+
+{
+	servers {
+		trusted_proxies static {$CADDY_TRUSTED_PROXIES:private_ranges}
+		client_ip_headers {$CADDY_CLIENT_IP_HEADERS:X-Forwarded-For X-Real-IP}
+	}
+}
+
+(common) {
+	# Cloudflare Origin Certificate when mounted, Let's Encrypt otherwise.
+	import /etc/caddy/tls/*.caddy
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	log {
+		output stdout
+		format console
+	}
+}
+
+# The frontend site ($APP_HOST) is deploy/frontend.caddy, imported at the end
+# when deploy/compose.frontend.yml is in use. Defining it here as well makes
+# Caddy refuse to start ("ambiguous site definition").
+
+# Backend API — for the frontend. AI1/AI2 never come through here: AI1 talks
+# over Kafka and AI2 over HTTP inside ci-network. /grafana/* also lands on the
+# backend, which lets only ADMINISTRATOR through to the internal Grafana;
+# Grafana, Prometheus and the exporters have no route of their own.
+{$API_HOST} {
+	import common
+
+	# A dossier upload holds up to 6 PDFs of 50 MiB each (DEC-BE-AI2-01 D5):
+	# 300 MiB plus multipart overhead. Caddy reads "MB" as 10^6 bytes, so the
+	# old 300MB refused six full-size files before the backend could answer.
+	request_body {
+		max_size 320MiB
+	}
+
+	# Keycloak reports ended sessions here from inside ci-network
+	# (http://backend:8000); nobody on the Internet has a reason to call it.
+	@backchannel_logout path /api/v1/auth/backchannel-logout
+	respond @backchannel_logout 404
+
+	reverse_proxy backend:8000 {
+		# SSE (/api/v1/runs/{id}/events): pass each event through at once.
+		flush_interval -1
+		# Grafana auth-proxy headers are set by the backend after its
+		# ADMINISTRATOR check, never by a client. The backend drops them too.
+		header_up -X-Webauth-User
+		header_up -X-Webauth-Role
+		header_up -X-Webauth-Name
+		header_up -X-Webauth-Email
+		header_up -X-Webauth-Groups
+	}
+}
+
+# Keycloak — login pages, OIDC endpoints and the account console.
+{$AUTH_HOST} {
+	import common
+
+	# Admin console and admin REST stay off the Internet; operators use an SSH
+	# tunnel (deploy/README.md). The backend reaches admin REST internally.
+	@admin path /admin /admin/*
+	respond @admin 404
+
+	# The master realm (Keycloak's own administrators) has no business online.
+	# Cloudflare's WAF blocks it too; this holds even if a request gets past it.
+	# keycloak_configure.py reaches it inside ci-network, not through here.
+	@master path /realms/master /realms/master/*
+	respond @master 404
+
+	# Keycloak asks browsers to keep theme files 30 days, and the path
+	# (/resources/<tag>/...) does not change when the theme does, so an edit to
+	# keycloak/themes/ would stay invisible that long. Ten minutes instead.
+	@theme path /resources/*
+	header @theme >Cache-Control "public, max-age=600"
+
+	reverse_proxy keycloak:8080
+}
+
+# Optional sites mounted by compose overrides (deploy/compose.frontend.yml adds
+# the frontend). No file there means no extra site.
+import /etc/caddy/sites/*.caddy

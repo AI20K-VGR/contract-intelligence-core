@@ -1,0 +1,55 @@
+{
+  "stage": "cook",
+  "plan": "261010-1309-contract-graph-recall-remediation",
+  "checks": [
+    {
+      "name": "p5_preflight",
+      "status": "PASS"
+    },
+    {
+      "name": "combined_decisions_digest",
+      "status": "PASS"
+    },
+    {
+      "name": "combined_selection_digest",
+      "status": "PASS"
+    },
+    {
+      "name": "live_trials",
+      "status": "PASS"
+    },
+    {
+      "name": "decision_rederived",
+      "status": "PASS"
+    },
+    {
+      "name": "manifest_verify",
+      "status": "PASS"
+    },
+    {
+      "name": "eval_contract_graph",
+      "status": "PASS"
+    },
+    {
+      "name": "ai_contract_graph_focus",
+      "status": "PASS"
+    },
+    {
+      "name": "ruff",
+      "status": "PASS"
+    },
+    {
+      "name": "runtime_off",
+      "status": "PASS"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P5",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-10T13:06:13+00:00",
+  "blastRadius": {
+    "unavailable": true,
+    "reason": "no codemap.yaml at C:\\Users\\dungs\\OneDrive\\Documents\\VSF-ai2-contract-graph"
+  },
+  "run_seq": null
+}

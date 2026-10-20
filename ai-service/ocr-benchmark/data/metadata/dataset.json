@@ -1,0 +1,28 @@
+{
+  "documents": [
+    {
+      "document_id": "DOC-101",
+      "file_name": "736532046-Scan-0012.pdf",
+      "language": ["vi"],
+      "source_type": "scan",
+      "scan_quality": "clean",
+      "test_cases": ["baseline_clean"]
+    },
+    {
+      "document_id": "DOC-102",
+      "file_name": "HD05_bang_khong_STT_khong_header_scan.pdf",
+      "language": ["vi"],
+      "source_type": "scan",
+      "scan_quality": "medium",
+      "test_cases": ["table_no_header", "table_no_stt"]
+    },
+    {
+      "document_id": "DOC-103",
+      "file_name": "Hop_dong_scan_testcase_bang_dut_doan_con_dau_v2.pdf",
+      "language": ["vi"],
+      "source_type": "scan",
+      "scan_quality": "hard",
+      "test_cases": ["stamp_over_table", "table_interruption"]
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+"""DossierRepository — abstract.
+
+Triển khai cụ thể ở ``infrastructure/persistence/dossier_repository_impl.py``.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from datetime import datetime
+from typing import Any, Protocol, runtime_checkable
+
+from contract_intelligence.contract.domain.entities.dossier import Dossier
+from contract_intelligence.shared.base import Page
+
+
+@runtime_checkable
+class DossierRepository(Protocol):
+    """Protocol để application service có thể type-hint mà không cần ABC kế thừa.
+
+    Triển khai concrete trong infrastructure. Application chỉ type-hint Protocol.
+    """
+
+    async def get(self, dossier_id: str) -> Dossier | None: ...
+
+    async def get_for_update(self, dossier_id: str) -> Dossier | None:
+        """Lock dossier row (SELECT … FOR UPDATE) within the current tenant."""
+        ...
+
+    async def list(
+        self,
+        *,
+        status: str | None = None,
+        has_conflicts: bool | None = None,
+        q: str | None = None,
+        batch_id: str | None = None,
+        viewer_id: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> Page[str]: ...
+
+    async def add(self, dossier: Dossier) -> None: ...
+
+    async def save(self, dossier: Dossier) -> None: ...
+
+    async def begin_deletion(self, dossier_id: str, requested_by: str) -> bool: ...
+
+    async def has_deletion(self, dossier_id: str) -> bool: ...
+
+    async def dossier_row_exists(self, dossier_id: str) -> bool: ...
+
+    async def mark_purged(self, dossier_id: str, evidence: dict[str, int]) -> None: ...
+
+    async def mark_purge_failed(self, dossier_id: str) -> None: ...
+
+    async def related_blob_uris(self, dossier_id: str) -> Sequence[str]:
+        """Blob URIs for page renders and approval snapshots of this dossier."""
+        ...
+
+    async def delete(self, dossier_id: str) -> None: ...
+
+    async def update_status(self, dossier_id: str, status: str) -> None: ...
+
+    async def lock(self, dossier_id: str, locked: bool = True) -> None: ...
+
+    async def approve(self, dossier_id: str, checksum: str) -> None: ...
+
+    async def get_flags(
+        self, dossier_id: str, *, for_update: bool = False
+    ) -> dict[str, object] | None:
+        """Return ``{is_locked, is_approved, status}`` or None if missing.
+
+        ``for_update`` row-locks the dossier until the transaction ends.
+        """
+        ...
+
+    async def review_counts(self, dossier_id: str) -> tuple[int, int]:
+        """Return ``(open_review_items, pending_conflicts)`` of the dossier."""
+        ...
+
+    async def lifecycle(
+        self, dossier_ids: Sequence[str]
+    ) -> dict[str, tuple[bool, datetime | None]]:
+        """Return ``{dossier_id: (locked, approved_at)}`` for the given dossiers."""
+        ...
+
+    async def document_summaries(self, dossier_ids: Sequence[str]) -> dict[str, dict[str, Any]]:
+        """Per dossier: document counts by role and the contract's OCR page status.
+
+        One round trip for a whole list page, so the list screen does not
+        fetch documents and pages once per dossier. The default returns
+        nothing, so the list leaves both fields null.
+        """
+        return {}
+
+    async def is_tombstoned(self, dossier_id: str) -> bool:
+        """True when the dossier exists but has been soft-deleted (tombstoned)."""
+        ...

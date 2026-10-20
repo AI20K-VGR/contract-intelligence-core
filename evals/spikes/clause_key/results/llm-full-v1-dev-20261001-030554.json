@@ -1,0 +1,929 @@
+{
+  "mode": "llm-full",
+  "lexicon": "v1",
+  "prompt": "v1",
+  "data": "clauses_dev.jsonl",
+  "n_clauses": 34,
+  "n_frames": 34,
+  "gold_span_errors": [],
+  "extract": {
+    "rejected_spans": 5,
+    "frames_returned": 34
+  },
+  "key_accuracy": {
+    "k": 33,
+    "n": 34,
+    "rate": 0.971,
+    "wilson95": [
+      0.851,
+      0.995
+    ]
+  },
+  "coverage_mapped": {
+    "k": 30,
+    "n": 34,
+    "rate": 0.882,
+    "wilson95": [
+      0.734,
+      0.953
+    ]
+  },
+  "accuracy_when_mapped": {
+    "k": 29,
+    "n": 30,
+    "rate": 0.967,
+    "wilson95": [
+      0.833,
+      0.994
+    ]
+  },
+  "layers": {
+    "1": 20,
+    "2": 9,
+    "3": 1,
+    "7": 4
+  },
+  "layer_accuracy": {
+    "1": {
+      "k": 20,
+      "n": 20,
+      "rate": 1.0,
+      "wilson95": [
+        0.839,
+        1.0
+      ]
+    },
+    "2": {
+      "k": 8,
+      "n": 9,
+      "rate": 0.889,
+      "wilson95": [
+        0.565,
+        0.98
+      ]
+    },
+    "3": {
+      "k": 1,
+      "n": 1,
+      "rate": 1.0,
+      "wilson95": [
+        0.207,
+        1.0
+      ]
+    },
+    "7": {
+      "k": 4,
+      "n": 4,
+      "rate": 1.0,
+      "wilson95": [
+        0.51,
+        1.0
+      ]
+    }
+  },
+  "pair_precision": {
+    "k": 12,
+    "n": 13,
+    "rate": 0.923,
+    "wilson95": [
+      0.667,
+      0.986
+    ]
+  },
+  "pair_recall": {
+    "k": 12,
+    "n": 12,
+    "rate": 1.0,
+    "wilson95": [
+      0.757,
+      1.0
+    ]
+  },
+  "false_merges": [
+    [
+      "D12#0",
+      "D13#0",
+      "('PARAM', 'CONTRACT_VALUE', None)"
+    ]
+  ],
+  "consequence_parse": {
+    "k": 26,
+    "n": 27,
+    "rate": 0.963,
+    "wilson95": [
+      0.817,
+      0.993
+    ]
+  },
+  "decision_gold_keys": {
+    "k": 8,
+    "n": 10,
+    "rate": 0.8,
+    "wilson95": [
+      0.49,
+      0.943
+    ]
+  },
+  "decision_end_to_end": {
+    "k": 8,
+    "n": 10,
+    "rate": 0.8,
+    "wilson95": [
+      0.49,
+      0.943
+    ]
+  },
+  "rows": [
+    {
+      "id": "D01#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "pred_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "bearer_text": "Bên Bán",
+        "action_text": "giao hàng",
+        "qualifier_text": "không đúng thời hạn",
+        "condition_text": "đã thỏa thuận",
+        "consequence_text": "phải chịu phạt 7.000.000 đồng"
+      }
+    },
+    {
+      "id": "D02#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "pred_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "bearer_text": "Bên Bán",
+        "action_text": "giao",
+        "qualifier_text": null,
+        "condition_text": null,
+        "consequence_text": "bị phạt 4% giá trị hàng chậm giao"
+      }
+    },
+    {
+      "id": "D03#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "pred_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "bearer_text": "Bên Bán",
+        "action_text": "giao hàng",
+        "qualifier_text": "muộn",
+        "condition_text": "quá 20 ngày",
+        "consequence_text": "Bên Mua có quyền hủy hợp đồng"
+      }
+    },
+    {
+      "id": "D04#0",
+      "profile": "SALES",
+      "gold_key": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "layer": 2,
+      "pred_spans": {
+        "bearer_text": "Bên Mua",
+        "action_text": "trả tiền hàng",
+        "qualifier_text": "chậm",
+        "condition_text": "từ 11 ngày trở lên",
+        "consequence_text": "chịu phạt 1% giá trị chậm trả"
+      }
+    },
+    {
+      "id": "D05#0",
+      "profile": "SALES",
+      "gold_key": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "bearer_text": "Bên Mua",
+        "action_text": "thanh toán",
+        "qualifier_text": "quá hạn",
+        "condition_text": "trên 10 ngày",
+        "consequence_text": "phải chịu phạt 2.000.000 đồng"
+      }
+    },
+    {
+      "id": "D06#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "pred_key": [
+        "SELLER",
+        "DELIVER",
+        "LATE"
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "bearer_text": "Bên Bán",
+        "action_text": "giao hàng",
+        "qualifier_text": null,
+        "condition_text": null,
+        "consequence_text": "phải chịu phạt 3% giá trị hợp đồng"
+      }
+    },
+    {
+      "id": "D07#0",
+      "profile": "SALES",
+      "gold_key": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "BUYER",
+        "PAY",
+        "LATE"
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "bearer_text": "Bên Mua",
+        "action_text": "thanh toán",
+        "qualifier_text": null,
+        "condition_text": null,
+        "consequence_text": "phải trả lãi chậm trả theo lãi suất 12%/năm"
+      }
+    },
+    {
+      "id": "D08#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "DELIVER",
+        "DEFECTIVE"
+      ],
+      "pred_key": [
+        "SELLER",
+        "DELIVER",
+        "DEFECTIVE"
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "bearer_text": "Bên Bán",
+        "action_text": "giao",
+        "qualifier_text": "bị hư hỏng hoặc không đúng quy cách",
+        "condition_text": null,
+        "consequence_text": "phải thay thế và chịu phạt 10.000.000 đồng"
+      }
+    },
+    {
+      "id": "D09#0",
+      "profile": "SALES",
+      "gold_key": [
+        "SELLER",
+        "DELIVER",
+        "WRONG_QTY"
+      ],
+      "pred_key": [
+        "SELLER",
+        "DELIVER",
+        "WRONG_QTY"
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "bearer_text": "Bên Bán",
+        "action_text": "Giao hàng",
+        "qualifier_text": "không đủ số lượng",
+        "condition_text": "theo đơn đặt hàng",
+        "consequence_text": "phải giao bổ sung và chịu phạt 2% giá trị phần hàng thiếu"
+      }
+    },
+    {
+      "id": "D10#0",
+      "profile": "SALES",
+      "gold_key": [
+        "PARAM",
+        "PRICE",
+        "sản phẩm x"
+      ],
+      "pred_key": [
+        "PARAM",
+        "PRICE",
+        "sản phẩm x"
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "param_text": "Đơn giá",
+        "object_text": "sản phẩm X",
+        "value_text": "12.000.000 đồng/chiếc"
+      }
+    },
+    {
+      "id": "D11#0",
+      "profile": "SALES",
+      "gold_key": [
+        "PARAM",
+        "PRICE",
+        "sản phẩm x"
+      ],
+      "pred_key": [
+        "PARAM",
+        "PRICE",
+        "sản phẩm x"
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "param_text": "giá",
+        "object_text": "sản phẩm X",
+        "value_text": "13.500.000 đồng/chiếc"
+      }
+    },
+    {
+      "id": "D12#0",
+      "profile": "SALES",
+      "gold_key": null,
+      "pred_key": [
+        "PARAM",
+        "CONTRACT_VALUE",
+        null
+      ],
+      "layer": 2,
+      "pred_spans": {
+        "param_text": "Giá trị tạm ứng",
+        "object_text": "giá trị hợp đồng",
+        "value_text": "30%"
+      }
+    },
+    {
+      "id": "D13#0",
+      "profile": "SALES",
+      "gold_key": [
+        "PARAM",
+        "CONTRACT_VALUE",
+        null
+      ],
+      "pred_key": [
+        "PARAM",
+        "CONTRACT_VALUE",
+        null
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "param_text": "Giá trị",
+        "object_text": "hợp đồng",
+        "value_text": "900.000.000 đồng"
+      }
+    },
+    {
+      "id": "D14#0",
+      "profile": "LEASE",
+      "gold_key": [
+        "LESSEE",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "LESSEE",
+        "PAY",
+        "LATE"
+      ],
+      "layer": 2,
+      "pred_spans": {
+        "bearer_text": "Bên thuê",
+        "action_text": "trả tiền thuê",
+        "qualifier_text": "không đúng hạn",
+        "condition_text": "quá 7 ngày",
+        "consequence_text": "Bên cho thuê được phạt 5% tiền thuê tháng đó"
+      }
+    },
+    {
+      "id": "D15#0",
+      "profile": "LEASE",
+      "gold_key": [
+        "LESSOR",
+        "HANDOVER_ASSET",
+        "LATE"
+      ],
+      "pred_key": [
+        "LESSOR",
+        "HANDOVER_ASSET",
+        "LATE"
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "bearer_text": "Bên cho thuê",
+        "action_text": "bàn giao nhà",
+        "qualifier_text": "chậm",
+        "condition_text": "quá 10 ngày",
+        "consequence_text": "phải chịu phạt 20.000.000 đồng"
+      }
+    },
+    {
+      "id": "D16#0",
+      "profile": "LEASE",
+      "gold_key": [
+        "LESSEE",
+        "RETURN_ASSET",
+        "LATE"
+      ],
+      "pred_key": [
+        "LESSEE",
+        "RETURN_ASSET",
+        "LATE"
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "bearer_text": "Bên thuê",
+        "action_text": "hoàn trả tài sản",
+        "qualifier_text": "chậm",
+        "condition_text": null,
+        "consequence_text": "phải trả thêm tiền thuê cho những ngày chậm trả"
+      }
+    },
+    {
+      "id": "D17#0",
+      "profile": "LEASE",
+      "gold_key": [
+        "PARAM",
+        "DEPOSIT",
+        null
+      ],
+      "pred_key": [
+        "PARAM",
+        "DEPOSIT",
+        null
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "param_text": "Tiền đặt cọc",
+        "object_text": null,
+        "value_text": "100.000.000 đồng"
+      }
+    },
+    {
+      "id": "D18#0",
+      "profile": "CONSTRUCTION_WORK",
+      "gold_key": [
+        "CONTRACTOR",
+        "COMPLETE_WORK",
+        "LATE"
+      ],
+      "pred_key": [
+        "CONTRACTOR",
+        "COMPLETE_WORK",
+        "LATE"
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "bearer_text": "Nhà thầu",
+        "action_text": "bàn giao công trình",
+        "qualifier_text": "chậm so với tiến độ",
+        "condition_text": null,
+        "consequence_text": "bị phạt 0,1% giá trị hợp đồng mỗi ngày chậm"
+      }
+    },
+    {
+      "id": "D19#0",
+      "profile": "CONSTRUCTION_WORK",
+      "gold_key": [
+        "CONTRACTOR",
+        "COMPLETE_WORK",
+        "LATE"
+      ],
+      "pred_key": [
+        "CONTRACTOR",
+        "COMPLETE_WORK",
+        "LATE"
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "bearer_text": "Nhà thầu",
+        "action_text": "hoàn thành hạng mục",
+        "qualifier_text": null,
+        "condition_text": null,
+        "consequence_text": "Chủ đầu tư có quyền tạm dừng thanh toán"
+      }
+    },
+    {
+      "id": "D20#0",
+      "profile": "CONSTRUCTION_WORK",
+      "gold_key": [
+        "OWNER",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "OWNER",
+        "PAY",
+        "LATE"
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "bearer_text": "Chủ đầu tư",
+        "action_text": "thanh toán",
+        "qualifier_text": "chậm",
+        "condition_text": "quá 30 ngày",
+        "consequence_text": "Nhà thầu được quyền tạm dừng thi công"
+      }
+    },
+    {
+      "id": "D21#0",
+      "profile": "CONSTRUCTION_WORK",
+      "gold_key": [
+        "CONTRACTOR",
+        "COMPLETE_WORK",
+        "DEFECTIVE"
+      ],
+      "pred_key": [
+        "CONTRACTOR",
+        "COMPLETE_WORK",
+        "DEFECTIVE"
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "bearer_text": "Nhà thầu",
+        "action_text": "thi công",
+        "qualifier_text": "sai thiết kế",
+        "condition_text": null,
+        "consequence_text": "phải phá dỡ, làm lại và chịu phạt 5% giá trị phần công việc vi phạm"
+      }
+    },
+    {
+      "id": "D22#0",
+      "profile": "SUPPLY_SERVICE",
+      "gold_key": [
+        "SUPPLIER",
+        "PROVIDE_SERVICE",
+        "LATE"
+      ],
+      "pred_key": [
+        "SUPPLIER",
+        "PROVIDE_SERVICE",
+        "LATE"
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "bearer_text": "Bên cung cấp",
+        "action_text": "triển khai dịch vụ",
+        "qualifier_text": "chậm hơn kế hoạch",
+        "condition_text": "quá 3 ngày",
+        "consequence_text": "chịu phạt 1.500.000 đồng mỗi ngày"
+      }
+    },
+    {
+      "id": "D23#0",
+      "profile": "SUPPLY_SERVICE",
+      "gold_key": [
+        "CUSTOMER",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "CUSTOMER",
+        "PAY",
+        "LATE"
+      ],
+      "layer": 2,
+      "pred_spans": {
+        "bearer_text": "Khách hàng",
+        "action_text": "thanh toán phí dịch vụ",
+        "qualifier_text": "chậm",
+        "condition_text": "quá 30 ngày",
+        "consequence_text": "Bên cung cấp được chấm dứt hợp đồng"
+      }
+    },
+    {
+      "id": "D24#0",
+      "profile": "SUPPLY_SERVICE",
+      "gold_key": null,
+      "pred_key": null,
+      "layer": 7,
+      "pred_spans": {
+        "bearer_text": "Bên cung cấp",
+        "action_text": null,
+        "qualifier_text": "dưới",
+        "condition_text": "99,5% trong tháng",
+        "consequence_text": "giảm 5% phí dịch vụ"
+      }
+    },
+    {
+      "id": "D25#0",
+      "profile": "EMPLOYMENT",
+      "gold_key": [
+        "EMPLOYER",
+        "PAY",
+        "LATE"
+      ],
+      "pred_key": [
+        "EMPLOYER",
+        "PAY",
+        "LATE"
+      ],
+      "layer": 2,
+      "pred_spans": {
+        "bearer_text": "Người sử dụng lao động",
+        "action_text": "chi trả tiền lương",
+        "qualifier_text": "chậm",
+        "condition_text": "quá 15 ngày",
+        "consequence_text": "phải trả thêm tiền lãi cho người lao động"
+      }
+    },
+    {
+      "id": "D26#0",
+      "profile": "EMPLOYMENT",
+      "gold_key": null,
+      "pred_key": null,
+      "layer": 7,
+      "pred_spans": {
+        "bearer_text": "Người lao động",
+        "action_text": "bỏ việc",
+        "qualifier_text": "tự ý",
+        "condition_text": "từ 5 ngày làm việc liên tục trở lên",
+        "consequence_text": "bị xử lý kỷ luật sa thải"
+      }
+    },
+    {
+      "id": "D27#0",
+      "profile": "EMPLOYMENT",
+      "gold_key": [
+        "PARAM",
+        "SALARY",
+        null
+      ],
+      "pred_key": [
+        "PARAM",
+        "SALARY",
+        null
+      ],
+      "layer": 2,
+      "pred_spans": {
+        "param_text": "Lương cơ bản",
+        "object_text": null,
+        "value_text": "18.000.000 đồng/tháng"
+      }
+    },
+    {
+      "id": "D28#0",
+      "profile": "NDA",
+      "gold_key": [
+        "RECIPIENT",
+        "DISCLOSE",
+        "UNAUTHORIZED"
+      ],
+      "pred_key": [
+        "RECIPIENT",
+        "DISCLOSE",
+        "UNAUTHORIZED"
+      ],
+      "layer": 2,
+      "pred_spans": {
+        "bearer_text": "Bên nhận",
+        "action_text": "tiết lộ Thông tin mật",
+        "qualifier_text": "mà không được Bên tiết lộ chấp thuận trước",
+        "condition_text": null,
+        "consequence_text": "phải bồi thường 1.000.000.000 đồng"
+      }
+    },
+    {
+      "id": "D29#0",
+      "profile": "NDA",
+      "gold_key": [
+        "RECIPIENT",
+        "DISCLOSE",
+        "UNAUTHORIZED"
+      ],
+      "pred_key": [
+        "RECIPIENT",
+        "DISCLOSE",
+        "UNAUTHORIZED"
+      ],
+      "layer": 2,
+      "pred_spans": {
+        "bearer_text": "Bên nhận",
+        "action_text": "để rò rỉ Thông tin mật",
+        "qualifier_text": "ra bên ngoài",
+        "condition_text": null,
+        "consequence_text": "phải chịu phạt 5% giá trị hợp đồng"
+      }
+    },
+    {
+      "id": "D30#0",
+      "profile": "NDA",
+      "gold_key": [
+        "PARAM",
+        "CONFIDENTIALITY_PERIOD",
+        null
+      ],
+      "pred_key": [
+        "PARAM",
+        "CONFIDENTIALITY_PERIOD",
+        null
+      ],
+      "layer": 2,
+      "pred_spans": {
+        "param_text": "thời hạn",
+        "object_text": "Nghĩa vụ bảo mật",
+        "value_text": "5 năm kể từ ngày chấm dứt hợp đồng"
+      }
+    },
+    {
+      "id": "D31#0",
+      "profile": "SALES",
+      "gold_key": null,
+      "pred_key": null,
+      "layer": 7,
+      "pred_spans": {
+        "bearer_text": "Bên Mua",
+        "action_text": "tiếp nhận hàng",
+        "qualifier_text": "chậm",
+        "condition_text": "quá 3 ngày",
+        "consequence_text": "phải chịu phí lưu kho"
+      }
+    },
+    {
+      "id": "D32#0",
+      "profile": "SALES",
+      "gold_key": null,
+      "pred_key": null,
+      "layer": 7,
+      "pred_spans": {
+        "bearer_text": "Bên Bán",
+        "action_text": "cung cấp chứng từ",
+        "qualifier_text": "chậm",
+        "condition_text": "quá 5 ngày",
+        "consequence_text": "Bên Mua được giữ lại 5% giá trị thanh toán"
+      }
+    },
+    {
+      "id": "D33#0",
+      "profile": "SALES",
+      "gold_key": [
+        "ANY_PARTY",
+        "ANY_OBLIGATION",
+        null
+      ],
+      "pred_key": [
+        "ANY_PARTY",
+        "ANY_OBLIGATION",
+        null
+      ],
+      "layer": 1,
+      "pred_spans": {
+        "bearer_text": "Bên nào vi phạm hợp đồng",
+        "action_text": "vi phạm hợp đồng",
+        "qualifier_text": null,
+        "condition_text": null,
+        "consequence_text": "phải bồi thường thiệt hại thực tế cho bên kia"
+      }
+    },
+    {
+      "id": "D34#0",
+      "profile": "SALES",
+      "gold_key": [
+        "BUYER",
+        "PAY",
+        null
+      ],
+      "pred_key": [
+        "BUYER",
+        "PAY",
+        null
+      ],
+      "layer": 3,
+      "pred_spans": {
+        "bearer_text": "Bên Mua",
+        "action_text": "vi phạm nghĩa vụ",
+        "qualifier_text": null,
+        "condition_text": "tại khoản 3.2",
+        "consequence_text": "chịu phạt 8% giá trị phần nghĩa vụ bị vi phạm"
+      }
+    }
+  ],
+  "wrong_keys": [
+    {
+      "id": "D12#0",
+      "gold": null,
+      "pred": [
+        "PARAM",
+        "CONTRACT_VALUE",
+        null
+      ],
+      "layer": 2
+    }
+  ],
+  "wrong_mapped_ids": [
+    "D12#0"
+  ],
+  "consequence_errors": [
+    {
+      "id": "D16#0",
+      "gold": {
+        "type": "PENALTY_FIXED",
+        "value": null
+      },
+      "got": {
+        "type": null,
+        "value": null,
+        "unit": null,
+        "base": null,
+        "period": null
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "pair": "D01~D02",
+      "expected": "COMPARABLE_DIFFERENCE",
+      "gold_keys": "NEEDS_REVIEW_UNPARSED",
+      "e2e": "NEEDS_REVIEW_UNPARSED"
+    },
+    {
+      "pair": "D01~D03",
+      "expected": "GRADUATED",
+      "gold_keys": "NEEDS_REVIEW_UNPARSED",
+      "e2e": "NEEDS_REVIEW_UNPARSED"
+    },
+    {
+      "pair": "D04~D05",
+      "expected": "COMPARABLE_DIFFERENCE",
+      "gold_keys": "COMPARABLE_DIFFERENCE",
+      "e2e": "COMPARABLE_DIFFERENCE"
+    },
+    {
+      "pair": "D05~D07",
+      "expected": "CUMULATIVE",
+      "gold_keys": "CUMULATIVE",
+      "e2e": "CUMULATIVE"
+    },
+    {
+      "pair": "D02~D06",
+      "expected": "NOT_COMPARABLE",
+      "gold_keys": "NOT_COMPARABLE",
+      "e2e": "NOT_COMPARABLE"
+    },
+    {
+      "pair": "D18~D19",
+      "expected": "CUMULATIVE",
+      "gold_keys": "CUMULATIVE",
+      "e2e": "CUMULATIVE"
+    },
+    {
+      "pair": "D20~D23",
+      "expected": null,
+      "gold_keys": null,
+      "e2e": null
+    },
+    {
+      "pair": "D28~D29",
+      "expected": "CUMULATIVE",
+      "gold_keys": "CUMULATIVE",
+      "e2e": "CUMULATIVE"
+    },
+    {
+      "pair": "D33~D01",
+      "expected": "GENERAL_VS_SPECIFIC",
+      "gold_keys": "GENERAL_VS_SPECIFIC",
+      "e2e": "GENERAL_VS_SPECIFIC"
+    },
+    {
+      "pair": "D03~D06",
+      "expected": "GRADUATED",
+      "gold_keys": "GRADUATED",
+      "e2e": "GRADUATED"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+7c66dbafb226e504ae96080a4985234d642e4fcc05da63b61122c836bc584705 *evals/spikes/clause_key/lexicon_v2.json
+8218658d3c7f9af7a7d586c10e53a365994e490b4181ece5c9c3b98c1b9f5938 *evals/spikes/clause_key/mechanism.py
+a7b9dae2aa99594221db1de8194996618a843325ee6f4a63f881c80b293d9513 *evals/spikes/clause_key/run_spike.py
+# v2.1 = v2 + run_spike retry also on timeouts (infra only; mechanism/lexicon unchanged)

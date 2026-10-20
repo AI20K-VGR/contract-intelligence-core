@@ -1,0 +1,5 @@
+{
+  "schema_version": "ai2.golden.manifest.v1",
+  "description": "Human-reviewed business golden cases. Empty until a reviewer promotes cases with evidence.",
+  "cases": []
+}

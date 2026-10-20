@@ -1,0 +1,239 @@
+{
+  "case_id": "SERVICE-BRD-08",
+  "title": "DOC-02 §8 SERVICE: X 50/40 comparable; Y khác scope NOT_COMPARABLE",
+  "tenant_id": "tenant_a",
+  "dossier_id": "d_svc_brd08",
+  "expected_state": "REVIEW",
+  "expected_no_claims": [
+    "legal_winner",
+    "force_compare"
+  ],
+  "n_pages": 3,
+  "n_nodes": 6,
+  "n_tables": 0,
+  "lifecycle": "ACTIVE",
+  "query": null,
+  "notes": "",
+  "tags": [
+    "brd",
+    "compare",
+    "service"
+  ],
+  "pins": {
+    "manifest_version": 2,
+    "source_snapshot_digest": "sha256:aaa",
+    "tenant_profile_version": 5,
+    "policy_version": 2,
+    "ocr_run_version": 3,
+    "reconstruction_version": 2,
+    "extraction_version": 7,
+    "index_version": "idx_14"
+  },
+  "profile": {
+    "version": 5,
+    "aliases": {
+      "Công ty ABC": [
+        "ABC Co.",
+        "ABC"
+      ],
+      "Công ty XYZ": [
+        "XYZ Ltd",
+        "XYZ"
+      ]
+    },
+    "field_keys": [
+      "party_a",
+      "party_b",
+      "mst_seller",
+      "contract_value",
+      "payment_term"
+    ]
+  },
+  "acl_revision": 12,
+  "legal_hold": false,
+  "egress_approved": true,
+  "budget_exceeded": false,
+  "index_status": "READY",
+  "active_index_version": null,
+  "processing_index": false,
+  "envelope": {
+    "auth": {
+      "actor_id": "user_001",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_svc_brd08",
+      "acl_revision": 12,
+      "permissions": [
+        "READ_CONTENT"
+      ],
+      "lifecycle": "ACTIVE"
+    },
+    "pins": {
+      "manifest_version": 2,
+      "source_snapshot_digest": "sha256:aaa",
+      "tenant_profile_version": 5,
+      "policy_version": 2,
+      "ocr_run_version": 3,
+      "reconstruction_version": 2,
+      "extraction_version": 7,
+      "index_version": "idx_14"
+    }
+  },
+  "pages": [
+    {
+      "page_revision_id": "p1_rev1",
+      "page_number": 1,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p1_b1"
+      ],
+      "text": "Phí X 50%.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p2_rev1",
+      "page_number": 2,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p2_b1"
+      ],
+      "text": "Phụ lục 1: phí X 40%.",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "page_revision_id": "p3_rev1",
+      "page_number": 3,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p3_b1"
+      ],
+      "text": "Phụ lục 2: phí Y khác phạm vi.",
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "doc_body",
+      "type": "SECTION",
+      "raw_label": "Hợp đồng DV",
+      "parent_id": null,
+      "order": 0,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "HĐ",
+      "page_range": [
+        1
+      ],
+      "page_revision_id": "p1_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "fx",
+      "type": "FIELD",
+      "raw_label": "Phí X",
+      "parent_id": "doc_body",
+      "order": 1,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Phí X: 50%",
+      "page_range": [
+        1
+      ],
+      "page_revision_id": "p1_rev1",
+      "bbox": [],
+      "structured_key": "scope:X",
+      "structured_value": "50%",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "doc_pl1",
+      "type": "SECTION",
+      "raw_label": "Phụ lục 1",
+      "parent_id": null,
+      "order": 2,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "PL1",
+      "page_range": [
+        2
+      ],
+      "page_revision_id": "p2_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "fx1",
+      "type": "FIELD",
+      "raw_label": "Phí X PL1",
+      "parent_id": "doc_pl1",
+      "order": 3,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Phí X: 40%",
+      "page_range": [
+        2
+      ],
+      "page_revision_id": "p2_rev1",
+      "bbox": [],
+      "structured_key": "scope:X",
+      "structured_value": "40%",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "doc_pl2",
+      "type": "SECTION",
+      "raw_label": "Phụ lục 2",
+      "parent_id": null,
+      "order": 4,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "PL2",
+      "page_range": [
+        3
+      ],
+      "page_revision_id": "p3_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "fy",
+      "type": "FIELD",
+      "raw_label": "Phí Y",
+      "parent_id": "doc_pl2",
+      "order": 5,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Phí Y: 10%",
+      "page_range": [
+        3
+      ],
+      "page_revision_id": "p3_rev1",
+      "bbox": [],
+      "structured_key": "scope:Y",
+      "structured_value": "10%",
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "tables": []
+}

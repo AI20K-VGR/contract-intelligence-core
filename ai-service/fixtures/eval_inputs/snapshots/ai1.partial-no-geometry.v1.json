@@ -1,0 +1,25 @@
+{
+  "schema_version": "ai1.snapshot.v1",
+  "snapshot_id": "eval-partial-no-geometry",
+  "dossier_id": "eval_partial_no_geometry",
+  "document_id": "doc-partial-no-geometry",
+  "run_id": "run-eval-partial",
+  "source_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "execution": {"ocr_engine": "mock", "attempt": 1},
+  "producer": {"name": "AI1 eval fixture", "version": "1"},
+  "status": "PARTIAL",
+  "pages": [
+    {
+      "page_no": 1,
+      "input_type": "SCANNED_OCR",
+      "status": "SUCCESS",
+      "raw_text_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "render": {},
+      "transform": {"rotation_degrees": 0, "profile_version": "eval"},
+      "lines": [],
+      "tables": [{"table_id": "t-no-geometry", "cells": []}],
+      "warnings": [{"code": "table_structure_unavailable"}],
+      "text": "Điều 5. Giá trị hợp đồng và thanh toán. Bảng chi tiết chưa có geometry."
+    }
+  ]
+}

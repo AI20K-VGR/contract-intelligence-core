@@ -1,0 +1,2409 @@
+"""Kafka worker state machine (sqlite, offline).
+
+- ``dossier.uploaded`` opens/resumes a run; OCR restart supersedes it
+- AI1 results bind to the job's current run and the tenant/dossier in the DB
+- EXTRACTED only once every document of the dossier has a snapshot
+- invalid/missing snapshot → FAILED + audit; nothing moves a job backwards
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import AsyncGenerator, Iterator
+from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+import pytest_asyncio
+from sqlalchemy import select
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+import contract_intelligence.worker as worker
+from contract_intelligence.contract.infrastructure.persistence.orm import (
+    DocumentORM,
+    DossierORM,
+    JobORM,
+    ManifestORM,
+)
+from contract_intelligence.extraction.infrastructure.persistence.orm import (
+    PipelineRunORM,
+    PipelineStepORM,
+)
+from contract_intelligence.shared.audit import AuditEventORM
+from contract_intelligence.shared.persistence import Base
+from contract_intelligence.shared.persistence.orm_registry import import_all_models
+
+TENANT = "tenant_test"
+DOSSIER = "dos_test"
+JOB = "job_test"
+DOC_A = "doc_a"
+DOC_B = "doc_b"
+
+
+@pytest.fixture(autouse=True)
+def _reset_worker_state(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    # Lifecycle tests here exercise the durable AI2 handoff independently of
+    # semantic-profile resolution, which has its own focused tests.
+    monkeypatch.setenv("AI2_SEMANTIC_ENABLED", "false")
+    worker._ai2_tasks.clear()
+    yield
+    worker._ai2_tasks.clear()
+
+
+@pytest_asyncio.fixture
+async def factory(tmp_path: Any) -> AsyncGenerator[async_sessionmaker[AsyncSession], None]:
+    import_all_models()
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'worker.db'}")
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+    async with session_factory() as session:
+        session.add_all(
+            [
+                DossierORM(id=DOSSIER, tenant_id=TENANT, name="Worker fixture"),
+                JobORM(id=JOB, tenant_id=TENANT, dossier_id=DOSSIER),
+                *(
+                    DocumentORM(
+                        id=doc_id,
+                        tenant_id=TENANT,
+                        dossier_id=DOSSIER,
+                        role="CONTRACT" if index == 0 else "ANNEX",
+                        order_index=index,
+                        filename=f"{doc_id}.pdf",
+                        sha256=str(index) * 64,
+                    )
+                    for index, doc_id in enumerate((DOC_A, DOC_B))
+                ),
+            ]
+        )
+        await session.commit()
+    yield session_factory
+    await engine.dispose()
+
+
+@pytest.fixture
+def ai2_ready(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """Stub the AI1 snapshot adapter/persistence and the AI2 hand-off."""
+    monkeypatch.setattr(
+        worker,
+        "adapt_ai1_snapshot_result",
+        lambda result: SimpleNamespace(document_id=result["snapshot"]["document_id"], pages=[]),
+    )
+    monkeypatch.setattr(worker, "persist_ai1_snapshot", AsyncMock())
+    schedule_ai2 = MagicMock()
+    monkeypatch.setattr(worker, "_schedule_ai2", schedule_ai2)
+    return schedule_ai2
+
+
+async def _start(factory: async_sessionmaker[AsyncSession], *, restart: bool = False) -> str:
+    async with factory() as session:
+        run_id = await worker._mark_processing(session, DOSSIER, restart=restart)
+        await session.commit()
+    assert run_id is not None
+    return run_id
+
+
+async def _job(factory: async_sessionmaker[AsyncSession]) -> JobORM:
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+    assert job is not None
+    return job
+
+
+async def _audits(factory: async_sessionmaker[AsyncSession], action: str) -> list[AuditEventORM]:
+    async with factory() as session:
+        rows = await session.execute(select(AuditEventORM).where(AuditEventORM.action == action))
+        return list(rows.scalars())
+
+
+def _ocr_completed(run_id: str, document_id: str, **overrides: Any) -> dict[str, Any]:
+    message: dict[str, Any] = {
+        "schema_version": worker.SCHEMA_VERSION,
+        "event_id": f"evt_{run_id}_{document_id}",
+        "event_type": worker.EVENT_OCR_COMPLETED,
+        "tenant_id": TENANT,
+        "correlation": {"dossier_id": DOSSIER, "document_id": document_id, "run_id": run_id},
+        "payload": {
+            "job_id": f"ai1_{document_id}",
+            "status": "completed",
+            "result": {
+                "snapshot": {
+                    "schema_version": "ai1.snapshot.v1",
+                    "document_id": document_id,
+                    "pages": [],
+                }
+            },
+        },
+    }
+    message.update(overrides)
+    return message
+
+
+async def _deliver(factory: async_sessionmaker[AsyncSession], message: dict[str, Any]) -> None:
+    async with factory() as session:
+        await worker.handle_ai1_result(session, message)
+
+
+@pytest.mark.asyncio
+async def test_worker_restart_resumes_extracted_current_run(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.status = "extracted"
+        await session.commit()
+
+    await worker._resume_pending_ai2(factory)
+
+    ai2_ready.assert_called_once_with(
+        dossier_id=DOSSIER,
+        tenant_id=TENANT,
+        run_id=run_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# dossier.uploaded / OCR restart
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_upload_opens_run_with_all_steps(factory: async_sessionmaker[AsyncSession]) -> None:
+    run_id = await _start(factory)
+
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+        steps = (
+            await session.execute(
+                select(PipelineStepORM.step).where(PipelineStepORM.run_id == run_id)
+            )
+        ).scalars()
+        dossier = await session.get(DossierORM, DOSSIER)
+    job = await _job(factory)
+
+    assert run is not None and run.job_id == JOB and run.status == "running"
+    assert sorted(steps, key=lambda s: int(s[1:])) == [f"S{n}" for n in range(11)]
+    assert job.status == "processing" and job.current_run_id == run_id
+    assert dossier is not None and dossier.status == "processing"
+    assert len(await _audits(factory, "job.status_changed")) == 1
+
+
+@pytest.mark.asyncio
+async def test_redelivered_upload_resumes_active_run(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    first = await _start(factory)
+    second = await _start(factory)
+    assert first == second
+
+
+@pytest.mark.asyncio
+async def test_ocr_command_asks_for_every_page_with_one_render_url_each(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    get_url = AsyncMock(return_value="http://get")
+    monkeypatch.setattr(worker.storage, "generate_presigned_get_url", get_url)
+    put_url = AsyncMock(side_effect=lambda *, key, expires_in, **_: f"http://put/{key}")
+    monkeypatch.setattr(worker.storage, "generate_presigned_put_url", put_url)
+    document = DocumentORM(
+        id=DOC_A,
+        tenant_id=TENANT,
+        dossier_id=DOSSIER,
+        role="CONTRACT",
+        order_index=0,
+        filename="a.pdf",
+        sha256="0" * 64,
+        blob_uri="s3://dossiers/a.pdf",
+        page_count=200,
+    )
+    dossier = DossierORM(id=DOSSIER, tenant_id=TENANT, name="x")
+
+    envelope = await worker._build_ocr_command_payload(
+        document=document, dossier=dossier, run_id="run_x"
+    )
+
+    payload = envelope["payload"]
+    assert payload["pages_to_process"] == list(range(1, 201))
+    urls = payload["render_target"]["presigned_put_urls"]
+    assert len(urls) == 200 and urls["200"].endswith("/page-200.png")
+    # URLs outlive the run's AI1 deadline (default 600s + 30s x 200 pages) by 10 min.
+    expected_ttl = worker.ai1_deadline_seconds(200) + 600
+    assert expected_ttl == 7200
+    assert get_url.await_args.kwargs["expires_in"] == expected_ttl
+    assert {call.kwargs["expires_in"] for call in put_url.await_args_list} == {expected_ttl}
+    # One more PUT URL: where AI1 may upload the snapshot JSON (DOC-11 §2).
+    target = payload["options"]["result_target"]
+    assert target["uri"] == f"s3://ci-render/{DOC_A}/ai1-result/run_x.json"
+    assert target["put_url"] == f"http://put/{DOC_A}/ai1-result/run_x.json"
+    assert target["content_type"] == "application/json"
+    assert put_url.await_count == 201
+
+
+def test_presign_ttl_never_exceeds_the_s3_limit() -> None:
+    assert worker._presign_ttl_seconds(1_000_000) == 7 * 24 * 3600
+
+
+# ---------------------------------------------------------------------------
+# AI1 watchdog
+# ---------------------------------------------------------------------------
+
+
+async def _age_run(factory: async_sessionmaker[AsyncSession], run_id: str, seconds: int) -> None:
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+        assert run is not None
+        run.created_at = datetime.now(tz=UTC) - timedelta(seconds=seconds)
+        await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_watchdog_fails_run_past_its_ai1_deadline(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    run_id = await _start(factory)
+    # Fixture documents have no page count: deadline = 600 + 30 x 1 page.
+    await _age_run(factory, run_id, worker.ai1_deadline_seconds(0) + 5)
+
+    async with factory() as session:
+        assert await worker.fail_overdue_ai1_runs(session) == [run_id]
+
+    job = await _job(factory)
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+    assert job.status == "failed" and job.error_code == "AI1_TIMEOUT"
+    assert run is not None and run.status == "failed"
+    (audit,) = await _audits(factory, "ai1.timeout")
+    assert audit.run_id == run_id
+
+
+@pytest.mark.asyncio
+async def test_watchdog_leaves_runs_within_deadline_and_finished_jobs(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    run_id = await _start(factory)
+    await _age_run(factory, run_id, worker.ai1_deadline_seconds(0) - 60)
+    async with factory() as session:
+        assert await worker.fail_overdue_ai1_runs(session) == []
+
+    # A job that already left PROCESSING is never touched, however old its run.
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.status = "pending_review"
+        await session.commit()
+    await _age_run(factory, run_id, 10 * worker.ai1_deadline_seconds(0))
+    async with factory() as session:
+        assert await worker.fail_overdue_ai1_runs(session) == []
+    assert (await _job(factory)).status == "pending_review"
+
+
+@pytest.mark.asyncio
+async def test_watchdog_deadline_grows_with_page_count(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with factory() as session:
+        for doc_id in (DOC_A, DOC_B):
+            document = await session.get(DocumentORM, doc_id)
+            assert document is not None
+            document.page_count = 100
+        await session.commit()
+    run_id = await _start(factory)
+    # Old enough for a 1-page dossier, well inside the 200-page deadline (6600s).
+    await _age_run(factory, run_id, 3600)
+    async with factory() as session:
+        assert await worker.fail_overdue_ai1_runs(session) == []
+    await _age_run(factory, run_id, worker.ai1_deadline_seconds(200) + 5)
+    async with factory() as session:
+        assert await worker.fail_overdue_ai1_runs(session) == [run_id]
+
+
+@pytest.mark.asyncio
+async def test_ocr_result_after_timeout_does_not_revive_the_job(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    await _age_run(factory, run_id, worker.ai1_deadline_seconds(0) + 5)
+    async with factory() as session:
+        await worker.fail_overdue_ai1_runs(session)
+
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+
+    job = await _job(factory)
+    assert job.status == "failed" and job.error_code == "AI1_TIMEOUT"
+    assert ai2_ready.call_count == 0
+    late = await _audits(factory, "ai1.late_result")
+    assert [a.run_id for a in late] == [run_id, run_id]
+    assert all('"job_error_code": "AI1_TIMEOUT"' in (a.detail or "") for a in late)
+
+
+@pytest.mark.asyncio
+async def test_upload_event_starts_run_queued_by_api(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """POST /runs commits a queued run; the worker must run that one, not a new one."""
+    async with factory() as session:
+        session.add(
+            PipelineRunORM(
+                id="run_api",
+                tenant_id=TENANT,
+                job_id=JOB,
+                dossier_id=DOSSIER,
+                status="queued",
+                pipeline_version="v1.0.0",
+            )
+        )
+        session.add_all(
+            PipelineStepORM(tenant_id=TENANT, run_id="run_api", step=f"S{n}", status="queued")
+            for n in range(11)
+        )
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.status = "uploaded"
+        job.current_run_id = "run_api"
+        await session.commit()
+
+    assert await _start(factory) == "run_api"
+
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, "run_api")
+        steps = dict(
+            (
+                await session.execute(
+                    select(PipelineStepORM.step, PipelineStepORM.status).where(
+                        PipelineStepORM.run_id == "run_api"
+                    )
+                )
+            ).all()
+        )
+    assert run is not None and run.status == "running"
+    assert (steps["S0"], steps["S1"], steps["S2"], steps["S3"]) == (
+        "succeeded",
+        "succeeded",
+        "running",
+        "queued",
+    )
+    assert (await _job(factory)).status == "processing"
+
+
+@pytest.mark.asyncio
+async def test_ocr_restart_supersedes_run_and_ignores_its_late_results(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    old_run = await _start(factory)
+    new_run = await _start(factory, restart=True)
+
+    async with factory() as session:
+        superseded = await session.get(PipelineRunORM, old_run)
+    assert new_run != old_run
+    assert superseded is not None and superseded.status == "cancelled"
+    assert superseded.error_code == "SUPERSEDED"
+
+    await _deliver(factory, _ocr_completed(old_run, DOC_A))
+    await _deliver(factory, _ocr_completed(old_run, DOC_B))
+
+    job = await _job(factory)
+    assert job.status == "processing" and job.current_run_id == new_run
+    assert ai2_ready.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_upload_event_does_not_reopen_a_job_in_review(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    run_id = await _start(factory)
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.status = "pending_review"
+        await session.commit()
+
+    async with factory() as session:
+        assert await worker._mark_processing(session, DOSSIER) is None
+    job = await _job(factory)
+    assert job.status == "pending_review" and job.current_run_id == run_id
+
+
+@pytest.mark.asyncio
+async def test_ocr_restart_refused_for_approved_job(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await _start(factory)
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.status = "approved"
+        await session.commit()
+
+    async with factory() as session:
+        assert await worker._mark_processing(session, DOSSIER, restart=True) is None
+    assert (await _job(factory)).status == "approved"
+
+
+@pytest.mark.asyncio
+async def test_ocr_restart_recovers_failed_job_with_new_run(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    old_run = await _start(factory)
+    await _deliver(factory, _ocr_completed(old_run, DOC_A, payload={"job_id": "x"}))
+    assert (await _job(factory)).status == "failed"
+
+    new_run = await _start(factory, restart=True)
+    job = await _job(factory)
+    assert new_run != old_run
+    assert job.status == "processing" and job.error_code is None
+
+
+# ---------------------------------------------------------------------------
+# AI1 results
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_extracted_only_after_every_document_has_a_snapshot(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    assert (await _job(factory)).status == "processing"
+    assert ai2_ready.call_count == 0
+
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+    assert (await _job(factory)).status == "extracted"
+    ai2_ready.assert_called_once()
+
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+    assert run is not None
+    assert '"ai1_extracted_documents": ["doc_a", "doc_b"]' in str(run.config_snapshot)
+    audits = await _audits(factory, "ai1.snapshot_persisted")
+    assert [(a.from_state, a.to_state) for a in audits] == [
+        ("processing", "processing"),
+        ("processing", "extracted"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_redelivered_result_is_ignored_without_memory_state(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    """Dedupe lives in the run row, so it survives a worker restart."""
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+    assert ai2_ready.call_count == 1
+
+    # Worker restarts (no in-memory state) and Kafka redelivers DOC_A.
+    worker._ai2_tasks.clear()
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+
+    assert (await _job(factory)).status == "extracted"
+    assert len(await _audits(factory, "ai1.snapshot_persisted")) == 2
+    # The redelivery re-kicks AI2 (idempotent per run) instead of stranding the job.
+    assert ai2_ready.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_invalid_snapshot_marks_job_failed_with_audit(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    run_id = await _start(factory)
+    message = _ocr_completed(run_id, DOC_A)
+    message["payload"]["result"] = {"snapshot": {"schema_version": "bogus"}}
+
+    await _deliver(factory, message)
+
+    job = await _job(factory)
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+    audits = await _audits(factory, "ai1.snapshot_rejected")
+    assert job.status == "failed" and job.error_code == "AI1_SNAPSHOT_INVALID"
+    assert run is not None and run.status == "failed"
+    assert len(audits) == 1 and audits[0].to_state == "failed"
+
+
+@pytest.mark.asyncio
+async def test_completed_event_without_result_marks_job_failed(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    run_id = await _start(factory)
+    message = _ocr_completed(run_id, DOC_A)
+    message["payload"].pop("result")
+
+    await _deliver(factory, message)
+
+    job = await _job(factory)
+    assert job.status == "failed" and job.error_code == "AI1_RESULT_MISSING"
+
+
+@pytest.mark.asyncio
+async def test_snapshot_for_foreign_document_marks_job_failed(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    message = _ocr_completed(run_id, DOC_A)
+    message["payload"]["result"]["snapshot"]["document_id"] = "doc_other_dossier"
+
+    await _deliver(factory, message)
+
+    assert (await _job(factory)).status == "failed"
+    assert ai2_ready.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_late_success_does_not_override_failed(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    failed = _ocr_completed(run_id, DOC_A, event_type=worker.EVENT_OCR_FAILED)
+    failed["payload"] = {"job_id": "ai1_a", "status": "failed", "error": {"code": "OCR_X"}}
+    await _deliver(factory, failed)
+
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+
+    job = await _job(factory)
+    assert job.status == "failed" and job.error_code == "OCR_X"
+    assert len(await _audits(factory, "ai1.snapshot_persisted")) == 0
+
+
+def _ocr_failed(run_id: str, document_id: str) -> dict[str, Any]:
+    failed = _ocr_completed(run_id, document_id, event_type=worker.EVENT_OCR_FAILED)
+    failed["event_id"] = f"evt_failed_{run_id}_{document_id}"
+    failed["payload"] = {"job_id": None, "status": "failed", "error": {"code": "AI1_OCR_FAILED"}}
+    return failed
+
+
+@pytest.mark.asyncio
+async def test_failed_event_after_the_documents_result_is_ignored(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+
+    await _deliver(factory, _ocr_failed(run_id, DOC_A))
+
+    job = await _job(factory)
+    assert job.status == "processing" and job.error_code is None
+    assert len(await _audits(factory, "ai1.ocr_failed")) == 0
+
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+    assert (await _job(factory)).status == "extracted"
+
+
+@pytest.mark.asyncio
+async def test_failed_event_after_every_result_keeps_the_job_extracted(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+
+    await _deliver(factory, _ocr_failed(run_id, DOC_A))
+
+    job = await _job(factory)
+    assert job.status == "extracted" and job.error_code is None
+
+
+@pytest.mark.asyncio
+async def test_failed_event_for_a_document_without_result_still_fails_the_run(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+
+    await _deliver(factory, _ocr_failed(run_id, DOC_B))
+
+    job = await _job(factory)
+    assert job.status == "failed" and job.error_code == "AI1_OCR_FAILED"
+
+
+@pytest.mark.asyncio
+async def test_failed_event_with_no_readable_page_fails_s2_s3_s8(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    """ai1.ocr.failed with AI1_NO_READABLE_PAGE mirrors the snapshot-rejection
+    path: S2, S3 and S8 all move to failed in one shot, AI2 is not called."""
+    run_id = await _start(factory)
+    message = _ocr_completed(run_id, DOC_A, event_type=worker.EVENT_OCR_FAILED)
+    message["event_id"] = f"evt_failed_{run_id}_{DOC_A}"
+    message["payload"] = {
+        "job_id": None,
+        "status": "failed",
+        "error": {
+            "code": "AI1_NO_READABLE_PAGE",
+            "message": "3/3 trang lỗi: SKIPPED: OpenAI vision unavailable",
+        },
+    }
+
+    await _deliver(factory, message)
+
+    job = await _job(factory)
+    assert job.status == "failed" and job.error_code == "AI1_NO_READABLE_PAGE"
+    assert "3/3 trang lỗi" in str(job.error_detail)
+    steps = await _steps(factory, run_id)
+    assert {step: steps[step][0] for step in ("S2", "S3", "S8")} == dict.fromkeys(
+        ("S2", "S3", "S8"), "failed"
+    )
+    ai2_ready.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_envelope_with_wrong_schema_version_is_dropped(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A, schema_version="ci.kafka.v0"))
+
+    assert (await _job(factory)).status == "processing"
+    assert len(await _audits(factory, "ai1.snapshot_persisted")) == 0
+
+
+@pytest.mark.asyncio
+async def test_result_claiming_another_tenant_is_rejected(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A, tenant_id="tenant_attacker"))
+
+    assert (await _job(factory)).status == "processing"
+    rejected = await _audits(factory, "ai1.result_rejected")
+    assert len(rejected) == 1 and rejected[0].tenant_id == TENANT
+
+
+@pytest.mark.asyncio
+async def test_ai2_success_refused_after_job_failed(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    run_id = await _start(factory)
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.status = "failed"
+        await session.commit()
+
+    async with factory() as session:
+        counts = await worker._finalize_ai2_success(
+            session,
+            tenant_id=TENANT,
+            dossier_id=DOSSIER,
+            run_id=run_id,
+            report={"status": "SUCCEEDED"},
+            ai2_job_id="ai2_late",
+            source="kafka",
+        )
+
+    assert counts is None
+    assert (await _job(factory)).status == "failed"
+
+
+@pytest.mark.asyncio
+async def test_late_ai2_completion_does_not_mutate_superseded_run(
+    factory: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    old_run = await _start(factory)
+    new_run = await _start(factory, restart=True)
+    persist = AsyncMock()
+    monkeypatch.setattr(worker, "persist_ai2_processing_result", persist)
+
+    async with factory() as session:
+        result = await worker._finalize_ai2_success(
+            session,
+            tenant_id=TENANT,
+            dossier_id=DOSSIER,
+            run_id=old_run,
+            report={"status": "SUCCEEDED", "review_state": "NEEDS_REVIEW"},
+            ai2_job_id="ai2-late-old-run",
+            source="http_poll",
+        )
+
+    assert result is None
+    persist.assert_not_awaited()
+    job = await _job(factory)
+    assert job.current_run_id == new_run
+    async with factory() as session:
+        previous = await session.get(PipelineRunORM, old_run)
+        current = await session.get(PipelineRunORM, new_run)
+    assert previous is not None and previous.ai2_result_digest is None
+    assert current is not None and current.ai2_result_digest is None
+
+
+@pytest.mark.asyncio
+async def test_ai2_finalization_can_lock_current_run_owner() -> None:
+    statements: list[Any] = []
+
+    class Result:
+        def scalar_one_or_none(self) -> None:
+            return None
+
+    async def execute(statement: Any) -> Result:
+        statements.append(statement)
+        return Result()
+
+    session = SimpleNamespace(execute=execute)
+
+    await worker._job_for_run(
+        session,
+        "run_locked",
+        for_update=True,  # type: ignore[arg-type]
+    )
+
+    sql = str(statements[0].compile(dialect=postgresql.dialect()))
+    assert "FOR UPDATE" in sql
+
+
+# ---------------------------------------------------------------------------
+# AI2 HTTP submit retry guard
+# ---------------------------------------------------------------------------
+
+
+_CONTRACT_MEMBER = SimpleNamespace(included=True, document_id="doc", doc_type="contract")
+
+
+class _ScalarResult:
+    def __init__(self, value: object) -> None:
+        self._value = value
+
+    def scalar_one_or_none(self) -> object:
+        return self._value
+
+
+@pytest.mark.asyncio
+async def test_ai2_processing_consent_is_read_only_from_the_target_dossier() -> None:
+    session = SimpleNamespace(
+        execute=AsyncMock(return_value=_ScalarResult({"ai2_content_sharing_consent": True}))
+    )
+
+    consent = await worker._dossier_content_sharing_consent(
+        session, dossier_id="dos_test", tenant_id="tenant_test"
+    )
+
+    assert consent is True
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        None,
+        {},
+        {"ai2_content_sharing_consent": None},
+        {"ai2_content_sharing_consent": "true"},
+        {"ai2_content_sharing_consent": 1},
+        {"ai2_content_sharing_consent": False},
+    ],
+)
+@pytest.mark.asyncio
+async def test_ai2_processing_consent_fails_closed_without_explicit_true(
+    metadata: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI2_CONTENT_SHARING_CONSENT_DEFAULT", "true")
+    session = SimpleNamespace(execute=AsyncMock(return_value=_ScalarResult(metadata)))
+
+    consent = await worker._dossier_content_sharing_consent(
+        session, dossier_id="dos_test", tenant_id="tenant_test"
+    )
+
+    assert consent is False
+
+
+@pytest.mark.asyncio
+async def test_new_dossier_persists_explicit_ai2_content_sharing_consent(
+    contract_service: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AI2_CONTENT_SHARING_CONSENT_DEFAULT", raising=False)
+    dossier = await contract_service.create_dossier(name="New dossier", batch_id=None)
+
+    assert dossier.metadata == {"ai2_content_sharing_consent": True}
+
+
+@pytest.mark.asyncio
+async def test_new_dossier_honors_operator_consent_default(
+    contract_service: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI2_CONTENT_SHARING_CONSENT_DEFAULT", "false")
+    dossier = await contract_service.create_dossier(name="Private dossier", batch_id=None)
+
+    assert dossier.metadata == {"ai2_content_sharing_consent": False}
+
+
+class _RowsResult:
+    def __init__(self, rows: list[object]) -> None:
+        self._rows = rows
+
+    def scalars(self) -> _RowsResult:
+        return self
+
+    def all(self) -> list[object]:
+        return self._rows
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("consent", [True, False])
+async def test_ai2_transient_failure_can_be_retried(
+    monkeypatch: pytest.MonkeyPatch,
+    consent: bool,
+) -> None:
+    run_id = "run_ai2_retry"
+    manifest = SimpleNamespace(id="manifest_test", status="confirmed")
+    durable_run = SimpleNamespace(ai2_result_digest=None, config_snapshot={})
+
+    def result_sequence() -> list[object]:
+        return [
+            _ScalarResult(SimpleNamespace(status="extracted")),
+            _ScalarResult(manifest),
+            _ScalarResult(durable_run),
+            _RowsResult([_CONTRACT_MEMBER]),
+            _RowsResult([]),
+            _RowsResult([]),
+            _ScalarResult({"ai2_content_sharing_consent": consent}),
+        ]
+
+    session = SimpleNamespace(
+        execute=AsyncMock(side_effect=result_sequence()),
+        commit=AsyncMock(),
+        rollback=AsyncMock(),
+    )
+    build_request = MagicMock(return_value={"snapshots": [{"snapshot_id": "snap_test"}]})
+    monkeypatch.setattr(worker, "build_processing_request", build_request)
+    monkeypatch.setattr(worker, "update_pipeline_run_status", AsyncMock())
+    monkeypatch.setattr(worker, "update_pipeline_step", AsyncMock())
+    monkeypatch.setattr(worker, "_mark_status", AsyncMock())
+    monkeypatch.setattr(worker, "_step_statuses", AsyncMock(return_value={"S4": "running"}))
+    submit = AsyncMock(side_effect=RuntimeError("temporary AI2 outage"))
+    monkeypatch.setattr(worker, "submit_ai2_processing", submit)
+
+    await worker._run_ai2_if_ready(
+        session, dossier_id="dos_test", tenant_id="tenant_test", run_id=run_id
+    )
+
+    assert session.rollback.await_count == 1
+
+    session.execute = AsyncMock(side_effect=result_sequence())
+    await worker._run_ai2_if_ready(
+        session, dossier_id="dos_test", tenant_id="tenant_test", run_id=run_id
+    )
+
+    assert submit.await_count == 2
+    assert build_request.call_count == 4
+    assert all(
+        call.kwargs["content_sharing_consent"] is consent for call in build_request.call_args_list
+    )
+
+
+@pytest.mark.asyncio
+async def test_semantic_profile_failure_marks_ai2_run_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = SimpleNamespace(id="manifest_test", status="confirmed")
+    durable_run = SimpleNamespace(ai2_result_digest=None, config_snapshot={})
+
+    def result_sequence() -> list[object]:
+        return [
+            _ScalarResult(SimpleNamespace(status="extracted")),
+            _ScalarResult(manifest),
+            _ScalarResult(durable_run),
+            _RowsResult([_CONTRACT_MEMBER]),
+            _RowsResult([]),
+            _RowsResult([]),
+            _ScalarResult({"ai2_content_sharing_consent": True}),
+        ]
+
+    session = SimpleNamespace(
+        execute=AsyncMock(side_effect=result_sequence()),
+        commit=AsyncMock(),
+        rollback=AsyncMock(),
+    )
+    monkeypatch.setattr(
+        worker,
+        "build_processing_request",
+        lambda **_kwargs: {"snapshots": [{"snapshot_id": "snap_test"}]},
+    )
+    monkeypatch.setattr(worker, "update_pipeline_run_status", AsyncMock())
+    monkeypatch.setattr(worker, "update_pipeline_step", AsyncMock())
+    monkeypatch.setattr(worker, "_mark_status", AsyncMock())
+    monkeypatch.setattr(
+        worker,
+        "_freeze_semantic_profile",
+        AsyncMock(side_effect=ValueError("invalid semantic profile")),
+    )
+    fail = AsyncMock()
+    monkeypatch.setattr(worker, "_fail_ai2_run", fail)
+    submit = AsyncMock()
+    monkeypatch.setattr(worker, "submit_ai2_processing", submit)
+
+    await worker._run_ai2_if_ready(
+        session, dossier_id="dos_test", tenant_id="tenant_test", run_id="run_profile_error"
+    )
+
+    session.rollback.assert_awaited_once()
+    fail.assert_awaited_once()
+    assert fail.await_args.kwargs["code"] == "AI2_PROCESSING_FAILED"
+    assert "invalid semantic profile" in fail.await_args.kwargs["detail"]
+    submit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("job_status", ["processing", "pending_review", "failed"])
+async def test_ai2_not_submitted_unless_job_is_extracted(
+    factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+    job_status: str,
+) -> None:
+    """Durable guard: a manifest.confirmed replay after AI2 finished must not resubmit."""
+    run_id = await _start(factory)
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.status = job_status
+        await session.commit()
+    submit = AsyncMock()
+    monkeypatch.setattr(worker, "submit_ai2_processing", submit)
+
+    async with factory() as session:
+        await worker._run_ai2_if_ready(session, dossier_id=DOSSIER, tenant_id=TENANT, run_id=run_id)
+
+    submit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_ai2_deadline_miss_fails_run_as_ai2_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = SimpleNamespace(id="manifest_test", status="confirmed")
+    durable_run = SimpleNamespace(ai2_result_digest=None, config_snapshot='{"ai2_attempt": 2}')
+    documents = [SimpleNamespace(page_count=150), SimpleNamespace(page_count=50)]
+    session = SimpleNamespace(
+        execute=AsyncMock(
+            side_effect=[
+                _ScalarResult(SimpleNamespace(status="extracted")),
+                _ScalarResult(manifest),
+                _ScalarResult(durable_run),
+                _RowsResult([_CONTRACT_MEMBER]),
+                _RowsResult([]),
+                _RowsResult(documents),
+                _ScalarResult(None),
+            ]
+        ),
+        commit=AsyncMock(),
+        rollback=AsyncMock(),
+    )
+    build = MagicMock(return_value={"snapshots": [{"snapshot_id": "snap_test"}]})
+    monkeypatch.setattr(worker, "build_processing_request", build)
+    monkeypatch.setattr(worker, "update_pipeline_run_status", AsyncMock())
+    monkeypatch.setattr(worker, "update_pipeline_step", AsyncMock())
+    monkeypatch.setattr(worker, "submit_ai2_processing", AsyncMock(return_value={"job_id": "j9"}))
+    poll = AsyncMock(side_effect=worker.AiAdapterDeadlineExceeded("still running"))
+    monkeypatch.setattr(worker, "poll_ai2_processing", poll)
+    fail = AsyncMock()
+    monkeypatch.setattr(worker, "_fail_ai2_run", fail)
+
+    await worker._run_ai2_if_ready(
+        session, dossier_id="dos_test", tenant_id="tenant_test", run_id="run_x"
+    )
+
+    budget = worker.ai2_deadline_seconds(200)
+    assert budget == 700  # 300s + 2s x 200 pages
+    assert build.call_args.kwargs["attempt"] == 2
+    assert build.call_args.kwargs["max_processing_seconds"] == budget
+    assert poll.await_args.kwargs["timeout_seconds"] == budget + 60
+    assert fail.await_args.kwargs["code"] == "AI2_TIMEOUT"
+    assert fail.await_args.kwargs["audit_detail"]["ai2_job_id"] == "j9"
+
+
+# ---------------------------------------------------------------------------
+# AI2 retry without re-OCR
+# ---------------------------------------------------------------------------
+
+
+async def _fail_at_ai2(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock, code: str
+) -> str:
+    """Both documents OCR'd (EXTRACTED), then the AI2 step failed with ``code``."""
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+    assert (await _job(factory)).status == "extracted"
+    async with factory() as session:
+        await worker._fail_ai2_run(
+            session, tenant_id=TENANT, run_id=run_id, code=code, detail="x", audit_detail={}
+        )
+    ai2_ready.reset_mock()
+    return run_id
+
+
+def _retry_event(run_id: str) -> dict[str, Any]:
+    return {"event": "dossier.ai2.retry", "dossier_id": DOSSIER, "run_id": run_id}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("code", ["AI2_TIMEOUT", "AI2_PROCESSING_FAILED"])
+async def test_ai2_retry_reopens_run_with_next_attempt(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock, code: str
+) -> None:
+    run_id = await _fail_at_ai2(factory, ai2_ready, code)
+
+    async with factory() as session:
+        await worker.handle_dossier_event(session, _retry_event(run_id))
+
+    job = await _job(factory)
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+    assert job.status == "extracted" and job.error_code is None
+    assert job.current_run_id == run_id  # same run: no new OCR
+    assert run is not None and run.status == "running"
+    assert worker._ai2_attempt(run) == 2
+    ai2_ready.assert_called_once_with(dossier_id=DOSSIER, tenant_id=TENANT, run_id=run_id)
+    (audit,) = await _audits(factory, "ai2.retry_requested")
+    assert audit.detail is not None and '"attempt": 2' in str(audit.detail).replace("'", '"')
+
+
+@pytest.mark.asyncio
+async def test_ai2_retry_refused_when_ocr_failed(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A, event_type=worker.EVENT_OCR_FAILED))
+    assert (await _job(factory)).status == "failed"
+
+    async with factory() as session:
+        await worker.handle_dossier_event(session, _retry_event(run_id))
+
+    assert (await _job(factory)).status == "failed"
+    ai2_ready.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ai2_retry_is_a_no_op_once_the_run_is_back_in_flight(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    """A redelivered retry event must not bump the attempt a second time."""
+    run_id = await _fail_at_ai2(factory, ai2_ready, "AI2_TIMEOUT")
+
+    async with factory() as session:
+        await worker.handle_dossier_event(session, _retry_event(run_id))
+    async with factory() as session:
+        await worker.handle_dossier_event(session, _retry_event(run_id))
+
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+    assert worker._ai2_attempt(run) == 2
+    assert ai2_ready.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Restart clicked twice / documents stored without a page count
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def ocr_publish(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """Give the documents a blob, stub presigning, capture published OCR commands."""
+    monkeypatch.setattr(
+        worker.storage, "generate_presigned_get_url", AsyncMock(return_value="http://get")
+    )
+    monkeypatch.setattr(
+        worker.storage,
+        "generate_presigned_put_url",
+        AsyncMock(side_effect=lambda *, key, expires_in, **_: f"http://put/{key}"),
+    )
+    publish = AsyncMock()
+    monkeypatch.setattr(worker.messaging, "publish_event", publish)
+    return publish
+
+
+async def _with_blobs(factory: async_sessionmaker[AsyncSession], pages: int | None) -> None:
+    async with factory() as session:
+        for doc_id in (DOC_A, DOC_B):
+            document = await session.get(DocumentORM, doc_id)
+            assert document is not None
+            document.blob_uri = f"s3://dossiers/{doc_id}.pdf"
+            document.page_count = pages
+        await session.commit()
+
+
+def _restart(expected_run_id: str | None) -> dict[str, Any]:
+    return {
+        "event": "dossier.uploaded",
+        "dossier_id": DOSSIER,
+        "restart": True,
+        "expected_run_id": expected_run_id,
+    }
+
+
+@pytest.mark.asyncio
+async def test_double_clicked_restart_opens_one_run_and_ocrs_once(
+    factory: async_sessionmaker[AsyncSession], ocr_publish: AsyncMock
+) -> None:
+    await _with_blobs(factory, pages=2)
+    first_run = await _start(factory)
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.status = "failed"
+        await session.commit()
+    ocr_publish.reset_mock()
+
+    # Two clicks: both events name the run the user saw.
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(session, _restart(first_run))
+    second_run = (await _job(factory)).current_run_id
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(session, _restart(first_run))
+
+    job = await _job(factory)
+    assert second_run != first_run
+    assert job.current_run_id == second_run  # the duplicate did not supersede it
+    assert ocr_publish.await_count == 2  # one OCR command per document, once
+    async with factory() as session:
+        runs = (await session.execute(select(PipelineRunORM))).scalars().all()
+    assert len(runs) == 2
+
+
+@pytest.mark.asyncio
+async def test_restart_locks_the_job_row_before_checking_its_run(
+    factory: async_sessionmaker[AsyncSession], ocr_publish: AsyncMock
+) -> None:
+    """Two consumers handling the two clicks at once: the second must wait for the first.
+
+    sqlite has no row locks, so this checks the statement the worker sends.
+    """
+    from sqlalchemy.dialects import postgresql
+
+    await _with_blobs(factory, pages=2)
+    first_run = await _start(factory)
+    statements: list[str] = []
+
+    async with factory() as session:
+        execute = session.execute
+
+        async def recording(statement: Any, *args: Any, **kwargs: Any) -> Any:
+            if getattr(statement, "is_select", False):
+                statements.append(str(statement.compile(dialect=postgresql.dialect())))
+            return await execute(statement, *args, **kwargs)
+
+        session.execute = recording  # type: ignore[method-assign]
+        await worker._mark_processing(session, DOSSIER, restart=True, expected_run_id=first_run)
+
+    job_select = next(sql for sql in statements if "FROM job" in sql)
+    assert job_select.rstrip().endswith("FOR UPDATE")
+
+
+@pytest.mark.asyncio
+async def test_restart_without_expected_run_still_works(
+    factory: async_sessionmaker[AsyncSession], ocr_publish: AsyncMock
+) -> None:
+    """Events published before expected_run_id existed keep the old behaviour."""
+    await _with_blobs(factory, pages=2)
+    first_run = await _start(factory)
+
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(
+            session, {"event": "dossier.uploaded", "dossier_id": DOSSIER, "restart": True}
+        )
+
+    assert (await _job(factory)).current_run_id != first_run
+
+
+@pytest.mark.asyncio
+async def test_missing_page_count_is_read_from_the_pdf(
+    factory: async_sessionmaker[AsyncSession],
+    ocr_publish: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tests.pdf_bytes import make_pdf
+
+    await _with_blobs(factory, pages=0)
+    monkeypatch.setattr(
+        worker.storage, "download_object", AsyncMock(return_value=make_pdf(pages=200))
+    )
+
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(
+            session, {"event": "dossier.uploaded", "dossier_id": DOSSIER}
+        )
+
+    async with factory() as session:
+        counts = [(await session.get(DocumentORM, d)).page_count for d in (DOC_A, DOC_B)]
+    assert counts == [200, 200]
+    payload = ocr_publish.await_args_list[0].args[1]["payload"]
+    assert payload["pages_to_process"] == list(range(1, 201))
+    assert len(payload["render_target"]["presigned_put_urls"]) == 200
+
+
+@pytest.mark.asyncio
+async def test_retry_with_every_page_kept_sends_no_ocr_and_still_counts_pages(
+    factory: async_sessionmaker[AsyncSession],
+    ocr_publish: AsyncMock,
+    ai2_ready: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A run that timed out but whose OCR result came in late: no OCR is paid twice."""
+    from tests.pdf_bytes import make_pdf
+
+    await _with_blobs(factory, pages=0)
+    failed_run = await _start(factory)
+    await _deliver(factory, _ocr_completed(failed_run, DOC_A))
+    await _deliver(factory, _ocr_completed(failed_run, DOC_B))
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.status, job.error_code = "failed", "AI1_TIMEOUT"
+        await session.commit()
+    ocr_publish.reset_mock()
+    ai2_ready.reset_mock()
+    monkeypatch.setattr(
+        worker.storage, "download_object", AsyncMock(return_value=make_pdf(pages=200))
+    )
+
+    retry = {**_restart(failed_run), "retry_failed": True}
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(session, retry)
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(session, retry)  # clicked twice
+
+    ocr_publish.assert_not_awaited()
+    job = await _job(factory)
+    assert job.current_run_id != failed_run and job.status == "extracted"
+    ai2_ready.assert_called_once()
+    async with factory() as session:
+        document = await session.get(DocumentORM, DOC_A)
+    assert document is not None and document.page_count == 200
+
+
+@pytest.mark.asyncio
+async def test_unreadable_pdf_keeps_ocr_going_on_the_old_estimate(
+    factory: async_sessionmaker[AsyncSession],
+    ocr_publish: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _with_blobs(factory, pages=0)
+    monkeypatch.setattr(
+        worker.storage, "download_object", AsyncMock(side_effect=OSError("storage down"))
+    )
+
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(
+            session, {"event": "dossier.uploaded", "dossier_id": DOSSIER}
+        )
+
+    assert ocr_publish.await_count == 2  # OCR still requested for both documents
+
+
+@pytest.mark.asyncio
+async def test_unreadable_pdf_is_not_downloaded_again_on_the_next_run(
+    factory: async_sessionmaker[AsyncSession],
+    ocr_publish: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _with_blobs(factory, pages=0)
+    download = AsyncMock(return_value=b"not a pdf")
+    monkeypatch.setattr(worker.storage, "download_object", download)
+    monkeypatch.setattr(worker, "_uncountable_pdfs", set())
+
+    for _ in range(2):
+        async with factory() as session:
+            await worker.handle_dossier_uploaded(
+                session, {"event": "dossier.uploaded", "dossier_id": DOSSIER, "restart": True}
+            )
+
+    assert download.await_count == 2  # once per document, not once per run
+    assert ocr_publish.await_count == 4  # OCR still requested on both runs
+
+
+# ---------------------------------------------------------------------------
+# AI2 reindex: rebuild AI2 state from the stored AI1 snapshots, no OCR
+# ---------------------------------------------------------------------------
+
+
+async def _finished_run(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock, status: str = "pending_review"
+) -> str:
+    """Both documents OCR'd, AI2 result persisted, job past AI2 (``status``)."""
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        run = await session.get(PipelineRunORM, run_id)
+        assert job is not None and run is not None
+        job.status = status
+        run.ai2_result_digest = "result_v1"
+        session.add(
+            ManifestORM(id="man_test", tenant_id=TENANT, dossier_id=DOSSIER, status="confirmed")
+        )
+        await session.commit()
+    ai2_ready.reset_mock()
+    return run_id
+
+
+@pytest.fixture
+def ai2_service(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    """Stub AI2 submit/poll and record the request the worker builds."""
+    built: list[dict[str, Any]] = []
+
+    def build(**kwargs: Any) -> dict[str, Any]:
+        request = {
+            "request_id": f"{kwargs['run_id']}:ai2",
+            "attempt": kwargs["attempt"],
+            "task_id": kwargs["run_id"],
+            "dossier_id": kwargs["dossier_id"],
+            "dossier_members": [
+                {"document_id": DOC_A, "snapshot_id": "snap_a", "role": "contract"}
+            ],
+            "snapshots": [{"snapshot_id": "snap_a"}],
+            "_snapshot_ids": sorted(kwargs["snapshots"]),
+        }
+        built.append(request)
+        return request
+
+    stubs = SimpleNamespace(
+        built=built,
+        submit=AsyncMock(return_value={"job_id": "ai2_job_2"}),
+        poll=AsyncMock(return_value={"status": "SUCCEEDED"}),
+        persist=AsyncMock(),
+    )
+    monkeypatch.setattr(worker, "build_processing_request", build)
+    monkeypatch.setattr(worker, "submit_ai2_processing", stubs.submit)
+    monkeypatch.setattr(worker, "poll_ai2_processing", stubs.poll)
+    monkeypatch.setattr(worker, "persist_ai2_processing_result", stubs.persist)
+    return stubs
+
+
+async def _reindex(factory: async_sessionmaker[AsyncSession], run_id: str) -> None:
+    async with factory() as session:
+        await worker._run_ai2_reindex(session, dossier_id=DOSSIER, tenant_id=TENANT, run_id=run_id)
+
+
+@pytest.mark.asyncio
+async def test_ai2_reindex_resends_stored_snapshots_under_next_attempt(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ai2_service: SimpleNamespace,
+) -> None:
+    run_id = await _finished_run(factory, ai2_ready)
+
+    await _reindex(factory, run_id)
+
+    [request] = ai2_service.built
+    assert request["attempt"] == 2
+    assert request["_snapshot_ids"] == [DOC_A, DOC_B]  # the stored AI1 output, no new OCR
+    ai2_service.submit.assert_awaited_once()
+    ai2_service.persist.assert_not_awaited()  # Backend facts/findings/reviews untouched
+    job = await _job(factory)
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+        dossier = await session.get(DossierORM, DOSSIER)
+    assert job.status == "pending_review" and job.current_run_id == run_id
+    assert run is not None and run.ai2_result_digest == "result_v1"
+    assert worker._ai2_attempt(run) == 2
+    assert dossier is not None
+    clean = {k: v for k, v in request.items() if not k.startswith("_")}
+    assert dossier.metadata_json["ai2_snapshot_digest"] == worker._ai2_query_snapshot_digest(clean)
+    assert len(await _audits(factory, "ai2.reindexed")) == 1
+    ai2_ready.assert_not_called()  # no regular AI2 hand-off, no OCR command
+
+
+@pytest.mark.asyncio
+async def test_ai2_reindex_twice_moves_to_the_next_attempt_each_time(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ai2_service: SimpleNamespace,
+) -> None:
+    run_id = await _finished_run(factory, ai2_ready)
+
+    await _reindex(factory, run_id)
+    await _reindex(factory, run_id)
+
+    assert [request["attempt"] for request in ai2_service.built] == [2, 3]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["processing", "extracted", "failed", "cancelled"])
+async def test_ai2_reindex_refused_unless_ai2_finished(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ai2_service: SimpleNamespace,
+    status: str,
+) -> None:
+    run_id = await _finished_run(factory, ai2_ready, status=status)
+
+    await _reindex(factory, run_id)
+
+    ai2_service.submit.assert_not_awaited()
+    assert (await _job(factory)).status == status
+    (audit,) = await _audits(factory, "ai2.reindex_refused")
+    assert "job_status" in str(audit.detail)
+
+
+@pytest.mark.asyncio
+async def test_ai2_reindex_refusal_of_a_run_without_ai2_result_is_audited(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ai2_service: SimpleNamespace,
+) -> None:
+    """The API accepts on job status alone; the audit row tells the caller why nothing ran."""
+    run_id = await _finished_run(factory, ai2_ready)
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+        assert run is not None
+        run.ai2_result_digest = None
+        await session.commit()
+
+    await _reindex(factory, run_id)
+
+    ai2_service.submit.assert_not_awaited()
+    (audit,) = await _audits(factory, "ai2.reindex_refused")
+    assert "no_ai2_result" in str(audit.detail)
+
+
+@pytest.mark.asyncio
+async def test_ai2_reindex_failure_keeps_the_run_and_its_results(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ai2_service: SimpleNamespace,
+) -> None:
+    run_id = await _finished_run(factory, ai2_ready)
+    ai2_service.poll.side_effect = RuntimeError("AI2 down")
+
+    await _reindex(factory, run_id)
+
+    job = await _job(factory)
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+        dossier = await session.get(DossierORM, DOSSIER)
+    assert job.status == "pending_review" and job.error_code is None
+    assert run is not None and run.ai2_result_digest == "result_v1"
+    assert dossier is not None and "ai2_snapshot_digest" not in (dossier.metadata_json or {})
+    (audit,) = await _audits(factory, "ai2.reindex_failed")
+    assert "AI2 down" in str(audit.detail)
+
+
+@pytest.mark.asyncio
+async def test_reindex_event_schedules_a_reindex_hand_off(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _finished_run(factory, ai2_ready)
+
+    async with factory() as session:
+        await worker.handle_dossier_event(
+            session, {"event": "dossier.ai2.reindex", "dossier_id": DOSSIER, "run_id": run_id}
+        )
+        await worker.handle_dossier_event(
+            session, {"event": "dossier.ai2.reindex", "dossier_id": "dos_other", "run_id": run_id}
+        )
+
+    ai2_ready.assert_called_once_with(
+        dossier_id=DOSSIER, tenant_id=TENANT, run_id=run_id, reindex=True
+    )
+
+
+# ---------------------------------------------------------------------------
+# AI1 result uploaded to MinIO (payload.result_ref) instead of inlined
+# ---------------------------------------------------------------------------
+
+
+def _by_reference(
+    message: dict[str, Any], *, uri: str | None = None, sha: str | None = None
+) -> tuple[dict[str, Any], bytes]:
+    """Move the inline result to a result_ref, as AI1 does for large dossiers."""
+    import hashlib
+    import json as _json
+
+    payload = message["payload"]
+    body = _json.dumps(payload.pop("result"), ensure_ascii=False).encode()
+    document_id = message["correlation"]["document_id"]
+    run_id = message["correlation"]["run_id"]
+    payload["result"] = None
+    payload["result_ref"] = {
+        "uri": uri or f"s3://ci-render/{document_id}/ai1-result/{run_id}.json",
+        "sha256": sha or hashlib.sha256(body).hexdigest(),
+        "bytes": len(body),
+    }
+    return message, body
+
+
+@pytest.mark.asyncio
+async def test_result_by_reference_is_downloaded_and_persisted(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = await _start(factory)
+    objects: dict[str, bytes] = {}
+    for document_id in (DOC_A, DOC_B):
+        message, body = _by_reference(_ocr_completed(run_id, document_id))
+        objects[message["payload"]["result_ref"]["uri"]] = body
+        monkeypatch.setattr(worker.storage, "download_object", AsyncMock(side_effect=objects.get))
+        await _deliver(factory, message)
+
+    job = await _job(factory)
+    assert job.status == "extracted"
+    assert ai2_ready.call_count == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("change", "reason"),
+    [
+        ({"uri": "s3://dossiers/someone-else/contract.pdf"}, "not the issued target"),
+        ({"sha": "0" * 64}, "sha256 does not match"),
+        ({"missing": True}, "does not exist"),
+    ],
+)
+async def test_bad_result_reference_fails_the_run(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+    change: dict[str, Any],
+    reason: str,
+) -> None:
+    run_id = await _start(factory)
+    message, body = _by_reference(
+        _ocr_completed(run_id, DOC_A), uri=change.get("uri"), sha=change.get("sha")
+    )
+    download = AsyncMock(
+        side_effect=FileNotFoundError("gone") if change.get("missing") else None,
+        return_value=body,
+    )
+    monkeypatch.setattr(worker.storage, "download_object", download)
+
+    await _deliver(factory, message)
+
+    job = await _job(factory)
+    assert job.status == "failed" and job.error_code == "AI1_RESULT_UNREADABLE"
+    assert reason in (job.error_detail or "")
+    if "uri" in change:
+        download.assert_not_awaited()  # never reads an object it did not issue
+    assert ai2_ready.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_transient_storage_error_is_retried_not_failed(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_id = await _start(factory)
+    message, _ = _by_reference(_ocr_completed(run_id, DOC_A))
+    monkeypatch.setattr(
+        worker.storage, "download_object", AsyncMock(side_effect=ConnectionError("minio down"))
+    )
+
+    with pytest.raises(ConnectionError):
+        await _deliver(factory, message)
+
+    assert (await _job(factory)).status == "processing"
+
+
+# ---------------------------------------------------------------------------
+# Keep what finished, retry only what failed (Sprint 3 task 2)
+# ---------------------------------------------------------------------------
+
+
+def _failed(run_id: str, document_id: str) -> dict[str, Any]:
+    message = _ocr_completed(run_id, document_id, event_type=worker.EVENT_OCR_FAILED)
+    message["payload"] = {
+        "job_id": f"ai1_{document_id}",
+        "status": "failed",
+        "error": {"code": "AI1_OCR_FAILED", "message": "page 7 unreadable"},
+    }
+    return message
+
+
+@pytest.fixture
+def ocr_commands(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+    """OCR commands the worker publishes; documents get a blob to presign."""
+    published: list[dict[str, Any]] = []
+
+    async def publish(topic: str, message: dict[str, Any], **_: Any) -> None:
+        if topic == worker.get_settings().kafka_ai1_ocr_commands_topic:
+            published.append(message)
+
+    monkeypatch.setattr(worker.messaging, "publish_event", publish)
+    monkeypatch.setattr(worker.storage, "generate_presigned_get_url", AsyncMock(return_value="g"))
+    monkeypatch.setattr(worker.storage, "generate_presigned_put_url", AsyncMock(return_value="p"))
+    return published
+
+
+async def _give_blobs(factory: async_sessionmaker[AsyncSession]) -> None:
+    async with factory() as session:
+        for doc_id in (DOC_A, DOC_B):
+            document = await session.get(DocumentORM, doc_id)
+            assert document is not None
+            document.blob_uri = f"s3://dossiers/{doc_id}.pdf"
+            document.page_count = 3
+        await session.commit()
+
+
+async def _run_payload(factory: async_sessionmaker[AsyncSession], run_id: str) -> dict[str, Any]:
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+    assert run is not None
+    return worker._run_payload(run)
+
+
+@pytest.mark.asyncio
+async def test_result_after_the_run_failed_is_kept_on_the_run(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    await _deliver(factory, _failed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+
+    job = await _job(factory)
+    assert job.status == "failed" and job.error_code == "AI1_OCR_FAILED"
+    assert (await _run_payload(factory, run_id))["ai1_extracted_documents"] == [DOC_B]
+    (late,) = await _audits(factory, "ai1.late_result")
+    assert '"kept": true' in (late.detail or "")
+    assert ai2_ready.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_retry_failed_re_ocrs_only_the_missing_document(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ocr_commands: list[dict[str, Any]],
+) -> None:
+    await _give_blobs(factory)
+    first_run = await _start(factory)
+    await _deliver(factory, _failed(first_run, DOC_A))
+    await _deliver(factory, _ocr_completed(first_run, DOC_B))
+
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(
+            session,
+            {
+                "event": "dossier.uploaded",
+                "dossier_id": DOSSIER,
+                "restart": True,
+                "retry_failed": True,
+            },
+        )
+    job = await _job(factory)
+    retry_run = str(job.current_run_id)
+    assert retry_run != first_run and job.status == "processing"
+    # Only A goes back to AI1; B's result is carried over, not re-OCR'd.
+    assert [c["correlation"]["document_id"] for c in ocr_commands] == [DOC_A]
+    assert (await _run_payload(factory, retry_run))["ai1_extracted_documents"] == [DOC_B]
+
+    await _deliver(factory, _ocr_completed(retry_run, DOC_A))
+    job = await _job(factory)
+    assert job.status == "extracted"
+    assert ai2_ready.call_count == 1
+    assert sorted((await _run_payload(factory, retry_run))["ai1_extracted_documents"]) == [
+        DOC_A,
+        DOC_B,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_retry_failed_with_everything_kept_goes_straight_to_ai2(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ocr_commands: list[dict[str, Any]],
+) -> None:
+    await _give_blobs(factory)
+    run_id = await _start(factory)
+    # The watchdog gave up, then both results still arrived.
+    await _age_run(factory, run_id, worker.ai1_deadline_seconds(6) + 5)
+    async with factory() as session:
+        assert await worker.fail_overdue_ai1_runs(session) == [run_id]
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(
+            session, {"event": "dossier.uploaded", "dossier_id": DOSSIER, "retry_failed": True}
+        )
+
+    assert ocr_commands == []
+    job = await _job(factory)
+    assert job.status == "extracted" and job.current_run_id != run_id
+    assert ai2_ready.call_count == 1
+    assert len(await _audits(factory, "ai1.snapshots_carried")) == 1
+
+
+@pytest.mark.asyncio
+async def test_reprocess_carries_all_ai1_snapshots_without_restarting_ocr(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ocr_commands: list[dict[str, Any]],
+) -> None:
+    """A reprocess run must reuse the immutable AI1 hand-off and go to AI2."""
+    await _give_blobs(factory)
+    base_run = await _start(factory)
+    await _deliver(factory, _ocr_completed(base_run, DOC_A))
+    await _deliver(factory, _ocr_completed(base_run, DOC_B))
+    ai2_ready.reset_mock()
+
+    reprocess_run = "run_reprocess"
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        previous = await session.get(PipelineRunORM, base_run)
+        assert job is not None and previous is not None
+        previous.status = "succeeded"
+        job.status = "uploaded"
+        job.current_run_id = reprocess_run
+        session.add(
+            PipelineRunORM(
+                id=reprocess_run,
+                tenant_id=TENANT,
+                job_id=JOB,
+                dossier_id=DOSSIER,
+                status="queued",
+                pipeline_version="v1.0.0",
+                reprocess_base_run_id=base_run,
+                reprocess_source_digest="source-digest",
+            )
+        )
+        for step_code in ("S0", "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10"):
+            session.add(
+                PipelineStepORM(
+                    tenant_id=TENANT,
+                    run_id=reprocess_run,
+                    step=step_code,
+                    status="queued",
+                )
+            )
+        await session.commit()
+
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(
+            session, {"event": "dossier.uploaded", "dossier_id": DOSSIER}
+        )
+
+    assert ocr_commands == []
+    assert ai2_ready.call_count == 1
+    job = await _job(factory)
+    assert job.status == "extracted" and job.current_run_id == reprocess_run
+    payload = await _run_payload(factory, reprocess_run)
+    assert payload["ai1_extracted_documents"] == [DOC_A, DOC_B]
+    assert payload["ai1_snapshots"] == (await _run_payload(factory, base_run))["ai1_snapshots"]
+
+
+@pytest.mark.asyncio
+async def test_plain_restart_still_re_ocrs_everything(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ocr_commands: list[dict[str, Any]],
+) -> None:
+    await _give_blobs(factory)
+    run_id = await _start(factory)
+    await _deliver(factory, _failed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(
+            session, {"event": "dossier.uploaded", "dossier_id": DOSSIER, "restart": True}
+        )
+
+    assert sorted(c["correlation"]["document_id"] for c in ocr_commands) == [DOC_A, DOC_B]
+
+
+# ---------------------------------------------------------------------------
+# DEC-BE-AI2-01 B4 (dossier shape) and B5 (SUCCEEDED + BLOCKED)
+# ---------------------------------------------------------------------------
+
+
+def _member(doc_type: str, *, included: bool = True) -> SimpleNamespace:
+    return SimpleNamespace(included=included, document_id="doc", doc_type=doc_type)
+
+
+@pytest.mark.parametrize(
+    ("members", "code"),
+    [
+        ([_member("contract"), _member("annex")], None),
+        ([_member("contract"), _member("contract", included=False)], None),
+        ([_member("annex")], "DOSSIER_CONTRACT_REQUIRED"),
+        ([_member("contract", included=False), _member("annex")], "DOSSIER_CONTRACT_REQUIRED"),
+        ([_member("contract"), _member("contract")], "DOSSIER_CONTRACT_NOT_UNIQUE"),
+        (
+            [_member("contract"), *(_member("annex") for _ in range(6))],
+            "DOSSIER_TOO_MANY_DOCUMENTS",
+        ),
+    ],
+)
+def test_dossier_shape_error(members: list[SimpleNamespace], code: str | None) -> None:
+    error = worker._dossier_shape_error(members)  # type: ignore[arg-type]
+    assert (error[0] if error else None) == code
+
+
+@pytest.mark.asyncio
+async def test_dossier_with_two_contracts_fails_before_ai2(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A dossier stored before the API checks fails with a code, never waits forever."""
+    session = SimpleNamespace(
+        execute=AsyncMock(
+            side_effect=[
+                _ScalarResult(SimpleNamespace(status="extracted")),
+                _ScalarResult(SimpleNamespace(id="manifest_test", status="confirmed")),
+                _ScalarResult(SimpleNamespace(ai2_result_digest=None, config_snapshot={})),
+                _RowsResult([_member("contract"), _member("contract")]),
+                _RowsResult([]),
+                _RowsResult([]),
+                _ScalarResult(None),
+            ]
+        ),
+    )
+    fail = AsyncMock()
+    submit = AsyncMock()
+    monkeypatch.setattr(worker, "_fail_ai2_run", fail)
+    monkeypatch.setattr(worker, "submit_ai2_processing", submit)
+
+    await worker._run_ai2_if_ready(
+        session,  # type: ignore[arg-type]
+        dossier_id="dos_test",
+        tenant_id="tenant_test",
+        run_id="run_two_contracts",
+    )
+
+    assert fail.await_args.kwargs["code"] == "DOSSIER_CONTRACT_NOT_UNIQUE"
+    submit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_six_document_dossier_reaches_ai2_whole(monkeypatch: pytest.MonkeyPatch) -> None:
+    """D5 upper bound: 1 contract + 5 annexes all go to AI2, one snapshot each."""
+    doc_ids = [f"doc_{n}" for n in range(1, 7)]
+    members = [
+        SimpleNamespace(
+            id=f"member_{n}",
+            included=True,
+            document_id=doc_id,
+            order_index=n,
+            doc_type="contract" if n == 1 else "annex",
+        )
+        for n, doc_id in enumerate(doc_ids, start=1)
+    ]
+    snapshots = {
+        doc_id: {
+            "schema_version": "ai1.snapshot.v1",
+            "snapshot_id": f"snap_{doc_id}",
+            "source_digest": "b" * 64,
+            "dossier_id": "dos_test",
+            "document_id": doc_id,
+            "pages": [],
+        }
+        for doc_id in doc_ids
+    }
+    durable_run = SimpleNamespace(
+        ai2_result_digest=None,
+        created_at=datetime(2026, 10, 1, 8, 0, tzinfo=UTC),
+        config_snapshot=json.dumps(
+            {
+                "ai1_snapshots": snapshots,
+                "ai1_snapshot_recorded_at": dict.fromkeys(doc_ids, "2026-10-01T08:00:00+00:00"),
+            }
+        ),
+    )
+    session = SimpleNamespace(
+        execute=AsyncMock(
+            side_effect=[
+                _ScalarResult(SimpleNamespace(status="extracted")),
+                _ScalarResult(SimpleNamespace(id="manifest_test", status="confirmed")),
+                _ScalarResult(durable_run),
+                _RowsResult(members),
+                _RowsResult([]),
+                _RowsResult([SimpleNamespace(id=doc_id, page_count=1) for doc_id in doc_ids]),
+                _ScalarResult(None),
+            ]
+        ),
+        commit=AsyncMock(),
+        rollback=AsyncMock(),
+    )
+    submit = AsyncMock(return_value={"job_id": "ai2_six"})
+    monkeypatch.setattr(worker, "submit_ai2_processing", submit)
+    monkeypatch.setattr(worker, "poll_ai2_processing", AsyncMock(return_value={"status": "FAILED"}))
+    monkeypatch.setattr(worker, "update_pipeline_run_status", AsyncMock())
+    monkeypatch.setattr(worker, "update_pipeline_step", AsyncMock())
+    monkeypatch.setattr(worker, "_fail_ai2_run", AsyncMock())
+
+    await worker._run_ai2_if_ready(
+        session,  # type: ignore[arg-type]
+        dossier_id="dos_test",
+        tenant_id="tenant_test",
+        run_id="run_six",
+    )
+
+    request = submit.await_args.args[0]
+    assert [s["document_id"] for s in request["snapshots"]] == doc_ids
+    assert [m["role"] for m in request["dossier_members"]] == ["body"] + ["annex"] * 5
+    assert len(request["snapshot_identities"]) == 6
+
+
+@pytest.mark.asyncio
+async def test_succeeded_but_blocked_fails_the_run_with_the_ai2_code(
+    factory: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = await _start(factory)
+    persist = AsyncMock()
+    monkeypatch.setattr(worker, "persist_ai2_processing_result", persist)
+
+    async with factory() as session:
+        counts = await worker._finalize_ai2_success(
+            session,
+            tenant_id=TENANT,
+            dossier_id=DOSSIER,
+            run_id=run_id,
+            report={
+                "status": "SUCCEEDED",
+                "review_state": "BLOCKED",
+                "errors": [{"code": "POLICY_BLOCKED", "message": "Hồ sơ bị khoá"}],
+            },
+            ai2_job_id="ai2_blocked",
+            source="http_poll",
+        )
+
+    assert counts is None
+    persist.assert_not_awaited()
+    job = await _job(factory)
+    assert (job.status, job.error_code) == ("failed", "POLICY_BLOCKED")
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+    assert run is not None and (run.status, run.error_code) == ("failed", "POLICY_BLOCKED")
+
+
+def test_blocked_without_errors_gets_a_default_code() -> None:
+    assert worker._ai2_block_reason({"review_state": "BLOCKED"})[0] == "AI2_BLOCKED"
+
+
+@pytest.mark.asyncio
+async def test_failed_result_ignores_review_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """D8: review_state has no meaning when AI2 did not succeed; errors[] decides."""
+    session = SimpleNamespace(
+        execute=AsyncMock(
+            side_effect=[
+                _ScalarResult(SimpleNamespace(status="extracted")),
+                _ScalarResult(SimpleNamespace(id="manifest_test", status="confirmed")),
+                _ScalarResult(SimpleNamespace(ai2_result_digest=None, config_snapshot={})),
+                _RowsResult([_member("contract")]),
+                _RowsResult([]),
+                _RowsResult([]),
+                _ScalarResult(None),
+            ]
+        ),
+        commit=AsyncMock(),
+        rollback=AsyncMock(),
+    )
+    monkeypatch.setattr(worker, "build_processing_request", lambda **_kwargs: {"snapshots": [{}]})
+    monkeypatch.setattr(worker, "update_pipeline_run_status", AsyncMock())
+    monkeypatch.setattr(worker, "update_pipeline_step", AsyncMock())
+    monkeypatch.setattr(worker, "submit_ai2_processing", AsyncMock(return_value={"job_id": "j"}))
+    monkeypatch.setattr(
+        worker,
+        "poll_ai2_processing",
+        AsyncMock(
+            return_value={
+                "status": "FAILED",
+                "review_state": "PASS",
+                "errors": [{"code": "AI2_WORKER_ERROR", "message": "worker crashed"}],
+            }
+        ),
+    )
+    finalize = AsyncMock()
+    fail = AsyncMock()
+    monkeypatch.setattr(worker, "_finalize_ai2_success", finalize)
+    monkeypatch.setattr(worker, "_fail_ai2_run", fail)
+
+    await worker._run_ai2_if_ready(
+        session,  # type: ignore[arg-type]
+        dossier_id="dos_test",
+        tenant_id="tenant_test",
+        run_id="run_failed_pass",
+    )
+
+    finalize.assert_not_awaited()
+    assert fail.await_args.kwargs["code"] == "AI2_PROCESSING_FAILED"
+    assert fail.await_args.kwargs["detail"] == "worker crashed"
+
+
+# ---------------------------------------------------------------------------
+# DEC-BE-AI2-01 B1: the AI2 payload does not read the clock
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_snapshot_time_is_stamped_once_and_survives_redelivery(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+    stamped = (await _run_payload(factory, run_id))["ai1_snapshot_recorded_at"]
+    assert sorted(stamped) == [DOC_A, DOC_B]
+
+    # Worker restarts and Kafka redelivers DOC_A with the same snapshot.
+    worker._ai2_tasks.clear()
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+
+    assert (await _run_payload(factory, run_id))["ai1_snapshot_recorded_at"] == stamped
+    async with factory() as session:
+        run = await session.get(PipelineRunORM, run_id)
+    assert run is not None
+    assert worker._snapshot_created_at(run) == stamped
+
+
+@pytest.mark.asyncio
+async def test_carried_snapshot_keeps_its_stored_time(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    ocr_commands: list[dict[str, Any]],
+) -> None:
+    await _give_blobs(factory)
+    first_run = await _start(factory)
+    await _deliver(factory, _failed(first_run, DOC_A))
+    await _deliver(factory, _ocr_completed(first_run, DOC_B))
+    first_stamp = (await _run_payload(factory, first_run))["ai1_snapshot_recorded_at"][DOC_B]
+
+    async with factory() as session:
+        await worker.handle_dossier_uploaded(
+            session,
+            {"event": "dossier.uploaded", "dossier_id": DOSSIER, "retry_failed": True},
+        )
+    retry_run = str((await _job(factory)).current_run_id)
+
+    carried = (await _run_payload(factory, retry_run))["ai1_snapshot_recorded_at"]
+    assert retry_run != first_run
+    assert carried[DOC_B] == first_stamp
+
+
+def test_run_stored_before_the_stamp_falls_back_to_the_run_time() -> None:
+    created = datetime(2026, 9, 30, 8, 0)  # SQLite hands back a naive UTC value
+    run = SimpleNamespace(
+        created_at=created,
+        config_snapshot='{"ai1_snapshots": {"doc_a": {"schema_version": "ai1.snapshot.v1"}}}',
+    )
+
+    assert worker._snapshot_created_at(run) == {  # type: ignore[arg-type]
+        DOC_A: created.replace(tzinfo=UTC).isoformat()
+    }
+
+
+# ---------------------------------------------------------------------------
+# In-step progress and unreadable OCR results
+# ---------------------------------------------------------------------------
+
+
+async def _steps(factory: async_sessionmaker[AsyncSession], run_id: str) -> dict[str, Any]:
+    async with factory() as session:
+        rows = (
+            await session.execute(select(PipelineStepORM).where(PipelineStepORM.run_id == run_id))
+        ).scalars()
+        return {
+            row.step: (row.status, json.loads(row.progress) if row.progress else None)
+            for row in rows
+        }
+
+
+async def _set_page_counts(factory: async_sessionmaker[AsyncSession], **counts: int) -> None:
+    async with factory() as session:
+        for doc_id, count in counts.items():
+            document = await session.get(DocumentORM, doc_id)
+            assert document is not None
+            document.page_count = count
+        await session.commit()
+
+
+def _ocr_progress(run_id: str, document_id: str, done: int, total: int) -> dict[str, Any]:
+    return _ocr_completed(
+        run_id,
+        document_id,
+        event_id=f"evt_progress_{document_id}_{done}",
+        event_type=worker.EVENT_OCR_PROGRESS,
+        payload={
+            "job_id": f"ai1_{document_id}",
+            "status": "processing",
+            "progress": {"done": done, "total": total, "unit": "page"},
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_ocr_progress_counts_documents_when_page_counts_are_unknown(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    run_id = await _start(factory)
+
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    steps = await _steps(factory, run_id)
+    assert steps["S2"] == ("running", {"done": 1, "total": 2, "unit": "document"})
+
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+    steps = await _steps(factory, run_id)
+    for step in ("S2", "S3", "S8"):
+        assert steps[step] == ("succeeded", {"done": 2, "total": 2, "unit": "document"})
+
+
+@pytest.mark.asyncio
+async def test_ai1_page_reports_drive_dossier_wide_s2_progress(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(worker.step_progress, "MIN_INTERVAL_SECONDS", 0.0)
+    await _set_page_counts(factory, doc_a=150, doc_b=52)
+    run_id = await _start(factory)
+
+    await _deliver(factory, _ocr_progress(run_id, DOC_A, 37, 150))
+    assert (await _steps(factory, run_id))["S2"] == (
+        "running",
+        {"done": 37, "total": 202, "unit": "page"},
+    )
+
+    # A report above the document's own page count cannot push past it.
+    await _deliver(factory, _ocr_progress(run_id, DOC_A, 900, 150))
+    assert (await _steps(factory, run_id))["S2"][1] == {"done": 150, "total": 202, "unit": "page"}
+
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+    await _deliver(factory, _ocr_progress(run_id, DOC_B, 26, 52))
+    assert (await _steps(factory, run_id))["S2"][1] == {"done": 176, "total": 202, "unit": "page"}
+
+    await _deliver(factory, _ocr_completed(run_id, DOC_B))
+    steps = await _steps(factory, run_id)
+    assert steps["S2"] == ("succeeded", {"done": 202, "total": 202, "unit": "page"})
+    # A late report never reopens a finished step.
+    await _deliver(factory, _ocr_progress(run_id, DOC_B, 1, 52))
+    assert (await _steps(factory, run_id))["S2"] == steps["S2"]
+
+
+@pytest.mark.asyncio
+async def test_malformed_ai1_progress_is_ignored(
+    factory: async_sessionmaker[AsyncSession], ai2_ready: MagicMock
+) -> None:
+    await _set_page_counts(factory, doc_a=150, doc_b=52)
+    run_id = await _start(factory)
+    message = _ocr_progress(run_id, DOC_A, 37, 150)
+    message["payload"]["progress"] = {"done": "37", "total": 150, "unit": "page"}
+
+    await _deliver(factory, message)
+
+    assert (await _steps(factory, run_id))["S2"] == ("running", None)
+    assert (await _job(factory)).status == "processing"
+
+
+@pytest.mark.asyncio
+async def test_result_with_no_readable_page_fails_ocr_and_skips_ai2(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failed_page = SimpleNamespace(
+        features={"ai1_page_status": "FAILED", "error": "SKIPPED: OpenAI vision unavailable"}
+    )
+    monkeypatch.setattr(
+        worker,
+        "adapt_ai1_snapshot_result",
+        lambda result: SimpleNamespace(
+            document_id=result["snapshot"]["document_id"], pages=[failed_page, failed_page]
+        ),
+    )
+    run_id = await _start(factory)
+
+    await _deliver(factory, _ocr_completed(run_id, DOC_A))
+
+    job = await _job(factory)
+    assert job.status == "failed" and job.error_code == "AI1_NO_READABLE_PAGE"
+    assert "SKIPPED: OpenAI vision unavailable" in str(job.error_detail)
+    steps = await _steps(factory, run_id)
+    assert {step: steps[step][0] for step in ("S2", "S3", "S8")} == dict.fromkeys(
+        ("S2", "S3", "S8"), "failed"
+    )
+    ai2_ready.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("statuses", "rejected"),
+    [
+        (["FAILED", "FAILED"], True),
+        (["FAILED", "SKIPPED"], True),
+        (["FAILED", "PARTIAL"], False),
+        (["SUCCESS"], False),
+        (["FAILED", None], False),  # a page without a status is not judged
+        ([], False),
+    ],
+)
+def test_no_readable_page_needs_every_page_unreadable(
+    statuses: list[str | None], rejected: bool
+) -> None:
+    snapshot = SimpleNamespace(
+        pages=[SimpleNamespace(features={"ai1_page_status": status}) for status in statuses]
+    )
+    result = worker._no_readable_page(snapshot)
+    assert (result is not None) is rejected
+    if result is not None:
+        assert result[0] == "AI1_NO_READABLE_PAGE"
+
+
+@pytest.mark.asyncio
+async def test_ai2_progress_moves_steps_and_a_failure_fails_the_running_one(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    run_id = await _start(factory)
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.status = "extracted"
+        await worker.update_pipeline_step(
+            session, tenant_id=TENANT, run_id=run_id, step="S4", status="running"
+        )
+        await session.commit()
+
+    async with factory() as session:
+        await worker._record_ai2_progress(
+            session,
+            {"step": "S6", "done": 12, "total": 40, "unit": "clause"},
+            tenant_id=TENANT,
+            run_id=run_id,
+        )
+        # Not an AI2 step: ignored.
+        await worker._record_ai2_progress(
+            session,
+            {"step": "S8", "done": 1, "total": 2, "unit": "page"},
+            tenant_id=TENANT,
+            run_id=run_id,
+        )
+    steps = await _steps(factory, run_id)
+    assert steps["S4"][0] == steps["S5"][0] == "succeeded"
+    assert steps["S6"] == ("running", {"done": 12, "total": 40, "unit": "clause"})
+    assert steps["S7"][0] == "queued" and steps["S8"][0] == "queued"
+
+    async with factory() as session:
+        await worker._fail_ai2_run(
+            session,
+            tenant_id=TENANT,
+            run_id=run_id,
+            code="AI2_PROCESSING_FAILED",
+            detail="poll timed out",
+            audit_detail={},
+        )
+    steps = await _steps(factory, run_id)
+    assert steps["S6"][0] == "failed"
+    assert not [s for s in worker.AI2_STEPS if steps[s][0] == "running"]
+
+
+@pytest.mark.asyncio
+async def test_progress_is_dropped_for_a_run_that_is_not_current_or_not_running(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """vdungx review on PR #117: progress after cancel, from an old run or for
+    another tenant never reaches the steps."""
+    monkeypatch.setattr(worker.step_progress, "MIN_INTERVAL_SECONDS", 0.0)
+    await _set_page_counts(factory, doc_a=150, doc_b=52)
+    run_id = await _start(factory)
+    ai2 = {"step": "S6", "done": 3, "total": 10, "unit": "clause"}
+
+    async with factory() as session:
+        assert not await worker._run_takes_progress(session, tenant_id="other", run_id=run_id)
+        assert await worker._run_takes_progress(session, tenant_id=TENANT, run_id=run_id)
+
+    # A newer run replaces this one on the job: the old run takes nothing.
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        assert job is not None
+        job.current_run_id = "run_newer"
+        await session.commit()
+    await _deliver(factory, _ocr_progress(run_id, DOC_A, 37, 150))
+    async with factory() as session:
+        await worker._record_ai2_progress(session, ai2, tenant_id=TENANT, run_id=run_id)
+    steps = await _steps(factory, run_id)
+    assert steps["S2"][1] is None and steps["S6"] == ("queued", None)
+
+    # Back on the job but cancelled: still nothing.
+    async with factory() as session:
+        job = await session.get(JobORM, JOB)
+        run = await session.get(PipelineRunORM, run_id)
+        assert job is not None and run is not None
+        job.current_run_id = run_id
+        run.status = "cancelled"
+        await session.commit()
+    async with factory() as session:
+        await worker._record_ai2_progress(session, ai2, tenant_id=TENANT, run_id=run_id)
+    assert (await _steps(factory, run_id))["S6"] == ("queued", None)
+
+
+@pytest.mark.asyncio
+async def test_progress_guard_reads_fresh_state_after_cancel_in_another_session(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The worker session that polls AI2 loads the run once and holds it for
+    minutes. ``expire_on_commit=False`` plus the lack of a refresh on the guard
+    used to return the cached "running" row even after another session
+    cancelled the run; the guard must read the current row instead, otherwise
+    progress keeps landing on a cancelled run.
+
+    Repro: load the run in ``session_a`` (the polling session), commit a
+    cancel from ``session_b``, then ask the guard from ``session_a``.
+    """
+    monkeypatch.setattr(worker.step_progress, "MIN_INTERVAL_SECONDS", 0.0)
+    run_id = await _start(factory)
+    ai2 = {"step": "S6", "done": 3, "total": 10, "unit": "clause"}
+
+    session_a = factory()
+    try:
+        # The polling session already saw the run as "running".
+        async with session_a.begin():
+            run_a = await session_a.get(PipelineRunORM, run_id)
+        assert run_a is not None and run_a.status == "running"
+        # An API session cancels the run while session_a is still open.
+        async with factory() as session_b:
+            run_b = await session_b.get(PipelineRunORM, run_id)
+            job_b = await session_b.get(JobORM, JOB)
+            assert run_b is not None and job_b is not None
+            run_b.status = "cancelled"
+            job_b.status = "cancelled"
+            await session_b.commit()
+        # The polling session's identity map still says "running"; the guard
+        # must not trust it.
+        assert not await worker._run_takes_progress(session_a, tenant_id=TENANT, run_id=run_id)
+        await worker._record_ai2_progress(session_a, ai2, tenant_id=TENANT, run_id=run_id)
+    finally:
+        await session_a.close()
+
+    assert (await _steps(factory, run_id))["S6"] == ("queued", None)
+
+
+@pytest.mark.asyncio
+async def test_progress_guard_reads_fresh_state_after_restart_in_another_session(
+    factory: async_sessionmaker[AsyncSession],
+    ai2_ready: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Same staleness, but the run is superseded by a restart: ``current_run_id``
+    on the job now points at the new run. The old run is no longer the current
+    one, so its progress must be dropped even if it is still ``running``."""
+    monkeypatch.setattr(worker.step_progress, "MIN_INTERVAL_SECONDS", 0.0)
+    old_run = await _start(factory)
+    ai2 = {"step": "S6", "done": 3, "total": 10, "unit": "clause"}
+
+    session_a = factory()
+    try:
+        async with session_a.begin():
+            old = await session_a.get(PipelineRunORM, old_run)
+        assert old is not None and old.status == "running"
+        # An API session opens a fresh run and points the job at it.
+        async with factory() as session_b:
+            await worker._mark_processing(session_b, DOSSIER, restart=True)
+            await session_b.commit()
+        new_job = await _job(factory)
+        assert new_job.current_run_id not in (None, old_run)
+        # The polling session still holds the old ``PipelineRunORM`` cached as
+        # running. The guard must notice the new ``current_run_id`` and refuse.
+        assert not await worker._run_takes_progress(session_a, tenant_id=TENANT, run_id=old_run)
+        await worker._record_ai2_progress(session_a, ai2, tenant_id=TENANT, run_id=old_run)
+    finally:
+        await session_a.close()
+
+    assert (await _steps(factory, old_run))["S6"] == ("queued", None)

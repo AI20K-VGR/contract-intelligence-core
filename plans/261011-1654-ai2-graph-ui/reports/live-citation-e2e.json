@@ -1,0 +1,36 @@
+{
+  "target_document_id": "doc_01M4NRZGSN40GW4DK29F1P0149",
+  "trace_http_status": 200,
+  "target_pdf_http": 200,
+  "unshared_same_tenant_status": 403,
+  "graph_state": "READY",
+  "fixture_kind": "synthetic; isolated project database and MinIO",
+  "authenticated_graph_status": 200,
+  "source_document_id": "doc_01M4NRZGQD98QEG2G1KQRW78NA",
+  "oidc_issuer": "http://localhost:8080/realms/contract-intelligence",
+  "citation_refs": [
+    "cite-manual-body",
+    "cite-manual-annex"
+  ],
+  "relation_label": "REFERENCE",
+  "trace_stage_ids": [
+    "contract_graph_pairs"
+  ],
+  "source_pdf_bytes": 850,
+  "citation_text_span_excluded": true,
+  "relation_count": 1,
+  "anonymous_status": 401,
+  "trace_status": "AVAILABLE",
+  "target_pdf_bytes": 850,
+  "backend_health": "ok",
+  "source_pdf_http": 200,
+  "plan": "261011-1654-ai2-graph-ui",
+  "date": "2026-10-11",
+  "anchor_id": "684bfb5241be6620",
+  "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File /c/Users/dungs/AppData/Local/Temp/ai2-graph-ui-live-citation/verify-live.ps1",
+  "evidence_limits": [
+    "Dossier documents were synthetic PDFs uploaded through Backend to isolated MinIO.",
+    "AI2 relation, graph receipt, and trace rows were seeded directly in the isolated PostgreSQL project; this checks read, ACL, projection, and citation paths, not AI2 graph generation.",
+    "No human co-sign of visual readability; manual browser evidence remains soft."
+  ]
+}

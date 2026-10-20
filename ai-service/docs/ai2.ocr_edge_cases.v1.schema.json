@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schema_version": "ai2.ocr_edge_cases.v1",
+  "title": "AI2 OCR Edge Case Catalog (ai2.ocr_edge_cases.v1)",
+  "description": "Bàn giao từ AI1 sang AI2: các trường hợp OCR/bảng biết trước sẽ làm hỏng suy luận (reasoning) nếu AI2 không xử lý, kèm ví dụ dữ liệu thật (rút gọn) và hướng xử lý khuyến nghị. KHÔNG phải một API/data contract — ai1.snapshot.v1 (docs/ai1.snapshot.v1.schema.json) mới là contract chính thức; tài liệu này chỉ là phụ lục giải thích 'điều gì có thể xảy ra bên trong contract đó'. Mỗi case ghi rõ áp dụng cho field nào của ai1.snapshot.v1 (words[]/lines[]/tables[]) và trạng thái xử lý ở phía AI1 (contract_ocr.table_reconstruct / contract_ocr.word_adapters) so AI2 biết chỗ nào đã có bảo vệ sẵn, chỗ nào AI2 vẫn phải tự phòng thủ.\n\nBối cảnh quan trọng (xem AI1_OCR_SNAPSHOT_HANDOFF_RESPONSE.md mục 4): `tables[]` trong ai1.snapshot.v1 hiện luôn rỗng vì pipeline build_snapshot chưa nối vào table_reconstruct. Các case 'table_*' dưới đây mô tả hành vi table_reconstruct SẼ tạo ra một khi AI1 nối pipeline đó vào — AI2 nên code đường đọc tables[]/flags theo đúng các case này ngay bây giờ (schema rỗng không lỗi) để không phải đổi contract khi có dữ liệu thật, đúng khuyến nghị ở mục 8 tài liệu handoff.",
+  "$defs": {
+    "Case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "category", "title_vi", "applies_to", "symptom_vi", "reasoning_guidance_vi", "status", "example"],
+      "properties": {
+        "id": {"type": "string"},
+        "category": {"enum": ["table_structure", "text_geometry", "clause_structure", "infra"]},
+        "title_vi": {"type": "string"},
+        "title_en": {"type": "string"},
+        "applies_to": {
+          "type": "array",
+          "items": {"enum": ["words", "lines", "tables", "blocks", "page.status", "page.warnings"]}
+        },
+        "description_vi": {"type": "string", "description": "Vì sao case này xảy ra trên dữ liệu OCR thật."},
+        "symptom_vi": {"type": "string", "description": "AI2 sẽ 'thấy' gì trong JSON nếu không biết case này."},
+        "reasoning_guidance_vi": {"type": "string", "description": "AI2 nên suy luận/kiểm tra thế nào trước khi tin dữ liệu."},
+        "status": {
+          "enum": ["handled_by_table_reconstruct", "handled_by_word_adapters", "open_ai1_not_yet_wired", "ai2_must_handle"],
+          "description": "handled_* = AI1 đã có cơ chế (flag needs_review/spans_page_break/filled_down hoặc VisionCellCountMismatch); open_ai1_not_yet_wired = logic đã viết (table_reconstruct/word_adapters) nhưng build_snapshot chưa gọi tới, tables[] vẫn rỗng cho tới khi nối; ai2_must_handle = AI1 không thể tự sửa (vd thiếu geometry của vision engine), AI2 phải tự phòng thủ phía mình."
+        },
+        "example": {"type": "object", "description": "JSON rút gọn minh hoạ, dùng đúng field name của ai1.snapshot.v1."}
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "table_wrapped_cell_single_column",
+      "category": "table_structure",
+      "title_vi": "Một ô bảng xuống dòng 2-5 dòng vật lý",
+      "title_en": "Single-column wrapped cell spanning multiple physical lines",
+      "applies_to": ["tables"],
+      "description_vi": "Cột 'Mô tả/quy cách' dài luôn wrap; mỗi dòng wrap là MỘT SnapshotLine/word-group riêng, không phải một block.",
+      "symptom_vi": "Nếu ghép ngây thơ theo dòng, nội dung 1 ô bị tách thành nhiều 'ô' hoặc nhiều dòng logic khác nhau trong cùng bảng.",
+      "reasoning_guidance_vi": "Đọc thẳng row.cells[i].text đã được table_reconstruct.merge_into_logical_rows nối sẵn thành 1 chuỗi liền mạch; không tự nối lại theo dòng OCR gốc. Cell.bboxes có thể là mảng nhiều bbox (1 bbox/dòng wrap) — dùng để vẽ citation nhiều vùng, không phải dấu hiệu lỗi.",
+      "status": "open_ai1_not_yet_wired",
+      "example": {
+        "cell": {
+          "text": "Cấu hình tiêu chuẩn hạng mục 1; bao gồm phụ kiện đồng bộ, vật tư đấu nối, cấu hình ban đầu và tài liệu kỹ thuật theo hồ sơ chào giá.",
+          "bboxes": [[0.24, 0.11, 0.58, 0.13], [0.24, 0.13, 0.58, 0.15], [0.24, 0.15, 0.30, 0.17]],
+          "pages": [2, 2, 2]
+        }
+      }
+    },
+    {
+      "id": "table_wrapped_cell_multi_column_simultaneous",
+      "category": "table_structure",
+      "title_vi": "Hai cột cùng wrap trên cùng một dòng vật lý",
+      "title_en": "Two columns wrapping at the same time on one visual line",
+      "applies_to": ["tables"],
+      "description_vi": "Ví dụ 'Mô tả' và 'Ghi chú' (một ghi chú dài) cùng tràn dòng ở đúng cùng độ cao — một dòng OCR chứa phần tiếp nối của HAI ô khác nhau, không phải một.",
+      "symptom_vi": "Text của cột Ghi chú lẫn vào cuối text của cột Mô tả (hoặc ngược lại) nếu gộp theo thứ tự đọc thay vì theo vị trí cột.",
+      "reasoning_guidance_vi": "Tin tưởng row.cells[i].col_index đã được gán đúng theo vị trí hình học (không phải theo thứ tự xuất hiện trong text nguồn); không tự suy luận lại cột từ nội dung câu.",
+      "status": "open_ai1_not_yet_wired",
+      "example": {
+        "row_cells": [
+          {"col_index": 1, "text": "... kèm thanh ray lắp tủ."},
+          {"col_index": 6, "text": "Bảo hành 36 tháng"}
+        ]
+      }
+    },
+    {
+      "id": "table_row_missing_value_blank_cell",
+      "category": "table_structure",
+      "title_vi": "Một hàng thiếu giá trị ở một cột hợp lệ (không phải lỗi)",
+      "title_en": "A row legitimately has a blank cell",
+      "applies_to": ["tables"],
+      "description_vi": "Cột 'Ghi chú' thường trống với đa số hàng — đây là dữ liệu thật, không phải OCR bị mất chữ.",
+      "symptom_vi": "row.cells thiếu hẳn 1 entry cho col_index đó (cells là mảng THƯA, không phải mảng đủ col_count phần tử).",
+      "reasoning_guidance_vi": "Tra theo col_index (`next(c for c in cells if c.col_index == i)`), không index theo vị trí mảng; cell không tồn tại nghĩa là ô trống, không phải lỗi cần cảnh báo.",
+      "status": "open_ai1_not_yet_wired",
+      "example": {"row_cells": [{"col_index": 0, "text": "02"}, {"col_index": 1, "text": "Thiết bị lưu trữ NAS"}]}
+    },
+    {
+      "id": "table_row_interrupted_by_stamp_or_noise",
+      "category": "table_structure",
+      "title_vi": "Con dấu/vết bẩn chèn 1 từ rác vào giữa một hàng",
+      "title_en": "A stamp/seal injects one stray token into an otherwise normal row",
+      "applies_to": ["tables"],
+      "description_vi": "Một hàng vẫn đọc đúng phần lớn nhưng có thêm 1 cụm ký tự lạ do con dấu/mực lem chèn vào vị trí không thuộc cột nào.",
+      "symptom_vi": "Nếu không lọc, 1 giá trị vô nghĩa (vd '[MỘC]') xuất hiện như thể là dữ liệu hợp lệ của hàng đó, hoặc cả hàng biến mất khỏi bảng.",
+      "reasoning_guidance_vi": "table_reconstruct chỉ giữ lại các giá trị khớp với cột đã biết bằng chồng lấn vị trí; token không khớp cột nào bị loại thầm lặng, không xuất hiện trong bất kỳ cell.text nào. AI2 không cần tự lọc thêm cho case này.",
+      "status": "open_ai1_not_yet_wired",
+      "example": {"note": "Sau khi table_reconstruct xử lý, hàng vẫn đủ dữ liệu gốc, không còn dấu vết của token nhiễu."}
+    },
+    {
+      "id": "table_split_across_pages_with_reset_stt_must_not_merge",
+      "category": "table_structure",
+      "title_vi": "Hai bảng khác nhau (vd 2 phụ lục) cùng mẫu, STT đều reset về 1",
+      "title_en": "Two unrelated tables with the same template both restart numbering at 1",
+      "applies_to": ["tables"],
+      "description_vi": "STT quay lại 1 ở trang sau là bằng chứng đây là MỘT BẢNG MỚI (phụ lục khác), không phải phần tiếp của bảng trước, dù cột giống hệt.",
+      "symptom_vi": "Nếu ghép nhầm theo vị trí trang liền kề mà bỏ qua tín hiệu STT, hai bảng độc lập bị nối làm một, dữ liệu 2 phụ lục lẫn vào nhau.",
+      "reasoning_guidance_vi": "table_reconstruct.should_merge coi STT reset về 1 là rào chắn cứng, luôn tách — hai fragment sẽ xuất hiện như 2 table object riêng (fragment_ids không giao nhau). AI2 không nên tự ghép lại 2 table liền kề chỉ vì cùng col_count.",
+      "status": "open_ai1_not_yet_wired",
+      "example": {"tables": [{"table_id": "t1", "rows": ["... STT 1..5"]}, {"table_id": "t2", "rows": ["... STT 1..3"]}]}
+    },
+    {
+      "id": "table_total_row_without_sequence_number",
+      "category": "table_structure",
+      "title_vi": "Dòng 'Tổng cộng' không có STT, có thể nằm giữa hoặc cuối bảng",
+      "title_en": "A totals row has no STT value and may sit mid-table",
+      "applies_to": ["tables"],
+      "description_vi": "Dòng tổng hợp lệ luôn thiếu STT — đây là quy ước, không phải lỗi OCR; đôi khi engine tự chèn dòng tổng phụ giữa bảng (vd tổng theo hạng mục).",
+      "symptom_vi": "Nếu suy luận 'STT phải tăng liên tục 1,2,3...' một cách cứng nhắc, dòng tổng sẽ bị coi là bằng chứng bảng bị lỗi/đứt đoạn.",
+      "reasoning_guidance_vi": "Kiểm tra row có khớp is_total_row (thiếu STT + có từ khoá 'tổng'/'cộng'/'total') trước khi áp bất kỳ kiểm tra liên tục số thứ tự nào; validate().anchor_continuous của table_reconstruct đã tự bỏ qua các dòng này.",
+      "status": "open_ai1_not_yet_wired",
+      "example": {"row": {"cells": [{"col_index": 0, "text": ""}, {"col_index": 1, "text": "Tổng cộng"}, {"col_index": 5, "text": "3.500.000"}]}}
+    },
+    {
+      "id": "table_geometry_word_level_unavailable_for_scan",
+      "category": "text_geometry",
+      "title_vi": "Ảnh scan qua Paddle chỉ có bbox mức DÒNG, không có bbox mức TỪ",
+      "title_en": "Scanned pages via Paddle only carry line-level bbox, no word-level bbox",
+      "applies_to": ["words", "lines"],
+      "description_vi": "Đã ghi nhận ở AI1_OCR_SNAPSHOT_HANDOFF_RESPONSE.md mục 5: Paddle trả line-level, words[] rỗng cho các dòng scan. Tự dựng bảng từ geometry đòi hỏi bbox mức cột (gần mức từ) — line-level không đủ để tách cột đáng tin.",
+      "symptom_vi": "words[] rỗng hoặc line.word_ids rỗng cho trang SCANNED_OCR dùng Paddle trực tiếp; không thể tách cột từ geometry của riêng dòng đó.",
+      "reasoning_guidance_vi": "Đường đi đáng tin cho bảng scan là word_adapters.OcrAdapter (PaddleOCR detection line-level + VietOCR recognition, dựng lại Word mức dòng) hoặc VisionAdapter mode='cells' (mỗi ô 1 bbox do caller cung cấp, không suy ra từ model). Không tự nội suy bbox mức từ từ line-level bbox bằng cách chia đều theo số ký tự — sai lệch đủ để gán nhầm cột.",
+      "status": "handled_by_word_adapters",
+      "example": {"line": {"line_id": "d1:s1:p002:l007", "text": "Cấu hình tiêu chuẩn hạng mục 1", "word_ids": []}}
+    },
+    {
+      "id": "vision_engine_text_without_grounding_geometry",
+      "category": "text_geometry",
+      "title_vi": "Vision engine (GPT-5.6 Terra) trả text nhưng KHÔNG có bbox đáng tin",
+      "title_en": "Vision engine returns re-transcribed text with no trustworthy geometry",
+      "applies_to": ["words", "lines", "page.status"],
+      "description_vi": "Đã ghi nhận ở AI1_OCR_SNAPSHOT_HANDOFF_RESPONSE.md mục 5-6: DeepSeek/Vision hiện rơi vào PARTIAL, lines: [] — chỉ còn page.text. Ở backend (document_processing.py, khác pipeline nhưng cùng lớp rủi ro): khi bật GPT vision re-transcription và số dòng KHỚP với Tesseract, code chỉ thay `line.text` bằng bản GPT, giữ NGUYÊN bbox/word geometry cũ của Tesseract — nghĩa là text hiển thị có thể đã 'đúng hơn' nhưng toạ độ citation vẫn là toạ độ Tesseract, có thể sai nếu Tesseract đọc nhầm vị trí từ.",
+      "symptom_vi": "Citation trỏ đúng ĐÚNG DÒNG nhưng có thể lệch trong-dòng nếu Tesseract tách từ sai vị trí trước khi bị GPT ghi đè text; hoặc PARTIAL/lines rỗng hoàn toàn với DeepSeek.",
+      "reasoning_guidance_vi": "Không giả định text đã được vision engine xác thực đồng nghĩa với bbox cũng đáng tin — hai thứ độc lập. Với PARTIAL do missing_line_geometry: dùng page.text làm nguồn duy nhất, không cố gán citation bbox cho nó. TUYỆT ĐỐI không tự bịa bbox cho output của vision engine.",
+      "status": "ai2_must_handle",
+      "example": {"page": {"status": "PARTIAL", "input_type": "SCANNED_OCR", "lines": [], "text": "... (chỉ còn text thô)", "warnings": ["missing_line_geometry"]}}
+    },
+    {
+      "id": "clause_structure_missing_diacritics",
+      "category": "clause_structure",
+      "title_vi": "Tiêu đề Điều/Khoản/Điểm mất dấu hoàn toàn (không phải NFD/NFC)",
+      "title_en": "Article/clause headers lost their Vietnamese diacritics entirely",
+      "applies_to": ["blocks"],
+      "description_vi": "blocks[] hiện luôn rỗng ở ai1.snapshot.v1 (mục 4 handoff) — AI2 tự gộp line thành clause-region tạm thời. Nếu OCR suy giảm (font TCVN3/VNI cũ, scan mờ) làm mất dấu hoàn toàn, chữ 'Điều'/'Khoản'/'Điểm' thành 'Dieu'/'Khoan'/'Diem' — khác NFC/NFD (đã có unicodedata.normalize xử lý), đây là mất ký tự dấu THẬT SỰ.",
+      "symptom_vi": "Regex tìm '^Điều\\s+\\d+' không khớp — nếu quy tắc gộp block của AI2 phụ thuộc y hệt pattern này, TOÀN BỘ tài liệu không nhận được điều khoản nào, không chỉ riêng dòng tiêu đề.",
+      "reasoning_guidance_vi": "Chuẩn hoá bỏ dấu (NFD rồi loại combining mark, đ/Đ→d/D) trước khi so khớp 'Dieu'/'Khoan'/'Diem', giữ nguyên text gốc để hiển thị. Backend/app/structure.py đã có strip_diacritics() làm mẫu tham khảo.",
+      "status": "ai2_must_handle",
+      "example": {"line_text_raw": "DIEU 1. NOI DUNG VA PHAM VI CONG VIEC", "line_text_expected_form": "Điều 1. Nội dung và phạm vi công việc"}
+    },
+    {
+      "id": "ocr_engine_unavailable_infra_failure",
+      "category": "infra",
+      "title_vi": "Engine OCR không sẵn sàng (thiếu binary/model) — lỗi hạ tầng, không phải lỗi nội dung",
+      "title_en": "OCR engine unavailable — infra failure, not a content quality issue",
+      "applies_to": ["page.status"],
+      "description_vi": "Khác PARTIAL (đọc được một phần) — đây là trang KHÔNG chạy được OCR nào cả vì thiếu Tesseract/model, cần phân biệt rõ để AI2 không hiểu nhầm là tài liệu trống hoặc chất lượng kém.",
+      "symptom_vi": "page.status = FAILED với error rõ ràng (vd OCR_ENGINE_UNAVAILABLE), khác hẳn PARTIAL/blank_page.",
+      "reasoning_guidance_vi": "FAILED do lỗi hạ tầng nên được báo cáo khác PARTIAL (không đủ bằng chứng để suy luận nghiệp vụ, không phải 'tài liệu không có nội dung ở đây') — không dùng cùng logic fallback với trang trắng thật.",
+      "status": "ai2_must_handle",
+      "example": {"page": {"status": "FAILED", "error": "OCR_ENGINE_UNAVAILABLE"}}
+    }
+  ]
+}

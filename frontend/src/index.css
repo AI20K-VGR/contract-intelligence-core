@@ -1,0 +1,604 @@
+@import 'tailwindcss';
+
+/* Design tokens exported from Stitch (Institutional Access Management). */
+@theme {
+  --color-on-tertiary-fixed-variant: #003ea8;
+  --color-primary-fixed-dim: #b5c7ea;
+  --color-tertiary: #00051b;
+  --color-tertiary-fixed: #dbe1ff;
+  --color-tertiary-fixed-dim: #b4c5ff;
+  --color-on-error-container: #93000a;
+  --color-outline: #75777e;
+  --color-on-secondary-fixed: #111c2d;
+  --color-primary: #000615;
+  --color-on-secondary-fixed-variant: #3c475a;
+  --color-secondary: #545f73;
+  --color-surface-container-lowest: #ffffff;
+  --color-on-secondary-container: #586377;
+  --color-surface-tint: #4d5f7d;
+  --color-on-error: #ffffff;
+  --color-background: #f8f9ff;
+  --color-surface-container: #e5eeff;
+  --color-secondary-fixed: #d8e3fb;
+  --color-primary-fixed: #d6e3ff;
+  --color-error: #ba1a1a;
+  --color-inverse-surface: #213145;
+  --color-on-surface: #0b1c30;
+  --color-surface-dim: #cbdbf5;
+  --color-primary-container: #0b1f3a;
+  --color-on-background: #0b1c30;
+  --color-secondary-fixed-dim: #bcc7de;
+  --color-inverse-primary: #b5c7ea;
+  --color-on-secondary: #ffffff;
+  --color-on-primary-fixed: #071c36;
+  --color-surface-container-high: #dce9ff;
+  --color-surface-container-highest: #d3e4fe;
+  --color-surface-bright: #f8f9ff;
+  --color-surface-container-low: #eff4ff;
+  --color-surface: #f8f9ff;
+  --color-on-tertiary: #ffffff;
+  --color-on-primary: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-primary-fixed-variant: #364764;
+  --color-on-tertiary-container: #4e7fff;
+  --color-secondary-container: #d5e0f8;
+  --color-tertiary-container: #001a52;
+  --color-surface-variant: #d3e4fe;
+  --color-on-tertiary-fixed: #00174b;
+  --color-on-surface-variant: #44474d;
+  --color-inverse-on-surface: #eaf1ff;
+  --color-on-primary-container: #7587a7;
+  --color-outline-variant: #c4c6ce;
+
+  --radius: 0.125rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
+  --radius-full: 0.75rem;
+
+  --spacing-gutter-sm: 1rem;
+  --spacing-space-lg: 1.25rem;
+  --spacing-space-md: 0.75rem;
+  --spacing-gutter-lg: 2rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-xs: 0.25rem;
+  --spacing-margin: 2rem;
+  --spacing-margin-lg: 4rem;
+  --spacing-gutter: 1.5rem;
+  --spacing-space-xl: 2rem;
+  --spacing-margin-sm: 1rem;
+
+  --font-headline-lg-mobile: 'IBM Plex Sans', sans-serif;
+  --font-label-md: 'IBM Plex Sans', sans-serif;
+  --font-body-sm: 'IBM Plex Sans', sans-serif;
+  --font-label-sm: 'IBM Plex Sans', sans-serif;
+  --font-headline-md: 'IBM Plex Sans', sans-serif;
+  --font-headline-lg: 'IBM Plex Sans', sans-serif;
+  --font-title-sm: 'IBM Plex Sans', sans-serif;
+  --font-display-lg: 'IBM Plex Sans', sans-serif;
+  --font-body-md: 'IBM Plex Sans', sans-serif;
+  --font-body-lg: 'IBM Plex Sans', sans-serif;
+  --font-code-sm: 'IBM Plex Sans', sans-serif;
+
+  --text-headline-lg-mobile: 20px;
+  --text-headline-lg-mobile--line-height: 28px;
+  --text-headline-lg-mobile--letter-spacing: -0.01em;
+  --text-headline-lg-mobile--font-weight: 600;
+
+  --text-label-md: 12px;
+  --text-label-md--line-height: 16px;
+  --text-label-md--letter-spacing: 0.04em;
+  --text-label-md--font-weight: 600;
+
+  --text-body-sm: 13px;
+  --text-body-sm--line-height: 18px;
+  --text-body-sm--font-weight: 400;
+
+  --text-label-sm: 11px;
+  --text-label-sm--line-height: 14px;
+  --text-label-sm--letter-spacing: 0.05em;
+  --text-label-sm--font-weight: 500;
+
+  --text-headline-md: 18px;
+  --text-headline-md--line-height: 24px;
+  --text-headline-md--letter-spacing: -0.01em;
+  --text-headline-md--font-weight: 600;
+
+  --text-headline-lg: 24px;
+  --text-headline-lg--line-height: 32px;
+  --text-headline-lg--letter-spacing: -0.015em;
+  --text-headline-lg--font-weight: 600;
+
+  --text-title-sm: 15px;
+  --text-title-sm--line-height: 20px;
+  --text-title-sm--letter-spacing: -0.005em;
+  --text-title-sm--font-weight: 600;
+
+  --text-display-lg: 32px;
+  --text-display-lg--line-height: 40px;
+  --text-display-lg--letter-spacing: -0.02em;
+  --text-display-lg--font-weight: 600;
+
+  --text-body-md: 14px;
+  --text-body-md--line-height: 20px;
+  --text-body-md--font-weight: 400;
+
+  --text-body-lg: 15px;
+  --text-body-lg--line-height: 22px;
+  --text-body-lg--font-weight: 400;
+
+  --text-code-sm: 12px;
+  --text-code-sm--line-height: 16px;
+  --text-code-sm--letter-spacing: 0.01em;
+  --text-code-sm--font-weight: 500;
+}
+
+/*
+ * Giá trị dự phòng khi chưa có bộ màu nào được chọn. Màu thật của từng bộ nằm ở
+ * các khối [data-palette='…'] bên dưới (danh sách trong src/theme/palettes.ts).
+ * Không gắn :root để thẻ xem trước ở Cài đặt tự mang màu của bộ đó.
+ * brand là màu chủ đạo, tone là xám slate, ice/blush là màu phụ, side-* là thanh menu.
+ */
+@theme {
+  --color-brand-50: #effcfd;
+  --color-brand-100: #d8f6f9;
+  --color-brand-200: #b4ecf2;
+  --color-brand-300: #7fd3e0;
+  --color-brand-400: #4fb5c7;
+  --color-brand-500: #2d99ae;
+  --color-brand-600: #0c5776;
+  --color-brand-700: #0a4964;
+  --color-brand-800: #063656;
+  --color-brand-900: #001c44;
+  --color-tone-50: #f8fafc;
+  --color-tone-100: #f1f5f9;
+  --color-tone-200: #e2e8f0;
+  --color-tone-300: #cbd5e1;
+  --color-tone-400: #94a3b8;
+  --color-tone-500: #64748b;
+  --color-tone-600: #475569;
+  --color-tone-700: #334155;
+  --color-tone-800: #1e293b;
+  --color-tone-900: #0f172a;
+  --color-ice: #bcfefe;
+  --color-blush-50: #fdf3ef;
+  --color-blush-100: #f8dad0;
+  --color-blush-700: #9a4630;
+
+  /* Thanh menu bên trái: mỗi bộ màu tự đặt (bộ 1 nền navy, bộ 2 nền sáng). */
+  --color-side: #001c44;
+  --color-side-ink: #ffffff;
+  --color-side-muted: rgb(255 255 255 / 0.72);
+  --color-side-hover: rgb(255 255 255 / 0.1);
+  --color-side-active: #0c5776;
+  --color-side-active-ink: #ffffff;
+  --color-side-chip: rgb(255 255 255 / 0.1);
+  --color-side-label: rgb(188 254 254 / 0.6);
+  --color-side-logo: #2d99ae;
+}
+
+/*
+ * Cỡ chữ chọn ở Cài đặt; src/theme/fontSize.ts đặt data-font-size lên <html>.
+ * Chỉ đè cỡ chữ theo token (font-body-md, text-body-md…); cỡ viết thẳng như
+ * text-[14px] (chủ yếu là icon) giữ nguyên. "Vừa" là cỡ gốc ở @theme trên.
+ */
+:root[data-font-size='sm'] {
+  --text-label-sm: 10px;
+  --text-label-sm--line-height: 13px;
+  --text-label-md: 11px;
+  --text-label-md--line-height: 15px;
+  --text-code-sm: 11px;
+  --text-code-sm--line-height: 15px;
+  --text-body-sm: 12px;
+  --text-body-sm--line-height: 17px;
+  --text-body-md: 13px;
+  --text-body-md--line-height: 19px;
+  --text-body-lg: 14px;
+  --text-body-lg--line-height: 21px;
+  --text-title-sm: 14px;
+  --text-title-sm--line-height: 19px;
+  --text-headline-md: 17px;
+  --text-headline-md--line-height: 23px;
+  --text-headline-lg-mobile: 19px;
+  --text-headline-lg-mobile--line-height: 26px;
+  --text-headline-lg: 22px;
+  --text-headline-lg--line-height: 30px;
+  --text-display-lg: 30px;
+  --text-display-lg--line-height: 38px;
+  --text-xs: 0.6875rem;
+  --text-sm: 0.8125rem;
+}
+
+:root[data-font-size='lg'] {
+  --text-label-sm: 12px;
+  --text-label-sm--line-height: 16px;
+  --text-label-md: 13px;
+  --text-label-md--line-height: 18px;
+  --text-code-sm: 13px;
+  --text-code-sm--line-height: 18px;
+  --text-body-sm: 15px;
+  --text-body-sm--line-height: 21px;
+  --text-body-md: 16px;
+  --text-body-md--line-height: 24px;
+  --text-body-lg: 17px;
+  --text-body-lg--line-height: 26px;
+  --text-title-sm: 17px;
+  --text-title-sm--line-height: 23px;
+  --text-headline-md: 20px;
+  --text-headline-md--line-height: 27px;
+  --text-headline-lg-mobile: 22px;
+  --text-headline-lg-mobile--line-height: 30px;
+  --text-headline-lg: 26px;
+  --text-headline-lg--line-height: 34px;
+  --text-display-lg: 34px;
+  --text-display-lg--line-height: 42px;
+  --text-xs: 0.8125rem;
+  --text-sm: 1rem;
+}
+
+@layer base {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    overscroll-behavior: none;
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+.bg-grid-pattern {
+  background-size: 24px 24px;
+  background-image: radial-gradient(circle, #c4c6ce 0.75px, transparent 0.75px);
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+}
+
+/*
+ * Bộ màu 2 "Bãi biển": sage #89AEB2, aqua #97F2F3, cát #F1E0B0, đào #F1CDB0,
+ * hồng phấn #E7CFC8. Chọn ở Cài đặt; src/theme/palettes.ts đặt data-palette lên <html>.
+ */
+[data-palette='2'] {
+  --color-brand-50: #f3f8f8;
+  --color-brand-100: #e3eef0;
+  --color-brand-200: #c9dcde;
+  --color-brand-300: #a9c6c9;
+  --color-brand-400: #89aeb2;
+  --color-brand-500: #6b9499;
+  --color-brand-600: #4a7378;
+  --color-brand-700: #3b5f63;
+  --color-brand-800: #2c4a4d;
+  --color-brand-900: #1f3538;
+  --color-tone-50: #fbf9f3;
+  --color-ice: #97f2f3;
+  --color-blush-50: #fbf1e8;
+  --color-blush-100: #f1cdb0;
+  --color-blush-700: #7a4419;
+  --color-side: #e3eef0;
+  --color-side-ink: #1f3538;
+  --color-side-muted: #3b5f63;
+  --color-side-hover: rgb(255 255 255 / 0.6);
+  --color-side-active: #ffffff;
+  --color-side-active-ink: #2c4a4d;
+  --color-side-chip: rgb(255 255 255 / 0.6);
+  --color-side-label: #6b9499;
+  --color-side-logo: #4a7378;
+}
+
+/* Bộ màu 3 "Mận chín": #4f4762, #efdecd, #ffadb5, #d63a6f */
+[data-palette='3'] {
+  --color-brand-50: #fff3f5;
+  --color-brand-100: #ffe5ea;
+  --color-brand-200: #ffd0d9;
+  --color-brand-300: #ffacbf;
+  --color-brand-400: #ff7199;
+  --color-brand-500: #e64a7c;
+  --color-brand-600: #c62862;
+  --color-brand-700: #a6084d;
+  --color-brand-800: #82003a;
+  --color-brand-900: #5a0026;
+  --color-tone-50: #fcf8f4;
+  --color-ice: #ffadb5;
+  --color-blush-50: #fbf4ec;
+  --color-blush-100: #efdecd;
+  --color-blush-700: #7a5230;
+  --color-side: #4f4762;
+  --color-side-ink: #ffffff;
+  --color-side-muted: rgb(255 255 255 / 0.72);
+  --color-side-hover: rgb(255 255 255 / 0.1);
+  --color-side-active: #c62862;
+  --color-side-active-ink: #ffffff;
+  --color-side-chip: rgb(255 255 255 / 0.1);
+  --color-side-label: rgb(255 255 255 / 0.5);
+  --color-side-logo: #e64a7c;
+}
+
+/* Bộ màu 4 "Xanh công nghệ": #1e3a5f, #1e88ff, #e6e6e6, #f2f2f2 */
+[data-palette='4'] {
+  --color-brand-50: #f2f7ff;
+  --color-brand-100: #e1eeff;
+  --color-brand-200: #c9e0ff;
+  --color-brand-300: #a2caff;
+  --color-brand-400: #68aaff;
+  --color-brand-500: #248aff;
+  --color-brand-600: #006eda;
+  --color-brand-700: #0058b0;
+  --color-brand-800: #004389;
+  --color-brand-900: #002c5f;
+  --color-tone-50: #f7f7f7;
+  --color-ice: #cfe5ff;
+  --color-blush-50: #f2f2f2;
+  --color-blush-100: #e6e6e6;
+  --color-blush-700: #404040;
+  --color-side: #1e3a5f;
+  --color-side-ink: #ffffff;
+  --color-side-muted: rgb(255 255 255 / 0.72);
+  --color-side-hover: rgb(255 255 255 / 0.1);
+  --color-side-active: #006eda;
+  --color-side-active-ink: #ffffff;
+  --color-side-chip: rgb(255 255 255 / 0.1);
+  --color-side-label: rgb(255 255 255 / 0.5);
+  --color-side-logo: #248aff;
+}
+
+/* Bộ màu 5 "Vườn hè": #b9e5a6, #e6c27a, #ef9d7a, #e98aa6 */
+[data-palette='5'] {
+  --color-brand-50: #ecfde6;
+  --color-brand-100: #dcf6d1;
+  --color-brand-200: #c4ecb5;
+  --color-brand-300: #a5d98f;
+  --color-brand-400: #7cbc60;
+  --color-brand-500: #619f44;
+  --color-brand-600: #468327;
+  --color-brand-700: #326b0f;
+  --color-brand-800: #215200;
+  --color-brand-900: #143700;
+  --color-tone-50: #fbfdf8;
+  --color-ice: #e6c27a;
+  --color-blush-50: #fdf0f4;
+  --color-blush-100: #e98aa6;
+  --color-blush-700: #5e1530;
+  --color-side: #dcf6d1;
+  --color-side-ink: #143700;
+  --color-side-muted: #326b0f;
+  --color-side-hover: rgb(255 255 255 / 0.6);
+  --color-side-active: #ffffff;
+  --color-side-active-ink: #215200;
+  --color-side-chip: rgb(255 255 255 / 0.6);
+  --color-side-label: #619f44;
+  --color-side-logo: #468327;
+}
+
+/* Bộ màu 7 "Bạc hà": #addfd0, #f1a6a3, #a98aa8, #eaf6f4 */
+[data-palette='7'] {
+  --color-brand-50: #e8fcf6;
+  --color-brand-100: #d5f5eb;
+  --color-brand-200: #b9eadb;
+  --color-brand-300: #95d7c4;
+  --color-brand-400: #65bba3;
+  --color-brand-500: #479e88;
+  --color-brand-600: #27836e;
+  --color-brand-700: #0b6a57;
+  --color-brand-800: #005242;
+  --color-brand-900: #00372c;
+  --color-tone-50: #f8fcfb;
+  --color-ice: #addfd0;
+  --color-blush-50: #fdf1f0;
+  --color-blush-100: #f1a6a3;
+  --color-blush-700: #7d2a26;
+  --color-side: #eaf6f4;
+  --color-side-ink: #00372c;
+  --color-side-muted: #0b6a57;
+  --color-side-hover: rgb(255 255 255 / 0.6);
+  --color-side-active: #ffffff;
+  --color-side-active-ink: #005242;
+  --color-side-chip: rgb(255 255 255 / 0.6);
+  --color-side-label: #479e88;
+  --color-side-logo: #a98aa8;
+}
+
+/* Bộ màu 8 "Hoàng hôn": #fdf6e3, #b7dcd9, #f7a46b, #fdc39c */
+[data-palette='8'] {
+  --color-brand-50: #e9fbf9;
+  --color-brand-100: #d6f4f1;
+  --color-brand-200: #bbe9e4;
+  --color-brand-300: #97d5d0;
+  --color-brand-400: #68b8b2;
+  --color-brand-500: #4b9c96;
+  --color-brand-600: #2d807b;
+  --color-brand-700: #146863;
+  --color-brand-800: #00504c;
+  --color-brand-900: #003633;
+  --color-tone-50: #fffcf5;
+  --color-ice: #b7dcd9;
+  --color-blush-50: #fef3ea;
+  --color-blush-100: #fdc39c;
+  --color-blush-700: #8a4210;
+  --color-side: #fdf6e3;
+  --color-side-ink: #003633;
+  --color-side-muted: #146863;
+  --color-side-hover: rgb(255 255 255 / 0.6);
+  --color-side-active: #ffffff;
+  --color-side-active-ink: #00504c;
+  --color-side-chip: rgb(255 255 255 / 0.6);
+  --color-side-label: #4b9c96;
+  --color-side-logo: #2d807b;
+}
+
+/* Bộ màu 9 "Rừng nhiệt đới": #4ba89a, #b5e2c0, #f2edcc, #f2c6c8 */
+[data-palette='9'] {
+  --color-brand-50: #e7fcf8;
+  --color-brand-100: #d3f5ef;
+  --color-brand-200: #b7eae1;
+  --color-brand-300: #91d7cb;
+  --color-brand-400: #5fbbac;
+  --color-brand-500: #409e90;
+  --color-brand-600: #1d8376;
+  --color-brand-700: #006a5e;
+  --color-brand-800: #005148;
+  --color-brand-900: #003630;
+  --color-tone-50: #fcfbf3;
+  --color-ice: #b5e2c0;
+  --color-blush-50: #fcf1f1;
+  --color-blush-100: #f2c6c8;
+  --color-blush-700: #7d3337;
+  --color-side: #d3f5ef;
+  --color-side-ink: #003630;
+  --color-side-muted: #006a5e;
+  --color-side-hover: rgb(255 255 255 / 0.6);
+  --color-side-active: #ffffff;
+  --color-side-active-ink: #005148;
+  --color-side-chip: rgb(255 255 255 / 0.6);
+  --color-side-label: #409e90;
+  --color-side-logo: #1d8376;
+}
+
+/*
+ * Bộ màu 10 "Hoa anh đào": chủ yếu hồng phấn #f9c4d5 và trắng; điểm thêm
+ * pastel vàng nhụy #fdf0c4, xanh lá #cfe8bd, nâu cành #d9c2b6, xanh trời #cfe8f7.
+ */
+[data-palette='10'] {
+  --color-brand-50: #fff7fa;
+  --color-brand-100: #ffedf3;
+  --color-brand-200: #fddbe6;
+  --color-brand-300: #f9c4d5;
+  --color-brand-400: #f2a5bd;
+  --color-brand-500: #e688a5;
+  --color-brand-600: #d46f92;
+  --color-brand-700: #b8577a;
+  --color-brand-800: #934460;
+  --color-brand-900: #6b3146;
+  --color-tone-50: #fffbfc;
+  --color-ice: #cfe8f7;
+  --color-blush-50: #fffbeb;
+  --color-blush-100: #fdf0c4;
+  --color-blush-700: #7a5a10;
+  --color-side: #fbd3e0;
+  --color-side-ink: #5c4038;
+  --color-side-muted: #8a6a5e;
+  --color-side-hover: rgb(255 255 255 / 0.7);
+  --color-side-active: #ffffff;
+  --color-side-active-ink: #b8577a;
+  --color-side-chip: rgb(255 255 255 / 0.7);
+  --color-side-label: #e688a5;
+  --color-side-logo: #a8d18f;
+}
+
+/*
+ * Bộ màu 12 "Giáng sinh": xanh thông #2f5d4a, trắng tuyết #fbfbf8; điểm thêm
+ * đỏ nhung #b8333a, vàng chuông #e5c158, nâu gừng #a8714a.
+ */
+[data-palette='12'] {
+  --color-brand-50: #f1f7f4;
+  --color-brand-100: #dfeee7;
+  --color-brand-200: #c0dccf;
+  --color-brand-300: #96c1ad;
+  --color-brand-400: #67a087;
+  --color-brand-500: #46806a;
+  --color-brand-600: #2f6a54;
+  --color-brand-700: #2f5d4a;
+  --color-brand-800: #23463a;
+  --color-brand-900: #18302a;
+  /* Xám ấm theo trắng tuyết, thay xám slate ánh xanh của mặc định. */
+  --color-tone-50: #fbfbf8;
+  --color-tone-100: #f5f4ef;
+  --color-tone-200: #ebe8e0;
+  --color-tone-300: #dcd7cb;
+  --color-tone-400: #b5ae9f;
+  --color-tone-500: #8c8577;
+  --color-tone-600: #6b6559;
+  --color-tone-700: #514c42;
+  --color-tone-800: #38342d;
+  --color-tone-900: #24211c;
+  --color-ice: #f5e6b0;
+  --color-blush-50: #fdf2f2;
+  --color-blush-100: #f6caca;
+  --color-blush-700: #8f2329;
+  --color-side: #2f5d4a;
+  --color-side-ink: #fbfbf8;
+  --color-side-muted: rgb(251 251 248 / 0.75);
+  --color-side-hover: rgb(255 255 255 / 0.1);
+  --color-side-active: #b8333a;
+  --color-side-active-ink: #ffffff;
+  --color-side-chip: rgb(255 255 255 / 0.1);
+  --color-side-label: rgb(229 193 88 / 0.85);
+  --color-side-logo: #e5c158;
+}
+
+/*
+ * Giao diện mới cho sidebar và các trang quản trị, theo bảng màu blue + slate.
+ * Đè token màu trong phạm vi lớp này nên các trang dùng token cũ tự đổi theo.
+ */
+.theme-soft {
+  --color-background: var(--color-tone-50);
+  --color-surface: #ffffff;
+  --color-surface-bright: #ffffff;
+  --color-surface-dim: var(--color-tone-200);
+  --color-surface-variant: var(--color-tone-100);
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: var(--color-tone-50);
+  --color-surface-container: var(--color-tone-100);
+  --color-surface-container-high: var(--color-tone-200);
+  --color-surface-container-highest: var(--color-tone-200);
+  --color-on-surface: var(--color-tone-900);
+  --color-on-background: var(--color-tone-900);
+  --color-on-surface-variant: var(--color-tone-600);
+  --color-primary: var(--color-brand-600);
+  --color-on-primary: #ffffff;
+  --color-primary-container: var(--color-brand-700);
+  --color-on-primary-container: var(--color-brand-200);
+  --color-primary-fixed: var(--color-brand-100);
+  --color-primary-fixed-dim: var(--color-brand-200);
+  --color-secondary: var(--color-tone-500);
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: var(--color-tone-100);
+  --color-on-secondary-container: var(--color-tone-700);
+  --color-tertiary: var(--color-brand-800);
+  --color-tertiary-container: var(--color-brand-800);
+  --color-on-tertiary-container: var(--color-brand-600);
+  --color-on-tertiary-fixed-variant: var(--color-brand-700);
+  --color-inverse-surface: var(--color-tone-900);
+  --color-inverse-on-surface: #ffffff;
+  --color-outline: var(--color-tone-400);
+  --color-outline-variant: var(--color-tone-200);
+  --radius: 0.5rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.75rem;
+}
+
+/* Thẻ trắng: viền mảnh + bóng rất nhẹ theo màu chủ đạo, như các ô trên Tổng quan. */
+.theme-soft .bg-surface-container-lowest.shadow-sm,
+.theme-soft .bg-surface-container-lowest.shadow-md {
+  border: 1px solid var(--color-tone-200);
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 12px
+    color-mix(in srgb, var(--color-brand-600) 6%, transparent);
+}

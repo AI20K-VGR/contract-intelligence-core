@@ -1,0 +1,105 @@
+from __future__ import annotations
+
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    Column,
+    DefaultClause,
+    Index,
+    Integer,
+    LargeBinary,
+    MetaData,
+    Table,
+    Text,
+    UniqueConstraint,
+)
+
+metadata = MetaData(schema="ai2")
+
+
+def columns(spec: str):
+    """Compact declarations; '?' marks nullable fields, '*' a primary key."""
+    result = []
+    for field in spec.split():
+        name, kind = field.split(":")
+        nullable, primary = "?" in kind, "*" in kind
+        types = {"s": Text, "i": Integer, "n": BigInteger, "b": LargeBinary}
+        result.append(Column(name, types[kind.replace("?", "").replace("*", "")],
+                             nullable=nullable, primary_key=primary))
+    return result
+
+
+jobs = Table("jobs", metadata, *columns(
+    "job_id:s* tenant_id:s dossier_id:s request_id:s idempotency_key:s attempt:i status:s trace_status:s current_execution_id:s? "
+    "request_json:s wire_json:s result_json:s? request_fingerprint:s? worker_token:s? lease_until_ms:n? created_ms:n updated_ms:n"),
+    UniqueConstraint("tenant_id", "idempotency_key", "attempt", name="uq_ai2_job_idempotency"))
+jobs.c.trace_status.server_default = DefaultClause("'AVAILABLE'")
+service_nonces = Table("service_nonces", metadata, *columns(
+    "tenant_id:s* nonce:s* payload_fingerprint:s job_id:s created_ms:n"))
+query_snapshots = Table("dossier_query_snapshots", metadata, *columns(
+    "tenant_id:s* dossier_id:s* snapshot_digest:s payload:s updated_ms:n"))
+sessions = Table("sessions", metadata, *columns("session_id:s* payload:s updated_ms:n"))
+session_blobs = Table("session_blobs", metadata, *columns("session_id:s* file_id:s* content:b"))
+vector_segments = Table("vector_segments", metadata, *columns(
+    "segment_id:s* snapshot_digest:s node_id:s source_file_id:s? source_role:s? page_revision_id:s "
+    "char_start:i char_end:i text_digest:s text:s embedding_version:s embedding_model:s dimensions:i vector_json:s"))
+durable_runs = Table("durable_runs", metadata, *columns(
+    "run_id:s* tenant_id:s generation_id:s snapshot_json:s snapshot_digest:s snapshot_sequence:i "
+    "event_sequence:i state_version:i created_ms:n updated_ms:n lease_owner:s? lease_token:s? lease_until_ms:n?"))
+durable_checkpoints = Table("durable_checkpoints", metadata, *columns(
+    "run_id:s* checkpoint_id:s* tenant_id:s sequence:i state_json:s state_digest:s created_ms:n updated_ms:n"))
+durable_events = Table("durable_events", metadata, *columns(
+    "event_id:s* run_id:s tenant_id:s event_type:s schema_version:s sequence:i state_version:i generation_id:s "
+    "created_ms:n actor_id:s? correlation_id:s causation_id:s? payload_json:s evidence_refs_json:s digest:s"),
+    UniqueConstraint("run_id", "sequence", name="uq_ai2_event_sequence"))
+durable_audit = Table("durable_audit", metadata, *columns(
+    "audit_id:s* run_id:s tenant_id:s actor_id:s action:s details_json:s created_ms:n previous_digest:s? digest:s"))
+durable_outbox = Table("durable_outbox", metadata, *columns(
+    "event_id:s* run_id:s payload_json:s status:s attempts:i lease_token:s? lease_until_ms:n? available_after_ms:n published_ms:n?"))
+
+# Match the existing store's omitted insertion fields.
+durable_outbox.c.attempts.server_default = DefaultClause("0")
+durable_runs.c.event_sequence.server_default = DefaultClause("0")
+
+# D9: contract-graph tables live in their own MetaData. Revision 0001 calls
+# ``metadata.create_all``, so a table declared on ``metadata`` would already exist on a fresh
+# database when 0005 creates it (DuplicateTable). 0005 spells its columns out explicitly.
+graph_metadata = MetaData(schema="ai2")
+CONTRACT_EDGE_OPS = ("INSERTION", "SUBSTITUTION", "REPEAL", "REJECTION", "SCOPE_LIMIT")
+contract_edges = Table("contract_edges", graph_metadata, *columns(
+    "tenant_id:s* dossier_id:s* edge_id:s* job_id:s source_snapshot_digest:s op:s "
+    "source_node_id:s target_node_id:s anchor_node_id:s? target_address:s method:s support:s "
+    "standard:i implicit:i review_state:s source_citation_json:s target_citation_json:s "
+    "new_text:s? scope_text:s? digest:s created_ms:n"),
+    CheckConstraint("op IN ({})".format(", ".join(f"'{op}'" for op in CONTRACT_EDGE_OPS)),
+                    name="ck_ai2_contract_edges_op"),
+    Index("idx_ai2_contract_edges_job", "tenant_id", "dossier_id", "job_id"))
+
+CONTRACT_PAIR_LABELS = ("GENERAL_SPECIFIC", "CONFLICT", "DUPLICATE", "REFERENCE")
+contract_pair_relations = Table("contract_pair_relations", graph_metadata, *columns(
+    "tenant_id:s* dossier_id:s* relation_id:s* job_id:s source_snapshot_digest:s label:s directed:i "
+    "node_a_id:s node_b_id:s candidate_sources_json:s span_a:s span_b:s citation_a_json:s "
+    "citation_b_json:s classifier_model:s prompt_version:s review_state:s digest:s created_ms:n"),
+    CheckConstraint("label IN ({})".format(", ".join(f"'{v}'" for v in CONTRACT_PAIR_LABELS)),
+                    name="ck_ai2_contract_pair_relations_label"),
+    Index("idx_ai2_contract_pair_relations_job", "tenant_id", "dossier_id", "job_id"))
+
+graph_write_receipts = Table("contract_graph_write_receipts", graph_metadata, *columns(
+    "tenant_id:s* dossier_id:s* job_id:s* graph_kind:s* source_snapshot_digest:s stage_status:s "
+    "write_status:s row_count:i error_code:s? created_ms:n"),
+    CheckConstraint("graph_kind IN ('operation', 'pair')", name="ck_ai2_graph_receipt_kind"),
+    CheckConstraint("stage_status IN ('COMPLETED', 'SKIPPED', 'FAILED', 'UNKNOWN')",
+                    name="ck_ai2_graph_receipt_stage"),
+    CheckConstraint("write_status IN ('COMMITTED', 'SKIPPED', 'FAILED')",
+                    name="ck_ai2_graph_receipt_write"),
+    CheckConstraint("row_count >= 0", name="ck_ai2_graph_receipt_row_count"),
+    Index("idx_ai2_graph_receipts_scope", "tenant_id", "dossier_id", "job_id"))
+
+processing_trace_events = Table("ai2_processing_trace_events", graph_metadata, *columns(
+    "tenant_id:s* dossier_id:s* job_id:s* snapshot_digest:s* execution_id:s* sequence:i* "
+    "stage_id:s status:s created_ms:n started_ms:n? duration_ms:n? item_count:i? reason_code:s?"),
+    CheckConstraint("status IN ('STARTED', 'COMPLETED', 'FAILED', 'SKIPPED', 'INTERRUPTED_UNKNOWN')",
+                    name="ck_ai2_processing_trace_status"),
+    CheckConstraint("duration_ms IS NULL OR duration_ms >= 0", name="ck_ai2_processing_trace_duration"),
+    CheckConstraint("item_count IS NULL OR item_count >= 0", name="ck_ai2_processing_trace_item_count"),
+    Index("idx_ai2_processing_trace_scope", "tenant_id", "dossier_id", "job_id", "snapshot_digest", "sequence"))

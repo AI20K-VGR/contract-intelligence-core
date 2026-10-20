@@ -1,0 +1,2247 @@
+# ruff: noqa: E501
+
+r"""Contract bounded context router — Phase 1 endpoints per DOC-05-api-spec.yaml.
+
+Endpoints (Phase 1: Core Document Ingestion):
+    POST   /dossiers                     — Multipart upload (per spec line 116-148)
+    GET    /dossiers                     — List dossiers (spec line 150-183)
+    GET    /dossiers/{id}                — Dossier detail (spec line 185-204)
+    PATCH  /dossiers/{id}                — Update metadata (spec line 204-228)
+    DELETE /dossiers/{id}                — Tombstone + schedule content purge
+    GET    /dossiers/{id}/documents      — List documents (spec line 262-277)
+    GET    /documents/{id}               — Document detail (spec line ~759)
+    GET    /documents/{id}/content       — Stream PDF binary
+
+RBAC matrix (DOC-05b §2.3):
+    OPERATOR, ADMINISTRATOR  → write ops (POST, PATCH, DELETE, upload, manifest confirm)
+    OPERATOR, REVIEWER, ADMINISTRATOR  → read ops
+
+Layer: interfaces/api — composes application services, never directly hits ORM.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import re
+import time
+from datetime import UTC, datetime
+from typing import Annotated, Any, Literal, TypeVar
+from urllib.parse import quote
+
+import structlog
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Body,
+    Depends,
+    File,
+    HTTPException,
+    Path,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel, ConfigDict, Field
+from starlette.background import BackgroundTask
+
+from contract_intelligence.admin.activity_feed import record_activity
+from contract_intelligence.api.dossier_guard import (
+    acl_document,
+    acl_dossier,
+)
+from contract_intelligence.config.settings import get_settings
+from contract_intelligence.contract.application.dtos.deletion_dtos import DossierDeletedDTO
+from contract_intelligence.contract.application.dtos.document_dtos import (
+    DocumentDetailDTO,
+    DocumentListItemDTO,
+)
+from contract_intelligence.contract.application.dtos.dossier_dtos import (
+    ContractOcrSummaryDTO,
+    DocumentCountsDTO,
+    DossierCreatedDTO,
+    DossierDetailDTO,
+    DossierSummaryDTO,
+    MyAccessDTO,
+)
+from contract_intelligence.contract.application.dtos.manifest_dtos import (
+    ConfirmManifestRequest,
+    ManifestDTO,
+)
+from contract_intelligence.contract.domain.entities.document import (
+    MAX_DOSSIER_DOCUMENTS,
+    DocumentRole,
+)
+from contract_intelligence.contract.domain.entities.job import JobStatus
+from contract_intelligence.contract.infrastructure.persistence.dossier_deletion_service import (
+    run_dossier_purge,
+)
+from contract_intelligence.contract.interfaces.api.dependencies import (
+    ContractServiceDep,
+    DossierDeletionServiceDep,
+)
+from contract_intelligence.contract.interfaces.api.dossier_intake import (
+    PdfUpload,
+    check_document_count,
+    discard_uploaded,
+    ingest_upload_file,
+    parse_upload_metadata,
+    publish_dossier_uploaded,
+    read_pdf_upload,
+    stage_new_dossier,
+)
+from contract_intelligence.infrastructure import messaging, storage
+from contract_intelligence.shared.acl import (
+    AclAction,
+    dossier_access_decision,
+    dossier_denied_message,
+    dossier_my_access,
+    visible_dossier_metadata,
+)
+from contract_intelligence.shared.auth import (
+    AuthenticatedUser,
+    get_current_user,
+    require_role,
+)
+from contract_intelligence.shared.auth.tenant import get_tenant_id
+from contract_intelligence.shared.base import utcnow
+from contract_intelligence.shared.email_delivery import (
+    is_undeliverable_email,
+    skip_undeliverable,
+)
+from contract_intelligence.shared.exceptions import (
+    DomainErrorCode,
+    DossierTooManyDocuments,
+    InvalidStateTransition,
+    ManifestValidationError,
+    NotFoundError,
+)
+from contract_intelligence.shared.pdf import InvalidPdfError, extract_pdf_pages
+from contract_intelligence.shared.persistence import get_session_factory
+from contract_intelligence.shared.query_history import record_query_answer
+from contract_intelligence.shared.query_policy import (
+    QueryLimitExceeded,
+    enforce_query_limits,
+    enforce_result_acl,
+    save_query_trace,
+    server_query_policy_flags,
+    stored_dossier_content_sharing_consent,
+)
+from contract_intelligence.shared.responses import (
+    ApiMeta,
+    ApiResponse,
+    ErrorPayload,
+    ErrorResponse,
+)
+from contract_intelligence.shared.storage import ByteRange, RangeNotSatisfiableError
+
+router = APIRouter(tags=["Contract"])
+logger = structlog.get_logger(__name__)
+
+
+async def _record(
+    *,
+    tenant_id: str,
+    title: str,
+    actor_display_name: str | None,
+    detail: str | None,
+    kind: str,
+) -> None:
+    """Best-effort journal row. A feed failure must not undo the dossier action.
+
+    Unit tests call these routes without a bound engine. Skip the row then.
+    """
+    try:
+        factory = get_session_factory()
+    except RuntimeError:
+        return
+    try:
+        async with factory() as session:
+            await record_activity(
+                session,
+                tenant_id=tenant_id,
+                title=title,
+                actor_display_name=actor_display_name,
+                detail=detail,
+                kind=kind,
+            )
+            await session.commit()
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("activity.record_failed", kind=kind, error=str(exc))
+
+
+class DossierUpdateBody(BaseModel):
+    """Request body for PATCH /dossiers/{id} — per openapi.yaml DossierUpdateRequest."""
+
+    name: str | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class AccessGrantBody(BaseModel):
+    id: str
+    email: str = ""
+    display_name: str = ""
+    status: Literal["invited", "active", "disabled"] | None = None
+    # "read": chỉ xem. "edit": thêm quyền thao tác, nhưng làm được gì còn tuỳ vai trò
+    # của người nhận (shared/acl.py): Vận hành sửa hồ sơ và chạy lại; Thẩm định
+    # thẩm định và khoá. Duyệt luôn là việc của Quản trị. Bỏ trống = "edit" (giữ
+    # hành vi cũ cho client chưa gửi trường này).
+    permission: Literal["read", "edit"] = "edit"
+    # Hết hạn thì quyền không còn tác dụng (API trả 403). None = không hết hạn.
+    expires_at: datetime | None = None
+
+
+# Each new recipient costs a Keycloak lookup; a dossier is shared with a team,
+# not the whole tenant.
+MAX_SHARE_RECIPIENTS = 100
+
+
+class DossierAccessBody(BaseModel):
+    """Quyền truy cập hồ sơ: của tôi, đã chia sẻ, được chia sẻ."""
+
+    scope: Literal["mine", "shared_out", "shared_in"]
+    shared_with: list[AccessGrantBody] = Field(
+        default_factory=list, max_length=MAX_SHARE_RECIPIENTS
+    )
+
+
+class EmailNotSentDTO(BaseModel):
+    """Người nhận mới không nhận được thư báo chia sẻ nên chưa được cấp quyền (v5.0.0)."""
+
+    email: str
+    # "send_failed": đã thử gửi nhưng Keycloak hoặc SMTP báo lỗi.
+    # "undeliverable": địa chỉ Keycloak trả về thuộc tên miền dành riêng; tên miền
+    # dành riêng trong grant đã bị từ chối trước khi lưu (share_recipient_undeliverable).
+    reason: Literal["undeliverable", "send_failed"]
+
+
+class DossierAccessDTO(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    dossier_id: str
+    scope: Literal["mine", "shared_out", "shared_in"]
+    shared_with: list[AccessGrantBody]
+    # Chỉ có ở response của PUT: những người này đã bị gỡ khỏi shared_with.
+    email_not_sent: list[EmailNotSentDTO] = Field(default_factory=list)
+
+
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
+
+def _parse_expiry(value: Any) -> datetime | None:
+    """Stored ``expires_at`` as an aware UTC instant; None when absent or unreadable."""
+    if not value:
+        return None
+    try:
+        return _as_utc(datetime.fromisoformat(str(value)))
+    except ValueError:
+        return None
+
+
+def _stored_grant(item: AccessGrantBody) -> dict[str, Any]:
+    """Grant as kept in metadata; ``expires_at`` as UTC ISO so SQL can compare it as text."""
+    grant = item.model_dump()
+    grant["expires_at"] = (
+        _as_utc(item.expires_at).isoformat(timespec="seconds") if item.expires_at else None
+    )
+    return grant
+
+
+SHARE_RECIPIENT_NOT_FOUND_MESSAGE = (
+    "Không tìm thấy email này trong đơn vị của bạn, hoặc người này chưa kích hoạt "
+    "tài khoản. Vui lòng kiểm tra lại."
+)
+SHARE_RECIPIENT_UNDELIVERABLE_MESSAGE = "Không gửi được email vì không tìm thấy email này."
+
+
+class ShareRecipientsRejectedError(Exception):
+    """Some new share recipients are not enabled members of the caller's tenant."""
+
+    def __init__(self, rejected: list[str]) -> None:
+        super().__init__(SHARE_RECIPIENT_NOT_FOUND_MESSAGE)
+        self.rejected = rejected
+
+
+async def _checked_grants(
+    items: list[AccessGrantBody],
+    previous: dict[str, dict[str, Any]],
+    *,
+    tenant_id: str,
+) -> list[dict[str, Any]]:
+    """Grants to store, with every new recipient checked against Keycloak.
+
+    A grant whose ``id`` is already shared keeps its stored identity (only
+    ``permission``/``expires_at`` come from the body) and is not checked again, so
+    the owner can edit other people. A new one is looked up by ``id``, or by
+    ``email`` without one: it must be an enabled user of ``tenant_id``, and its
+    ``id``/``email``/``display_name``/``status`` come from Keycloak, not the body.
+    Raises ``ShareRecipientsRejectedError`` before anything is stored or sent.
+    """
+    from contract_intelligence.infrastructure import keycloak_admin
+
+    grants: list[dict[str, Any]] = []
+    fresh: list[tuple[int, AccessGrantBody]] = []
+    for item in items:
+        grant = _stored_grant(item)
+        old = previous.get(item.id.strip()) if item.id.strip() else None
+        if old is None:
+            fresh.append((len(grants), item))
+        else:
+            grant.update(
+                id=item.id.strip(),
+                email=str(old.get("email") or ""),
+                display_name=str(old.get("display_name") or ""),
+                status=old.get("status"),
+            )
+        grants.append(grant)
+    if fresh:
+        members = await keycloak_admin.resolve_tenant_members(
+            tenant_id=tenant_id,
+            recipients=[(item.id.strip(), item.email.strip()) for _, item in fresh],
+        )
+        rejected: list[str] = []
+        for (index, item), member in zip(fresh, members, strict=True):
+            if member is None:
+                rejected.append(item.email.strip() or item.id.strip())
+                continue
+            grants[index].update(
+                id=member.id,
+                email=member.email,
+                display_name=member.display_name,
+                status=member.status,
+            )
+        if rejected:
+            raise ShareRecipientsRejectedError(rejected)
+    seen: set[str] = set()
+    unique: list[dict[str, Any]] = []
+    for grant in grants:
+        if grant["id"] not in seen:
+            seen.add(grant["id"])
+            unique.append(grant)
+    return unique
+
+
+def _error_json(status_code: int, code: str, message: str, details: dict[str, Any]) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content=ErrorResponse(
+            error=ErrorPayload(code=code, message=message, details=details)
+        ).model_dump(mode="json"),
+    )
+
+
+def _can_read_dossier(metadata: dict[str, Any] | None, user_id: str) -> bool:
+    """Chủ hồ sơ luôn xem được. Người được chia sẻ chỉ xem khi quyền đang bật."""
+    principal = AuthenticatedUser(
+        user_id=user_id,
+        tenant_id="",
+        email="",
+        display_name="",
+        role="OPERATOR",
+    )
+    return dossier_access_decision(
+        action=AclAction.QUERY,
+        principal=principal,
+        dossier_id="legacy",
+        dossier_tenant_id="",
+        metadata=metadata,
+    )
+
+
+async def _require_readable(
+    svc: Any,
+    dossier_id: str,
+    user: AuthenticatedUser,
+    *,
+    action: AclAction = AclAction.QUERY,
+) -> Any:
+    dossier = await svc.get_dossier(dossier_id)
+    decision: dict[str, Any] = {
+        "action": action,
+        "principal": user,
+        "dossier_id": dossier_id,
+        "dossier_tenant_id": getattr(dossier, "tenant_id", user.tenant_id),
+        "metadata": dossier.metadata,
+    }
+    if not dossier_access_decision(**decision):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=dossier_denied_message(**decision),
+        )
+    return dossier
+
+
+def _may(dossier: Any, user: AuthenticatedUser, action: AclAction) -> bool:
+    return bool(
+        dossier_access_decision(
+            action=action,
+            principal=user,
+            dossier_id=dossier.id,
+            dossier_tenant_id=getattr(dossier, "tenant_id", user.tenant_id),
+            metadata=dossier.metadata,
+        )
+    )
+
+
+def _may_read_documents(dossier: Any, user: AuthenticatedUser) -> bool:
+    """Whether ``user`` may list this dossier's documents (see ``list_dossier_documents``)."""
+    return _may(dossier, user, AclAction.CITATION_READ)
+
+
+def _may_read_pages(dossier: Any, user: AuthenticatedUser) -> bool:
+    """Whether ``user`` may read the pages behind ``contract_ocr`` (``acl_document``: QUERY)."""
+    return _may(dossier, user, AclAction.QUERY)
+
+
+_DossierDTO = TypeVar("_DossierDTO", DossierSummaryDTO, DossierDetailDTO)
+
+
+def _for_viewer(dto: _DossierDTO, user: AuthenticatedUser) -> _DossierDTO:
+    """Chỉ chủ hồ sơ / quản trị viên thấy toàn bộ ``shared_with``; kèm ``my_access``."""
+    # The repositories are tenant-scoped, so a dossier here is in the caller's tenant.
+    my_access = MyAccessDTO(
+        **dossier_my_access(
+            principal=user,
+            dossier_id=dto.id,
+            dossier_tenant_id=user.tenant_id,
+            metadata=dto.metadata,
+        )
+    )
+    return dto.model_copy(
+        update={
+            "metadata": visible_dossier_metadata(dto.metadata, user),
+            "my_access": my_access,
+        }
+    )
+
+
+async def _dossier_detail(svc: Any, dossier: Any, user: AuthenticatedUser) -> DossierDetailDTO:
+    """Detail DTO with documents, latest job and open review / conflict counts."""
+    documents = await svc.list_documents(dossier.id, dossier_loaded=True)
+    open_review_items, pending_conflicts = await svc.review_counts(dossier.id)
+    locked, approved_at = (await svc.lifecycle([dossier.id])).get(dossier.id, (False, None))
+    latest = dossier.latest_job()
+    return _for_viewer(
+        DossierDetailDTO.from_domain(
+            dossier,
+            documents=documents,
+            latest_job_id=latest.id if latest else None,
+            latest_job_status=latest.status if latest else None,
+            latest_job_error_code=latest.error_code if latest else None,
+            open_review_items=open_review_items,
+            pending_conflicts=pending_conflicts,
+            locked=locked,
+            approved_at=approved_at,
+        ),
+        user,
+    )
+
+
+def _send_share_emails(
+    *,
+    dossier_name: str,
+    dossier_id: str,
+    sender_name: str,
+    recipients: list[dict[str, Any]],
+) -> list[dict[str, str]]:
+    """Người chưa đăng nhập nhận lại thư đặt mật khẩu. Người đã đăng nhập nhận thư mở hồ sơ.
+
+    Trả về ``[{email, reason}]`` của những người không nhận được thư.
+    """
+    import os
+    import smtplib
+    import ssl
+    from email.message import EmailMessage
+    from html import escape
+
+    from contract_intelligence.infrastructure.keycloak_admin import send_share_login_email_sync
+
+    not_sent: list[dict[str, str]] = []
+
+    def _not_sent(person: dict[str, Any], reason: str) -> None:
+        not_sent.append({"email": str(person.get("email") or ""), "reason": reason})
+
+    pending: list[dict[str, Any]] = []
+    for person in recipients:
+        user_id = str(person.get("id") or "").strip()
+        if skip_undeliverable(
+            str(person.get("email") or ""), purpose="share", dossier_id=dossier_id, user_id=user_id
+        ):
+            _not_sent(person, "undeliverable")
+            continue
+        must_set_password = person.get("status") == "invited"
+        if user_id:
+            try:
+                if send_share_login_email_sync(
+                    user_id=user_id,
+                    email=str(person.get("email") or ""),
+                    dossier_name=dossier_name,
+                    sender_name=sender_name,
+                    require_password=must_set_password,
+                ):
+                    continue
+            except Exception:
+                logger.warning("dossiers.access.login_email_failed", user_id=user_id, exc_info=True)
+                if must_set_password:
+                    _not_sent(person, "send_failed")
+                    continue
+        elif must_set_password:
+            _not_sent(person, "send_failed")
+            continue
+        pending.append(person)
+    if not pending:
+        return not_sent
+
+    host = os.environ.get("SMTP_HOST", "mailpit")
+    port = int(os.environ.get("SMTP_PORT", "1025"))
+    sender = os.environ.get("SMTP_FROM", "lexis@localhost")
+    user = (os.environ.get("SMTP_USER") or "").strip()
+    password = os.environ.get("SMTP_PASSWORD") or ""
+    starttls = os.environ.get("SMTP_STARTTLS", "").lower() in {"1", "true", "yes"}
+    base = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+    link = f"{base}/cau-truc/{dossier_id}"
+    safe_sender = escape(sender_name)
+    safe_name = escape(dossier_name)
+    safe_link = escape(link, quote=True)
+    html = f"""<!DOCTYPE html>
+<html lang="vi"><body style="margin:0;padding:0;background-color:#f8f9ff;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+ style="background-color:#f8f9ff;padding:32px 16px;"><tr><td align="center">
+<table role="presentation" width="420" cellpadding="0" cellspacing="0"
+ style="width:100%;max-width:420px;background-color:#ffffff;border-radius:8px;
+ overflow:hidden;">
+<tr><td style="height:4px;background-color:#0b1f3a;font-size:0;line-height:0;">
+&nbsp;</td></tr>
+<tr><td style="padding:32px;font-family:Arial,Helvetica,sans-serif;color:#0b1c30;">
+<p style="margin:0 0 24px;font-size:12px;line-height:16px;letter-spacing:0.08em;
+ font-weight:600;color:#0b1f3a;">LEXIS CONTRACT INTELLIGENCE</p>
+<h1 style="margin:0 0 8px;font-size:18px;line-height:24px;font-weight:600;
+ color:#0b1c30;">Bạn được chia sẻ hồ sơ</h1>
+<p style="margin:0 0 24px;font-size:14px;line-height:20px;color:#545f73;">
+{safe_sender} đã chia sẻ hồ sơ "{safe_name}" với bạn.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+ style="margin:0 0 24px;"><tr>
+<td align="center" style="background-color:#0b1f3a;border-radius:4px;">
+<a href="{safe_link}" style="display:block;padding:12px 24px;
+ font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;
+ font-weight:600;color:#ffffff;text-decoration:none;">Mở hồ sơ</a>
+</td></tr></table>
+<p style="margin:0;font-size:12px;line-height:16px;color:#75777e;
+ word-break:break-all;">{safe_link}</p>
+</td></tr></table>
+<p style="margin:16px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;
+ line-height:16px;color:#545f73;">© 2025 Lexis Contract Intelligence</p>
+</td></tr></table></body></html>"""
+    done = 0
+    try:
+        with smtplib.SMTP(host, port, timeout=20) as smtp:
+            smtp.ehlo()
+            if starttls:
+                smtp.starttls(context=ssl.create_default_context())
+                smtp.ehlo()
+            if user and password:
+                smtp.login(user, password)
+            for person in pending:
+                address = str(person.get("email") or "").strip()
+                if address:
+                    message = EmailMessage()
+                    message["Subject"] = f"Bạn được chia sẻ hồ sơ {dossier_name}"
+                    message["From"] = sender
+                    message["To"] = address
+                    message.set_content(
+                        f'{sender_name} đã chia sẻ hồ sơ "{dossier_name}" với bạn.'
+                        f"\n\nMở hồ sơ:\n{link}\n"
+                    )
+                    message.add_alternative(html, subtype="html")
+                    try:
+                        smtp.send_message(message)
+                    except smtplib.SMTPRecipientsRefused:
+                        logger.warning("dossiers.access.email_refused", dossier_id=dossier_id)
+                        _not_sent(person, "send_failed")
+                done += 1
+    except Exception:
+        # Không kết nối được SMTP hoặc phiên SMTP hỏng giữa chừng: ai chưa gửi đều thiếu thư.
+        logger.warning("dossiers.access.email_failed", dossier_id=dossier_id, exc_info=True)
+        for person in pending[done:]:
+            _not_sent(person, "send_failed")
+    return not_sent
+
+
+# -----------------------------------------------------------------------------
+# POST /dossiers — Multipart upload (Per openapi.yaml line 116)
+# -----------------------------------------------------------------------------
+
+
+@router.post(
+    "/dossiers",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ApiResponse[DossierCreatedDTO],
+    summary="Tạo dossier + upload file hợp đồng/phụ lục",
+    description=(
+        "Multipart upload: `contract` (bắt buộc), `annexes` (tuỳ chọn, 0..n), "
+        '`metadata` (JSON string bắt buộc — vd `{"name": "..."}`).\n\n'
+        "RBAC: OPERATOR, ADMINISTRATOR (per openapi.yaml x-rbac)."
+    ),
+    responses={
+        400: {"description": "Missing contract file"},
+        403: {"description": "Insufficient role"},
+        422: {
+            "description": (
+                "Invalid metadata JSON, or more than 6 files (`DOSSIER_TOO_MANY_DOCUMENTS`)"
+            )
+        },
+    },
+)
+async def create_dossier(
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    background_tasks: BackgroundTasks,
+    contract: Annotated[UploadFile, File(description="PDF hợp đồng chính (required)")],
+    metadata: Annotated[str, File(description="JSON string: {name, tags?, notes?}")],
+    annexes: Annotated[list[UploadFile] | None, File(description="PDF phụ lục (0..n)")] = None,
+) -> ApiResponse[DossierCreatedDTO]:
+    """Create dossier via multipart upload — per openapi.yaml createDossier operation.
+
+    Flow:
+        1. Validate metadata JSON
+        2. Create dossier (name from metadata or contract filename)
+        3. Ingest contract file + compute sha256 + store
+        4. Ingest each annex file (if any)
+        5. Commit, then publish ``dossier.uploaded`` (post-response) — the Kafka
+           worker opens the pipeline run and sends the AI1 OCR commands
+        6. Return dossier_id + job_id
+
+    This is the only dossier upload endpoint (the in-process
+    ``/dossiers/upload`` pipeline was removed).
+    """
+    # Validate contract file
+    if not contract or not contract.filename:
+        raise HTTPException(status_code=400, detail="contract file is required")
+
+    # AI2 takes at most 6 documents per dossier (DEC-BE-AI2-01 D5): refuse
+    # before reading any file, so nothing is created.
+    annex_files = [annex_file for annex_file in annexes or [] if annex_file.filename]
+    check_document_count(1 + len(annex_files))
+    meta = parse_upload_metadata(metadata)
+
+    # Read + validate every file (size, readable PDF, page count) before
+    # anything is created, so a bad annex leaves no half-made dossier behind.
+    contract_upload = await read_pdf_upload(contract)
+    annex_uploads = [await read_pdf_upload(annex_file) for annex_file in annex_files]
+
+    uploaded: list[str] = []
+    try:
+        staged = await stage_new_dossier(
+            svc=svc,
+            user=user,
+            meta=meta,
+            contract=contract_upload,
+            annexes=annex_uploads,
+            uploaded=uploaded,
+        )
+        # Commit before the 202 is sent. Otherwise the next GET/PATCH and the
+        # dossier.uploaded consumer race an uncommitted transaction.
+        await svc.commit()
+    except BaseException:
+        # Files already in MinIO belong to a dossier that will never exist.
+        await discard_uploaded(uploaded)
+        raise
+    if not staged.split_pending:
+        # Publish after the request session commits (BackgroundTasks run post-response).
+        background_tasks.add_task(
+            publish_dossier_uploaded,
+            dossier_id=staged.dossier_id,
+            file_path=staged.contract_path,
+        )
+
+    # ApiEnvelopeDossierCreated — dossier_id + job_id (openapi.yaml line 2320)
+    return ApiResponse(data=DossierCreatedDTO(dossier_id=staged.dossier_id, job_id=staged.job_id))
+
+
+class SplitPartBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    page_start: int = Field(ge=1)
+    page_end: int = Field(ge=1)
+    role: Literal["contract", "annex"]
+
+
+class DossierSplitBody(BaseModel):
+    """Khoảng trang của từng tài liệu trong file trộn, theo thứ tự trang."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: str = Field(min_length=1)
+    parts: list[SplitPartBody] = Field(min_length=1, max_length=50)
+
+
+class SplitDocumentDTO(BaseModel):
+    id: str
+    role: str
+    filename: str
+    page_start: int
+    page_end: int
+    page_count: int
+
+
+class DossierSplitDTO(BaseModel):
+    dossier_id: str
+    status: str
+    documents: list[SplitDocumentDTO]
+
+
+def _check_split_parts(parts: list[SplitPartBody], page_count: int) -> str | None:
+    """Parts must cover 1..page_count in order, without gap or overlap."""
+    expected = 1
+    for part in parts:
+        if part.page_end < part.page_start:
+            return f"page_end {part.page_end} < page_start {part.page_start}"
+        if part.page_start != expected:
+            return f"part starting at page {part.page_start}: expected page {expected}"
+        expected = part.page_end + 1
+    if expected != page_count + 1:
+        return f"parts cover pages 1-{expected - 1}, the file has {page_count}"
+    return None
+
+
+class OcrRestartDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    dossier_id: str
+    status: str
+
+
+@router.post(
+    "/dossiers/{dossier_id}/ocr",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ApiResponse[OcrRestartDTO],
+    summary="Chạy lại OCR cho hồ sơ đã tải",
+    responses={
+        404: {"description": "Dossier or document not found"},
+        409: {"description": "The dossier is being OCR'd right now"},
+    },
+)
+async def restart_dossier_ocr(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+) -> ApiResponse[OcrRestartDTO]:
+    """Đăng lại dossier.uploaded để worker gửi lệnh OCR.
+
+    Không nhận khi hồ sơ đang OCR: lần chạy mới sẽ thay lần đang chạy, kết quả
+    của nó bị bỏ và các trang bị OCR (và trả tiền) lần nữa.
+    """
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_EDIT)
+    documents = await svc.list_documents(dossier_id, dossier_loaded=True)
+    if not documents:
+        raise HTTPException(status_code=404, detail="Dossier has no document to OCR")
+    job = dossier.latest_job()
+    if job is not None and job.status == JobStatus.PROCESSING:
+        raise HTTPException(
+            status_code=409,
+            detail="Hồ sơ đang OCR. Chờ xong hoặc hủy lần chạy hiện tại rồi mới chạy lại.",
+        )
+    await messaging.publish_event(
+        "dossier_events",
+        {
+            "event": "dossier.uploaded",
+            "dossier_id": str(dossier_id),
+            "restart": True,
+            # Two clicks publish two events for the same run; the worker only
+            # acts on the first one (see _mark_processing).
+            "expected_run_id": job.current_run_id if job is not None else None,
+        },
+    )
+    await _record(
+        tenant_id=user.tenant_id,
+        title=f"Chạy lại OCR hồ sơ {dossier.name}",
+        actor_display_name=user.email or user.display_name,
+        detail=None,
+        kind="dossier.ocr_restart",
+    )
+    return ApiResponse(data=OcrRestartDTO(dossier_id=dossier_id, status="queued"))
+
+
+_AI2_RETRYABLE_ERRORS = frozenset({"AI2_PROCESSING_FAILED", "AI2_TIMEOUT"})
+
+
+@router.post(
+    "/dossiers/{dossier_id}/ocr/retry-failed",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ApiResponse[OcrRestartDTO],
+    summary="Chạy lại OCR chỉ cho tài liệu lỗi; tài liệu đã xong được giữ",
+    responses={
+        404: {"description": "Dossier not found"},
+        409: {"description": "Latest job did not fail at the OCR step"},
+    },
+)
+async def retry_failed_dossier_ocr(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+) -> ApiResponse[OcrRestartDTO]:
+    """Mở run mới mang theo kết quả OCR của các tài liệu đã xong ở run lỗi.
+
+    Worker chỉ gửi lệnh OCR cho tài liệu còn thiếu. Nếu mọi tài liệu đã có kết
+    quả (kết quả tới sau khi run lỗi cũng được giữ), run chuyển thẳng sang AI2.
+    Chỉ nhận khi job mới nhất FAILED ở bước OCR; lỗi AI2 dùng ``/ai2/retry``.
+    """
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_EDIT)
+    job = dossier.latest_job()
+    if (
+        job is None
+        or job.current_run_id is None
+        or job.status != JobStatus.FAILED
+        or job.error_code in _AI2_RETRYABLE_ERRORS
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Chỉ chạy lại phần lỗi khi hồ sơ lỗi ở bước OCR; lỗi AI2 dùng chạy lại AI2.",
+        )
+    await messaging.publish_event(
+        "dossier_events",
+        {
+            "event": "dossier.uploaded",
+            "dossier_id": str(dossier_id),
+            "restart": True,
+            "retry_failed": True,
+            "expected_run_id": job.current_run_id,
+        },
+    )
+    await _record(
+        tenant_id=user.tenant_id,
+        title=f"Chạy lại phần OCR lỗi của hồ sơ {dossier.name}",
+        actor_display_name=user.email or user.display_name,
+        detail=None,
+        kind="dossier.ocr_retry_failed",
+    )
+    return ApiResponse(data=OcrRestartDTO(dossier_id=dossier_id, status="queued"))
+
+
+@router.post(
+    "/dossiers/{dossier_id}/split",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ApiResponse[DossierSplitDTO],
+    summary="Tách file trộn (hợp đồng + phụ lục) thành từng tài liệu rồi xử lý",
+    responses={
+        404: {"description": "Dossier or document not found"},
+        409: {"description": "Processing already started, or manifest confirmed"},
+        422: {
+            "description": (
+                "Parts do not cover the file; not exactly one contract "
+                "(`contract_required`, `contract_not_unique`); or more than 6 documents "
+                "(`DOSSIER_TOO_MANY_DOCUMENTS`)"
+            )
+        },
+    },
+)
+async def split_dossier_document(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    body: DossierSplitBody,
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    background_tasks: BackgroundTasks,
+) -> ApiResponse[DossierSplitDTO]:
+    """Người dùng xác nhận khoảng trang và vai trò của từng phần.
+
+    Chỉ cho hồ sơ tải lên với ``metadata.split_pending = true`` và chưa bắt đầu
+    xử lý, nên không trang nào bị OCR hai lần. Mỗi phần thành một tài liệu
+    (PDF cắt từ file gốc, sha256 riêng); file gốc bị bỏ. Một phần duy nhất phủ
+    cả file = không cần tách. Sau đó vai trò được xác nhận và mọi tài liệu
+    được gửi OCR riêng, như khi tải lên từng file.
+    """
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_EDIT)
+    metadata = dict(dossier.metadata or {})
+    job = dossier.latest_job()
+    if metadata.get("split_pending") is not True or job is None or job.status != JobStatus.UPLOADED:
+        raise HTTPException(
+            status_code=409,
+            detail="Hồ sơ không chờ tách file, hoặc đã bắt đầu xử lý (tách lúc này sẽ OCR lại).",
+        )
+    source = await svc.get_document(body.document_id)
+    if source.dossier_id != dossier_id or not source.blob_uri:
+        raise HTTPException(status_code=404, detail="Document not found in this dossier")
+    problem = _check_split_parts(body.parts, int(source.page_count or 0))
+    others = [
+        d for d in await svc.list_documents(dossier_id, dossier_loaded=True) if d.id != source.id
+    ]
+    if problem is not None:
+        raise HTTPException(status_code=422, detail=problem)
+    document_count = len(others) + len(body.parts)
+    if document_count > MAX_DOSSIER_DOCUMENTS:
+        raise DossierTooManyDocuments(
+            limit=MAX_DOSSIER_DOCUMENTS, count=document_count, after_split=True
+        )
+    contracts = sum(d.role == DocumentRole.CONTRACT for d in others) + sum(
+        part.role == "contract" for part in body.parts
+    )
+    if contracts != 1:
+        raise ManifestValidationError(
+            DomainErrorCode.CONTRACT_REQUIRED
+            if contracts == 0
+            else DomainErrorCode.CONTRACT_NOT_UNIQUE,
+            f"Hồ sơ cần đúng một hợp đồng, các phần này cho {contracts}",
+            count=contracts,
+        )
+
+    created: list[SplitDocumentDTO] = []
+    if len(body.parts) == 1:
+        part = body.parts[0]
+        created.append(
+            SplitDocumentDTO(
+                id=source.id,
+                role=source.role.value,
+                filename=source.filename,
+                page_start=part.page_start,
+                page_end=part.page_end,
+                page_count=int(source.page_count or 0),
+            )
+        )
+    else:
+        data = await storage.download_object(source.blob_uri)
+        base = source.filename.removesuffix(".pdf").removesuffix(".PDF")
+        next_index = max([source.order_index, *(d.order_index for d in others)]) + 1
+        for number, part in enumerate(body.parts, start=1):
+            try:
+                piece = await asyncio.to_thread(
+                    extract_pdf_pages, data, part.page_start, part.page_end
+                )
+            except InvalidPdfError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            role = DocumentRole.CONTRACT if part.role == "contract" else DocumentRole.ANNEX
+            filename = f"{base}-p{part.page_start}-{part.page_end}.pdf"
+            order_index = source.order_index if number == 1 else next_index + number - 2
+            document, _size, _path = await ingest_upload_file(
+                svc=svc,
+                dossier_id=dossier_id,
+                upload=PdfUpload(
+                    filename=filename,
+                    data=piece,
+                    page_count=part.page_end - part.page_start + 1,
+                ),
+                role=role,
+                order_index=order_index,
+            )
+            created.append(
+                SplitDocumentDTO(
+                    id=document.id,
+                    role=role.value,
+                    filename=document.filename,
+                    page_start=part.page_start,
+                    page_end=part.page_end,
+                    page_count=part.page_end - part.page_start + 1,
+                )
+            )
+        try:
+            await svc.remove_split_source(dossier_id, source.id)
+        except InvalidStateTransition as exc:
+            raise HTTPException(status_code=409, detail="Manifest đã được xác nhận") from exc
+
+    metadata["split_pending"] = False
+    metadata["split_from"] = {
+        "document_id": source.id,
+        "filename": source.filename,
+        "parts": [part.model_dump() for part in body.parts],
+    }
+    await svc.patch_dossier(dossier_id, name=None, metadata=metadata)
+    await svc.confirm_uploaded_manifest(dossier_id, user.user_id)
+    await svc.commit()
+
+    if len(body.parts) > 1:
+        background_tasks.add_task(_delete_blob_quietly, source.blob_uri)
+    background_tasks.add_task(
+        publish_dossier_uploaded, dossier_id=dossier_id, file_path=created[0].filename
+    )
+    await _record(
+        tenant_id=user.tenant_id,
+        title=f"Tách hồ sơ {dossier.name} thành {len(created)} tài liệu",
+        actor_display_name=user.email or user.display_name,
+        detail=None,
+        kind="dossier.split",
+    )
+    return ApiResponse(
+        data=DossierSplitDTO(dossier_id=dossier_id, status="queued", documents=created)
+    )
+
+
+async def _delete_blob_quietly(uri: str) -> None:
+    try:
+        await storage.delete_object(uri)
+    except Exception:
+        logger.warning("dossier.split.source_blob_delete_failed", uri=uri, exc_info=True)
+
+
+@router.post(
+    "/dossiers/{dossier_id}/ai2/retry",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ApiResponse[OcrRestartDTO],
+    summary="Chạy lại AI2 (trích xuất/so sánh) mà không OCR lại",
+    responses={
+        404: {"description": "Dossier not found"},
+        409: {"description": "Latest job did not fail at the AI2 step"},
+    },
+)
+async def retry_dossier_ai2(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+) -> ApiResponse[OcrRestartDTO]:
+    """Gửi lại AI2 cho run hiện tại; kết quả OCR đã có được dùng lại.
+
+    Chỉ nhận khi job mới nhất FAILED ở bước AI2. Worker kiểm tra lại điều kiện
+    trước khi chạy (đủ snapshot OCR), rồi gửi AI2 với attempt kế tiếp.
+    """
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_EDIT)
+    job = dossier.latest_job()
+    if (
+        job is None
+        or job.current_run_id is None
+        or job.status != JobStatus.FAILED
+        or job.error_code not in _AI2_RETRYABLE_ERRORS
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Chỉ chạy lại AI2 được khi hồ sơ lỗi ở bước AI2; lỗi OCR cần chạy lại OCR.",
+        )
+    await messaging.publish_event(
+        "dossier_events",
+        {
+            "event": "dossier.ai2.retry",
+            "dossier_id": str(dossier_id),
+            "run_id": job.current_run_id,
+        },
+    )
+    await _record(
+        tenant_id=user.tenant_id,
+        title=f"Chạy lại AI2 hồ sơ {dossier.name}",
+        actor_display_name=user.email or user.display_name,
+        detail=None,
+        kind="dossier.ai2_retry",
+    )
+    return ApiResponse(data=OcrRestartDTO(dossier_id=dossier_id, status="queued"))
+
+
+_AI2_REINDEXABLE = frozenset({JobStatus.PENDING_REVIEW, JobStatus.REVIEWED, JobStatus.APPROVED})
+
+
+@router.post(
+    "/dossiers/{dossier_id}/ai2/reindex",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ApiResponse[OcrRestartDTO],
+    summary="Gửi lại kết quả OCR đã có cho AI2 dựng lại dữ liệu hỏi đáp (không OCR lại)",
+    responses={
+        404: {"description": "Dossier not found"},
+        409: {"description": "The dossier has not finished AI2 processing"},
+    },
+)
+async def reindex_dossier_ai2(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+) -> ApiResponse[OcrRestartDTO]:
+    """Cho AI2 dựng lại dữ liệu của hồ sơ từ kết quả OCR đã lưu.
+
+    Dùng khi AI2 mất dữ liệu của mình (hỏi đáp báo chưa nhận snapshot). AI1
+    không chạy lại, không tốn OCR; facts, xung đột và thẩm định trong Backend
+    giữ nguyên. Chỉ nhận hồ sơ đã phân tích xong (chờ/đã thẩm định, đã duyệt).
+    """
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_EDIT)
+    job = dossier.latest_job()
+    if job is None or job.current_run_id is None or job.status not in _AI2_REINDEXABLE:
+        raise HTTPException(
+            status_code=409,
+            detail="Chỉ dựng lại dữ liệu AI2 được khi hồ sơ đã phân tích xong.",
+        )
+    await messaging.publish_event(
+        "dossier_events",
+        {
+            "event": "dossier.ai2.reindex",
+            "dossier_id": str(dossier_id),
+            "run_id": job.current_run_id,
+        },
+    )
+    await _record(
+        tenant_id=user.tenant_id,
+        title=f"Dựng lại dữ liệu AI2 hồ sơ {dossier.name}",
+        actor_display_name=user.email or user.display_name,
+        detail=None,
+        kind="dossier.ai2_reindex",
+    )
+    return ApiResponse(data=OcrRestartDTO(dossier_id=dossier_id, status="queued"))
+
+
+# -----------------------------------------------------------------------------
+# GET /dossiers — List (Per openapi.yaml line 150)
+# -----------------------------------------------------------------------------
+
+
+@router.get(
+    "/dossiers",
+    response_model=ApiResponse[list[DossierSummaryDTO]],
+    summary="List dossiers",
+)
+async def list_dossiers(
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    status_filter: Annotated[str | None, Query(alias="status")] = None,
+    has_conflicts: Annotated[bool | None, Query()] = None,
+    batch_id: Annotated[str | None, Query()] = None,
+    q: Annotated[str | None, Query(max_length=200, description="Tìm theo tên dossier")] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> ApiResponse[list[DossierSummaryDTO]]:
+    """Danh sách dossier có filter + pagination. RBAC: any authenticated."""
+    items, total = await svc.list_dossiers(
+        status=status_filter,
+        has_conflicts=has_conflicts,
+        q=q,
+        batch_id=batch_id,
+        viewer_id=user.user_id,
+        viewer_email=user.email,
+        limit=limit,
+        offset=offset,
+    )
+    lifecycle = await svc.lifecycle([d.id for d in items])
+    # Documents and contract OCR state for the whole page, so the list screen
+    # needs no per-dossier /documents and /pages calls. Counts use the ACL of
+    # /documents (CITATION_READ), contract_ocr the ACL of /pages (QUERY): a
+    # grant can name its actions, so one may be allowed without the other.
+    document_readable = {d.id for d in items if _may_read_documents(d, user)}
+    pages_readable = {d.id for d in items if _may_read_pages(d, user)}
+    documents = await svc.document_summaries([d.id for d in items if d.id in document_readable])
+    summaries: list[DossierSummaryDTO] = []
+    for d in items:
+        latest = d.latest_job()
+        locked, approved_at = lifecycle.get(d.id, (False, None))
+        dto = DossierSummaryDTO.from_domain(
+            d,
+            latest_job_status=latest.status if latest else None,
+            locked=locked,
+            approved_at=approved_at,
+        )
+        if d.id in document_readable:
+            doc = documents.get(d.id) or {}
+            ocr = doc.get("contract_ocr") if d.id in pages_readable else None
+            dto = dto.model_copy(
+                update={
+                    "document_counts": DocumentCountsDTO(
+                        contracts=doc.get("contracts", 0), annexes=doc.get("annexes", 0)
+                    ),
+                    "contract_ocr": ContractOcrSummaryDTO(**ocr) if ocr else None,
+                }
+            )
+        summaries.append(_for_viewer(dto, user))
+    return ApiResponse(
+        data=summaries,
+        meta=ApiMeta(
+            total=total,
+            page=(offset // limit) + 1,
+            page_size=limit,
+        ),
+    )
+
+
+@router.delete(
+    "/dossiers/{dossier_id}",
+    response_model=ApiResponse[DossierDeletedDTO],
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={
+        404: {"description": "Dossier not found"},
+        403: {"description": "Insufficient role"},
+    },
+    summary="Xóa hồ sơ (tombstone + purge async)",
+)
+async def delete_dossier(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ContractServiceDep,
+    deletion_svc: DossierDeletionServiceDep,
+    background_tasks: BackgroundTasks,
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    tenant_id: Annotated[str, Depends(get_tenant_id)],
+) -> ApiResponse[DossierDeletedDTO]:
+    """Bước 1: tombstone sync. Bước 2: purge nội dung chạy sau commit (BackgroundTasks).
+
+    Không DELETE cascade dossier/job/pipeline_run — giữ usage_ledger và audit.
+    RBAC: OPERATOR, ADMINISTRATOR.
+    """
+    dossier_name: str | None = None
+    try:
+        dossier_name = (
+            await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_MANAGE)
+        ).name
+    except NotFoundError:
+        dossier_name = None
+    result = await deletion_svc.tombstone(dossier_id, actor_user_id=user.user_id)
+    if not result.already_tombstoned:
+        title = "Xóa hồ sơ" if result.name == "[deleted]" else f"Xóa hồ sơ {result.name}"
+        await record_activity(
+            deletion_svc.session,
+            tenant_id=tenant_id,
+            title=title,
+            actor_display_name=user.email or user.display_name,
+            detail=None,
+            kind=f"dossier.deleted:{dossier_id}",
+        )
+        await deletion_svc.commit()
+        background_tasks.add_task(
+            run_dossier_purge,
+            dossier_id=dossier_id,
+            tenant_id=tenant_id,
+        )
+        title = f"Xóa hồ sơ {dossier_name}" if dossier_name else "Xóa hồ sơ"
+        await _record(
+            tenant_id=tenant_id,
+            title=title,
+            actor_display_name=user.email or user.display_name,
+            detail=None,
+            kind=f"dossier.deleted:{dossier_id}",
+        )
+    return ApiResponse(
+        data=DossierDeletedDTO(
+            dossier_id=result.dossier_id,
+            deleted_at=result.deleted_at,
+            purge_status=result.purge_status,
+        )
+    )
+
+
+class DossierSearchBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    query: str
+
+
+class DossierSearchHit(BaseModel):
+    text: str
+    page_no: int | None = None
+    source_file_id: str | None = None
+    document_id: str | None = None
+    line_id: str | None = None
+    bbox: list[float] = Field(default_factory=list)
+    # Anchors the UI uses to open the cited clause.
+    node_id: str | None = None
+    citation_id: str | None = None
+    breadcrumb: list[str] = Field(default_factory=list)
+    validation_status: str | None = None
+    scope: str | None = None
+
+
+class DossierSearchDTO(BaseModel):
+    query: str
+    answer: str | None
+    connected: bool
+    state: str | None = "INSUFFICIENT_EVIDENCE"
+    used_llm: bool = False
+    notes: list[str] = Field(default_factory=list)
+    retrieval_layer: dict[str, Any] = Field(default_factory=dict)
+    reasoning_trace: list[Any] = Field(default_factory=list)
+    hits: list[DossierSearchHit]
+    trace_id: str | None = None
+    acl_decision: str | None = None
+
+
+def _optional_str(value: Any) -> str | None:
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _hits_from_ai2(payload: dict[str, Any]) -> list[DossierSearchHit]:
+    raw = payload.get("hits") or payload.get("citations") or []
+    if not isinstance(raw, list):
+        return []
+    hits: list[DossierSearchHit] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        text = item.get("text") or item.get("quote") or item.get("snippet") or item.get("text_span")
+        if not isinstance(text, str) or not text.strip():
+            continue
+        page = item.get("page_no") or item.get("page")
+        page_range = item.get("page_range")
+        if not isinstance(page, int) and isinstance(page_range, list) and page_range:
+            page = page_range[0]
+        line_ids = item.get("line_ids")
+        line_id = item.get("line_id")
+        if not isinstance(line_id, str) and isinstance(line_ids, list):
+            line_id = next((value for value in line_ids if isinstance(value, str)), None)
+        source_file_id = _optional_str(item.get("source_file_id"))
+        document_id = _optional_str(item.get("document_id")) or source_file_id
+        bbox = item.get("bbox")
+        breadcrumb = item.get("breadcrumb")
+        hits.append(
+            DossierSearchHit(
+                text=text.strip(),
+                page_no=page if isinstance(page, int) else None,
+                source_file_id=source_file_id or document_id,
+                document_id=document_id,
+                line_id=line_id if isinstance(line_id, str) else None,
+                bbox=bbox if isinstance(bbox, list) else [],
+                node_id=_optional_str(item.get("node_id")),
+                citation_id=_optional_str(item.get("citation_id")),
+                breadcrumb=[str(part) for part in breadcrumb]
+                if isinstance(breadcrumb, list)
+                else [],
+                validation_status=_optional_str(item.get("validation_status")),
+                scope=_optional_str(item.get("scope") or item.get("document_role")),
+            )
+        )
+    return hits
+
+
+def _notes_from_trace(trace: list[Any]) -> list[str]:
+    notes: list[str] = []
+    for step in trace:
+        if isinstance(step, dict):
+            code = _optional_str(step.get("code"))
+            message = _optional_str(step.get("message"))
+            if code and message:
+                notes.append(f"{code}: {message}")
+            elif message or code:
+                notes.append(str(message or code))
+        elif isinstance(step, str) and step.strip():
+            notes.append(step.strip())
+    return notes
+
+
+def _search_dto_from_ai2(payload: dict[str, Any], *, fallback_query: str) -> DossierSearchDTO:
+    """Preserve server semantics; transport success never implies ANSWERED."""
+    answer = payload.get("answer") or payload.get("text")
+    state = str(payload.get("state") or payload.get("review_state") or "INSUFFICIENT_EVIDENCE")
+    if state not in {
+        "PASS",
+        "ANSWERED",
+        "NEEDS_REVIEW",
+        "INSUFFICIENT_EVIDENCE",
+        "BLOCKED",
+        "NOT_COMPARABLE",
+    }:
+        state = "INSUFFICIENT_EVIDENCE"
+    raw_trace = payload.get("reasoning_trace")
+    reasoning_trace: list[Any] = raw_trace if isinstance(raw_trace, list) else []
+    raw_layer = payload.get("retrieval_layer")
+    retrieval_layer: dict[str, Any] = raw_layer if isinstance(raw_layer, dict) else {}
+    return DossierSearchDTO(
+        query=str(payload.get("query") or fallback_query),
+        answer=answer.strip() if isinstance(answer, str) and answer.strip() else None,
+        connected=payload.get("connected") is not False,
+        state=state,
+        used_llm=bool(payload.get("used_llm", retrieval_layer.get("used_llm", False))),
+        notes=_notes_from_trace(reasoning_trace),
+        retrieval_layer=retrieval_layer,
+        reasoning_trace=reasoning_trace,
+        hits=_hits_from_ai2(payload),
+    )
+
+
+def _ai2_snapshot_digest(dossier: Any) -> str:
+    metadata = dossier.metadata if isinstance(getattr(dossier, "metadata", None), dict) else {}
+    return str(metadata.get("ai2_snapshot_digest") or dossier.checksum or "").strip()
+
+
+def _optional_session_factory() -> Any:
+    """Session factory when a DB is bound; None in offline router unit tests."""
+    try:
+        return get_session_factory()
+    except RuntimeError:
+        return None
+
+
+async def _enforce_search_limits(factory: Any, user: AuthenticatedUser) -> None:
+    try:
+        if factory is None:
+            await enforce_query_limits(None, tenant_id=user.tenant_id, actor_id=user.user_id)
+            return
+        async with factory() as session:
+            await enforce_query_limits(session, tenant_id=user.tenant_id, actor_id=user.user_id)
+    except QueryLimitExceeded as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"code": exc.code, "message": exc.message},
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
+
+
+async def _save_search_trace(
+    factory: Any, *, answer: str | None = None, **fields: Any
+) -> str | None:
+    """Trace + answer in one transaction; a failed AI2 call keeps no answer row."""
+    if factory is None:
+        logger.warning("dossier.search.trace_skipped_no_db", dossier_id=fields.get("dossier_id"))
+        return None
+    async with factory() as session:
+        trace = await save_query_trace(session, **fields)
+        if answer is not None:
+            record_query_answer(session, trace, answer)
+        await session.commit()
+        return trace.id
+
+
+def _graph_cursor_secret() -> bytes:
+    secret = (get_settings().ai2_service_hmac_secret or "").strip()
+    if not secret:
+        raise HTTPException(status_code=503, detail={"code": "AI2_GRAPH_CURSOR_UNAVAILABLE"})
+    return secret.encode("utf-8")
+
+
+def _encode_graph_cursor(
+    inner_cursor: str | None,
+    *,
+    tenant_id: str,
+    dossier_id: str,
+    job_id: str,
+    snapshot_digest: str,
+    graph_kind: str,
+) -> str | None:
+    if inner_cursor is None:
+        return None
+    import base64
+    import hashlib
+    import hmac
+
+    claims = json.dumps(
+        {
+            "v": 1,
+            "tenant_id": tenant_id,
+            "dossier_id": dossier_id,
+            "job_id": job_id,
+            "snapshot_digest": snapshot_digest,
+            "graph_kind": graph_kind,
+            "cursor": inner_cursor,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    body = base64.urlsafe_b64encode(claims).rstrip(b"=")
+    signature = hmac.new(_graph_cursor_secret(), body, hashlib.sha256).digest()
+    return (body + b"." + base64.urlsafe_b64encode(signature).rstrip(b"=")).decode("ascii")
+
+
+def _decode_graph_cursor(
+    cursor: str | None,
+    *,
+    tenant_id: str,
+    dossier_id: str,
+    job_id: str,
+    snapshot_digest: str,
+    graph_kind: str,
+) -> str | None:
+    if cursor is None:
+        return None
+    import base64
+    import hashlib
+    import hmac
+
+    try:
+        body, encoded_signature = cursor.encode("ascii").split(b".", 1)
+        signature = base64.urlsafe_b64decode(
+            encoded_signature + b"=" * (-len(encoded_signature) % 4)
+        )
+        expected = hmac.new(_graph_cursor_secret(), body, hashlib.sha256).digest()
+        if not hmac.compare_digest(signature, expected):
+            raise ValueError("signature")
+        claims = json.loads(base64.urlsafe_b64decode(body + b"=" * (-len(body) % 4)))
+    except (ValueError, UnicodeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail={"code": "GRAPH_CURSOR_INVALID"}) from exc
+    expected_claims = {
+        "v": 1,
+        "tenant_id": tenant_id,
+        "dossier_id": dossier_id,
+        "job_id": job_id,
+        "snapshot_digest": snapshot_digest,
+        "graph_kind": graph_kind,
+    }
+    if (
+        not isinstance(claims, dict)
+        or set(claims) != set(expected_claims) | {"cursor"}
+        or any(claims.get(key) != value for key, value in expected_claims.items())
+    ):
+        raise HTTPException(status_code=409, detail={"code": "GRAPH_CURSOR_STALE"})
+    inner = claims.get("cursor")
+    if not isinstance(inner, str) or len(inner) > 80:
+        raise HTTPException(status_code=400, detail={"code": "GRAPH_CURSOR_INVALID"})
+    return inner
+
+
+def _recheck_citation_read(dossier: Any, dossier_id: str, user: AuthenticatedUser) -> bool:
+    return dossier_access_decision(
+        action=AclAction.CITATION_READ,
+        principal=user,
+        dossier_id=dossier_id,
+        dossier_tenant_id=getattr(dossier, "tenant_id", user.tenant_id),
+        metadata=dossier.metadata,
+    )
+
+
+async def _postcheck_graph_read(
+    svc: Any,
+    dossier_id: str,
+    user: AuthenticatedUser,
+    *,
+    expected_digest: str,
+) -> None:
+    try:
+        fresh = await svc.get_dossier(dossier_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=403, detail={"code": "CITATION_READ_REVOKED"}) from exc
+    if not _recheck_citation_read(fresh, dossier_id, user):
+        raise HTTPException(status_code=403, detail={"code": "CITATION_READ_REVOKED"})
+    if _ai2_snapshot_digest(fresh) != expected_digest:
+        raise HTTPException(status_code=409, detail={"code": "AI2_SNAPSHOT_CHANGED"})
+
+
+@router.get("/dossiers/{dossier_id}/ai2/contract-graph/{graph_kind}")
+async def get_dossier_ai2_contract_graph(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    graph_kind: Literal["operation", "pair"],
+    job_id: Annotated[str, Query(min_length=1, max_length=256)],
+    snapshot_digest: Annotated[str, Query(min_length=1, max_length=256)],
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    cursor: Annotated[str | None, Query(max_length=2048)] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> ApiResponse[dict[str, Any]]:
+    from contract_intelligence.infrastructure.ai_adapters import (
+        AiAdapterError,
+        read_ai2_contract_graph,
+    )
+
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.CITATION_READ)
+    if _ai2_snapshot_digest(dossier) != snapshot_digest:
+        raise HTTPException(status_code=409, detail={"code": "AI2_SNAPSHOT_CHANGED"})
+    inner_cursor = _decode_graph_cursor(
+        cursor,
+        tenant_id=user.tenant_id,
+        dossier_id=dossier_id,
+        job_id=job_id,
+        snapshot_digest=snapshot_digest,
+        graph_kind=graph_kind,
+    )
+    try:
+        page = await read_ai2_contract_graph(
+            job_id,
+            dossier_id=dossier_id,
+            snapshot_digest=snapshot_digest,
+            graph_kind=graph_kind,
+            tenant_id=user.tenant_id,
+            actor_id=user.user_id,
+            cursor=inner_cursor,
+            limit=limit,
+        )
+    except AiAdapterError as exc:
+        logger.warning(
+            "dossier.ai2_graph.unavailable", dossier_id=dossier_id, code=type(exc).__name__
+        )
+        raise HTTPException(status_code=503, detail={"code": "AI2_GRAPH_UNAVAILABLE"}) from exc
+    await _postcheck_graph_read(svc, dossier_id, user, expected_digest=snapshot_digest)
+    if page["status"] == "STALE":
+        raise HTTPException(status_code=409, detail={"code": "AI2_GRAPH_STALE"})
+    data = {
+        "job_id": job_id,
+        "snapshot_digest": snapshot_digest,
+        "graph_kind": graph_kind,
+        "status": page["status"],
+        "edges": [
+            {
+                key: value
+                for key, value in edge.items()
+                if key
+                not in {
+                    "tenant_id",
+                    "dossier_id",
+                    "job_id",
+                    "snapshot_digest",
+                }
+            }
+            for edge in page["edges"]
+        ],
+        "total_count": page["total_count"],
+        "has_more": page["has_more"],
+        "next_cursor": _encode_graph_cursor(
+            page["next_cursor"],
+            tenant_id=user.tenant_id,
+            dossier_id=dossier_id,
+            job_id=job_id,
+            snapshot_digest=snapshot_digest,
+            graph_kind=graph_kind,
+        ),
+    }
+    return ApiResponse(data=data)
+
+
+@router.get("/dossiers/{dossier_id}/ai2/contract-graph/{graph_kind}/evidence")
+async def get_dossier_ai2_contract_graph_evidence(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    graph_kind: Literal["operation", "pair"],
+    job_id: Annotated[str, Query(min_length=1, max_length=256)],
+    snapshot_digest: Annotated[str, Query(min_length=1, max_length=256)],
+    node_id: Annotated[str, Query(min_length=1, max_length=512)],
+    citation_ref: Annotated[str, Query(min_length=1, max_length=256)],
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> ApiResponse[dict[str, Any]]:
+    from contract_intelligence.infrastructure.ai_adapters import (
+        AiAdapterError,
+        read_ai2_contract_graph_evidence,
+    )
+
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.CITATION_READ)
+    if _ai2_snapshot_digest(dossier) != snapshot_digest:
+        raise HTTPException(status_code=409, detail={"code": "AI2_SNAPSHOT_CHANGED"})
+    try:
+        evidence = await read_ai2_contract_graph_evidence(
+            job_id,
+            dossier_id=dossier_id,
+            snapshot_digest=snapshot_digest,
+            graph_kind=graph_kind,
+            node_id=node_id,
+            citation_ref=citation_ref,
+            tenant_id=user.tenant_id,
+            actor_id=user.user_id,
+        )
+    except AiAdapterError as exc:
+        logger.warning(
+            "dossier.ai2_graph_evidence.unavailable",
+            dossier_id=dossier_id,
+            code=type(exc).__name__,
+        )
+        raise HTTPException(
+            status_code=503, detail={"code": "AI2_GRAPH_EVIDENCE_UNAVAILABLE"}
+        ) from exc
+    await _postcheck_graph_read(svc, dossier_id, user, expected_digest=snapshot_digest)
+    return ApiResponse(data=evidence)
+
+
+@router.get("/dossiers/{dossier_id}/ai2/processing-trace")
+async def get_dossier_ai2_processing_trace(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    job_id: Annotated[str, Query(min_length=1, max_length=256)],
+    snapshot_digest: Annotated[str, Query(min_length=1, max_length=256)],
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> ApiResponse[dict[str, Any]]:
+    from contract_intelligence.infrastructure.ai_adapters import (
+        AiAdapterError,
+        read_ai2_processing_trace,
+    )
+
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.CITATION_READ)
+    if _ai2_snapshot_digest(dossier) != snapshot_digest:
+        raise HTTPException(status_code=409, detail={"code": "AI2_SNAPSHOT_CHANGED"})
+    try:
+        trace = await read_ai2_processing_trace(
+            job_id,
+            dossier_id=dossier_id,
+            snapshot_digest=snapshot_digest,
+            tenant_id=user.tenant_id,
+            actor_id=user.user_id,
+        )
+    except AiAdapterError as exc:
+        logger.warning(
+            "dossier.ai2_trace.unavailable", dossier_id=dossier_id, code=type(exc).__name__
+        )
+        raise HTTPException(status_code=503, detail={"code": "AI2_TRACE_UNAVAILABLE"}) from exc
+    await _postcheck_graph_read(svc, dossier_id, user, expected_digest=snapshot_digest)
+    return ApiResponse(data={"job_id": job_id, **trace})
+
+
+@router.post(
+    "/dossiers/{dossier_id}/search",
+    response_model=ApiResponse[DossierSearchDTO],
+    responses={404: {"description": "Dossier not found"}},
+    summary="Hỏi đáp trên hồ sơ (AI2)",
+)
+async def search_dossier(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    body: DossierSearchBody,
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    _tenant_id: Annotated[str, Depends(get_tenant_id)],
+) -> ApiResponse[DossierSearchDTO]:
+    """Nhận câu hỏi từ thanh search. AI2 trả câu trả lời khi đã nối.
+
+    ACL (search) → rate limit + quota → AI2 → ACL lần 2 (citation_read + phạm vi
+    tài liệu) → QueryTrace → FE.
+    """
+    question = body.query.strip()
+    if not question:
+        raise HTTPException(status_code=422, detail="Thiếu câu hỏi.")
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.SEARCH)
+    factory = _optional_session_factory()
+    await _enforce_search_limits(factory, user)
+
+    from contract_intelligence.infrastructure.ai_adapters import (
+        AiAdapterError,
+        query_ai2,
+    )
+
+    settings = get_settings()
+    snapshot_digest = _ai2_snapshot_digest(dossier)
+    trace_fields: dict[str, Any] = {
+        "tenant_id": user.tenant_id,
+        "dossier_id": dossier_id,
+        "actor_id": user.user_id,
+        "endpoint": "search",
+        "query": question,
+        "snapshot_version": "latest",
+        "snapshot_digest": snapshot_digest,
+        "query_contract_version": "ai2.query.v1",
+    }
+    started = time.monotonic()
+    try:
+        payload = await asyncio.wait_for(
+            query_ai2(
+                {
+                    "query": question,
+                    "dossier_id": dossier_id,
+                    "snapshot_version": "latest",
+                    "snapshot_digest": snapshot_digest,
+                    "query_contract_version": "ai2.query.v1",
+                    "acl_context": user.user_id,
+                    "policy_flags": server_query_policy_flags(),
+                    "content_sharing_consent": stored_dossier_content_sharing_consent(
+                        getattr(dossier, "metadata", None)
+                    ),
+                    "tenant_id": user.tenant_id,
+                    "actor_id": user.user_id,
+                }
+            ),
+            timeout=settings.ai2_query_timeout_seconds,
+        )
+    except (AiAdapterError, TimeoutError, OSError) as exc:
+        logger.info("dossier.search.ai2_unavailable", dossier_id=dossier_id, error=str(exc))
+        trace_id = await _save_search_trace(
+            factory,
+            **trace_fields,
+            state=None,
+            citations=[],
+            acl=None,
+            error_code="AI2_UNAVAILABLE",
+            latency_ms=int((time.monotonic() - started) * 1000),
+        )
+        return ApiResponse(
+            data=DossierSearchDTO(
+                query=question,
+                answer=None,
+                connected=False,
+                hits=[],
+                trace_id=trace_id,
+            )
+        )
+    latency_ms = int((time.monotonic() - started) * 1000)
+    if not isinstance(payload, dict):
+        payload = {}
+
+    # ACL lần 2: quyền có thể bị thu hồi trong lúc AI2 trả lời.
+    try:
+        fresh = await svc.get_dossier(dossier_id)
+        can_read = dossier_access_decision(
+            action=AclAction.CITATION_READ,
+            principal=user,
+            dossier_id=dossier_id,
+            dossier_tenant_id=getattr(fresh, "tenant_id", user.tenant_id),
+            metadata=fresh.metadata,
+        )
+        allowed = {str(doc.id) for doc in await svc.list_documents(dossier_id)}
+    except NotFoundError:
+        can_read, allowed = False, set()
+    filtered, acl = enforce_result_acl(
+        payload, can_read_citations=can_read, allowed_document_ids=allowed
+    )
+    dto = _search_dto_from_ai2(filtered, fallback_query=question)
+    if acl.decision != "passed":
+        logger.warning(
+            "dossier.search.acl_second_pass",
+            dossier_id=dossier_id,
+            actor_id=user.user_id,
+            decision=acl.decision,
+            dropped=acl.dropped,
+        )
+    dto.acl_decision = acl.decision
+    dto.trace_id = await _save_search_trace(
+        factory,
+        **trace_fields,
+        state=dto.state,
+        citations=list(filtered.get("citations") or filtered.get("hits") or []),
+        acl=acl,
+        latency_ms=latency_ms,
+        answer=dto.answer,
+    )
+    return ApiResponse(data=dto)
+
+
+# -----------------------------------------------------------------------------
+# GET /dossiers/{id} — Detail (Per openapi.yaml line 185)
+# -----------------------------------------------------------------------------
+
+
+@router.get(
+    "/dossiers/{dossier_id}",
+    response_model=ApiResponse[DossierDetailDTO],
+    responses={404: {"description": "Dossier not found"}},
+)
+async def get_dossier(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ContractServiceDep,
+    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> ApiResponse[DossierDetailDTO]:
+    """Dossier detail kèm documents list."""
+    dossier = await _require_readable(svc, dossier_id, _user, action=AclAction.QUERY)
+    return ApiResponse(data=await _dossier_detail(svc, dossier, _user))
+
+
+# -----------------------------------------------------------------------------
+# PATCH /dossiers/{id} — Update (Per openapi.yaml line 204)
+# -----------------------------------------------------------------------------
+
+
+@router.patch(
+    "/dossiers/{dossier_id}",
+    response_model=ApiResponse[DossierDetailDTO],
+    responses={
+        404: {"description": "Dossier not found"},
+        403: {"description": "Insufficient role"},
+    },
+)
+async def patch_dossier(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+    body: DossierUpdateBody | None = Body(default=None),
+) -> ApiResponse[DossierDetailDTO]:
+    """Cập nhật metadata (name, metadata, tags, notes). RBAC: OPERATOR, ADMINISTRATOR.
+
+    Body per openapi.yaml DossierUpdateRequest:
+        { name?: string, metadata?: object }
+    """
+    if body is None:
+        body = DossierUpdateBody()
+    await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_EDIT)
+    dossier = await svc.patch_dossier(dossier_id, name=body.name, metadata=body.metadata)
+    await _record(
+        tenant_id=user.tenant_id,
+        title=f"Sửa hồ sơ {dossier.name}",
+        actor_display_name=user.email or user.display_name,
+        detail=None,
+        kind="dossier.updated",
+    )
+    return ApiResponse(data=await _dossier_detail(svc, dossier, user))
+
+
+@router.get(
+    "/dossiers/{dossier_id}/access",
+    response_model=ApiResponse[DossierAccessDTO],
+    responses={404: {"description": "Dossier not found"}},
+)
+async def get_dossier_access(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> ApiResponse[DossierAccessDTO]:
+    """Đọc quyền hồ sơ. Ai xem được hồ sơ đều gọi được.
+
+    Chủ hồ sơ và ADMINISTRATOR thấy mọi người được chia sẻ; người được chia sẻ
+    chỉ thấy grant của chính mình. Grant hết hạn vẫn trả về (kèm ``expires_at``).
+    """
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.QUERY)
+    metadata = visible_dossier_metadata(dict(dossier.metadata or {}), user) or {}
+    grants = [g for g in (metadata.get("shared_with") or []) if isinstance(g, dict)]
+    scope = metadata.get("access_scope")
+    if scope not in ("mine", "shared_out", "shared_in"):
+        scope = "shared_out" if grants else "mine"
+    return ApiResponse(
+        data=DossierAccessDTO(
+            dossier_id=dossier_id,
+            scope=scope,
+            shared_with=[AccessGrantBody.model_validate(item) for item in grants],
+        )
+    )
+
+
+@router.put(
+    "/dossiers/{dossier_id}/access",
+    response_model=ApiResponse[DossierAccessDTO],
+    responses={
+        404: {"description": "Dossier not found"},
+        422: {
+            "model": ErrorResponse,
+            "description": "share_recipient_not_found: a new recipient is not an enabled "
+            "member of the caller's tenant; share_recipient_undeliverable: a new recipient's "
+            "email domain cannot receive mail (details.rejected_emails); nothing saved",
+        },
+        503: {"model": ErrorResponse, "description": "Keycloak unavailable; nothing saved"},
+    },
+)
+async def update_dossier_access(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    body: DossierAccessBody,
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+) -> ApiResponse[DossierAccessDTO] | JSONResponse:
+    """Đặt quyền hồ sơ. Gộp vào metadata, giữ created_by.
+
+    Chỉ chủ hồ sơ hoặc ADMINISTRATOR. Mỗi người được chia sẻ có ``permission``
+    (``read``/``edit``) và ``expires_at`` tuỳ chọn. ``expires_at`` mới đặt hoặc vừa
+    đổi phải ở tương lai; grant đã hết hạn mà gửi lại nguyên ``expires_at`` cũ thì
+    được giữ (vẫn không có tác dụng) để chủ hồ sơ sửa người khác không bị chặn.
+
+    Người nhận mới (``id`` chưa có trong grant cũ) phải là người dùng đang bật trong
+    cùng tenant với người gọi; ``id``/``email``/``display_name`` lấy từ Keycloak. Có
+    người không hợp lệ thì trả 422 ``share_recipient_not_found``, không lưu, không gửi
+    thư. Grant cũ gửi lại thì giữ nguyên danh tính đã lưu và không kiểm tra lại.
+
+    Không gửi được thư thì không có quyền (v5.0.0): với ``shared_out``, người nhận
+    mới có email thuộc tên miền không nhận thư bị từ chối trước khi lưu (422
+    ``share_recipient_undeliverable``); người gửi thư lỗi bị gỡ khỏi grant sau khi
+    gửi và có trong ``email_not_sent``.
+    """
+    dossier = await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_MANAGE)
+    now = utcnow()
+    current = dict(dossier.metadata or {})
+    previous_expiry = {
+        str(item.get("id")): _parse_expiry(item.get("expires_at"))
+        for item in (current.get("shared_with") or [])
+        if isinstance(item, dict) and item.get("id")
+    }
+    for item in body.shared_with:
+        if item.expires_at is None:
+            continue
+        expires_at = _as_utc(item.expires_at)
+        if expires_at <= now and previous_expiry.get(item.id) != expires_at.replace(microsecond=0):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"expires_at của {item.email or item.id} đã ở quá khứ.",
+            )
+    previous = {
+        str(item.get("id")): item
+        for item in (current.get("shared_with") or [])
+        if isinstance(item, dict) and item.get("id")
+    }
+    previous_ids = set(previous)
+    grants: list[dict[str, Any]] = []
+    if body.scope != "mine":
+        from contract_intelligence.infrastructure.keycloak_admin import UserAdminError
+
+        try:
+            grants = await _checked_grants(body.shared_with, previous, tenant_id=user.tenant_id)
+        except ShareRecipientsRejectedError as exc:
+            logger.info(
+                "dossiers.access.recipients_rejected",
+                dossier_id=dossier_id,
+                count=len(exc.rejected),
+            )
+            return _error_json(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "share_recipient_not_found",
+                SHARE_RECIPIENT_NOT_FOUND_MESSAGE,
+                {"rejected_emails": exc.rejected},
+            )
+        except UserAdminError as exc:
+            return _error_json(exc.status_code, exc.code, exc.message, exc.details)
+    if body.scope == "shared_out":
+        unreachable = [
+            str(item.get("email") or "")
+            for item in grants
+            if item["id"] not in previous_ids
+            and is_undeliverable_email(str(item.get("email") or ""))
+        ]
+        if unreachable:
+            logger.info(
+                "dossiers.access.recipients_undeliverable",
+                dossier_id=dossier_id,
+                count=len(unreachable),
+            )
+            return _error_json(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "share_recipient_undeliverable",
+                SHARE_RECIPIENT_UNDELIVERABLE_MESSAGE,
+                {"rejected_emails": unreachable},
+            )
+    current.setdefault("created_by", user.user_id)
+    current.setdefault("created_by_name", user.display_name)
+    if body.scope == "shared_in" and user.user_id not in {item["id"] for item in grants}:
+        grants.append(
+            {
+                "id": user.user_id,
+                "email": user.email or "",
+                "display_name": user.display_name or "",
+                "permission": "edit",
+                "expires_at": None,
+            }
+        )
+    current["access_scope"] = body.scope
+    current["shared_with"] = grants
+    await svc.patch_dossier(dossier_id, name=None, metadata=current, acl_update=True)
+    scope_label = "Chỉ mình tôi" if body.scope == "mine" else "Chia sẻ với người khác"
+    await _record(
+        tenant_id=user.tenant_id,
+        title=f"Cập nhật quyền hồ sơ {dossier.name}",
+        actor_display_name=user.email or user.display_name,
+        detail=scope_label,
+        kind="dossier.access",
+    )
+    fresh = [item for item in grants if item["id"] not in previous_ids and item.get("email")]
+    not_sent: list[dict[str, str]] = []
+    if body.scope == "shared_out" and fresh:
+        try:
+            not_sent = await asyncio.to_thread(
+                _send_share_emails,
+                dossier_name=dossier.name,
+                dossier_id=dossier_id,
+                sender_name=user.display_name or user.email or "Một người dùng",
+                recipients=fresh,
+            )
+        except Exception:
+            logger.warning("dossiers.access.email_failed", dossier_id=dossier_id, exc_info=True)
+            not_sent = [{"email": str(item["email"]), "reason": "send_failed"} for item in fresh]
+    scope = body.scope
+    if not_sent:
+        # Không gửi được thư thì không có quyền: gỡ đúng những người mới đó.
+        missed = {item["email"].strip().lower() for item in not_sent}
+        grants = [
+            item
+            for item in grants
+            if item["id"] in previous_ids
+            or str(item.get("email") or "").strip().lower() not in missed
+        ]
+        if not grants:
+            scope = "mine"
+        current["access_scope"] = scope
+        current["shared_with"] = grants
+        await svc.patch_dossier(dossier_id, name=None, metadata=current, acl_update=True)
+        logger.info(
+            "dossiers.access.revoked_without_mail", dossier_id=dossier_id, count=len(missed)
+        )
+    return ApiResponse(
+        data=DossierAccessDTO(
+            dossier_id=dossier_id,
+            scope=scope,
+            shared_with=[AccessGrantBody.model_validate(item) for item in grants],
+            email_not_sent=[EmailNotSentDTO.model_validate(item) for item in not_sent],
+        )
+    )
+
+
+# -----------------------------------------------------------------------------
+# GET /dossiers/{id}/documents — List (Per openapi.yaml line 262)
+# -----------------------------------------------------------------------------
+
+
+@router.get(
+    "/dossiers/{dossier_id}/documents",
+    response_model=ApiResponse[list[DocumentListItemDTO]],
+    responses={404: {"description": "Dossier not found"}},
+)
+async def list_dossier_documents(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ContractServiceDep,
+    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> ApiResponse[list[DocumentListItemDTO]]:
+    """Danh sách toàn bộ văn bản trong dossier (contract + annexes)."""
+    # Verify dossier exists for proper 404 semantics
+    await _require_readable(svc, dossier_id, _user, action=AclAction.CITATION_READ)
+    documents = await svc.list_documents(dossier_id, dossier_loaded=True)
+    return ApiResponse(data=[DocumentListItemDTO.from_domain(d) for d in documents])
+
+
+# -----------------------------------------------------------------------------
+# GET /dossiers/{id}/manifest — current ManifestDTO
+# -----------------------------------------------------------------------------
+
+
+@router.get(
+    "/dossiers/{dossier_id}/manifest",
+    dependencies=[Depends(acl_dossier)],
+    response_model=ApiResponse[ManifestDTO],
+    responses={
+        403: {"description": "Insufficient role (OPERATOR or ADMINISTRATOR required)"},
+        404: {"description": "Dossier not found in tenant"},
+    },
+)
+async def get_dossier_manifest(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    svc: ContractServiceDep,
+    _user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+) -> ApiResponse[ManifestDTO]:
+    """Return the current ManifestDTO (creates a pending draft if none exists).
+
+    RBAC: OPERATOR, ADMINISTRATOR only — REVIEWER receives 403.
+    Wrong tenant / missing dossier → 404.
+    """
+    data = await svc.get_manifest(dossier_id)
+    return ApiResponse(data=data)
+
+
+# -----------------------------------------------------------------------------
+# POST /dossiers/{id}/manifest/confirm — confirm membership + relations
+# -----------------------------------------------------------------------------
+
+
+@router.post(
+    "/dossiers/{dossier_id}/manifest/confirm",
+    response_model=ApiResponse[ManifestDTO],
+    responses={
+        403: {"description": "Insufficient role (OPERATOR or ADMINISTRATOR required)"},
+        404: {"description": "Dossier not found in tenant"},
+        409: {"description": "manifest_version_conflict"},
+        422: {"description": "Manifest validation failed"},
+    },
+)
+async def confirm_dossier_manifest(
+    dossier_id: Annotated[str, Path(min_length=1)],
+    body: ConfirmManifestRequest,
+    svc: ContractServiceDep,
+    user: Annotated[AuthenticatedUser, Depends(require_role("OPERATOR", "ADMINISTRATOR"))],
+) -> ApiResponse[ManifestDTO]:
+    """Confirm manifest within one DB transaction.
+
+    Validates version, membership, and relations; does not delete excluded
+    files and does not start a pipeline run.
+    """
+    await _require_readable(svc, dossier_id, user, action=AclAction.DOSSIER_EDIT)
+    data = await svc.confirm_manifest(dossier_id, user.user_id, body)
+    await messaging.publish_event(
+        "dossier_events",
+        {
+            "event": "dossier.manifest.confirmed",
+            "dossier_id": dossier_id,
+            "tenant_id": user.tenant_id,
+            "manifest_version": data.version,
+        },
+        key=dossier_id,
+    )
+    return ApiResponse(data=data)
+
+
+# -----------------------------------------------------------------------------
+# Document endpoints
+# -----------------------------------------------------------------------------
+
+
+@router.get(
+    "/documents/{document_id}",
+    dependencies=[Depends(acl_document)],
+    response_model=ApiResponse[DocumentDetailDTO],
+    responses={404: {"description": "Document not found"}},
+)
+async def get_document(
+    document_id: Annotated[str, Path(min_length=1)],
+    svc: ContractServiceDep,
+    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> ApiResponse[DocumentDetailDTO]:
+    """Chi tiết document theo spec (DocumentDetail — extends DocumentListItem)."""
+    doc = await svc.get_document(document_id)
+    return ApiResponse(data=DocumentDetailDTO.from_domain(doc))
+
+
+def _content_disposition(filename: str) -> str:
+    """Giá trị header phải là latin-1. Tên tiếng Việt đi ở filename*."""
+    fallback = "".join(ch if ord(ch) < 128 else "_" for ch in filename).replace('"', "")
+    if not fallback.strip("._"):
+        fallback = "document.pdf"
+    encoded = quote(filename, safe="")
+    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{encoded}"
+
+
+_BYTE_RANGE = re.compile(r"bytes=(\d*)-(\d*)")
+
+
+def _parse_range(value: str | None) -> ByteRange | None:
+    """One ``bytes=`` range, or None to send the whole file.
+
+    A missing, malformed or multi-range header is ignored (RFC 9110 §14.2).
+    """
+    if not value:
+        return None
+    match = _BYTE_RANGE.fullmatch(value.strip())
+    if match is None:
+        return None
+    first, last = match.groups()
+    if not first:
+        return ByteRange(start=None, end=int(last)) if last else None
+    if last and int(last) < int(first):
+        return None
+    return ByteRange(start=int(first), end=int(last) if last else None)
+
+
+def _etag_matches(header: str | None, etag: str) -> bool:
+    """``If-None-Match`` names this entity tag (weak comparison, RFC 9110 §13.1.2)."""
+    if not header:
+        return False
+    tags = [tag.strip().removeprefix("W/") for tag in header.split(",")]
+    return "*" in tags or etag in tags
+
+
+@router.get(
+    "/documents/{document_id}/content",
+    dependencies=[Depends(acl_document)],
+    summary="Stream PDF binary từ MinIO/local storage",
+    responses={
+        200: {
+            "content": {"application/pdf": {}},
+            "description": "PDF binary stream",
+        },
+        206: {
+            "content": {"application/pdf": {}},
+            "description": "One byte range of the PDF (``Range: bytes=…``)",
+        },
+        304: {"description": "``If-None-Match`` matches the ETag: the cached copy is current"},
+        404: {"description": "Document not found"},
+        416: {"description": "Range outside the file"},
+    },
+)
+async def get_document_content(
+    request: Request,
+    document_id: Annotated[str, Path(min_length=1)],
+    svc: ContractServiceDep,
+    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> Response:
+    """Tải PDF gốc — trả về binary stream từ storage.
+
+    Có ngay sau khi tải lên, trước OCR (kể cả hồ sơ ``split_pending``), nên màn
+    tách file dựng ảnh trang bằng pdf.js từ đây. Cần quyền xem hồ sơ.
+
+    File đi thẳng từ MinIO ra theo từng khúc, không nạp cả file vào RAM.
+    ``Range`` cho pdf.js tải đúng phần trang cần vẽ; ``ETag`` (sha256 của file)
+    cho trình duyệt dùng lại bản đã tải (304) mà vẫn kiểm tra quyền mỗi lần.
+    """
+    doc = await svc.get_content_document(document_id)
+    headers = {
+        "Accept-Ranges": "bytes",
+        # private: never kept by Cloudflare; no-cache: every reuse is re-authorized.
+        "Cache-Control": "private, no-cache",
+        "Content-Disposition": _content_disposition(doc.filename),
+    }
+    etag = f'"{doc.sha256}"' if doc.sha256 else None
+    if etag:
+        headers["ETag"] = etag
+        if _etag_matches(request.headers.get("if-none-match"), etag):
+            return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
+
+    byte_range = _parse_range(request.headers.get("range"))
+    if_range = request.headers.get("if-range")
+    if byte_range is not None and if_range is not None and if_range != etag:
+        byte_range = None  # the client's copy is another version: send it whole
+    try:
+        stream = await svc.open_document_content(doc, byte_range)
+    except RangeNotSatisfiableError as exc:
+        headers["Content-Range"] = f"bytes */{exc.size}"
+        return Response(status_code=status.HTTP_416_RANGE_NOT_SATISFIABLE, headers=headers)
+
+    headers["Content-Length"] = str(stream.length)
+    status_code = status.HTTP_200_OK
+    if byte_range is not None:
+        status_code = status.HTTP_206_PARTIAL_CONTENT
+        headers["Content-Range"] = f"bytes {stream.first}-{stream.last}/{stream.size}"
+    return StreamingResponse(
+        stream.chunks,
+        status_code=status_code,
+        media_type="application/pdf",
+        headers=headers,
+        background=BackgroundTask(stream.close),
+    )
+
+
+__all__ = ["router"]

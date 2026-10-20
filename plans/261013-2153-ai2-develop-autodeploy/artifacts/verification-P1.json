@@ -1,0 +1,27 @@
+{
+  "stage": "cook",
+  "plan": "261013-2153-ai2-develop-autodeploy",
+  "checks": [
+    {
+      "name": "backend_ci",
+      "status": "PASS"
+    },
+    {
+      "name": "ai_service_ci",
+      "status": "PASS"
+    },
+    {
+      "name": "ai_service_deterministic",
+      "status": "PASS"
+    },
+    {
+      "name": "pdf_only_contract_goldens",
+      "status": "SKIP"
+    }
+  ],
+  "verdict": "PASS",
+  "phase": "P1",
+  "actor": "user:dungskbg2004@gmail.com",
+  "ts": "2026-10-13T19:03:48+00:00",
+  "run_seq": null
+}

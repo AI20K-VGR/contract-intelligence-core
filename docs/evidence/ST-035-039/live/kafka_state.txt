@@ -1,0 +1,16 @@
+# topics
+__consumer_offsets
+ci.ai1.ocr.commands
+ci.ai1.ocr.results
+dossier_events
+
+# consumer groups (LAG 0 = every message consumed)
+
+GROUP           TOPIC               PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                          HOST            CLIENT-ID
+ci-ai1-ocr      ci.ai1.ocr.commands 0          16              16              0               aiokafka-0.14.0-fd3c4634-2f04-4a44-bf39-0200205886be /172.20.0.8     aiokafka-0.14.0
+
+GROUP                  TOPIC              PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                          HOST            CLIENT-ID
+ci-backend-ai1-results ci.ai1.ocr.results 0          16              16              0               aiokafka-0.14.0-34afd1cf-6338-4030-973d-51b0dffae12f /172.20.0.9     aiokafka-0.14.0
+
+GROUP                   TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                          HOST            CLIENT-ID
+ci-backend-orchestrator dossier_events  0          13              13              0               aiokafka-0.14.0-3126e3d8-3950-43b3-a031-74df01cfddcb /172.20.0.9     aiokafka-0.14.0

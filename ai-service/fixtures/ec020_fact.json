@@ -1,0 +1,6 @@
+{
+  "ec": "EC-020",
+  "description": "Single party field fact",
+  "structured_key": "party_a",
+  "expected_raw": "Công ty ABC"
+}

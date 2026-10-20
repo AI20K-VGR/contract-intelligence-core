@@ -1,0 +1,14 @@
+# backend-worker (filtered by dossier_id=dos_01M3J729YZDD4F2CZ9XFNMHDCZ)
+2026-09-27 19:56:56 [info     ] worker.dossier_uploaded.ocr_command_published document_id=doc_01M3J72A6GFQ8NB2XW7YGB3PTK dossier_id=dos_01M3J729YZDD4F2CZ9XFNMHDCZ event_id=evt_01M3J72AJ1KGXV43TAJEE8141K run_id=run_01M3J72A9FJMEY75Y9K07VH499
+2026-09-27 19:56:56 [info     ] worker.dossier_uploaded.ocr_command_published document_id=doc_01M3J72A8XF5CJX5PEZP62HS3K dossier_id=dos_01M3J729YZDD4F2CZ9XFNMHDCZ event_id=evt_01M3J72AP3JNXYB1HVX4MBFHZP run_id=run_01M3J72A9FJMEY75Y9K07VH499
+2026-09-27 19:57:00 [info     ] worker.ai1_result.persisted    all_extracted=False document_id=doc_01M3J72A6GFQ8NB2XW7YGB3PTK dossier_id=dos_01M3J729YZDD4F2CZ9XFNMHDCZ job_id=ai1_6655c2bddf374ff28fa349f2532962d3 run_id=run_01M3J72A9FJMEY75Y9K07VH499
+2026-09-27 19:57:00 [info     ] worker.ai1_result.persisted    all_extracted=True document_id=doc_01M3J72A8XF5CJX5PEZP62HS3K dossier_id=dos_01M3J729YZDD4F2CZ9XFNMHDCZ job_id=ai1_c2e4bfbbfef24c43a3de19c3592b41cc run_id=run_01M3J72A9FJMEY75Y9K07VH499
+2026-09-27 19:57:02 [info     ] worker.ai2.completed           dossier_id=dos_01M3J729YZDD4F2CZ9XFNMHDCZ facts=3 findings=0 job_id=job_e84150a739 run_id=run_01M3J72A9FJMEY75Y9K07VH499 source=http_poll
+
+# ai1-worker (filtered by document ids)
+2026-09-27 19:56:56,803 INFO contract_ocr.pages {"run_id": "ai1_6655c2bddf374ff28fa349f2532962d3", "sample_id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK", "document_id": "doc_01M3J72A6GFQ8NB2XW7YGB3PTK", "page": 1, "engine": "pymupdf", "experiment": "BACKEND_API", "elapsed_ms": 23.632, "status": "SUCCESS"}
+2026-09-27 19:56:56,924 INFO contract_ocr.pages {"run_id": "ai1_c2e4bfbbfef24c43a3de19c3592b41cc", "sample_id": "doc_01M3J72A8XF5CJX5PEZP62HS3K", "document_id": "doc_01M3J72A8XF5CJX5PEZP62HS3K", "page": 1, "engine": "pymupdf", "experiment": "BACKEND_API", "elapsed_ms": 14.958, "status": "SUCCESS"}
+
+# ai2-service (filtered by AI2 job job_e84150a739)
+INFO:     172.20.0.9:60506 - "GET /jobs/job_e84150a739 HTTP/1.1" 200 OK
+INFO:     172.20.0.9:48306 - "GET /jobs/job_e84150a739 HTTP/1.1" 200 OK

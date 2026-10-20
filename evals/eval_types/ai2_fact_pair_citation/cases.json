@@ -1,0 +1,56 @@
+{
+  "cases": [
+    {
+      "case": "empty_line",
+      "pages": [["   "]],
+      "expect": {"fact_keys": []}
+    },
+    {
+      "case": "unicode_value",
+      "pages": [["1.1. Tổng giá trị hợp đồng là 1.000.000.000 đồng."]],
+      "expect": {
+        "fact_keys": ["contract_value"],
+        "normalized": {"contract_value": "1000000000"},
+        "citation_line": true
+      }
+    },
+    {
+      "case": "mst_boundary_8",
+      "pages": [["BÊN A: Công ty An", "MST: 01234567"]],
+      "expect": {"fact_keys": ["mst_party_a"], "citation_line": true}
+    },
+    {
+      "case": "mst_boundary_14",
+      "pages": [["BÊN A: Công ty An", "MST: 01234567890123"]],
+      "expect": {"fact_keys": ["mst_party_a"], "citation_line": true}
+    },
+    {
+      "case": "total_next_line",
+      "pages": [["Tổng cộng", "49.900.000"]],
+      "expect": {
+        "fact_keys": ["contract_value"],
+        "normalized": {"contract_value": "49900000"},
+        "citation_line": true
+      }
+    },
+    {
+      "case": "same_snapshot_pair",
+      "pages": [
+        ["ĐIỀU 1. GIÁ TRỊ HỢP ĐỒNG", "1.1. Tổng giá trị hợp đồng là 1.000.000.000 đồng."],
+        ["PHỤ LỤC 01 - BẢNG GIÁ", "Tổng giá trị hợp đồng là 1.200.000.000 đồng."]
+      ],
+      "expect": {
+        "fact_keys": ["contract_value"],
+        "disposition": "COMPARABLE_DIFFERENCE",
+        "relation": "UNCONFIRMED",
+        "no_legal_winner": true,
+        "citation_line": true
+      }
+    },
+    {
+      "case": "malformed_snapshot",
+      "snapshot": null,
+      "expect": {"state": "BLOCKED"}
+    }
+  ]
+}

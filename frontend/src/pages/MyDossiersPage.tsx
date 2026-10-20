@@ -1,0 +1,1161 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import {
+  deleteDossier,
+  formatDocumentCounts,
+  inspectDossierOcr,
+  listedDossierFacts,
+  loadDocumentCounts,
+  listDossiers,
+  listDossiersErrorMessage,
+  type DossierShareGrant,
+  type DossierSummary,
+  type DocumentCounts,
+  type OcrInspection,
+  type OcrState,
+} from '../api/dossiers'
+import { ApiError } from '../api/client'
+import { isRunFinished } from '../api/structure'
+import { MaterialIcon } from '../components/icons'
+import {
+  awaitsSplit,
+  dossierOpenTo,
+  progressPath,
+  splitPath,
+  type Dossier,
+  type DossierStatus,
+} from '../data/dossiers'
+import {
+  formatExpiry,
+  grantPermission,
+  isGrantExpired,
+} from '../data/shareGrant'
+import { dossiersLabel } from '../auth/session'
+import { useAuth } from '../auth/useAuth'
+import { TechnicalDetail } from '../components/TechnicalDetail'
+import { useHeaderShowsPageTitle, usePageTitle } from '../hooks/usePageTitle'
+
+type StatusFilter = 'all' | OcrState
+
+function stateNotice(
+  state: unknown,
+): { text: string; tone: 'ok' | 'error' } | null {
+  if (!state || typeof state !== 'object') return null
+  const notice = (state as { notice?: unknown }).notice
+  if (typeof notice !== 'string' || !notice.trim()) return null
+  const tone =
+    (state as { noticeTone?: unknown }).noticeTone === 'error' ? 'error' : 'ok'
+  return { text: notice, tone }
+}
+
+const filters: { id: StatusFilter; label: string }[] = [
+  { id: 'all', label: 'Tất cả' },
+  { id: 'done', label: 'Đã đọc' },
+  { id: 'running', label: 'Đang đọc' },
+  { id: 'pending', label: 'Chưa đọc' },
+  { id: 'error', label: 'Đọc lỗi' },
+]
+
+/*
+ * Thẩm định không tải file nên không lọc theo OCR mà theo việc cần làm:
+ * chờ thẩm định (còn mục mở), đã xong, hoặc hồ sơ còn đang phân tích.
+ */
+type ReviewFilter = 'all' | 'todo' | 'done' | 'waiting'
+
+const reviewFilters: { id: ReviewFilter; label: string; dot?: string }[] = [
+  { id: 'all', label: 'Tất cả' },
+  { id: 'todo', label: 'Chờ thẩm định', dot: 'bg-amber-500' },
+  { id: 'done', label: 'Đã thẩm định', dot: 'bg-emerald-600' },
+  { id: 'waiting', label: 'Đang phân tích', dot: 'bg-outline' },
+]
+
+function reviewStateOf(dossier: Dossier): Exclude<ReviewFilter, 'all'> {
+  if (dossier.status === 'review') return 'todo'
+  if (dossier.status === 'ready') return 'done'
+  return 'waiting'
+}
+
+const jobLabels: Record<string, string> = {
+  uploaded: 'Đã tải lên',
+  processing: 'Đang xử lý',
+  extracted: 'Đã trích xuất',
+  pending_review: 'Chờ rà soát',
+  reviewed: 'Đã rà soát',
+  approved: 'Đã duyệt',
+  failed: 'Thất bại',
+}
+
+const dateTime = new Intl.DateTimeFormat('vi-VN', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+})
+
+function formatWhen(value: string) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return dateTime.format(date)
+}
+
+function metadataText(metadata: Record<string, unknown> | null, key: string) {
+  const value = metadata?.[key]
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function uiStatus(summary: DossierSummary): DossierStatus {
+  const job = summary.latest_job_status
+  const needsReview =
+    job === 'pending_review' ||
+    summary.has_conflicts ||
+    summary.open_review_items > 0 ||
+    summary.pending_conflicts > 0
+  if (job === 'failed') return 'failed'
+  if (needsReview) return 'review'
+  if (isRunFinished(job)) {
+    return 'ready'
+  }
+  return 'processing'
+}
+
+function reviewNote(summary: DossierSummary) {
+  if (summary.pending_conflicts > 0) {
+    return `${summary.pending_conflicts} điều khoản bất thường`
+  }
+  if (summary.open_review_items > 0) {
+    return `${summary.open_review_items} mục chờ rà soát`
+  }
+  return undefined
+}
+
+function sharesOf(
+  metadata: Record<string, unknown> | null,
+): DossierShareGrant[] {
+  const raw = metadata?.shared_with
+  if (!Array.isArray(raw)) return []
+  return raw.flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const row = item as Record<string, unknown>
+    const id = typeof row.id === 'string' ? row.id : ''
+    if (!id) return []
+    return [
+      {
+        id,
+        email: typeof row.email === 'string' ? row.email : '',
+        display_name:
+          typeof row.display_name === 'string' ? row.display_name : '',
+        status:
+          row.status === 'invited' ||
+          row.status === 'active' ||
+          row.status === 'disabled'
+            ? row.status
+            : undefined,
+        permission:
+          row.permission === 'read' || row.permission === 'edit'
+            ? row.permission
+            : undefined,
+        expires_at:
+          typeof row.expires_at === 'string' && row.expires_at
+            ? row.expires_at
+            : null,
+      },
+    ]
+  })
+}
+
+function grantFor(
+  shares: ReturnType<typeof sharesOf>,
+  userId: string | undefined,
+  email: string | undefined,
+) {
+  const normalized = email?.trim().toLowerCase()
+  return shares.find(
+    (item) =>
+      (userId && item.id === userId) ||
+      (normalized && item.email.trim().toLowerCase() === normalized),
+  )
+}
+
+function accessScope(
+  summary: DossierSummary,
+  userId: string | undefined,
+  email?: string,
+): Dossier['access'] {
+  const metadata = summary.metadata
+  const owner = metadataText(metadata, 'created_by')
+  const shares = sharesOf(metadata)
+  if (userId && owner && owner !== userId) {
+    return grantFor(shares, userId, email) ? 'shared_in' : 'mine'
+  }
+  const explicit = metadata?.access_scope
+  if (
+    explicit === 'mine' ||
+    explicit === 'shared_out' ||
+    explicit === 'shared_in'
+  ) {
+    return explicit
+  }
+  return shares.length > 0 ? 'shared_out' : 'mine'
+}
+
+export function dossierFromSummary(
+  summary: DossierSummary,
+  userId: string | undefined,
+  email?: string,
+): Dossier {
+  const code = metadataText(summary.metadata, 'code') || summary.id
+  const job = summary.latest_job_status
+  const access = accessScope(summary, userId, email)
+  const shares = sharesOf(summary.metadata)
+  const mine = grantFor(shares, userId, email)
+  return {
+    id: summary.id,
+    title: summary.name,
+    code,
+    size: '',
+    icon:
+      summary.document_count && summary.document_count > 1
+        ? 'folder_open'
+        : 'folder',
+    status: uiStatus(summary),
+    progressLabel: job ? (jobLabels[job] ?? job) : 'Chưa xử lý',
+    reviewNote: reviewNote(summary),
+    documents: summary.document_count,
+    updated: formatWhen(summary.created_at),
+    access,
+    shares,
+    myGrant:
+      access === 'shared_in' && mine
+        ? {
+            permission: grantPermission(mine),
+            expires_at: mine.expires_at ?? null,
+            expired: isGrantExpired(mine),
+          }
+        : undefined,
+    jobStatus: job,
+    splitPending: summary.metadata?.split_pending === true,
+    uploadedAt: summary.created_at,
+  }
+}
+
+function textOf(value: unknown) {
+  return typeof value === 'string' ? value : ''
+}
+
+function countByOcr(
+  items: Dossier[],
+  ocrOf: (dossier: Dossier) => OcrState | 'checking',
+  status?: OcrState,
+) {
+  if (!status) return items.length
+  return items.filter((item) => ocrOf(item) === status).length
+}
+
+function StatusCell({
+  dossier,
+  ocr,
+  detail,
+  technical,
+  onRetry,
+}: {
+  dossier: Dossier
+  ocr: OcrState | 'checking'
+  detail: string | null
+  technical?: string | null
+  /** Bỏ trống khi người dùng không được chạy lại hồ sơ này. */
+  onRetry?: () => void
+}) {
+  const note = dossier.reviewNote ? (
+    <span className="font-code-sm text-label-sm text-on-surface-variant">
+      {dossier.reviewNote}
+    </span>
+  ) : null
+
+  if (ocr === 'checking') {
+    return (
+      <span className="font-label-sm text-label-sm text-on-surface-variant">
+        Đang kiểm tra…
+      </span>
+    )
+  }
+
+  if (ocr === 'running') {
+    return (
+      <div className="flex flex-col gap-1">
+        <Link
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-label-sm text-label-sm font-semibold bg-amber-100 text-amber-900 w-fit hover:opacity-80"
+          to={progressPath(dossier.id)}
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
+          Đang đọc
+        </Link>
+        {note}
+      </div>
+    )
+  }
+
+  // Chưa xác nhận phần hợp đồng, phụ lục: dẫn về trang tách file, không đọc.
+  if (awaitsSplit(dossier)) {
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <div className="flex flex-wrap items-center gap-1">
+          <Link
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-label-sm text-label-sm font-semibold bg-amber-100 text-amber-950 hover:opacity-80"
+            to={splitPath(dossier.id)}
+          >
+            Chờ tách file
+          </Link>
+          {onRetry ? (
+            <Link
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-label-sm text-label-sm font-semibold bg-surface-container text-on-surface hover:bg-surface-container-high"
+              state={{ name: dossier.title }}
+              to={splitPath(dossier.id)}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <MaterialIcon name="call_split" className="text-[14px]" />
+              Xác nhận tách file
+            </Link>
+          ) : null}
+        </div>
+        {note}
+      </div>
+    )
+  }
+
+  if (ocr === 'pending' || ocr === 'error') {
+    const label = ocr === 'pending' ? 'Chưa đọc' : 'Đọc lỗi'
+    const action = ocr === 'pending' ? 'Tiếp tục đọc' : 'Đọc lại'
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <div className="flex flex-wrap items-center gap-1">
+          <Link
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-label-sm text-label-sm font-semibold hover:opacity-80 ${
+              ocr === 'pending'
+                ? 'bg-amber-100 text-amber-950'
+                : 'bg-error-container text-on-error-container'
+            }`}
+            to={progressPath(dossier.id)}
+          >
+            {label}
+          </Link>
+          {onRetry ? (
+            <button
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-label-sm text-label-sm font-semibold bg-surface-container text-on-surface hover:bg-surface-container-high"
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                onRetry()
+              }}
+            >
+              <MaterialIcon
+                name={ocr === 'pending' ? 'play_arrow' : 'refresh'}
+                className="text-[14px]"
+              />
+              {action}
+            </button>
+          ) : null}
+        </div>
+        {detail ? (
+          <span className="font-body-sm text-label-sm text-error">
+            {detail}
+          </span>
+        ) : null}
+        {ocr === 'error' ? <TechnicalDetail text={technical} /> : null}
+        {note}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <Link
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-label-sm text-label-sm font-semibold bg-emerald-100 text-emerald-900 w-fit hover:opacity-80"
+        to={`/ocr/${dossier.id}`}
+      >
+        <MaterialIcon name="check_circle" className="text-[14px]" />
+        Đã đọc
+      </Link>
+      {note}
+    </div>
+  )
+}
+
+const REVIEW_BADGE: Record<
+  Exclude<ReviewFilter, 'all'>,
+  { label: string; icon: string; className: string }
+> = {
+  todo: {
+    label: 'Chờ thẩm định',
+    icon: 'rate_review',
+    className: 'bg-amber-100 text-amber-900',
+  },
+  done: {
+    label: 'Đã thẩm định',
+    icon: 'check_circle',
+    className: 'bg-emerald-100 text-emerald-900',
+  },
+  waiting: {
+    label: 'Đang phân tích',
+    icon: 'hourglass_top',
+    className: 'bg-surface-container text-on-surface-variant',
+  },
+}
+
+/** Trạng thái thẩm định và quyền của người thẩm định trên hồ sơ. */
+function ReviewStatusCell({ dossier }: { dossier: Dossier }) {
+  const badge = REVIEW_BADGE[reviewStateOf(dossier)]
+  const grant = dossier.myGrant
+  return (
+    <div className="flex flex-col gap-1">
+      <span
+        className={`inline-flex w-fit items-center gap-1 rounded px-2 py-0.5 font-label-sm text-label-sm font-semibold ${badge.className}`}
+      >
+        <MaterialIcon name={badge.icon} className="text-[14px]" />
+        {badge.label}
+      </span>
+      {dossier.reviewNote ? (
+        <span className="font-code-sm text-label-sm text-on-surface-variant">
+          {dossier.reviewNote}
+        </span>
+      ) : null}
+      {grant ? (
+        <span
+          className={`font-label-sm text-[11px] ${
+            grant.expired || grant.permission === 'read'
+              ? 'text-error'
+              : 'text-on-surface-variant'
+          }`}
+        >
+          {grant.expired
+            ? 'Quyền đã hết hạn'
+            : grant.permission === 'read'
+              ? 'Chỉ xem: không thẩm định được'
+              : `Được thẩm định${
+                  grant.expires_at
+                    ? ` · đến ${formatExpiry(grant.expires_at)}`
+                    : ''
+                }`}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+export const accessLabels: Record<Dossier['access'], string> = {
+  mine: 'Hồ sơ của tôi',
+  shared_out: 'Hồ sơ đã chia sẻ',
+  shared_in: 'Hồ sơ được chia sẻ',
+}
+
+function ReviewToolbar({
+  dossiers,
+  status,
+  onStatusChange,
+}: {
+  dossiers: Dossier[]
+  status: ReviewFilter
+  onStatusChange: (value: ReviewFilter) => void
+}) {
+  return (
+    <div className="flex items-center shrink-0">
+      <div className="inline-flex items-center bg-surface-container p-1 rounded-lg gap-0.5 whitespace-nowrap">
+        {reviewFilters.map((item) => {
+          const active = status === item.id
+          const count =
+            item.id === 'all'
+              ? dossiers.length
+              : dossiers.filter((dossier) => reviewStateOf(dossier) === item.id)
+                  .length
+          return (
+            <button
+              key={item.id}
+              className={`px-3 h-8 rounded font-label-sm text-label-sm uppercase tracking-wide whitespace-nowrap flex items-center gap-1.5 transition-colors ${
+                active
+                  ? 'bg-surface-container-lowest text-on-surface shadow-sm font-semibold'
+                  : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+              type="button"
+              onClick={() => onStatusChange(item.id)}
+            >
+              {item.dot ? (
+                <span className={`w-1.5 h-1.5 rounded-full ${item.dot}`} />
+              ) : null}
+              <span>{item.label}</span>
+              <span className="font-code-sm text-[11px]">{count}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function DossierToolbar({
+  dossiers,
+  ocrOf,
+  status,
+  onStatusChange,
+}: {
+  dossiers: Dossier[]
+  ocrOf: (dossier: Dossier) => OcrState | 'checking'
+  status: StatusFilter
+  onStatusChange: (value: StatusFilter) => void
+}) {
+  return (
+    <div className="flex items-center shrink-0">
+      <div className="inline-flex items-center bg-surface-container p-1 rounded-lg gap-0.5 whitespace-nowrap">
+        {filters.map((item) => {
+          const active = status === item.id
+          const count =
+            item.id === 'all'
+              ? countByOcr(dossiers, ocrOf)
+              : countByOcr(dossiers, ocrOf, item.id)
+          return (
+            <button
+              key={item.id}
+              className={`px-3 h-8 rounded font-label-sm text-label-sm uppercase tracking-wide whitespace-nowrap flex items-center gap-1.5 transition-colors ${
+                active
+                  ? 'bg-surface-container-lowest text-on-surface shadow-sm font-semibold'
+                  : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+              type="button"
+              onClick={() => onStatusChange(item.id)}
+            >
+              {item.id === 'running' ? (
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              ) : null}
+              {item.id === 'done' ? (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+              ) : null}
+              {item.id === 'pending' ? (
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
+              ) : null}
+              {item.id === 'error' ? (
+                <span className="w-1.5 h-1.5 rounded-full bg-error" />
+              ) : null}
+              <span>{item.label}</span>
+              <span
+                className={`font-code-sm text-[11px] ${
+                  item.id === 'all' && active ? 'text-on-surface-variant' : ''
+                }`}
+              >
+                {count}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+export function MyDossiersPage() {
+  const { user } = useAuth()
+  const heading = user ? dossiersLabel(user.role, user.backendRole) : 'Hồ sơ'
+  const navigate = useNavigate()
+  const location = useLocation()
+  usePageTitle(heading)
+  const titleInHeader = useHeaderShowsPageTitle()
+  const [query, setQuery] = useState('')
+  const [status, setStatus] = useState<StatusFilter>('all')
+  const reviewer = user?.backendRole === 'REVIEWER'
+  const [reviewStatus, setReviewStatus] = useState<ReviewFilter>('all')
+  const [reloadKey, setReloadKey] = useState(0)
+  const [dossiers, setDossiers] = useState<Dossier[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<Dossier | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [ocrById, setOcrById] = useState<Record<string, OcrInspection>>({})
+  // null: danh sách báo người dùng không được xem tài liệu của hồ sơ này.
+  const [countsById, setCountsById] = useState<
+    Record<string, DocumentCounts | null>
+  >({})
+  // Hồ sơ mà danh sách đã trả sẵn số tài liệu / tình trạng OCR (v3.3.0, #144):
+  // không gọi /documents hay /pages cho từng hồ sơ đó.
+  const listed = useRef({ counts: new Set<string>(), ocr: new Set<string>() })
+  /** Lấy số liệu danh sách đã trả, thay cho mỗi hồ sơ một lần gọi API. */
+  function applyListedFacts(summaries: DossierSummary[]) {
+    const facts = listedDossierFacts(summaries)
+    for (const id of Object.keys(facts.counts)) listed.current.counts.add(id)
+    for (const id of Object.keys(facts.ocr)) listed.current.ocr.add(id)
+    if (Object.keys(facts.counts).length > 0) {
+      setCountsById((current) => ({ ...current, ...facts.counts }))
+    }
+    applyInspections(Object.entries(facts.ocr))
+  }
+  function applyInspections(entries: (readonly [string, OcrInspection])[]) {
+    if (entries.length === 0) return
+    setOcrById((current) => {
+      const next = { ...current }
+      for (const [id, inspection] of entries) next[id] = inspection
+      return next
+    })
+    setRestartAt((current) => {
+      const next = { ...current }
+      for (const [id, inspection] of entries) {
+        if (inspection.state === 'running' || inspection.state === 'done') {
+          delete next[id]
+        }
+      }
+      return next
+    })
+  }
+  const [restartAt, setRestartAt] = useState<Record<string, number>>({})
+  /** Thông báo kết quả thao tác (đã xóa…), tự ẩn sau vài giây. */
+  const [notice, setNotice] = useState<{
+    text: string
+    tone: 'ok' | 'error'
+  } | null>(null)
+
+  // Trang khác (tiến trình phân tích) xóa xong rồi chuyển về đây kèm thông báo.
+  useEffect(() => {
+    const incoming = stateNotice(location.state)
+    if (!incoming) return
+    setNotice(incoming)
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.state, location.pathname, navigate])
+
+  useEffect(() => {
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(null), 4000)
+    return () => window.clearTimeout(timer)
+  }, [notice])
+
+  function ocrOf(dossier: Dossier): OcrState | 'checking' {
+    const started = restartAt[dossier.id]
+    const inspection = ocrById[dossier.id]
+    if (
+      started &&
+      Date.now() - started < 25000 &&
+      inspection?.state !== 'done'
+    ) {
+      return 'running'
+    }
+    if (inspection) return inspection.state
+    if (dossier.jobStatus === 'processing') return 'running'
+    return 'checking'
+  }
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setLoading(true)
+    setError(null)
+    listDossiers({ limit: 100, offset: 0, signal: controller.signal })
+      .then((result) => {
+        if (controller.signal.aborted) return
+        applyListedFacts(result.items)
+        setDossiers(
+          result.items.map((item) =>
+            dossierFromSummary(item, user?.id, user?.email),
+          ),
+        )
+        setTotal(result.total)
+      })
+      .catch((cause: unknown) => {
+        const message = listDossiersErrorMessage(cause)
+        if (!message || controller.signal.aborted) return
+        setDossiers([])
+        setTotal(0)
+        setError(message)
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+    return () => controller.abort()
+  }, [reloadKey])
+
+  useEffect(() => {
+    // Chỉ hồ sơ mà danh sách không trả document_counts (backend trước v3.3.0).
+    const missing = dossiers.filter(
+      (item) => !listed.current.counts.has(item.id) && !(item.id in countsById),
+    )
+    if (missing.length === 0) return
+    const controller = new AbortController()
+    void Promise.all(
+      missing.map(async (item) => {
+        try {
+          const counts = await loadDocumentCounts(item.id, controller.signal)
+          return [item.id, counts] as const
+        } catch {
+          return null
+        }
+      }),
+    ).then((entries) => {
+      if (controller.signal.aborted) return
+      setCountsById((current) => {
+        const next = { ...current }
+        for (const entry of entries) if (entry) next[entry[0]] = entry[1]
+        return next
+      })
+    })
+    return () => controller.abort()
+    // countsById chỉ để bỏ qua hồ sơ đã đếm; đổi nó không cần tải lại.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dossiers])
+
+  useEffect(() => {
+    // Chỉ hồ sơ mà danh sách không trả contract_ocr (backend trước v3.3.0).
+    const unlisted = dossiers.filter((item) => !listed.current.ocr.has(item.id))
+    if (unlisted.length === 0) return
+    const controller = new AbortController()
+    let stopped = false
+
+    async function inspect() {
+      const entries = await Promise.all(
+        unlisted.map(async (item) => {
+          try {
+            const inspection = await inspectDossierOcr(
+              item.id,
+              item.jobStatus ?? null,
+              controller.signal,
+            )
+            return [item.id, inspection] as const
+          } catch {
+            if (controller.signal.aborted) return null
+            const fallback: OcrInspection = {
+              state: item.jobStatus === 'failed' ? 'error' : 'pending',
+              detail: null,
+            }
+            return [item.id, fallback] as const
+          }
+        }),
+      )
+      if (stopped) return
+      applyInspections(entries.filter((entry) => entry !== null))
+    }
+
+    void inspect()
+    return () => {
+      stopped = true
+      controller.abort()
+    }
+  }, [dossiers])
+
+  useEffect(() => {
+    if (!dossiers.some((item) => ocrOf(item) === 'running')) return
+    const timer = window.setTimeout(() => {
+      setReloadKey((value) => value + 1)
+    }, 4000)
+    return () => window.clearTimeout(timer)
+  }, [dossiers, ocrById, restartAt])
+
+  async function confirmDelete() {
+    if (!pendingDelete || deleting) return
+    setDeleting(true)
+    setError(null)
+    try {
+      await deleteDossier(pendingDelete.id)
+      const removedId = pendingDelete.id
+      const removedTitle = textOf(pendingDelete.title) || 'hồ sơ'
+      setDossiers((current) => current.filter((item) => item.id !== removedId))
+      setTotal((current) => Math.max(0, current - 1))
+      setPendingDelete(null)
+      setNotice({ text: `Đã xóa hồ sơ “${removedTitle}”.`, tone: 'ok' })
+    } catch (cause: unknown) {
+      if (cause instanceof ApiError && cause.status === 403) {
+        setError('Bạn không có quyền xóa hồ sơ này.')
+      } else {
+        const message = listDossiersErrorMessage(cause)
+        setError(message ?? 'Không xóa được hồ sơ. Thử lại.')
+      }
+      setPendingDelete(null)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  async function loadMore() {
+    if (loadingMore || dossiers.length >= total) return
+    setLoadingMore(true)
+    setError(null)
+    try {
+      const result = await listDossiers({
+        limit: 100,
+        offset: dossiers.length,
+      })
+      applyListedFacts(result.items)
+      setDossiers((current) => [
+        ...current,
+        ...result.items.map((item) =>
+          dossierFromSummary(item, user?.id, user?.email),
+        ),
+      ])
+      setTotal(result.total)
+    } catch (cause) {
+      const message = listDossiersErrorMessage(cause)
+      if (message) setError(message)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    return dossiers
+      .filter((item) => {
+        const matchesStatus = reviewer
+          ? reviewStatus === 'all' || reviewStateOf(item) === reviewStatus
+          : status === 'all' || ocrOf(item) === status
+        const title = textOf(item.title)
+        const code = textOf(item.code)
+        const id = textOf(item.id)
+        const matchesQuery =
+          needle.length === 0 ||
+          title.toLowerCase().includes(needle) ||
+          code.toLowerCase().includes(needle) ||
+          id.toLowerCase().includes(needle)
+        return matchesStatus && matchesQuery
+      })
+      .sort((left, right) => {
+        const delta =
+          Date.parse(right.uploadedAt ?? '') - Date.parse(left.uploadedAt ?? '')
+        return Number.isFinite(delta) ? delta : 0
+      })
+  }, [dossiers, ocrById, query, restartAt, status, reviewer, reviewStatus])
+
+  /** DOSSIER_EDIT: vai trò Vận hành/Quản trị và (chủ hồ sơ hoặc grant "edit" còn hạn). */
+  function canRerun(dossier: Dossier) {
+    if (user?.backendRole === 'REVIEWER') return false
+    if (dossier.access !== 'shared_in') return true
+    return dossier.myGrant?.permission === 'edit' && !dossier.myGrant.expired
+  }
+
+  function retryOcr(dossierId: string) {
+    navigate(progressPath(dossierId), { state: { restart: true } })
+  }
+
+  return (
+    <div className="flex flex-col w-full pb-margin-lg">
+      {titleInHeader ? null : (
+        <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight pt-space-lg">
+          {heading}
+        </h1>
+      )}
+
+      <div className="flex flex-col lg:flex-row lg:items-center gap-space-md pt-space-lg pb-space-md">
+        {reviewer ? (
+          <ReviewToolbar
+            dossiers={dossiers}
+            status={reviewStatus}
+            onStatusChange={setReviewStatus}
+          />
+        ) : (
+          <DossierToolbar
+            dossiers={dossiers}
+            ocrOf={ocrOf}
+            status={status}
+            onStatusChange={setStatus}
+          />
+        )}
+        <div className="flex flex-1 min-w-0 items-center justify-end gap-space-sm">
+          <div className="relative flex-1 max-w-xl min-w-0">
+            <MaterialIcon
+              name="search"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]"
+            />
+            <input
+              className="w-full h-10 pl-9 pr-space-md bg-surface-container-lowest text-on-surface placeholder:text-outline font-body-sm text-body-sm rounded border border-outline-variant focus:outline-none focus:ring-1 focus:ring-secondary"
+              placeholder="Tìm kiếm theo tên, mã hồ sơ..."
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+          {user?.backendRole === 'REVIEWER' ? null : (
+            <button
+              className="flex items-center gap-space-xs h-10 px-space-md bg-brand-100 text-brand-700 font-title-sm text-body-sm rounded shadow-sm hover:bg-brand-200 transition-colors shrink-0 whitespace-nowrap"
+              type="button"
+              onClick={() => navigate('/tao-ho-so')}
+            >
+              <MaterialIcon name="cloud_upload" className="text-[18px]" />
+              <span>Tải hồ sơ lên</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-surface-container-lowest rounded-lg shadow-[0_1px_3px_rgba(15,23,42,0.06)] flex flex-col overflow-hidden">
+        <div className="w-full overflow-x-auto">
+          <table className="w-full text-left font-body-sm text-body-sm border-collapse">
+            <thead>
+              <tr className="bg-surface-container-low text-on-secondary-container font-label-sm text-label-sm uppercase tracking-wider">
+                <th className="py-3 px-space-md font-semibold w-[30%] min-w-[260px]">
+                  Tên hồ sơ
+                </th>
+                <th className="py-3 px-space-md font-semibold w-[22%] min-w-[220px]">
+                  {reviewer
+                    ? 'Trạng thái thẩm định'
+                    : 'Trạng thái & Tiến trình'}
+                </th>
+                <th className="py-3 px-space-md font-semibold w-[14%] min-w-[150px]">
+                  Tài liệu
+                </th>
+                <th className="py-3 px-space-md font-semibold w-[12%]">
+                  {reviewer ? 'Ngày tạo' : 'Tải lên'}
+                </th>
+                <th className="py-3 px-space-sm whitespace-nowrap text-right pr-space-md font-semibold w-[4%]">
+                  Thao tác
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-container-low text-on-surface">
+              {error ? (
+                <tr>
+                  <td className="py-10 px-space-md" colSpan={5}>
+                    <div className="flex flex-col items-start gap-space-sm">
+                      <p
+                        className="font-body-sm text-body-sm text-error"
+                        role="alert"
+                      >
+                        {error}
+                      </p>
+                      <button
+                        className="h-9 px-space-md rounded bg-surface-container text-on-surface font-label-sm text-label-sm"
+                        type="button"
+                        onClick={() => setReloadKey((value) => value + 1)}
+                      >
+                        Tải lại
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : null}
+              {loading && dossiers.length === 0 ? (
+                <tr>
+                  <td
+                    className="py-10 px-space-md text-on-surface-variant"
+                    colSpan={5}
+                  >
+                    Đang tải lịch sử hồ sơ…
+                  </td>
+                </tr>
+              ) : null}
+              {!loading && !error && dossiers.length === 0 ? (
+                <tr>
+                  <td className="py-12 px-space-md" colSpan={5}>
+                    <div className="flex flex-col items-center gap-space-sm text-center">
+                      <MaterialIcon
+                        name="folder_open"
+                        className="text-secondary text-[28px]"
+                      />
+                      <p className="font-title-sm text-title-sm text-on-surface">
+                        {reviewer
+                          ? 'Chưa có hồ sơ nào được giao cho bạn'
+                          : 'Chưa có hồ sơ tải lên'}
+                      </p>
+                      <p className="font-body-sm text-body-sm text-secondary">
+                        {reviewer
+                          ? 'Khi Vận hành hoặc Quản trị chia sẻ hồ sơ cho bạn, hồ sơ sẽ hiện ở đây để thẩm định.'
+                          : 'Hồ sơ mới sẽ hiện ở đây sau khi tải lên.'}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : null}
+              {!loading &&
+              !error &&
+              dossiers.length > 0 &&
+              filtered.length === 0 ? (
+                <tr>
+                  <td
+                    className="py-10 px-space-md text-on-surface-variant"
+                    colSpan={5}
+                  >
+                    Không có hồ sơ khớp bộ lọc.
+                  </td>
+                </tr>
+              ) : null}
+              {filtered.map((dossier) => (
+                <tr
+                  key={dossier.id}
+                  className={`transition-colors bg-surface-container-lowest ${
+                    ocrOf(dossier) === 'running'
+                      ? 'cursor-pointer hover:bg-surface-container-low'
+                      : 'hover:bg-surface-container-low/70'
+                  }`}
+                  onClick={() => {
+                    if (ocrOf(dossier) === 'running') {
+                      navigate(progressPath(dossier.id))
+                    }
+                  }}
+                >
+                  <td className="py-3.5 px-space-md">
+                    <div className="flex items-start gap-space-sm">
+                      <MaterialIcon
+                        name={dossier.icon}
+                        className="text-primary-container text-[20px] mt-0.5 flex-shrink-0"
+                      />
+                      <div className="flex flex-col">
+                        {dossier.myGrant?.expired ? (
+                          <span
+                            className="font-title-sm text-title-sm text-on-surface-variant leading-tight font-semibold"
+                            title="Quyền chia sẻ đã hết hạn"
+                          >
+                            {dossier.title}
+                          </span>
+                        ) : (
+                          <Link
+                            className="font-title-sm text-title-sm text-on-surface hover:text-on-tertiary-container cursor-pointer leading-tight font-semibold"
+                            state={{
+                              dossierId: dossier.id,
+                              name: dossier.title,
+                            }}
+                            to={
+                              ocrOf(dossier) === 'running' &&
+                              !dossier.splitPending
+                                ? progressPath(dossier.id)
+                                : dossierOpenTo(dossier)
+                            }
+                          >
+                            {dossier.title}
+                          </Link>
+                        )}
+                        <span className="font-code-sm text-label-sm text-on-surface-variant mt-1 whitespace-nowrap">
+                          {dossier.size
+                            ? `${dossier.code} • ${dossier.size}`
+                            : dossier.code}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-3.5 px-space-md whitespace-nowrap">
+                    <span className="text-on-surface-variant text-body-sm">
+                      {countsById[dossier.id]
+                        ? formatDocumentCounts(countsById[dossier.id]) || '—'
+                        : '…'}
+                    </span>
+                  </td>
+                  <td className="py-3.5 px-space-md">
+                    {reviewer ? (
+                      <ReviewStatusCell dossier={dossier} />
+                    ) : (
+                      <StatusCell
+                        detail={ocrById[dossier.id]?.detail ?? null}
+                        technical={ocrById[dossier.id]?.technical}
+                        dossier={dossier}
+                        ocr={ocrOf(dossier)}
+                        onRetry={
+                          canRerun(dossier)
+                            ? () => retryOcr(dossier.id)
+                            : undefined
+                        }
+                      />
+                    )}
+                  </td>
+                  <td className="py-3.5 px-space-md whitespace-nowrap">
+                    <span className="text-on-surface-variant text-body-sm">
+                      {dossier.updated}
+                    </span>
+                  </td>
+                  <td className="py-3.5 px-space-sm text-right pr-space-md whitespace-nowrap">
+                    {/* Backend chỉ cho chủ hồ sơ hoặc Quản trị xóa (DOSSIER_MANAGE). */}
+                    {dossier.access === 'shared_in' &&
+                    user?.backendRole !== 'ADMINISTRATOR' ? null : (
+                      <button
+                        aria-label={`Xóa hồ sơ ${dossier.title}`}
+                        className="p-1 hover:bg-error-container rounded text-on-surface-variant hover:text-error transition-colors"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setPendingDelete(dossier)
+                        }}
+                      >
+                        <MaterialIcon name="delete" className="text-[18px]" />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!loading && dossiers.length < total ? (
+          <div className="p-space-md flex items-center justify-between gap-space-md border-t border-surface-container-low">
+            <p className="font-body-sm text-body-sm text-on-surface-variant">
+              Đang hiện {dossiers.length} / {total} hồ sơ, mới nhất trước.
+            </p>
+            <button
+              className="h-9 px-space-md rounded bg-surface-container text-on-surface font-label-sm text-label-sm disabled:opacity-50"
+              disabled={loadingMore}
+              type="button"
+              onClick={() => {
+                void loadMore()
+              }}
+            >
+              {loadingMore ? 'Đang tải…' : 'Xem thêm'}
+            </button>
+          </div>
+        ) : null}
+      </div>
+      {notice ? (
+        <div
+          className="fixed top-20 right-6 z-[70] flex w-[min(24rem,calc(100vw-3rem))] items-start gap-space-md rounded border border-surface-container bg-surface-container-lowest px-space-lg py-space-md font-body-sm text-body-sm text-on-surface shadow-md"
+          role="status"
+        >
+          <MaterialIcon
+            name={notice.tone === 'error' ? 'error' : 'check_circle'}
+            className={`shrink-0 text-[20px] ${
+              notice.tone === 'error' ? 'text-error' : 'text-emerald-600'
+            }`}
+          />
+          <span className="flex-1">{notice.text}</span>
+          <button
+            aria-label="Đóng thông báo"
+            className="shrink-0 text-secondary hover:text-on-surface"
+            type="button"
+            onClick={() => setNotice(null)}
+          >
+            <MaterialIcon name="close" className="text-[18px]" />
+          </button>
+        </div>
+      ) : null}
+      {pendingDelete ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-primary/15 p-space-md">
+          <div
+            className="w-full max-w-md bg-surface-container-lowest rounded shadow-xl p-space-lg flex flex-col gap-space-md"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-dossier-title"
+          >
+            <h2
+              id="delete-dossier-title"
+              className="font-title-sm text-title-sm text-on-surface"
+            >
+              Xóa hồ sơ
+            </h2>
+            <p className="font-body-sm text-body-sm text-on-surface-variant">
+              {pendingDelete.title} sẽ ẩn khỏi danh sách ngay. File và nội dung
+              hợp đồng được xóa. Nhật ký người xóa và chi phí đọc tài liệu được
+              giữ lại.
+            </p>
+            <div className="flex justify-end gap-space-sm">
+              <button
+                className="h-9 px-space-md rounded bg-surface-container text-on-surface font-label-sm text-label-sm"
+                disabled={deleting}
+                type="button"
+                onClick={() => setPendingDelete(null)}
+              >
+                Hủy
+              </button>
+              <button
+                className="h-9 px-space-md rounded bg-error text-on-error font-label-sm text-label-sm disabled:opacity-50"
+                disabled={deleting}
+                type="button"
+                onClick={() => {
+                  void confirmDelete()
+                }}
+              >
+                {deleting ? 'Đang xóa…' : 'Xóa'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}

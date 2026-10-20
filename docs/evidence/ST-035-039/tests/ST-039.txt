@@ -1,0 +1,43 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.3, pytest-9.1.1, pluggy-1.6.0 -- E:\Project_OJT\contract-intelligence-core\backend\.venv\Scripts\python.exe
+rootdir: E:\Project_OJT\contract-intelligence-core\backend
+configfile: pyproject.toml
+plugins: anyio-4.15.1, asyncio-1.4.0, cov-7.1.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 33 items
+
+tests/unit/test_contract_router.py::TestSearchDossierEndpoint::test_maps_ai2_citations_to_hits PASSED [  3%]
+tests/unit/test_contract_router.py::TestSearchDossierEndpoint::test_second_acl_pass_drops_foreign_citations PASSED [  6%]
+tests/unit/test_contract_router.py::TestSearchDossierEndpoint::test_second_acl_pass_drops_citations_without_document_ref PASSED [  9%]
+tests/unit/test_contract_router.py::TestSearchDossierEndpoint::test_second_acl_pass_blocks_when_access_revoked_mid_query PASSED [ 12%]
+tests/unit/test_contract_router.py::TestSearchDossierEndpoint::test_rate_limit_returns_429 PASSED [ 15%]
+tests/unit/test_contract_router.py::TestSearchDossierEndpoint::test_reports_not_connected_when_ai2_down PASSED [ 18%]
+tests/unit/test_contract_router.py::TestSearchDossierEndpoint::test_rejects_blank_query PASSED [ 21%]
+tests/unit/test_contract_router.py::TestSearchDossierEndpoint::test_returns_404_when_dossier_missing PASSED [ 24%]
+tests/integration/test_fe_reported_fixes.py::test_query_and_ask_persist_query_trace_in_db[query] PASSED [ 27%]
+tests/integration/test_fe_reported_fixes.py::test_query_and_ask_persist_query_trace_in_db[ask] PASSED [ 30%]
+tests/integration/test_fe_reported_fixes.py::test_query_second_acl_pass_drops_citation_outside_dossier PASSED [ 33%]
+tests/integration/test_fe_reported_fixes.py::test_tenant_daily_quota_returns_429_before_ai2 PASSED [ 36%]
+tests/integration/test_fe_reported_fixes.py::test_ai2_failure_still_writes_query_trace PASSED [ 39%]
+tests/integration/test_fe_reported_fixes.py::test_query_policy_flags_come_from_server_not_client PASSED [ 42%]
+tests/integration/test_fe_reported_fixes.py::test_query_rejects_tombstoned_dossier PASSED [ 45%]
+tests/integration/test_fe_reported_fixes.py::test_query_requires_tenant_header PASSED [ 48%]
+tests/unit/test_query_state_passthrough.py::test_backend_query_dto_preserves_server_state_and_trace[PASS] PASSED [ 51%]
+tests/unit/test_query_state_passthrough.py::test_backend_query_dto_preserves_server_state_and_trace[NEEDS_REVIEW] PASSED [ 54%]
+tests/unit/test_query_state_passthrough.py::test_backend_query_dto_preserves_server_state_and_trace[INSUFFICIENT_EVIDENCE] PASSED [ 57%]
+tests/unit/test_query_state_passthrough.py::test_backend_query_dto_preserves_server_state_and_trace[BLOCKED] PASSED [ 60%]
+tests/unit/test_query_state_passthrough.py::test_backend_query_dto_defaults_to_safe_state_without_server_state PASSED [ 63%]
+tests/unit/test_dossier_acl_consistency.py::test_all_dossier_operations_use_tenant_share_role_and_actor_acl[query-user0-tenant_a-metadata0-True] PASSED [ 66%]
+tests/unit/test_dossier_acl_consistency.py::test_all_dossier_operations_use_tenant_share_role_and_actor_acl[search-user1-tenant_a-metadata1-True] PASSED [ 69%]
+tests/unit/test_dossier_acl_consistency.py::test_all_dossier_operations_use_tenant_share_role_and_actor_acl[review_read-user2-tenant_a-metadata2-True] PASSED [ 72%]
+tests/unit/test_dossier_acl_consistency.py::test_all_dossier_operations_use_tenant_share_role_and_actor_acl[review_mutate-user3-tenant_a-metadata3-True] PASSED [ 75%]
+tests/unit/test_dossier_acl_consistency.py::test_all_dossier_operations_use_tenant_share_role_and_actor_acl[approve-user4-tenant_a-metadata4-True] PASSED [ 78%]
+tests/unit/test_dossier_acl_consistency.py::test_all_dossier_operations_use_tenant_share_role_and_actor_acl[query-user5-tenant_b-metadata5-False] PASSED [ 81%]
+tests/unit/test_dossier_acl_consistency.py::test_all_dossier_operations_use_tenant_share_role_and_actor_acl[query-user6-tenant_a-metadata6-False] PASSED [ 84%]
+tests/unit/test_dossier_acl_consistency.py::test_all_dossier_operations_use_tenant_share_role_and_actor_acl[search-user7-tenant_a-metadata7-False] PASSED [ 87%]
+tests/unit/test_dossier_acl_consistency.py::test_all_dossier_operations_use_tenant_share_role_and_actor_acl[review_mutate-user8-tenant_a-metadata8-False] PASSED [ 90%]
+tests/unit/test_dossier_acl_consistency.py::test_same_tenant_without_owner_or_share_is_denied PASSED [ 93%]
+tests/unit/test_dossier_acl_consistency.py::test_administrator_query_only_share_can_read_external_approvals PASSED [ 96%]
+tests/integration/test_ai2_review_fixes_flow.py::test_anonymous_and_cross_tenant_query_are_denied PASSED [100%]
+
+============================= 33 passed in 5.33s ==============================

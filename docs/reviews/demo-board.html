@@ -1,0 +1,816 @@
+<title>Contract Intelligence Sprint 1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+:root{
+  --paper:#f3f5f8; --card:#ffffff; --sunk:#eaeef3;
+  --ink:#15181d; --ink-2:#414a55; --ink-3:#6d7784;
+  --rule:#d5dce4; --rule-2:#e6ebf1;
+  --accent:#0f3d61; --accent-soft:#e3ecf4; --accent-ink:#0f3d61;
+  --met:#2f6d42; --met-bg:#e3f0e6;
+  --partial:#8a6a0c; --partial-bg:#faf0d4;
+  --gap:#9c3129; --gap-bg:#fbe3e0;
+  --shadow:0 1px 2px rgba(21,24,29,.05), 0 8px 24px -16px rgba(21,24,29,.25);
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --serif:"Source Serif 4",Georgia,"Times New Roman",serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#11141a; --card:#181c24; --sunk:#1f2530;
+    --ink:#e8ecf2; --ink-2:#b3bdca; --ink-3:#8290a0;
+    --rule:#2c3543; --rule-2:#232b37;
+    --accent:#7fb3dd; --accent-soft:#1a2836; --accent-ink:#a6cbe8;
+    --met:#7cc48e; --met-bg:#16281c;
+    --partial:#d9b45e; --partial-bg:#2b2413;
+    --gap:#e88f86; --gap-bg:#2e1a18;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#11141a; --card:#181c24; --sunk:#1f2530;
+  --ink:#e8ecf2; --ink-2:#b3bdca; --ink-3:#8290a0;
+  --rule:#2c3543; --rule-2:#232b37;
+  --accent:#7fb3dd; --accent-soft:#1a2836; --accent-ink:#a6cbe8;
+  --met:#7cc48e; --met-bg:#16281c;
+  --partial:#d9b45e; --partial-bg:#2b2413;
+  --gap:#e88f86; --gap-bg:#2e1a18;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:var(--serif); font-size:16px; line-height:1.58;
+  margin:0; padding-block:0 4rem; padding-left:16px; padding-right:16px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:70rem;margin:0 auto}
+h1,h2,h3,h4,.ui{font-family:var(--sans)}
+code,.mono{font-family:var(--mono);font-size:.84em}
+a{color:var(--accent-ink)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+
+/* ---- masthead ---- */
+.masthead{padding-block:2.6rem 1.6rem;border-bottom:2px solid var(--ink)}
+.eyebrow{font-family:var(--sans);font-size:.7rem;font-weight:600;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-3);margin:0 0 .5rem}
+h1{font-size:clamp(1.9rem,5vw,3rem);line-height:1.04;margin:0;font-weight:700;
+  letter-spacing:-.02em;text-wrap:balance}
+.dek{font-size:1.05rem;color:var(--ink-2);margin:.7rem 0 0;max-width:46rem}
+.stamps{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:1.1rem}
+.stamp{font-family:var(--mono);font-size:.72rem;padding:.24rem .55rem;
+  border:1px solid var(--rule);border-radius:2px;color:var(--ink-3);background:var(--card)}
+
+/* ---- section scaffolding ---- */
+section{padding-block:2.4rem}
+section + section{border-top:1px solid var(--rule-2)}
+.shead{display:flex;align-items:baseline;gap:.7rem;flex-wrap:wrap;margin-bottom:.3rem}
+.snum{font-family:var(--mono);font-size:.78rem;color:var(--accent);
+  border:1px solid var(--accent);border-radius:2px;padding:.05rem .35rem;flex:none}
+h2{font-size:1.45rem;margin:0;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+.sub{color:var(--ink-2);margin:.35rem 0 1.4rem;max-width:52rem;font-size:.98rem}
+
+/* ---- verdict ---- */
+.verdicts{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr))}
+.verdict{background:var(--card);border:1px solid var(--rule);border-left:4px solid var(--gap);
+  border-radius:3px;padding:1rem 1.1rem;box-shadow:var(--shadow)}
+.verdict h3{margin:0 0 .35rem;font-size:.96rem;font-weight:600}
+.verdict p{margin:0;font-size:.9rem;color:var(--ink-2);line-height:1.5}
+.verdict .fig{font-family:var(--mono);font-size:1.5rem;font-weight:500;color:var(--gap);
+  display:block;line-height:1.1;margin-bottom:.3rem;font-variant-numeric:tabular-nums}
+
+/* ---- coverage matrix ---- */
+.matrix{border:1px solid var(--rule);border-radius:4px;overflow:hidden;background:var(--card);
+  box-shadow:var(--shadow)}
+.mrow{display:grid;grid-template-columns:minmax(9rem,1.5fr) 1fr 1fr 1.1rem;
+  align-items:stretch;border-top:1px solid var(--rule-2)}
+.mrow:first-child{border-top:0}
+.mhead{background:var(--sunk);font-family:var(--sans);font-size:.68rem;font-weight:600;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+.mhead > div{padding:.55rem .8rem}
+.mtrigger{display:contents;cursor:pointer}
+button.mtrigger{all:unset;display:contents}
+.cap{padding:.75rem .8rem;font-family:var(--sans);font-size:.88rem;font-weight:600;
+  border-right:1px solid var(--rule-2);display:flex;flex-direction:column;justify-content:center;gap:.1rem}
+.cap .ref{font-family:var(--mono);font-size:.68rem;color:var(--ink-3);font-weight:400}
+.cell{padding:.75rem .8rem;display:flex;align-items:center;gap:.5rem;
+  border-right:1px solid var(--rule-2);font-size:.84rem;font-family:var(--sans);color:var(--ink-2)}
+.chev{display:flex;align-items:center;justify-content:center;color:var(--ink-3);font-size:.7rem}
+.mrow:hover .cap,.mrow:hover .cell{background:var(--sunk)}
+.pill{font-family:var(--sans);font-size:.68rem;font-weight:600;letter-spacing:.04em;
+  text-transform:uppercase;padding:.16rem .42rem;border-radius:2px;flex:none;white-space:nowrap}
+.p-met{background:var(--met-bg);color:var(--met)}
+.p-partial{background:var(--partial-bg);color:var(--partial)}
+.p-gap{background:var(--gap-bg);color:var(--gap)}
+.evid{grid-column:1/-1;padding:.9rem 1rem 1.1rem;background:var(--sunk);
+  border-top:1px dashed var(--rule);font-size:.9rem}
+.evid ul{margin:0;padding-left:1.1rem}
+.evid li{margin:.3rem 0;color:var(--ink-2)}
+.evid code{background:var(--card);padding:.06em .3em;border-radius:2px;border:1px solid var(--rule-2)}
+
+/* ---- pipeline ---- */
+.pipe{display:flex;flex-wrap:wrap;gap:.35rem;align-items:stretch;margin-bottom:1.4rem}
+.stage{flex:1 1 7.5rem;background:var(--card);border:1px solid var(--rule);border-radius:3px;
+  padding:.6rem .7rem;font-family:var(--sans);font-size:.78rem;font-weight:600;text-align:center;
+  display:flex;align-items:center;justify-content:center;position:relative}
+.stage.broken{border-color:var(--gap);border-style:solid;background:var(--gap-bg);color:var(--gap)}
+.stage.broken::after{content:"✕";position:absolute;top:-.55rem;right:-.4rem;width:1.15rem;height:1.15rem;
+  background:var(--gap);color:#fff;border-radius:50%;font-size:.64rem;display:flex;
+  align-items:center;justify-content:center;font-weight:700}
+.breaks{display:grid;gap:.8rem}
+.brk{display:grid;grid-template-columns:1.7rem 1fr;gap:.8rem;background:var(--card);
+  border:1px solid var(--rule);border-radius:3px;padding:.85rem 1rem}
+.brk .n{font-family:var(--mono);font-size:.85rem;color:var(--gap);font-weight:500}
+.brk h4{margin:0 0 .25rem;font-size:.93rem;font-weight:600}
+.brk p{margin:0 0 .4rem;font-size:.88rem;color:var(--ink-2)}
+.brk .cost{font-family:var(--sans);font-size:.8rem;color:var(--gap);font-weight:500}
+.brk .how{font-family:var(--mono);font-size:.72rem;color:var(--ink-3)}
+
+/* ---- effort bar ---- */
+.effort{margin-bottom:1rem}
+.bar{display:flex;height:2.6rem;border-radius:3px;overflow:hidden;border:1px solid var(--rule)}
+.seg{display:flex;align-items:center;justify-content:center;font-family:var(--mono);
+  font-size:.72rem;color:#fff;font-variant-numeric:tabular-nums;min-width:0;overflow:hidden}
+.seg-in{background:var(--accent)}
+.seg-extra{background:var(--partial);color:#26200c}
+.seg-dead{background:var(--gap)}
+.legend{display:flex;flex-wrap:wrap;gap:1rem;margin-top:.7rem;font-family:var(--sans);font-size:.82rem}
+.legend span{display:flex;align-items:center;gap:.4rem;color:var(--ink-2)}
+.swatch{width:.8rem;height:.8rem;border-radius:2px;flex:none}
+.zeroes{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:1.2rem}
+.zero{font-family:var(--mono);font-size:.76rem;padding:.3rem .55rem;border-radius:2px;
+  background:var(--gap-bg);color:var(--gap);border:1px solid var(--gap)}
+
+/* ---- fixed downgrades ---- */
+.downs{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(18rem,1fr))}
+.down{background:var(--card);border:1px solid var(--rule);border-radius:3px;padding:1rem 1.1rem}
+.down h3{margin:0 0 .5rem;font-size:.98rem;font-weight:600}
+.down dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:.25rem .7rem;font-size:.84rem}
+.down dt{font-family:var(--mono);font-size:.72rem;color:var(--ink-3);white-space:nowrap}
+.down dd{margin:0;color:var(--ink-2)}
+.down .ruling{margin:.8rem 0 0;padding-top:.7rem;border-top:1px solid var(--rule-2);
+  font-size:.88rem;font-weight:600;font-family:var(--sans)}
+
+/* ---- credits ---- */
+.credits{display:grid;gap:.6rem;grid-template-columns:repeat(auto-fit,minmax(17rem,1fr))}
+.credit{display:grid;grid-template-columns:1.5rem 1fr;gap:.6rem;font-size:.9rem;
+  padding:.55rem .1rem;border-bottom:1px solid var(--rule-2)}
+.credit .k{font-family:var(--mono);font-size:.76rem;color:var(--met)}
+.credit strong{font-family:var(--sans);font-size:.88rem;font-weight:600;display:block}
+.credit em{font-style:normal;color:var(--ink-2);font-size:.85rem}
+
+/* ---- questions ---- */
+details.q{background:var(--card);border:1px solid var(--rule);border-radius:3px;margin-bottom:.5rem}
+details.q[open]{border-color:var(--accent)}
+summary{cursor:pointer;padding:.8rem 1rem;font-family:var(--sans);font-size:.94rem;
+  font-weight:600;display:flex;gap:.7rem;align-items:baseline;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary .qn{font-family:var(--mono);font-size:.78rem;color:var(--accent);flex:none}
+summary::after{content:"+";margin-left:auto;color:var(--ink-3);font-family:var(--mono);flex:none}
+details[open] summary::after{content:"–"}
+.qbody{padding:0 1rem 1rem 2.4rem;font-size:.93rem;color:var(--ink-2)}
+.qbody p{margin:0 0 .6rem}
+.qbody p:last-child{margin-bottom:0}
+
+/* ---- checklist ---- */
+.checks{display:grid;gap:.4rem}
+.chk{display:grid;grid-template-columns:1.8rem 1fr auto;gap:.7rem;align-items:baseline;
+  padding:.5rem .7rem;background:var(--card);border:1px solid var(--rule-2);border-radius:3px;
+  font-size:.9rem}
+.chk .i{font-family:var(--mono);font-size:.74rem;color:var(--ink-3)}
+.chk .who{font-family:var(--sans);font-size:.72rem;color:var(--ink-3);white-space:nowrap}
+
+/* ---- demo asks ---- */
+.asks{margin:0;padding:0;list-style:none;display:grid;gap:.5rem}
+.asks li{display:grid;grid-template-columns:1.4rem 1fr;gap:.6rem;font-size:.95rem;
+  padding-bottom:.5rem;border-bottom:1px solid var(--rule-2)}
+.asks li::before{content:"→";color:var(--accent);font-family:var(--mono)}
+
+footer{padding-block:2rem 0;border-top:2px solid var(--ink);margin-top:2.4rem;
+  font-family:var(--sans);font-size:.84rem;color:var(--ink-3)}
+
+
+/* ---- reference takeaways ---- */
+.takes{display:grid;gap:.55rem}
+.take{display:grid;grid-template-columns:1.6rem 1fr;gap:.75rem;background:var(--card);
+  border:1px solid var(--rule);border-radius:3px;padding:.8rem 1rem}
+.take .n{font-family:var(--mono);font-size:.8rem;color:var(--accent);font-weight:500}
+.take h4{margin:0 0 .3rem;font-size:.92rem;font-weight:600}
+.take p{margin:0;font-size:.88rem;color:var(--ink-2)}
+.take p + p{margin-top:.35rem;padding-top:.35rem;border-top:1px dashed var(--rule-2);
+  color:var(--accent-ink);font-family:var(--sans);font-size:.83rem}
+.warnbox{margin-top:1.3rem;background:var(--partial-bg);border:1px solid var(--partial);
+  border-radius:3px;padding:1rem 1.1rem}
+.warnbox h4{margin:0 0 .4rem;font-family:var(--sans);font-size:.93rem;color:var(--partial)}
+.warnbox p{margin:0 0 .5rem;font-size:.9rem;color:var(--ink-2)}
+.warnbox p:last-child{margin-bottom:0}
+.nocopy{display:flex;flex-wrap:wrap;gap:.35rem;margin:.6rem 0}
+.nocopy span{font-family:var(--mono);font-size:.73rem;padding:.22rem .45rem;border-radius:2px;
+  background:var(--card);border:1px solid var(--partial);color:var(--partial)}
+
+/* ---- risk ---- */
+.risks{display:grid;gap:.5rem}
+.risk{display:grid;grid-template-columns:1fr auto;gap:.3rem 1rem;background:var(--card);
+  border:1px solid var(--rule);border-left:4px solid var(--gap);border-radius:3px;padding:.8rem 1rem}
+.risk.med{border-left-color:var(--partial)}
+.risk h4{margin:0;font-size:.93rem;font-weight:600;font-family:var(--sans)}
+.risk .lvl{font-family:var(--sans);font-size:.68rem;font-weight:600;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--gap);white-space:nowrap}
+.risk.med .lvl{color:var(--partial)}
+.risk p{grid-column:1/-1;margin:.25rem 0 0;font-size:.88rem;color:var(--ink-2)}
+.risk .when{grid-column:1/-1;margin:.45rem 0 0;padding-top:.45rem;border-top:1px dashed var(--rule-2);
+  font-family:var(--sans);font-size:.83rem;font-weight:500;color:var(--accent-ink)}
+.rewrite{margin-top:1.3rem;background:var(--sunk);border:1px solid var(--rule);border-radius:3px;
+  padding:1rem 1.1rem}
+.rewrite h4{margin:0 0 .5rem;font-family:var(--sans);font-size:.93rem}
+.rewrite ol{margin:0;padding-left:1.2rem;font-size:.9rem;color:var(--ink-2)}
+.rewrite li{margin:.3rem 0}
+
+@media (max-width:640px){
+  .mrow{grid-template-columns:1fr 1fr;grid-template-areas:"cap cap" "doc code" "chev chev"}
+  .cap{grid-area:cap;border-right:0;border-bottom:1px solid var(--rule-2)}
+  .chev{grid-area:chev;display:none}
+  .mhead{display:none}
+  .evid{grid-column:1/-1}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">VSF OJT Batch 3 · Sprint review</p>
+  <h1>Contract Intelligence — Sprint 1</h1>
+  <p class="dek">What the submission claims, what the repository actually contains, and the
+  questions to bring written answers to at Sprint 2 planning.</p>
+  <div class="stamps">
+    <span class="stamp">21 Sep 2026</span>
+    <span class="stamp">40-page submission read in full</span>
+    <span class="stamp">9 branches read as code</span>
+    <span class="stamp">PDF = submission of record</span>
+  </div>
+</header>
+
+<section>
+  <div class="shead"><span class="snum">01</span><h2>Three things are marked down</h2></div>
+  <p class="sub">Not for lack of work — there is real code and real evidence discipline here
+  (section 05). These three are about what Sprint 1 asked for and did not get.</p>
+  <div class="verdicts">
+    <article class="verdict">
+      <h3><span class="fig">0</span>measured numbers</h3>
+      <p><code>reports/</code> holds only a <code>.gitkeep</code>. No OCR benchmark has run.
+      215 tests finish in 6.4&nbsp;s — no inference happened at all. The bbox audit ticket sat
+      <strong>Blocked from 16/09 to 18/09</strong> and nobody escalated.</p>
+    </article>
+    <article class="verdict">
+      <h3><span class="fig">0</span>probes on a real page</h3>
+      <p>Every PDF in the test suite is synthetic and generated at runtime. The milestone asked for
+      <em>bboxes on a real page</em>. The code to do it exists and has never been pointed at one.</p>
+    </article>
+    <article class="verdict">
+      <h3><span class="fig">0</span>merges since 15/09</h3>
+      <p>~90,000 lines across seven branches, no pull request open. §8 of the brief: a PR or commit
+      is the only accepted evidence a task is done. It has already cost you — section 04.</p>
+    </article>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><span class="snum">02</span><h2>Coverage: brief → documents → code</h2></div>
+  <p class="sub">The seven required capabilities from §3, each checked at three layers. Open a row
+  for the evidence. <strong>The pattern is consistent</strong>: documents are complete or better;
+  code is where the milestone was lost.</p>
+
+  <div class="matrix" id="matrix">
+    <div class="mrow mhead" aria-hidden="true">
+      <div>Capability</div><div>Documents</div><div>Code that runs</div><div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><span class="snum">03</span><h2>Where the data flow breaks</h2></div>
+  <p class="sub">Upload to reviewer screen. Each break below was verified by searching the tree or
+  by sending an actual request to the running app — not inferred from documentation.</p>
+
+  <div class="pipe">
+    <div class="stage broken">Upload</div>
+    <div class="stage">OCR + bbox</div>
+    <div class="stage">Clause structure</div>
+    <div class="stage broken">Fact + citation</div>
+    <div class="stage">Finding</div>
+    <div class="stage broken">review_item</div>
+    <div class="stage broken">Reviewer UI</div>
+  </div>
+
+  <div class="breaks">
+    <article class="brk">
+      <span class="n">01</span>
+      <div>
+        <h4>The database has no tables — and compose starts no services</h4>
+        <p><code>alembic/versions/</code> does not exist, so there are zero migrations.
+        <code>env.py</code> sets <code>target_metadata = None</code>. The Dockerfile runs
+        <code>uvicorn</code> with no migrate step and startup does not create tables either.
+        Separately, all five compose services carry <code>profiles:</code>, so
+        <code>docker compose up</code> starts nothing, and nothing in the README says which
+        profile to pass.</p>
+        <p class="cost">The container reports healthy — its health check never touches the
+        database — and then every endpoint that does returns 500. The brief's one-command
+        requirement fails on the first command.</p>
+        <p class="how">found by: reading the files</p>
+      </div>
+    </article>
+    <article class="brk">
+      <span class="n">02</span>
+      <div>
+        <h4>Citations are never resolved</h4>
+        <p>Nothing verifies that a quote matches its source. <code>quote_sha256</code> is a hash of
+        the quote the model itself returned, so it proves nothing about the document. One
+        repository method returns <code>[]</code> unconditionally.</p>
+        <p class="cost">“Verify a citation in one click” cannot be demonstrated.</p>
+        <p class="how">found by: reading the code</p>
+      </div>
+    </article>
+    <article class="brk">
+      <span class="n">03</span>
+      <div>
+        <h4>Nothing creates a <code>review_item</code></h4>
+        <p>Searching the whole source tree for the constructor gives exactly one hit: the class
+        definition. The pipeline finishes and inserts findings, sides and links — never a review
+        item.</p>
+        <p class="cost">The HITL queue is permanently empty. The append-only store and the
+        optimistic locking — both well built — are never reached. And “0 items to review” on screen
+        is indistinguishable from “everything is correct”.</p>
+        <p class="how">found by: searching for the constructor</p>
+      </div>
+    </article>
+    <article class="brk">
+      <span class="n">04</span>
+      <div>
+        <h4>A stub shadows the real implementation</h4>
+        <p>Two routers both register <code>/documents/{id}/pages</code>, <code>/clauses</code> and
+        <code>/tables</code>; the stub is included first, so it wins. Confirmed live:
+        <code>GET /api/v1/documents/doc_1/pages</code> → <code>{"items":[],"total":0,"note":"See
+        GET /documents/{id}/pages in extraction router"}</code>.</p>
+        <p class="cost">This is the exact route the bbox requirement depends on. Your OpenAPI
+        advertises the real one, so the documentation and the runtime disagree.</p>
+        <p class="how">found by: an HTTP request to the running app</p>
+      </div>
+    </article>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><span class="snum">04</span><h2>What the missing merges cost</h2></div>
+  <p class="sub">Not a process complaint. Six days without a convergence point produced two of
+  everything — and two documentation branches that settled the same architecture decision in
+  opposite directions.</p>
+
+  <div class="effort">
+    <div class="bar" role="img" aria-label="Line distribution: about 13,900 lines in scope, 5,400 outside the brief, 6,400 dead">
+      <div class="seg seg-in" style="flex:13900">≈13,900 in scope</div>
+      <div class="seg seg-extra" style="flex:5400">5,400 platform</div>
+      <div class="seg seg-dead" style="flex:6400">6,400 dead</div>
+    </div>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--accent)"></i>OCR, structure, tables, dossier, jobs, review store</span>
+      <span><i class="swatch" style="background:var(--partial)"></i>SSO, multi-tenancy, RBAC — from an insight given to you; not marked down</span>
+      <span><i class="swatch" style="background:var(--gap)"></i>imported by no entry point</span>
+    </div>
+  </div>
+
+  <p class="sub" style="margin-top:1.4rem;margin-bottom:.5rem">Fixed requirements currently sitting
+  at zero lines:</p>
+  <div class="zeroes">
+    <span class="zero">retry</span>
+    <span class="zero">batch engine</span>
+    <span class="zero">review_item creation</span>
+    <span class="zero">citation resolve</span>
+    <span class="zero">measured rotation</span>
+    <span class="zero">clause-region bbox</span>
+    <span class="zero">draw / adjust bbox</span>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><span class="snum">05</span><h2>Three fixed items your documents downgraded</h2></div>
+  <p class="sub">The brief separates <strong>fixed</strong> — checked at the demo — from
+  <em>team decides</em>. These three are fixed, and the documents moved them. Two of the three are
+  documentation problems, not scope decisions.</p>
+
+  <div class="downs">
+    <article class="down">
+      <h3>Correct / reject a value</h3>
+      <dl>
+        <dt>brief §3.6</dt><dd>fixed: confirm / correct / reject, per value and per conflict</dd>
+        <dt>BRD</dt><dd>marked <strong>Won't</strong></dd>
+        <dt>PRD</dt><dd>says the opposite</dd>
+        <dt>API spec</dt><dd>defines all four actions</dd>
+        <dt>code</dt><dd>implements all four correctly</dd>
+      </dl>
+      <p class="ruling">Not a scope decision — three documents disagreeing, with the BRD as the odd
+      one out. Fix the BRD; the code is right.</p>
+    </article>
+
+    <article class="down">
+      <h3>Draw or adjust a bbox</h3>
+      <dl>
+        <dt>brief §3.6</dt><dd>fixed: the reviewer can draw or adjust a box on the page image</dd>
+        <dt>wireframe</dt><dd>deferred, marked <strong>Should</strong></dd>
+        <dt>BRD</dt><dd>deferred to Sprint 2–3</dd>
+        <dt>API spec</dt><dd>contains no occurrence of the word <code>bbox</code>, and no
+          page-image endpoint</dd>
+      </dl>
+      <p class="ruling">A real downgrade — but the blocker is the API spec. The frontend could not
+      build this even if it wanted to. Fix the contract first.</p>
+    </article>
+
+    <article class="down">
+      <h3>The precedence rule</h3>
+      <dl>
+        <dt>brief §3.5</dt><dd>fixed: the rule that says which document wins</dd>
+        <dt>draft v0.3</dt><dd>later effective date = default precedence evidence</dd>
+        <dt>your review</dt><dd>rejected it — “too strong, could become a legal conclusion”</dd>
+        <dt>draft v0.4</dt><dd>four conditions, machine picks no winner</dd>
+        <dt>canonical</dt><dd>gone — <code>precedence_evidence</code> returns zero hits</dd>
+      </dl>
+      <p class="ruling">You already solved this and then threw it away. v0.4 is a valid answer to
+      the brief — restore it. You do not need to think about it again.</p>
+    </article>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><span class="snum">06</span><h2>What you did well</h2></div>
+  <p class="sub">Evidence, not encouragement. Each of these is above the level expected here, and
+  several would survive a production code review.</p>
+  <div class="credits">
+    <div class="credit"><span class="k">01</span><div><strong>Character spans defined properly</strong>
+      <em>Unicode code points, 0-based, end-exclusive, with the JavaScript <code>Array.from</code>
+      caveat written down — and fixtures for emoji, composed and decomposed Vietnamese, and CRLF.</em></div></div>
+    <div class="credit"><span class="k">02</span><div><strong>Machine output is never overwritten</strong>
+      <em>Review actions append-only; no <code>UPDATE</code> anywhere against a fact, a citation or
+      an OCR line. The hardest HITL requirement in the brief, done right.</em></div></div>
+    <div class="credit"><span class="k">03</span><div><strong>Real optimistic concurrency</strong>
+      <em>Row lock, base-version check, domain exception, 409 on the wire. Two reviewers cannot
+      silently overwrite each other.</em></div></div>
+    <div class="credit"><span class="k">04</span><div><strong>Domain layer 100% clean, with a checker in CI</strong>
+      <em>No framework or ORM import anywhere under the domain — and an import contract enforced on
+      every build. Rare at this stage. See question 09.</em></div></div>
+    <div class="credit"><span class="k">05</span><div><strong>You refused to mark work Done without evidence</strong>
+      <em>The bbox audit stayed Blocked; the handoff states its dependants cannot move to Done
+      without a dated review.</em></div></div>
+    <div class="credit"><span class="k">06</span><div><strong>You corrected your own over-claim, in writing</strong>
+      <em>“GitHub only proves a draft exists, it does not prove a ticket is done.”</em></div></div>
+    <div class="credit"><span class="k">07</span><div><strong>You rejected your own rule when it crossed a line</strong>
+      <em>The precedence review in section 05 — that judgement was correct.</em></div></div>
+    <div class="credit"><span class="k">08</span><div><strong>You did not invent a confidence score</strong>
+      <em>“Stays null / uncalibrated” is a better answer than a plausible number. Keep that
+      instinct when you replace the null.</em></div></div>
+    <div class="credit"><span class="k">09</span><div><strong>Constants tuned against real contracts</strong>
+      <em>A cell straddling a column boundary at 54.2% / 45.8%; 60 OCR lines against 57 vision
+      lines. The strongest evidence you ran on real scans — you just never wrote it down.</em></div></div>
+    <div class="credit"><span class="k">10</span><div><strong>Boxes survive deskew</strong>
+      <em>All four corners inverse-mapped through the inverse transform. Most teams get this wrong.</em></div></div>
+    <div class="credit"><span class="k">11</span><div><strong>Diacritic-insensitive headings, with the reason written down</strong>
+      <em>Matching “Dieu 1.” from a scan that lost its diacritics, including <code>đ → d</code>,
+      with a comment about legacy Vietnamese font encodings.</em></div></div>
+    <div class="credit"><span class="k">12</span><div><strong>The table pipeline has the right shape</strong>
+      <em>Deterministic hard guards, then a score with two thresholds, and a model consulted only
+      in the band between. Reuse this — see question 06.</em></div></div>
+    <div class="credit"><span class="k">13</span><div><strong>You refuse to compare things that are not comparable</strong>
+      <em>A matching clause reference required before comparing amounts; nothing returned rather
+      than an invented exchange rate.</em></div></div>
+    <div class="credit"><span class="k">14</span><div><strong>Your snapshot schema is executable, not prose</strong>
+      <em>JSON Schema 2020-12 with conditional rules binding box provenance to geometry status.
+      The single best artefact in the submission.</em></div></div>
+    <div class="credit"><span class="k">15</span><div><strong>Wireframes traced to requirements</strong>
+      <em>Every screen tagged with its PRD section and FR id, and the correct distinction that
+      confirming a finding is not approving a dossier.</em></div></div>
+    <div class="credit"><span class="k">16</span><div><strong>Zero TODO / FIXME / NotImplementedError on the OCR branch</strong>
+      <em>Uncommon.</em></div></div>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><span class="snum">07</span><h2>Bring written answers to these</h2></div>
+  <p class="sub">Consultative, not rhetorical. Several have a defensible answer that is not the one
+  you currently have — the point is to make the choice deliberately rather than by default.</p>
+  <div id="questions"></div>
+</section>
+
+
+<section>
+  <div class="shead"><span class="snum">08</span><h2>How three production systems solve this</h2></div>
+  <p class="sub">Alongside the grading, something more useful: your design next to three systems that
+  already run in production on the same four problems — a production OCR/IDP platform, a
+  structured-extraction engine, and a reasoning-agent platform. The full four-axis comparison, with a
+  column for <em>how far to take it at your scale</em>, is in the reference notes handed out with this
+  review. The headline items:</p>
+
+  <div class="takes">
+    <article class="take"><span class="n">01</span><div>
+      <h4>A layer is declared, not inferred from a folder path</h4>
+      <p>And the exemption list is allowed to shrink and nothing else — an entry that no longer
+      reproduces is itself an error, because a stale exemption is a lie about the codebase.</p>
+      <p>Fixes: your import checker is green because the rule was edited to match the code. Four
+      exemptions, each needing a why, a removal sprint and an owner.</p>
+    </div></article>
+    <article class="take"><span class="n">02</span><div>
+      <h4>Every box declares how it was measured</h4>
+      <p><code>measured</code> from pixels, <code>derived</code> from another anchor,
+      <code>claimed</code> by a model. The three carry errors that differ by orders of magnitude, and
+      mixing them into one unlabelled list destroys the thing that made the number usable.</p>
+      <p>Fixes: closes your third bbox level honestly — a clause region is the union of its line
+      boxes, which is <code>derived</code>, and labelling it so is not a weakness.</p>
+    </div></article>
+    <article class="take"><span class="n">03</span><div>
+      <h4>Jobs live in a table, not in the web process</h4>
+      <p>Claimed by a short committed transaction, held by a lease with a fencing token, reclaimed by
+      a reaper. Never hold a row lock across a model call.</p>
+      <p>Fixes: answers “kill a worker mid-batch” without a message broker. A 40-second vision call
+      holding a database connection will exhaust your pool under any real concurrency.</p>
+    </div></article>
+    <article class="take"><span class="n">04</span><div>
+      <h4>Count how many things “nothing” can mean, then split them</h4>
+      <p>One function returning <code>None</code> for four different facts — not a PDF, a scan with no
+      text layer, a file that would not open, a missing library — is the subtlest bug in any of these
+      systems. Correct for grounding, wrong for completeness: a corrupt file arrives looking like an
+      ordinary scan.</p>
+      <p>Fixes: your mixed-page routing has exactly this shape today, and silently loses everything
+      inside a scanned overlay.</p>
+    </div></article>
+    <article class="take"><span class="n">05</span><div>
+      <h4>The model enumerates hypotheses; code checks them</h4>
+      <p>At most three, number-free, in one call. Deterministic code then matches each against real
+      evidence and drops what does not resolve. Severity is computed, never asked. Filter first, then
+      cap — capping first biases the sample.</p>
+      <p>Fixes: this is your own table-continuity pattern applied to conflicts, and it is the main
+      defence against the false-positive flood the brief warns you about.</p>
+    </div></article>
+    <article class="take"><span class="n">06</span><div>
+      <h4>Which pool grounded it sets the trust level — not the model</h4>
+      <p>The model is never asked whether its own claim is well-sourced. And a quote is verified
+      against the source using the <em>same</em> parser that produced it — there is deliberately no
+      second parser, because two parsers disagree eventually.</p>
+      <p>Fixes: your stored hash is a hash of the model's own output, so it proves nothing about the
+      document. This is the fix.</p>
+    </div></article>
+  </div>
+
+  <div class="warnbox">
+    <h4>Read the “what not to copy” section before anything else</h4>
+    <p>Several patterns in those systems are correct at production scale and <strong>wrong at
+    yours</strong>:</p>
+    <div class="nocopy">
+      <span>130 packages</span><span>28 tables</span><span>outbox + relay + reconciler</span>
+      <span>~190 architecture tests</span><span>6-dimension confidence vector</span>
+      <span>hash-chained decision record</span><span>subprocess expression engine</span>
+      <span>per-tenant concurrency slots</span><span>five roles in the read path</span>
+    </div>
+    <p>Every one exists because something failed at a scale you do not have. Take the
+    <strong>reason</strong> — it is free and it transfers completely. Take the
+    <strong>machinery</strong> only when you have met the failure it prevents. Copying any of them
+    would cost you Sprint 2 and lose points under the rubric line <em>“nothing built that the demo
+    never uses.”</em></p>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><span class="snum">09</span><h2>Sprint 3 risk forecast</h2></div>
+  <p class="sub">Not asked for by the brief, but the comparison makes it visible.
+  <strong>None of these is about capability — they are all about sequencing.</strong></p>
+
+  <div class="risks">
+    <article class="risk">
+      <h4>Conflicts — 2 families × 3 scopes</h4><span class="lvl">high</span>
+      <p>Detection lives in a service that does not exist, and your canonical API schema cannot
+      express <code>comparison_scope</code> or <code>finding_type</code> — two of your own
+      requirements are unrepresentable on the wire. Semantic conflicts need embeddings or a model you
+      have not chosen.</p>
+      <p class="when">Schema fixed at Sprint 2 planning; a working structured-conflict path by the
+      Sprint 2 demo.</p>
+    </article>
+    <article class="risk">
+      <h4>Batch run</h4><span class="lvl">high</span>
+      <p>No batch writer, no retry, no idempotency, and jobs vanish on restart. This is a rewrite of
+      the execution model, not an addition to it.</p>
+      <p class="when">Job table and reaper in week 1 of Sprint 2 — left to Sprint 3 it competes with
+      conflict detection and both lose.</p>
+    </article>
+    <article class="risk">
+      <h4>Bbox editing in the UI</h4><span class="lvl">high</span>
+      <p>Three blockers in sequence: no page-image endpoint, no <code>bbox</code> field in the API
+      spec, 84 lines of frontend. The frontend cannot start until the first two exist.</p>
+      <p class="when">API contract in Sprint 2 week 1, then the frontend has three weeks. Any later
+      and this is the requirement you will drop.</p>
+    </article>
+    <article class="risk med">
+      <h4>Evaluation report with numbers</h4><span class="lvl">medium–high</span>
+      <p>The harness is complete and has no data. No ground truth. The formulas live in a file you
+      marked as not-a-contract, and the IoU threshold is undecided.</p>
+      <p class="when">Ground truth for fifteen cases and a first benchmark run inside Sprint 2.
+      Measuring is not a Sprint 3 activity — reporting is.</p>
+    </article>
+    <article class="risk">
+      <h4>Single dossier end to end — the Sprint 2 milestone</h4><span class="lvl">critical</span>
+      <p>The system does not start, citations do not resolve, and nothing creates a review item, so
+      the HITL screen has nothing to show.</p>
+      <p class="when">This week. Roughly one day of work, and it blocks the entire Sprint 2 demo.</p>
+    </article>
+    <article class="risk med">
+      <h4>Final demo on mentor-chosen samples</h4><span class="lvl">medium</span>
+      <p>Two OCR implementations drifting apart, a stub shadowing a real route, and ~6,400 lines
+      nothing imports.</p>
+      <p class="when">Pick one implementation and merge everything before Sprint 2 planning.</p>
+    </article>
+  </div>
+
+  <div class="rewrite">
+    <h4>Three things cannot be grown into the requirement — they will have to be replaced</h4>
+    <ol>
+      <li><strong>Background tasks in the web process.</strong> Retry, batch state and crash survival
+      are all properties of <em>where the job lives</em>. No amount of code on top fixes it.</li>
+      <li><strong>Citations that hash the model's own quote.</strong> Verification has to run against
+      the source, which means the citation must resolve to a stored OCR span — that changes the data
+      you persist, not just the code that reads it.</li>
+      <li><strong>Two OCR implementations.</strong> Every conflict rule and every metric will be
+      written against one of them. Written against both, you do the work twice and get two different
+      numbers.</li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><span class="snum">10</span><h2>Before Sprint 2 planning</h2></div>
+  <p class="sub">Ordered by what unblocks what. The first one unblocks everything else.</p>
+  <div class="checks" id="checks"></div>
+</section>
+
+<section>
+  <div class="shead"><span class="snum">11</span><h2>How this gets checked at the demo</h2></div>
+  <p class="sub">On samples the mentor picks, not the ones you pick.</p>
+  <ul class="asks">
+    <li><span>Open a scanned page from your set and draw a word box on the image.</span></li>
+    <li><span>Click five values at random; the box must match the text.</span></li>
+    <li><span>Show the planted-conflict list, then run the system and show both citations for one of them.</span></li>
+    <li><span>Start the whole system with one command.</span></li>
+    <li><span>Kill a worker mid-batch; report the job state; run the batch again and show no duplicates.</span></li>
+    <li><span>Quote any accuracy number and state its <em>n</em>, its sample, and what it must not be used to claim.</span></li>
+    <li><span>Name one number you would not trust, and why. “They are all fine” does not score.</span></li>
+  </ul>
+</section>
+
+<footer>
+  <p>Sample data and ground truth stay out of the repository — that is policy, and you are not
+  penalised for it. The report that carries them still has to exist and still has to reach the
+  mentor.</p>
+</footer>
+
+</div>
+
+<script>
+const CAPS = [
+  { id:"3.1", name:"Ingest and OCR", ref:"both input kinds, auto-detected",
+    doc:["met","complete"], code:["partial","classifier built, never measured"],
+    evid:["The three-state per-page classifier is well built — text layer, scanned, mixed — and computes image coverage by exact area union rather than naive summing.",
+          "It has never been run against a real input.",
+          "The backend uses the <em>opposite</em> policy: any embedded image means OCR the whole page. Two contradictory policies for the same decision, in one repository.",
+          "A real bug: a mixed page routes on a usable-text flag computed independently of image coverage, so a page with a text layer <em>and</em> an 80% scanned overlay is only native-extracted. Content inside the image is lost — and that is the most common contract page shape there is."]},
+  { id:"3.2", name:"Clause structure", ref:"Điều → Khoản → Điểm, annexes, tables",
+    doc:["met","complete"], code:["partial","parser runs; annex is only a role"],
+    evid:["Three regexes, correctly named, with a guard so <code>100.000.000 VND</code> is not read as a clause number. Diacritic-insensitive so scans that lost their font still match.",
+          "Tables become rows and cells with boxes, built from OCR word geometry — not a text blob. Cross-page continuation works.",
+          "Annexes exist only as a document-level role and a heading barrier for table merging. There is no parser for annex structure."]},
+  { id:"3.3", name:"Citations", ref:"document → page → line → char span → bbox",
+    doc:["met","excellent"], code:["partial","on the branch that does not run"],
+    evid:["The full chain is implemented on the OCR branch: character span → word ids → enclosing box, with an explicit <code>anchor_precision</code> that degrades honestly to line level and records why.",
+          "The backend — the code that actually runs — is line-level only, with precision hardcoded to <code>\"line\"</code>.",
+          "Nothing verifies a quote against its source; the stored hash is a hash of the model's own output."]},
+  { id:"3.4", name:"Bounding boxes", ref:"word · line · clause region, normalised, measured rotation",
+    doc:["partial","region level missing"], code:["gap","region empty; rotation from metadata"],
+    evid:["Normalisation is done properly and enforced at the type level: 0..1, origin top-left, strict ordering. Page size is stored with an explicit unit.",
+          "Word and line boxes exist with PyMuPDF and Tesseract. Paddle returns line only; the vision engines return no boxes at all.",
+          "<strong>Clause region is empty.</strong> Your own snapshot code says “not yet populated”, and the schema has no definition for it.",
+          "<strong>Rotation is read from PDF metadata in all four places.</strong> The brief says measured. Deskew is measured — ±10°, opt-in — and never written to the rotation field. The Paddle orientation classifier is switched off."]},
+  { id:"3.5", name:"Conflict detection", ref:"structured + semantic, three scopes, precedence",
+    doc:["partial","taxonomy good; precedence removed"], code:["gap","persistence only; detection is a stub"],
+    evid:["The taxonomy is genuinely good: five dispositions, two families, three scopes, and fifteen catalogued cases with named left and right sources.",
+          "The comparison code knows when to refuse — it requires a matching clause reference before comparing amounts, and returns nothing across currencies rather than inventing a rate.",
+          "But detection itself lives in an AI service that does not exist: that directory is one README, and the service mode defaults to <code>stub</code>.",
+          "Your canonical API schema has no <code>comparison_scope</code>, no <code>finding_type</code> and no <code>precedence_evidence</code> — so two of your own requirements cannot be expressed through your own API."]},
+  { id:"3.6", name:"Human-in-the-loop UI", ref:"page image, highlight, confirm/correct/reject, draw box",
+    doc:["partial","BRD says Won't; PRD and API say yes"], code:["gap","84 lines of React"],
+    evid:["The React app is 84 lines: one heading and a scaffold notice. The API client exists and is imported by nothing.",
+          "The real work is the wireframe — five static HTML screens, well made, traced to requirements, with the correct distinction between confirming a finding and approving a dossier.",
+          "Box coordinates in it are hardcoded percentages over an HTML mock of a page, so the positioning layer has to be rebuilt once real images arrive.",
+          "None of the eight required UI behaviours has a running implementation."]},
+  { id:"3.7", name:"Single and batch", ref:"job id, explicit states, retries, batch summary",
+    doc:["met","complete"], code:["gap","single runs; batch has no writer"],
+    evid:["Single run works end to end: 202 with a run id, eleven named steps, a real state machine with guarded transitions, an SSE stream, and a catch-all that marks an internal crash rather than losing the job.",
+          "<strong>Batch has no writer.</strong> Searching for the batch ORM constructor returns only the class definition; <code>POST /batches</code> returns a hardcoded stub id.",
+          "<strong>No retry.</strong> The max-attempts setting is defined and read by nothing; the attempt number is hardcoded to 1.",
+          "Jobs live in the web process. Kill the server and they are stuck at <code>running</code> forever."]}
+];
+
+const QUESTIONS = [
+  ["01","Where does a value come from?",
+   "<p>A price of <code>125.000</code> appears in your output. Where did that string come from: a specific span of OCR text, or a model writing it out?</p><p>If a model wrote it, what stops it from writing <code>128.000</code> on a page where the scan is poor?</p><p>Now the same question for a 200-row price annex — what is the cheapest arrangement where the model does the locating and never does the copying?</p>"],
+  ["02","What about a number with no source?",
+   "<p>A model reads three line items and reports a correct total that is printed nowhere on the page. Do you return it or block it?</p><p>Whichever you pick — what stops the next number, the one that is wrong, from taking the same path?</p><p>And when a number is blocked, does the reviewer see it blocked, or does it simply not appear?</p>"],
+  ["03","How was that box measured?",
+   "<p>The brief requires boxes at three levels and you have two. A clause region can be produced by unioning the line boxes inside the clause.</p><p>If you do that, is the resulting box the same kind of fact as a word box measured directly from the OCR engine? Is it the same kind of fact as coordinates a model reported? Can someone reading your output tell the three apart? Your snapshot schema already has an enum for this — is it being used consistently?</p><p>Same question about rotation. Every place in your code reads it from the PDF metadata. What is that metadata's relationship to how the paper actually went through the scanner? Which page in your sample set is rotated, and what happened?</p>"],
+  ["04","What does an empty result mean?",
+   "<p>Your review screen will show <em>“0 items to review.”</em> Standing in front of that screen, how does a reviewer tell <em>nothing needs correcting</em> from <em>the pipeline never ran</em> from <em>the extractor crashed</em>?</p><p>Now count how many places in your code return <code>[]</code> or <code>null</code> and answer the same question for each. Which of those emptinesses is currently indistinguishable from success?</p>"],
+  ["05","Three different silences",
+   "<p>Annex 03, page 2, is too blurred to OCR. Your final report is handed to someone about to sign. What does it say about the price clause on that page?</p><p>Write out the three distinct states this system can be in about any pair of clauses, then check whether your output shape lets a reader tell them apart.</p><p>And one more: when two clauses genuinely agree, is that an entry in your output, or an absence? What is the difference, to a reader, between a pair you checked and found consistent and a pair you never checked?</p>"],
+  ["06","Reuse your own best pattern",
+   "<p>Your table-continuity code does something right: deterministic hard guards first, then a score with two thresholds, and the model consulted only for the band in between — asked a narrow question, not handed the whole table.</p><p>Where else in this system does that shape apply? Clause-region boundaries and conflict candidates both have a grey band.</p><p>Related: when you do need to ask a vision model where something is on a page, is it cheaper and more accurate to ask about the whole page, or about a crop you already located?</p>"],
+  ["07","Where does a confidence number come from?",
+   "<p>You currently leave the score null and say so — good. At some point you will need a number to decide what goes to a human.</p><p>Suppose you ask the model for it. Run the same file twice and compare: what would you expect, and what would a reviewer conclude if the same document showed a warning on Monday and not on Tuesday?</p><p>If instead your own code computes it — from what evidence, and how would you prove the number means anything?</p>"],
+  ["08","Where does a job live?",
+   "<p>Kill the server while twenty dossiers are processing. Reopen it. Where are those twenty jobs, and what state do they report?</p><p>Your settings define a max-attempts value — show the line that reads it.</p><p>If a model call takes 40 seconds, what is holding a database connection for those 40 seconds, and what happens to the other workers?</p><p>You do not need a message broker for this. You need to answer where the state lives.</p>"],
+  ["09","What do your gates actually check?",
+   "<p>You have a real import contract checker running in CI — genuinely rare, and worth keeping. It also has four ignore entries, added with the comment that wrapping via a Protocol <em>“does not justify the refactor cost”</em>, plus two application services moved into infrastructure to satisfy the contract by relocation.</p><p>So: is the checker green because the code obeys the rule, or because the rule was edited to match the code?</p><p>For each exemption — why, which sprint it is removed in, and who owns it. And for every gate you have, write a test that proves it goes red when a violation exists. Plant a fake violation, run the gate, confirm it fires. A gate without that test cannot tell you it has stopped working.</p>"],
+  ["10","One implementation per problem",
+   "<p>There are two clause-structure parsers and two table parsers, in two codebases, written by two people, neither aware of the other. About 4,564 lines are imported by no entry point at all.</p><p>Which one survives? Do not answer by comparing the code — answer by asking what let this happen, and fix that first.</p>"],
+  ["11","Engine comparison",
+   "<p>The brief lets you pick any engine <em>if you show the comparison</em>, and requires a step → engine → why → cost-per-dossier table.</p><p>Your benchmarking framework is already complete: the runner, CER and WER, a separate diacritics metric, IoU with Hungarian matching, seven configured experiments, a cost field. It has no data in it. Running it on twenty real scanned pages is the cheapest remaining win in this project.</p><p>Consider adding a lightweight vision family alongside your current choice as a fallback lane — image-heavy training data and low price both help, and one expensive model will otherwise dominate your 1,000-dossier-per-month projection. The choice stays yours; the measurement does not.</p>"]
+];
+
+const CHECKS = [
+  ["Open pull requests for all seven branches into develop and resolve the conflicts","everyone"],
+  ["Settle ADR-01 — Java/Spring or Python/FastAPI — once, and record it","team lead"],
+  ["Pick one clause parser and one table parser; delete the other","OCR + backend"],
+  ["Merge the two BRD files, number requirements once, repair the traceability matrix","docs"],
+  ["Make the BRD agree with the PRD, the API spec and the code on correct/reject","docs"],
+  ["Restore the four-condition amendment rule into the canonical set","docs"],
+  ["Add a page-image endpoint and a bbox field to the API spec","backend + frontend"],
+  ["Raise “draw / adjust bbox” from Should to Must","frontend"],
+  ["Generate the initial migration, drop the compose profiles, add a migrate step on startup","backend"],
+  ["Fix router include order, or delete the shadowing stub","backend"],
+  ["Write the code that creates a review_item after the pipeline","backend"],
+  ["Measure rotation; store the measured value next to the metadata value","OCR"],
+  ["Clause-region boxes as a union of line boxes, labelled as derived","OCR"],
+  ["Run the OCR benchmark on ≥20 real scanned pages and commit the summary","OCR"],
+  ["Produce the sample-set and ground-truth report — to the mentor, not into the repository","everyone"],
+  ["Answer §10 question 6 (roles and epics) and question 7 (the service list)","team lead"]
+];
+
+(function build(){
+  const m = document.getElementById("matrix");
+  CAPS.forEach((c, i) => {
+    const row = document.createElement("div");
+    row.className = "mrow";
+    row.innerHTML =
+      '<div class="cap">' + c.id + " " + c.name + '<span class="ref">' + c.ref + "</span></div>" +
+      '<div class="cell"><span class="pill p-' + c.doc[0] + '">' + c.doc[0] + "</span>" + c.doc[1] + "</div>" +
+      '<div class="cell"><span class="pill p-' + c.code[0] + '">' + c.code[0] + "</span>" + c.code[1] + "</div>" +
+      '<div class="chev" aria-hidden="true">▾</div>';
+    row.tabIndex = 0;
+    row.setAttribute("role", "button");
+    row.setAttribute("aria-expanded", "false");
+    row.setAttribute("aria-label", "Evidence for " + c.id + " " + c.name);
+
+    const ev = document.createElement("div");
+    ev.className = "evid";
+    ev.hidden = true;
+    ev.innerHTML = "<ul>" + c.evid.map(e => "<li>" + e + "</li>").join("") + "</ul>";
+
+    const toggle = () => {
+      ev.hidden = !ev.hidden;
+      row.setAttribute("aria-expanded", String(!ev.hidden));
+      row.querySelector(".chev").textContent = ev.hidden ? "▾" : "▴";
+    };
+    row.addEventListener("click", toggle);
+    row.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+    });
+
+    m.appendChild(row);
+    m.appendChild(ev);
+    if (i === 3) toggle(); // open the bbox row at rest — it carries the two hardest gaps
+  });
+
+  const q = document.getElementById("questions");
+  QUESTIONS.forEach(([n, title, body], i) => {
+    const d = document.createElement("details");
+    d.className = "q";
+    if (i === 0) d.open = true;
+    d.innerHTML = '<summary><span class="qn">' + n + "</span>" + title +
+      '</summary><div class="qbody">' + body + "</div>";
+    q.appendChild(d);
+  });
+
+  const ch = document.getElementById("checks");
+  CHECKS.forEach(([text, who], i) => {
+    const el = document.createElement("div");
+    el.className = "chk";
+    el.innerHTML = '<span class="i">' + String(i + 1).padStart(2, "0") + "</span><span>" +
+      text + '</span><span class="who">' + who + "</span>";
+    ch.appendChild(el);
+  });
+})();
+</script>

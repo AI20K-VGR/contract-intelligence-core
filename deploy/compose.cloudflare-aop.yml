@@ -1,0 +1,14 @@
+# =============================================================================
+# Zone-level Authenticated Origin Pulls (deploy/README.md, "Đứng sau
+# Cloudflare"). deploy.sh adds this file after compose.cloudflare.yml when
+# deploy/certs/origin-pull-ca.pem exists, so a server without that CA keeps
+# plain TLS and cannot be locked out by this change.
+# =============================================================================
+
+services:
+  caddy:
+    environment:
+      ORIGIN_CLIENT_AUTH: ${ORIGIN_CLIENT_AUTH:-verify_if_given}
+    volumes:
+      # Same target as compose.cloudflare.yml: this snippet replaces that one.
+      - ./deploy/cloudflare-tls-aop.caddy:/etc/caddy/tls/origin.caddy:ro

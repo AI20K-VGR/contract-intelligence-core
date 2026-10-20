@@ -1,0 +1,39 @@
+﻿{
+    "tabWraps":  true,
+    "shiftTabWraps":  true,
+    "navClosedOnLink":  "false",
+    "linkRestored":  true,
+    "desktopDrawerClosed":  true,
+    "desktopDialogRemoved":  true,
+    "desktopLastFocused":  true,
+    "desktopTabEscaped":  true,
+    "url":  "http://127.0.0.1:5173/cau-truc/dos_01M4NRZGKDT461WAXD853PT76Z",
+    "graphToggleCount":  1,
+    "graphShown":  true,
+    "relationText":  true,
+    "widths":  {
+                   "viewport":  320,
+                   "document":  320,
+                   "body":  320,
+                   "main":  320
+               },
+    "focusVisible":  true,
+    "selected":  "true",
+    "sourceButtonCount":  1,
+    "navExpanded":  "true",
+    "navFocus":  true,
+    "navVisible":  true,
+    "navClosed":  "false",
+    "triggerRestored":  true,
+    "apiStatuses":  [
+                        200,
+                        200,
+                        200,
+                        200
+                    ],
+    "errors":  [
+
+               ],
+    "screenshot":  "reports/ai2-graph-live-320px.png",
+    "test_data":  "Synthetic graph/trace fixture; verifies presentation and interaction only, not AI2 graph generation."
+}

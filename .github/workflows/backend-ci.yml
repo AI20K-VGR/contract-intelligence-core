@@ -1,0 +1,194 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, feature/**]
+    paths: ["backend/**", ".github/workflows/backend-ci.yml"]
+  # Every PR into develop or main, whatever the branch name (fix/*, docs/*, …):
+  # before, only feature/** pushes and PRs into main ran backend CI.
+  pull_request:
+    branches: [main, develop]
+    paths: ["backend/**", ".github/workflows/backend-ci.yml"]
+
+env:
+  UV_PROJECT_ENVIRONMENT: .venv
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Layer Conformance — import-linter (Dependency Rule)
+  # ---------------------------------------------------------------------------
+  lint-layers:
+    name: Layer Conformance (import-linter)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: Run import-linter
+        run: uv run python -m import_linter --config .importlinter
+
+  # ---------------------------------------------------------------------------
+  # Lint + Format
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Ruff Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: Run ruff check
+        run: uv run ruff check src/ tests/
+
+      - name: Run ruff format check
+        run: uv run ruff format --check src/ tests/
+
+  # ---------------------------------------------------------------------------
+  # Type check
+  # ---------------------------------------------------------------------------
+  typecheck:
+    name: MyPy Type Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: Run mypy
+        run: uv run mypy src/
+
+  # ---------------------------------------------------------------------------
+  # Unit Tests
+  # ---------------------------------------------------------------------------
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install test dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: Run unit tests
+        run: uv run pytest tests/unit/ -v --tb=short
+
+      - name: Run architecture tests (layer conformance)
+        run: uv run pytest tests/architecture/ -v --tb=short
+
+  # ---------------------------------------------------------------------------
+  # Integration Tests — Auth flow với SQLite in-memory
+  # ---------------------------------------------------------------------------
+  test-integration:
+    name: Integration Tests (Auth endpoints)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    # Real PostgreSQL for the tests sqlite cannot reach (append-only triggers,
+    # LISTEN/NOTIFY, JSON share filter, alembic upgrade head). Disposable.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      CI_TEST_POSTGRES_URL: postgresql+asyncpg://ci:ci@127.0.0.1:5432/ci_test
+      # Lexicon tests migrate/downgrade their own tables: keep them off ci_test.
+      LEXICON_TEST_DATABASE_URL: postgresql+asyncpg://ci:ci@127.0.0.1:5432/ci_lexicon
+      # Disposable MinIO for the chunked upload tests on real S3 calls
+      # (test_upload_sessions_minio.py). Throwaway credentials, local to the job.
+      CI_TEST_MINIO_URL: http://127.0.0.1:9000
+      CI_TEST_MINIO_USER: citest
+      CI_TEST_MINIO_PASSWORD: citest-minio-only
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install test dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: Create dedicated lexicon database
+        run: PGPASSWORD=ci psql -h 127.0.0.1 -U ci -d ci_test -c "CREATE DATABASE ci_lexicon"
+
+      # Same image as production (docker-compose.yml). Started here, not as a
+      # service container: the image needs the `server /data` arguments.
+      - name: Start MinIO
+        run: |
+          docker run -d --name ci-minio-test --user 0:0 -p 127.0.0.1:9000:9000 \
+            -e MINIO_ROOT_USER="$CI_TEST_MINIO_USER" -e MINIO_ROOT_PASSWORD="$CI_TEST_MINIO_PASSWORD" \
+            cgr.dev/chainguard/minio:latest server /data
+          for _ in $(seq 1 30); do
+            curl -fsS "$CI_TEST_MINIO_URL/minio/health/live" >/dev/null && exit 0
+            sleep 2
+          done
+          docker logs ci-minio-test
+          exit 1
+
+      # ai2_local_e2e tests spawn the Windows-only local AI2 service (docs/ai2 runbooks).
+      - name: Run integration tests (SQLite + PostgreSQL)
+        run: uv run pytest tests/integration/ -v --tb=short -m "not ai2_local_e2e"

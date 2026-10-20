@@ -1,0 +1,10 @@
+{"a": "D01", "b": "D02", "expected": "COMPARABLE_DIFFERENCE", "why": "fixed vs rate penalty for the same late delivery"}
+{"a": "D01", "b": "D03", "expected": "GRADUATED", "why": "penalty for any delay, termination beyond 20 days"}
+{"a": "D04", "b": "D05", "expected": "COMPARABLE_DIFFERENCE", "why": "'từ 11 ngày' equals 'trên 10 ngày' in whole days; rate vs fixed penalty"}
+{"a": "D05", "b": "D07", "expected": "CUMULATIVE", "why": "penalty plus late-payment interest"}
+{"a": "D02", "b": "D06", "expected": "NOT_COMPARABLE", "why": "4% of delayed goods vs 3% of contract value: different bases"}
+{"a": "D18", "b": "D19", "expected": "CUMULATIVE", "why": "penalty and suspension of payment for the same delay"}
+{"a": "D20", "b": "D23", "expected": null, "why": "different bearers"}
+{"a": "D28", "b": "D29", "expected": "CUMULATIVE", "why": "damages and penalty for disclosure"}
+{"a": "D33", "b": "D01", "expected": "GENERAL_VS_SPECIFIC", "why": "general breach clause vs late delivery"}
+{"a": "D03", "b": "D06", "expected": "GRADUATED", "why": "3% penalty for any delay, termination beyond 20 days"}

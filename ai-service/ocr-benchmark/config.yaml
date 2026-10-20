@@ -1,0 +1,28 @@
+render:
+  dpi: 300
+  format: png
+
+paths:
+  data: data
+  artifacts: artifacts
+  reports: reports
+
+experiments:
+  - id: raw
+    preprocessing: []
+  # "preprocessed" (deskew/grayscale/contrast/denoise) disabled for this run: the deskew
+  # step in contract_ocr/infrastructure/image/preprocessing.py crashes with
+  # `TypeError: cannot unpack non-iterable numpy.int32 object` on these scans — a
+  # pre-existing bug unrelated to this Quality-metrics benchmark, not fixed here.
+  # - id: preprocessed
+  #   preprocessing: [deskew, grayscale, contrast, denoise]
+
+mistral:
+  enabled: true
+  model: mistral-ocr-4
+  price_per_page: 0.004
+
+statistics:
+  bootstrap_iterations: 1000
+  confidence_level: 0.95
+  seed: 42

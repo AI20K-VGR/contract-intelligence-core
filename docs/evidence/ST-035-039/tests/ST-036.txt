@@ -1,0 +1,31 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.3, pytest-9.1.1, pluggy-1.6.0 -- E:\Project_OJT\contract-intelligence-core\backend\.venv\Scripts\python.exe
+rootdir: E:\Project_OJT\contract-intelligence-core\backend
+configfile: pyproject.toml
+plugins: anyio-4.15.1, asyncio-1.4.0, cov-7.1.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 21 items
+
+tests/unit/test_worker_pipeline_run.py::test_upload_opens_run_with_all_steps PASSED [  4%]
+tests/unit/test_worker_pipeline_run.py::test_redelivered_upload_resumes_active_run PASSED [  9%]
+tests/unit/test_worker_pipeline_run.py::test_ocr_restart_supersedes_run_and_ignores_its_late_results PASSED [ 14%]
+tests/unit/test_worker_pipeline_run.py::test_upload_event_does_not_reopen_a_job_in_review PASSED [ 19%]
+tests/unit/test_worker_pipeline_run.py::test_ocr_restart_refused_for_approved_job PASSED [ 23%]
+tests/unit/test_worker_pipeline_run.py::test_ocr_restart_recovers_failed_job_with_new_run PASSED [ 28%]
+tests/unit/test_worker_pipeline_run.py::test_extracted_only_after_every_document_has_a_snapshot PASSED [ 33%]
+tests/unit/test_worker_pipeline_run.py::test_invalid_snapshot_marks_job_failed_with_audit PASSED [ 38%]
+tests/unit/test_worker_pipeline_run.py::test_completed_event_without_result_marks_job_failed PASSED [ 42%]
+tests/unit/test_worker_pipeline_run.py::test_snapshot_for_foreign_document_marks_job_failed PASSED [ 47%]
+tests/unit/test_worker_pipeline_run.py::test_late_success_does_not_override_failed PASSED [ 52%]
+tests/unit/test_worker_pipeline_run.py::test_envelope_with_wrong_schema_version_is_dropped PASSED [ 57%]
+tests/unit/test_worker_pipeline_run.py::test_result_claiming_another_tenant_is_rejected PASSED [ 61%]
+tests/unit/test_worker_pipeline_run.py::test_ai2_success_refused_after_job_failed PASSED [ 66%]
+tests/unit/test_worker_pipeline_run.py::test_ai2_transient_failure_releases_submission_guard_for_retry PASSED [ 71%]
+tests/unit/shared/ai/test_ai1_adapter.py::test_adapts_ai1_snapshot_v1_at_service_boundary PASSED [ 76%]
+tests/unit/shared/ai/test_ai1_adapter.py::test_adapts_table_continuation_graph_for_backend_persistence PASSED [ 80%]
+tests/unit/shared/ai/test_ai1_adapter.py::test_adapts_snapshot_table_continuity_links_into_table_rows PASSED [ 85%]
+tests/unit/test_snapshot_recovery.py::test_durable_run_payload_hydrates_snapshot_after_cache_restart PASSED [ 90%]
+tests/unit/test_snapshot_recovery.py::test_merge_hydrates_only_valid_scoped_snapshots PASSED [ 95%]
+tests/unit/test_snapshot_recovery.py::test_durable_run_payload_rejects_malformed_data PASSED [100%]
+
+============================= 21 passed in 7.33s ==============================

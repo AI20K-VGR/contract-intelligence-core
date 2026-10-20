@@ -1,0 +1,116 @@
+{
+  "case_id": "EC-041",
+  "title": "Skew/watermark — không đoán",
+  "tenant_id": "tenant_a",
+  "dossier_id": "d_skew",
+  "expected_state": "REVIEW",
+  "expected_no_claims": [
+    "guess_from_blur"
+  ],
+  "n_pages": 1,
+  "n_nodes": 1,
+  "n_tables": 0,
+  "lifecycle": "ACTIVE",
+  "query": null,
+  "notes": "",
+  "tags": [
+    "edge",
+    "scan"
+  ],
+  "pins": {
+    "manifest_version": 2,
+    "source_snapshot_digest": "sha256:aaa",
+    "tenant_profile_version": 5,
+    "policy_version": 2,
+    "ocr_run_version": 3,
+    "reconstruction_version": 2,
+    "extraction_version": 7,
+    "index_version": "idx_14"
+  },
+  "profile": {
+    "version": 5,
+    "aliases": {
+      "Công ty ABC": [
+        "ABC Co.",
+        "ABC"
+      ],
+      "Công ty XYZ": [
+        "XYZ Ltd",
+        "XYZ"
+      ]
+    },
+    "field_keys": [
+      "party_a",
+      "party_b",
+      "mst_seller",
+      "contract_value",
+      "payment_term"
+    ]
+  },
+  "acl_revision": 12,
+  "legal_hold": false,
+  "egress_approved": true,
+  "budget_exceeded": false,
+  "index_status": "READY",
+  "active_index_version": null,
+  "processing_index": false,
+  "envelope": {
+    "auth": {
+      "actor_id": "user_001",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_skew",
+      "acl_revision": 12,
+      "permissions": [
+        "READ_CONTENT"
+      ],
+      "lifecycle": "ACTIVE"
+    },
+    "pins": {
+      "manifest_version": 2,
+      "source_snapshot_digest": "sha256:aaa",
+      "tenant_profile_version": 5,
+      "policy_version": 2,
+      "ocr_run_version": 3,
+      "reconstruction_version": 2,
+      "extraction_version": 7,
+      "index_version": "idx_14"
+    }
+  },
+  "pages": [
+    {
+      "page_revision_id": "p1_rev1",
+      "page_number": 1,
+      "quality": "LOW",
+      "coverage": 0.55,
+      "rotation": 0,
+      "source_block_ids": [
+        "p1_b1"
+      ],
+      "text": "Văn bản lệch watermark",
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "w",
+      "type": "FIELD",
+      "raw_label": "MST",
+      "parent_id": null,
+      "order": 1,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "MST không rõ",
+      "page_range": [
+        1
+      ],
+      "page_revision_id": "p1_rev1",
+      "bbox": [],
+      "structured_key": "mst_seller",
+      "structured_value": "????????",
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "tables": []
+}

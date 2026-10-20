@@ -1,0 +1,116 @@
+{
+  "case_id": "EC-009",
+  "title": "Tham chiếu phụ lục không có trong dossier",
+  "tenant_id": "tenant_a",
+  "dossier_id": "d_missing_annex",
+  "expected_state": "INSUFFICIENT",
+  "expected_no_claims": [
+    "invented_annex_7"
+  ],
+  "n_pages": 1,
+  "n_nodes": 1,
+  "n_tables": 0,
+  "lifecycle": "ACTIVE",
+  "query": "Phụ lục 7",
+  "notes": "",
+  "tags": [
+    "edge",
+    "retrieval"
+  ],
+  "pins": {
+    "manifest_version": 2,
+    "source_snapshot_digest": "sha256:aaa",
+    "tenant_profile_version": 5,
+    "policy_version": 2,
+    "ocr_run_version": 3,
+    "reconstruction_version": 2,
+    "extraction_version": 7,
+    "index_version": "idx_14"
+  },
+  "profile": {
+    "version": 5,
+    "aliases": {
+      "Công ty ABC": [
+        "ABC Co.",
+        "ABC"
+      ],
+      "Công ty XYZ": [
+        "XYZ Ltd",
+        "XYZ"
+      ]
+    },
+    "field_keys": [
+      "party_a",
+      "party_b",
+      "mst_seller",
+      "contract_value",
+      "payment_term"
+    ]
+  },
+  "acl_revision": 12,
+  "legal_hold": false,
+  "egress_approved": true,
+  "budget_exceeded": false,
+  "index_status": "READY",
+  "active_index_version": null,
+  "processing_index": false,
+  "envelope": {
+    "auth": {
+      "actor_id": "user_001",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_missing_annex",
+      "acl_revision": 12,
+      "permissions": [
+        "READ_CONTENT"
+      ],
+      "lifecycle": "ACTIVE"
+    },
+    "pins": {
+      "manifest_version": 2,
+      "source_snapshot_digest": "sha256:aaa",
+      "tenant_profile_version": 5,
+      "policy_version": 2,
+      "ocr_run_version": 3,
+      "reconstruction_version": 2,
+      "extraction_version": 7,
+      "index_version": "idx_14"
+    }
+  },
+  "pages": [
+    {
+      "page_revision_id": "p3_rev1",
+      "page_number": 3,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p3_b1"
+      ],
+      "text": "Xem Phụ lục 7 về bảo mật.",
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "ref",
+      "type": "CLAUSE",
+      "raw_label": "Điều 9",
+      "parent_id": null,
+      "order": 1,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Xem Phụ lục 7 về bảo mật.",
+      "page_range": [
+        3
+      ],
+      "page_revision_id": "p3_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "tables": []
+}

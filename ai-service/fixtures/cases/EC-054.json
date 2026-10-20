@@ -1,0 +1,202 @@
+{
+  "case_id": "EC-054",
+  "title": "Cache hit nhưng ACL revision cũ",
+  "tenant_id": "tenant_a",
+  "dossier_id": "d_cache_acl",
+  "expected_state": "BLOCKED",
+  "expected_no_claims": [
+    "stale_acl_cache"
+  ],
+  "n_pages": 1,
+  "n_nodes": 5,
+  "n_tables": 0,
+  "lifecycle": "ACTIVE",
+  "query": null,
+  "notes": "",
+  "tags": [
+    "edge",
+    "acl"
+  ],
+  "pins": {
+    "manifest_version": 2,
+    "source_snapshot_digest": "sha256:aaa",
+    "tenant_profile_version": 5,
+    "policy_version": 2,
+    "ocr_run_version": 3,
+    "reconstruction_version": 2,
+    "extraction_version": 7,
+    "index_version": "idx_14"
+  },
+  "profile": {
+    "version": 5,
+    "aliases": {
+      "Công ty ABC": [
+        "ABC Co.",
+        "ABC"
+      ],
+      "Công ty XYZ": [
+        "XYZ Ltd",
+        "XYZ"
+      ]
+    },
+    "field_keys": [
+      "party_a",
+      "party_b",
+      "mst_seller",
+      "contract_value",
+      "payment_term"
+    ]
+  },
+  "acl_revision": 12,
+  "legal_hold": false,
+  "egress_approved": true,
+  "budget_exceeded": false,
+  "index_status": "READY",
+  "active_index_version": null,
+  "processing_index": false,
+  "envelope": {
+    "auth": {
+      "actor_id": "user_001",
+      "tenant_id": "tenant_a",
+      "dossier_id": "d_cache_acl",
+      "acl_revision": 11,
+      "permissions": [
+        "READ_CONTENT"
+      ],
+      "lifecycle": "ACTIVE"
+    },
+    "pins": {
+      "manifest_version": 2,
+      "source_snapshot_digest": "sha256:aaa",
+      "tenant_profile_version": 5,
+      "policy_version": 2,
+      "ocr_run_version": 3,
+      "reconstruction_version": 2,
+      "extraction_version": 7,
+      "index_version": "idx_14"
+    }
+  },
+  "pages": [
+    {
+      "page_revision_id": "p1_rev1",
+      "page_number": 1,
+      "quality": "OK",
+      "coverage": 1.0,
+      "rotation": 0,
+      "source_block_ids": [
+        "p1_b1"
+      ],
+      "text": "Hợp đồng số 01. Bên A: Công ty ABC MST 0311111111. Bên B: Công ty XYZ MST 0322222222. Giá trị: 1.000.000.000 VND.",
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "sec_parties",
+      "type": "SECTION",
+      "raw_label": "Điều 1",
+      "parent_id": null,
+      "order": 1,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Điều 1. Các bên",
+      "page_range": [
+        1
+      ],
+      "page_revision_id": "p1_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "field_party_a",
+      "type": "FIELD",
+      "raw_label": "Bên A",
+      "parent_id": "sec_parties",
+      "order": 1,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Bên A: Công ty ABC MST 0311111111",
+      "page_range": [
+        1
+      ],
+      "page_revision_id": "p1_rev1",
+      "bbox": [
+        10.0,
+        10.0,
+        200.0,
+        28.0
+      ],
+      "structured_key": "party_a",
+      "structured_value": "Công ty ABC",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "field_mst_a",
+      "type": "FIELD",
+      "raw_label": "MST Bên A",
+      "parent_id": "sec_parties",
+      "order": 2,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "MST 0311111111",
+      "page_range": [
+        1
+      ],
+      "page_revision_id": "p1_rev1",
+      "bbox": [
+        10.0,
+        30.0,
+        180.0,
+        44.0
+      ],
+      "structured_key": "mst_seller",
+      "structured_value": "0311111111",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "field_value",
+      "type": "FIELD",
+      "raw_label": "Giá trị",
+      "parent_id": "sec_parties",
+      "order": 3,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Giá trị: 1.000.000.000 VND",
+      "page_range": [
+        1
+      ],
+      "page_revision_id": "p1_rev1",
+      "bbox": [],
+      "structured_key": "contract_value",
+      "structured_value": "1.000.000.000 VND",
+      "source_file_id": null,
+      "page_in_file": null
+    },
+    {
+      "node_id": "clause_5_3",
+      "type": "CLAUSE",
+      "raw_label": "Điều 5.3",
+      "parent_id": null,
+      "order": 4,
+      "has_children": false,
+      "status": "CONFIRMED",
+      "text": "Điều 5.3. Thanh toán trong 15 ngày kể từ ngày nghiệm thu.",
+      "page_range": [
+        1
+      ],
+      "page_revision_id": "p1_rev1",
+      "bbox": [],
+      "structured_key": null,
+      "structured_value": null,
+      "source_file_id": null,
+      "page_in_file": null
+    }
+  ],
+  "tables": []
+}

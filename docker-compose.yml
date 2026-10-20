@@ -1,0 +1,880 @@
+# =============================================================================
+# Docker Compose — Local / Staging CI Stack
+# =============================================================================
+#
+# Enterprise-grade orchestration cho Contract Intelligence stack.
+#
+# Services (tên service Compose — dùng với `docker compose up <service>`):
+#   keycloak-db    — PostgreSQL dedicated cho Keycloak (container: ci-keycloak-db)
+#   keycloak       — Keycloak 26 (Quarkus) + Phase Two (container: ci-keycloak)
+#   backend-db     — PostgreSQL cho backend (container: ci-backend-db, host :5434)
+#   kafka          — Apache Kafka KRaft (container: ci-kafka, host :9093)
+#   backend        — FastAPI (container: ci-backend; depends_on db+keycloak+kafka+minio)
+#   backend-worker — Kafka orchestrator: dossier.uploaded → AI1 commands + results
+#   ai1-worker     — AI1 OCR Kafka consumer/producer (DOC-05d)
+#   minio          — MinIO S3-compatible (API 9000, Console 9001)
+#   minio-init     — one-shot: tạo bucket `dossiers` + `ci-render` (private)
+#   prometheus     — metrics store (internal only, no host port)
+#   grafana        — dashboards, embedded in /admin/monitoring via backend /grafana
+#   node-exporter  — host CPU / RAM / disk / load
+#   cadvisor       — per-container CPU / RAM / status / restarts
+#
+# Lưu ý: `docker compose` nhận diện theo TÊN SERVICE (backend-db, backend),
+# không phải container_name (ci-backend-db, ci-backend).
+#
+# Topology:
+#
+#   ┌──────────────┐    internal    ┌──────────────┐
+#   │  keycloak    │◄──────────────►│ keycloak-db  │   (no public port)
+#   └──────┬───────┘                └──────────────┘
+#          │ 8080 (host)
+#          ▼
+#   ┌──────────────┐    internal    ┌──────────────┐
+#   │   backend    │◄──────────────►│  backend-db  │
+#   └──────┬───────┘                └──────────────┘
+#          │ 8000 (host)            ┌──────────────┐
+#          ├───────────────────────►│    kafka     │  9093 (host EXTERNAL)
+#          ▼                        └──────────────┘  29092 (internal PLAINTEXT)
+#       end user
+#
+# Services on custom bridge network `ci-network` → resolve nhau bằng tên
+# container (keycloak-db, backend-db, keycloak, kafka, backend).
+#
+# MỌI host port đều override được qua env: ví dụ `KC_HTTP_PORT=9080 docker
+# compose up`.
+#
+# Notes:
+#   - Data persistence: named volumes (keycloak_pgdata, backend_pgdata,
+#     kafka_data_v2). KHÔNG mất user / contract / Kafka data khi restart.
+#   - Startup order: pg_isready healthcheck đảm bảo DB ready trước khi
+#     keycloak / backend start.
+#   - Keycloak auto-import realm từ keycloak/realm-export.json (mount ro).
+#   - Backend reach Keycloak qua `host.docker.internal:8080` (Mac/Win native,
+#     Linux dùng extra_hosts:host-gateway).
+#   - Nếu đổi tên volume từ version cũ (`keycloak-db-data` /
+#     `backend-db-data`): chạy `docker compose down -v` trước.
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Compose project metadata
+# -----------------------------------------------------------------------------
+name: contract-intelligence-stack
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+        VITE_KEYCLOAK_URL: ${VITE_KEYCLOAK_URL:-http://localhost:8080}
+        VITE_KEYCLOAK_REALM: ${VITE_KEYCLOAK_REALM:-contract-intelligence}
+        VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID:-contract-intel-frontend}
+    container_name: ci-frontend
+    restart: unless-stopped
+    mem_limit: ${FRONTEND_MEM_LIMIT:-128m}
+    depends_on:
+      - backend
+      - keycloak
+    ports:
+      - "${FRONTEND_HOST_PORT:-5173}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 1 — Keycloak PostgreSQL (isolated)
+  # =============================================================================
+  keycloak-db:
+    image: postgres:16-alpine            # postgres:15-alpine trở lên đều OK
+    container_name: ci-keycloak-db
+    restart: unless-stopped
+    mem_limit: ${KEYCLOAK_DB_MEM_LIMIT:-512m}
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak_secret_dev}
+      # Tăng connection limit + statement_timeout cho Keycloak workload.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      # Named volume (không phải bind-mount) → persistent giữa các lần restart
+      - keycloak_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready -U $POSTGRES_USER -d $POSTGRES_DB trả về exit 0 khi DB
+      # sẵn sàng nhận connection. -q flag cho clean output (không log success).
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak -q"]
+      interval: 5s                        # check mỗi 5s
+      timeout: 3s                         # mỗi lần tối đa 3s
+      retries: 20                         # tổng cộng ~100s chờ DB ready
+      start_period: 10s                   # grace period cho initdb
+    # Chỉ expose host port để debug/migrations (KHÔNG cần trong prod — internal only).
+    # Override qua env: KC_DB_HOST_PORT=5433 docker compose up
+    ports:
+      - "${KEYCLOAK_DB_HOST_PORT:-5433}:5432"
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 2 — Keycloak SSO Server
+  # =============================================================================
+  keycloak:
+    build:
+      context: ./keycloak
+      dockerfile: Dockerfile
+    image: ci-keycloak:26
+    container_name: ci-keycloak
+    restart: unless-stopped
+    mem_limit: ${KEYCLOAK_MEM_LIMIT:-1g}
+    depends_on:
+      keycloak-db:
+        condition: service_healthy        # ⬅ đợi pg_isready pass mới start
+    command:
+      - start-dev
+      - --import-realm                    # load realm-export.json vào startup
+      - --health-enabled=true             # bật /health endpoint cho healthcheck
+    environment:
+      # ---- JDBC ----
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak    # ⬅ dùng service name (internal DNS)
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak_secret_dev}
+
+      # ---- HTTP ----
+      KC_HTTP_PORT: 8080
+      KC_HTTPS_ENABLED: "false"
+      # Link trong email phải là localhost, không phải hostname Docker "keycloak".
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HOSTNAME_STRICT: "false"
+      KC_PROXY: edge                      # honor X-Forwarded-* headers
+
+      # ---- Logging ----
+      KC_LOG_LEVEL: INFO,org.keycloak.events:DEBUG,io.phasetwo:INFO
+
+      # ---- Memory ----
+      # Keycloak's default heap is up to 70% of the RAM the JVM sees.
+      JAVA_OPTS_KC_HEAP: ${KEYCLOAK_HEAP_OPTS:--Xms128m -Xmx512m}
+
+      # ---- Admin bootstrap (chỉ dev — staging/prod xoá 2 var này) ----
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+
+      # ---- Jackson strict-mode OFF for realm import ----
+      # The realm JSON was exported from a newer Keycloak build and contains
+      # forward-compat fields (e.g. postLogoutRedirectUris, RAR token
+      # statements) that 26.6.3's strict Jackson unmarshaller rejects on
+      # `--import-realm`. Setting this globally disables
+      # `fail-on-unknown-properties` so the import drops unknown fields
+      # silently instead of erroring out — same as what Keycloak has done
+      # on import since 17.x for realm objects. Safe here because we're
+      # only discarding *fields the running version doesn't understand*,
+      # not modifying semantics.
+      QUARKUS_JACKSON_FAIL_ON_UNKNOWN_PROPERTIES: "false"
+
+      # ---- Phase Two ext-event-http / ext-event-webhook ----
+      # Catch-all webhook: mọi event được POST tới backend. Backend verify
+      # HMAC với cùng secret. Xem docs/KEYCLOAK-SETUP.md §Webhook Delivery.
+      WEBHOOK_URI: http://host.docker.internal:8000/api/v1/auth/webhooks/keycloak
+      WEBHOOK_AUTH_TYPE: hmac
+      WEBHOOK_SECRET: ${KEYCLOAK_WEBHOOK_SECRET:-ci_webhook_shared_secret_dev}
+
+      # ---- Optional Phase Two knobs ----
+      # Persist webhook failures cho /sends REST endpoint (disabled mặc định).
+      KC_SPI_EVENTS_LISTENER_EXT_EVENT_WEBHOOK_STORE_WEBHOOK_EVENTS: "false"
+      # Emit structured log line per send attempt (disabled mặc định).
+      KC_SPI_EVENTS_LISTENER_EXT_EVENT_WEBHOOK_LOG_WEBHOOK_EVENTS: "false"
+
+      # Theme hot-reload in start-dev
+      KC_SPI_THEME_CACHE_THEMES: "false"
+      KC_SPI_THEME_CACHE_TEMPLATES: "false"
+
+    ports:
+      - "${KEYCLOAK_HTTP_HOST_PORT:-8080}:8080"
+      # 8443 (HTTPS) chỉ nếu KC_HTTPS_ENABLED=true; map để debug TLS.
+      - "${KEYCLOAK_HTTPS_HOST_PORT:-8443}:8443"
+    volumes:
+      # Mount realm export read-only. Keycloak auto-import khi `--import-realm`
+      # được set; subsequent edits cần restart container.
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      - ./keycloak/themes/lexis:/opt/keycloak/themes/lexis:ro
+    # healthcheck: disabled — Keycloak 26 image has no curl/wget/bash to probe
+    # /health/ready, and the bash /dev/tcp probe is unreliable in Docker's
+    # health-check shell. Keycloak is running (verify with
+    # `docker logs ci-keycloak`); remove this block once the startup
+    # health probe is confirmed working.
+    # test:
+    #   - CMD-SHELL
+    #   - 'bash -c ''exec 3<>/dev/tcp/localhost/8080 && printf "GET /health/ready HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3 && grep -q "200 OK" <&3'' || exit 1'
+    # interval: 15s
+    # timeout: 5s
+    # retries: 10
+    # start_period: 90s
+    networks:
+      - ci-network
+
+  # The minimal Keycloak image has no curl/wget. Probe its management readiness
+  # endpoint from a tiny curl sidecar so dependents can wait for the real ready
+  # state instead of merely waiting for the process to start.
+  keycloak-readiness:
+    image: curlimages/curl:8.10.1
+    container_name: ci-keycloak-readiness
+    restart: unless-stopped
+    depends_on:
+      keycloak:
+        condition: service_started
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["while :; do sleep 3600; done"]
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--max-time", "3", "http://keycloak:9000/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 3 — Backend PostgreSQL (isolated)
+  # =============================================================================
+  backend-db:
+    # Postgres 16 with pgvector: AI2 keeps vectors in schema ai2 (ADR-14).
+    image: pgvector/pgvector:pg16
+    container_name: ci-backend-db
+    restart: unless-stopped
+    mem_limit: ${BACKEND_DB_MEM_LIMIT:-1g}
+    environment:
+      POSTGRES_DB: contract_intelligence
+      POSTGRES_USER: ci
+      POSTGRES_PASSWORD: ${BACKEND_DB_PASSWORD:-ci_secret_dev}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      # Named volume cho app data (batches, dossiers, users, audit logs, …).
+      # Schema migrations chạy qua `alembic upgrade head` trong entrypoint
+      # của service `backend` — KHÔNG mount alembic vào initdb.d (file .py
+      # không phải SQL; postgres chỉ chạy script trực tiếp trong initdb.d).
+      - backend_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready trên user+db của backend. -q để log clean trong `compose ps`.
+      test: ["CMD-SHELL", "pg_isready -U ci -d contract_intelligence -q"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    ports:
+      # Host 5434 tránh xung đột với Postgres local (5432). Trong mạng Docker vẫn là 5432.
+      - "5434:5432"
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 4 — Apache Kafka (KRaft — no Zookeeper)
+  # =============================================================================
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: ci-kafka
+    restart: unless-stopped
+    mem_limit: ${KAFKA_MEM_LIMIT:-1g}
+    environment:
+      # ---- KRaft mode (combined controller + broker) ----
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      CLUSTER_ID: ci-kafka-cluster-id-01
+      # ---- Listeners ----
+      # PLAINTEXT  : inter-container (backend → kafka:29092)
+      # CONTROLLER : KRaft controller quorum
+      # EXTERNAL   : host access via localhost:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,EXTERNAL://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,EXTERNAL://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # Single-broker KRaft — required so __consumer_offsets / group coordinator can form
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      # Allow large OCR result payloads (~1.6MB+); default broker limit is 1 MiB
+      KAFKA_MESSAGE_MAX_BYTES: 10485760
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 10485760
+      # Must be >= message.max.bytes so the broker accepts the full request frame
+      KAFKA_SOCKET_REQUEST_MAX_BYTES: 10485760
+      # Heap: the image's default is -Xmx1G -Xms1G, a whole GiB held from the
+      # start for a single broker that carries a few OCR results.
+      KAFKA_HEAP_OPTS: ${KAFKA_HEAP_OPTS:--Xmx384m -Xms128m}
+    ports:
+      - "${KAFKA_HOST_PORT:-9093}:9093"
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 5 — Contract Intelligence Backend (FastAPI)
+  # =============================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ci-backend
+    restart: unless-stopped
+    mem_limit: ${BACKEND_MEM_LIMIT:-1g}
+    depends_on:
+      backend-db:
+        condition: service_healthy        # ⬅ đợi pg_isready pass
+      keycloak-readiness:
+        condition: service_healthy        # ⬅ đợi /health/ready của Keycloak
+      kafka:
+        condition: service_started        # ⬅ Kafka broker đã start (KRaft)
+      minio:
+        condition: service_started
+    environment:
+      # ---- Runtime ----
+      ENV: ${ENV:-dev}
+      # ---- DB ----
+      # Host = service name `backend-db` (Compose DNS), NOT container_name.
+      DATABASE_URL: postgresql+asyncpg://ci:${BACKEND_DB_PASSWORD:-ci_secret_dev}@backend-db:5432/contract_intelligence
+      # Password of the ai2 role (schema ai2 only), set at every start by the entrypoint.
+      AI2_DB_PASSWORD: ${AI2_DB_PASSWORD:-ai2_secret_dev}
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-10}
+      DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-20}
+      # ---- Keycloak SSO ----
+      AUTH_MODE: keycloak
+      # Issuer must match tokens minted from the Windows host (iss=localhost:8080).
+      KEYCLOAK_SERVER_URL: http://localhost:${KEYCLOAK_HTTP_HOST_PORT:-8080}
+      # Admin/token calls run inside the container, where localhost is not Keycloak.
+      KEYCLOAK_ADMIN_SERVER_URL: http://keycloak:8080
+      # JWKS must be reachable from inside the container (Keycloak service DNS).
+      KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/contract-intelligence/protocol/openid-connect/certs
+      KEYCLOAK_REALM: contract-intelligence
+      KEYCLOAK_CLIENT_ID: contract-intel-backend
+      KEYCLOAK_AUDIENCE: contract-intel-backend
+      # Realm-export uses OPERATOR/REVIEWER/ADMINISTRATOR; keep ci_* aliases too.
+      KEYCLOAK_ROLE_MAP: ${KEYCLOAK_ROLE_MAP:-{"OPERATOR":"OPERATOR","REVIEWER":"REVIEWER","ADMINISTRATOR":"ADMINISTRATOR","ci_operator":"OPERATOR","ci_reviewer":"REVIEWER","ci_administrator":"ADMINISTRATOR"}}
+
+      # ---- Admin REST API (Client Credentials Grant) ----
+      # Service account "contract-intel-backend" phải có realm-management
+      # client role view-users — xem realm-export.json.
+      KEYCLOAK_ADMIN_CLIENT_ID: contract-intel-backend
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${BACKEND_KEYCLOAK_ADMIN_SECRET:-backend_secret_dev}
+
+      # ---- Webhook signature verification ----
+      KEYCLOAK_WEBHOOK_SECRET: ${KEYCLOAK_WEBHOOK_SECRET:-ci_webhook_shared_secret_dev}
+      KEYCLOAK_WEBHOOK_VERIFY_SIGNATURE: "true"
+
+      # ---- Kafka (event-driven) ----
+      # Internal listener: containers resolve `kafka` via ci-network DNS.
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_DOSSIER_EVENTS_TOPIC: dossier_events
+      KAFKA_ORCHESTRATOR_GROUP_ID: ci-backend-orchestrator
+      KAFKA_AI1_OCR_COMMANDS_TOPIC: ci.ai1.ocr.commands
+      KAFKA_AI1_OCR_RESULTS_TOPIC: ci.ai1.ocr.results
+      KAFKA_BACKEND_AI1_RESULTS_GROUP_ID: ci-backend-ai1-results
+      KAFKA_PRESIGN_EXPIRES_SECONDS: "3600"
+
+      # ---- MinIO / S3-compatible object storage ----
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY: admin
+      S3_SECRET_KEY: password123
+      S3_BUCKET_NAME: dossiers
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: admin
+      MINIO_SECRET_KEY: password123
+      MINIO_BUCKET_RENDER: ci-render
+
+      # ---- AI service ----
+      # Canonical production path is AI2 HTTP; OCR runtime path is Kafka (DOC-05d).
+      AI_SERVICE_MODE: http
+      # Docker DNS — do NOT interpolate host .env (localhost:8002 breaks in-container).
+      AI2_BASE_URL: http://ai2-service:8002
+      AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-ci_ai2_hmac_secret_dev}
+      # Backend caps are ON for the full local/product profile; operators can
+      # narrow egress or vector recall from the project .env.
+      AI2_QUERY_EGRESS_ALLOWED: ${AI2_QUERY_EGRESS_ALLOWED:-true}
+      AI2_QUERY_USE_VECTOR: ${AI2_QUERY_USE_VECTOR:-true}
+      # Initial per-dossier consent is set where the dossier is created (API), not the worker.
+      AI2_CONTENT_SHARING_CONSENT_DEFAULT: ${AI2_CONTENT_SHARING_CONSENT_DEFAULT:-true}
+      # Clause-frame producer: freeze one trusted semantic profile per run.
+      # This must be present in the API and Kafka worker so both paths build
+      # the same request contract when semantic processing is enabled.
+      AI2_SEMANTIC_ENABLED: ${AI2_SEMANTIC_ENABLED:-true}
+      AI2_SEMANTIC_PROFILE_CONFIG: '{"version":1,"contract_type":"SALES","context_bounds":{"max_hops":2,"max_nodes":256,"max_context_tokens":32768,"max_output_tokens":8192,"max_llm_calls":20,"max_seconds":300},"alias_proposal_minimum_length":4}'
+
+      # ---- CORS ----
+      CORS_ALLOW_ORIGINS: "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173,http://127.0.0.1:3000"
+
+      # ---- Logging ----
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # glibc makes one heap per allocating thread (up to 8 x CPUs); two keep
+      # fragmentation and the post-job footprint lower.
+      MALLOC_ARENA_MAX: "2"
+
+      # ---- SMTP: cùng hộp thư với thư mời Keycloak. Mặc định Mailpit nếu chưa cấu hình. ----
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_FROM: ${SMTP_FROM:-lexis@localhost}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
+      # Thư mời bị trả về: đọc hộp thư gửi qua IMAP. Trống host = imap.gmail.com khi
+      # SMTP_HOST là smtp.gmail.com; trống user/password = SMTP_USER/SMTP_PASSWORD.
+      INVITE_BOUNCE_CHECK_ENABLED: ${INVITE_BOUNCE_CHECK_ENABLED:-true}
+      INVITE_BOUNCE_IMAP_HOST: ${INVITE_BOUNCE_IMAP_HOST:-}
+      INVITE_BOUNCE_IMAP_PORT: ${INVITE_BOUNCE_IMAP_PORT:-993}
+      INVITE_BOUNCE_IMAP_USER: ${INVITE_BOUNCE_IMAP_USER:-}
+      INVITE_BOUNCE_IMAP_PASSWORD: ${INVITE_BOUNCE_IMAP_PASSWORD:-}
+      INVITE_BOUNCE_PENDING_SECONDS: ${INVITE_BOUNCE_PENDING_SECONDS:-600}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:5173}
+
+      # ---- Monitoring (admin only) — see SERVICE 9-12 below ----
+      # /grafana/* is proxied by this backend after an ADMINISTRATOR check.
+      GRAFANA_UPSTREAM_URL: http://grafana:3000
+      GRAFANA_DASHBOARD_UID: ${GRAFANA_DASHBOARD_UID:-ci-overview}
+      MONITORING_SESSION_SECRET: ${MONITORING_SESSION_SECRET:-ci_monitoring_session_secret_dev}
+      MONITORING_SESSION_TTL_SECONDS: ${MONITORING_SESSION_TTL_SECONDS:-300}
+      # Frontend (localhost:5173) and API (127.0.0.1:8000) are different sites:
+      # SameSite=None + Secure + Partitioned. Browsers accept Secure on localhost.
+      MONITORING_COOKIE_SAMESITE: ${MONITORING_COOKIE_SAMESITE:-none}
+      MONITORING_COOKIE_SECURE: ${MONITORING_COOKIE_SECURE:-true}
+      # Prometheus scrape port — internal (ci-monitoring), never published.
+      METRICS_PORT: "9101"
+      # Listen only on ci-monitoring: AI1/AI2 on ci-network cannot read /metrics.
+      METRICS_BIND_ADDRESS: ${MONITORING_PROXY_IP:-172.30.240.10}
+    ports:
+      - "${BACKEND_HOST_PORT:-8000}:8000"
+    volumes:
+      # Source hot-reload (optional) — comment out khi ship production.
+      - ./backend/src:/app/src:ro
+      - ./backend/alembic:/app/alembic:ro
+      - ./backend/scripts/entrypoint.sh:/app/scripts/entrypoint.sh:ro
+    extra_hosts:
+      # host.docker.internal → host-gateway IP (trên cả Linux và Mac/Windows).
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      # /health trả {"status":"ok",...} khi app + DB ready.
+      # Slim image KHÔNG có curl → dùng Python urllib thay thế.
+      # `start_period` 30s cho FastAPI startup (load ORM models, build index, init AI stub).
+      test:
+        - CMD-SHELL
+        - 'python -c "import urllib.request, json, sys; r = urllib.request.urlopen(''http://localhost:8000/health'', timeout=3); sys.exit(0 if json.loads(r.read()).get(''status'') == ''ok'' else 1)"'
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    networks:
+      ci-network: {}
+      ci-monitoring:
+        # Fixed address: the only source Grafana accepts auth-proxy headers from.
+        ipv4_address: ${MONITORING_PROXY_IP:-172.30.240.10}
+
+  # =============================================================================
+  # SERVICE 5b — Backend Kafka orchestrator (dossier events + AI1 results)
+  # =============================================================================
+  backend-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ci-backend-worker
+    restart: unless-stopped
+    mem_limit: ${BACKEND_WORKER_MEM_LIMIT:-1g}
+    command: ["python", "-m", "contract_intelligence.worker"]
+    depends_on:
+      backend:
+        condition: service_healthy
+      backend-db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      minio:
+        condition: service_started
+    environment:
+      ENV: ${ENV:-dev}
+      DATABASE_URL: postgresql+asyncpg://ci:${BACKEND_DB_PASSWORD:-ci_secret_dev}@backend-db:5432/contract_intelligence
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_DOSSIER_EVENTS_TOPIC: dossier_events
+      KAFKA_ORCHESTRATOR_GROUP_ID: ci-backend-orchestrator
+      KAFKA_AI1_OCR_COMMANDS_TOPIC: ci.ai1.ocr.commands
+      KAFKA_AI1_OCR_RESULTS_TOPIC: ci.ai1.ocr.results
+      KAFKA_BACKEND_AI1_RESULTS_GROUP_ID: ci-backend-ai1-results
+      KAFKA_PRESIGN_EXPIRES_SECONDS: "3600"
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY: admin
+      S3_SECRET_KEY: password123
+      S3_BUCKET_NAME: dossiers
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: admin
+      MINIO_SECRET_KEY: password123
+      MINIO_BUCKET_RENDER: ci-render
+      # Docker DNS — do NOT interpolate host .env (localhost:8002 breaks in-container).
+      AI2_BASE_URL: http://ai2-service:8002
+      # Hand AI2 no more jobs than it runs at once (AI2_MAX_CONCURRENT_JOBS on
+      # ai2-service): the rest wait here, where there is no deadline, instead
+      # of QUEUED in AI2 against AI2_MAX_QUEUE_WAIT_SECONDS.
+      WORKER_AI2_MAX_CONCURRENCY: ${AI2_MAX_CONCURRENT_JOBS:-1}
+      AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-ci_ai2_hmac_secret_dev}
+      AI2_CONTENT_SHARING_CONSENT_DEFAULT: ${AI2_CONTENT_SHARING_CONSENT_DEFAULT:-true}
+      AI2_SEMANTIC_ENABLED: ${AI2_SEMANTIC_ENABLED:-true}
+      AI2_SEMANTIC_PROFILE_CONFIG: '{"version":1,"contract_type":"SALES","context_bounds":{"max_hops":2,"max_nodes":256,"max_context_tokens":32768,"max_output_tokens":8192,"max_llm_calls":20,"max_seconds":300},"alias_proposal_minimum_length":4}'
+      AI1_OCR_ENGINE: ${AI1_OCR_ENGINE:-mistral}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # glibc makes one heap per allocating thread (up to 8 x CPUs); two keep
+      # fragmentation and the post-job footprint lower.
+      MALLOC_ARENA_MAX: "2"
+    volumes:
+      - ./backend/src:/app/src:ro
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 5c — AI1 OCR Kafka worker
+  # =============================================================================
+  ai1-worker:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: ci-ai1-worker
+    restart: unless-stopped
+    mem_limit: ${AI1_MEM_LIMIT:-1536m}
+    depends_on:
+      kafka:
+        condition: service_started
+      minio:
+        condition: service_started
+    env_file:
+      - path: ./ai-service/.env
+        required: false
+      - path: ./.env.e2e
+        required: false
+    environment:
+      # Compose network overrides host defaults from ai-service/.env
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_AI1_OCR_COMMANDS_TOPIC: ci.ai1.ocr.commands
+      KAFKA_AI1_OCR_RESULTS_TOPIC: ci.ai1.ocr.results
+      KAFKA_AI1_OCR_GROUP_ID: ci-ai1-ocr
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # glibc makes one heap per allocating thread (up to 8 x CPUs); two keep
+      # fragmentation and the post-job footprint lower.
+      MALLOC_ARENA_MAX: "2"
+      # Aggregate OCR metrics for Prometheus (internal port, not published).
+      AI1_METRICS_PORT: "9108"
+    volumes:
+      - ./ai-service/src:/app/src:ro
+    networks:
+      - ci-network
+      - ci-monitoring
+
+  # =============================================================================
+  # SERVICE 5d — AI2 canonical IDP HTTP service
+  # =============================================================================
+  ai2-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile.ai2
+    container_name: ci-ai2-service
+    restart: unless-stopped
+    mem_limit: ${AI2_MEM_LIMIT:-3584m}
+    env_file:
+      - path: ./ai-service/.env
+        required: false
+      - path: ./.env.e2e
+        required: false
+    environment:
+      # Temporary `ci` until backend-db ships the `ai2` role (#52); then set
+      # AI2_DATABASE_URL=postgresql+psycopg://ai2:${AI2_DB_PASSWORD}@backend-db:5432/contract_intelligence
+      AI2_DATABASE_URL: ${AI2_DATABASE_URL:-postgresql+psycopg://ci:${BACKEND_DB_PASSWORD:-ci_secret_dev}@backend-db:5432/contract_intelligence}
+      AI2_REQUIRE_DATABASE: "true"
+      AI2_LLM_BASE_URL: ${AI2_LLM_BASE_URL:-https://api.openai.com/v1}
+      AI2_LLM_API_KEY: ${AI2_LLM_API_KEY:-}
+      AI2_LLM_MODEL: ${AI2_LLM_MODEL:-gpt-5.5}
+      AI2_LLM_STRONG_MODEL: ${AI2_LLM_STRONG_MODEL:-gpt-5.5}
+      AI2_LLM_LIGHT_REASONING_EFFORT: ${AI2_LLM_LIGHT_REASONING_EFFORT:-}
+      AI2_LLM_PROBE_MAX_TOKENS: ${AI2_LLM_PROBE_MAX_TOKENS:-}
+      AI2_LLM_PROBE_TIMEOUT_SECONDS: ${AI2_LLM_PROBE_TIMEOUT_SECONDS:-}
+      AI2_CONTRACT_GRAPH_ENABLED: ${AI2_CONTRACT_GRAPH_ENABLED:-true}
+      AI2_CONTRACT_GRAPH_PAIRS_ENABLED: ${AI2_CONTRACT_GRAPH_PAIRS_ENABLED:-true}
+      AI2_CONTRACT_GRAPH_PAIRS_MODEL: ${AI2_CONTRACT_GRAPH_PAIRS_MODEL:-gpt-5.5}
+      # Parallel pair batches; 1 = sequential (rollback switch, set in the shell on recreate).
+      AI2_PAIRS_CONCURRENCY: ${AI2_PAIRS_CONCURRENCY:-5}
+      # Pairs reasoning effort (minimal|low|medium|high); empty/provider_default = send none.
+      AI2_PAIRS_REASONING_EFFORT: ${AI2_PAIRS_REASONING_EFFORT:-}
+      AI2_SERVICE_HMAC_SECRET: ${AI2_SERVICE_HMAC_SECRET:-ci_ai2_hmac_secret_dev}
+      AI2_SERVICE_ISSUER: ${AI2_SERVICE_ISSUER:-backend-service}
+      AI2_SERVICE_AUDIENCE: ${AI2_SERVICE_AUDIENCE:-vsf-ai2}
+      AI2_SERVICE_KEY_ID: ${AI2_SERVICE_KEY_ID:-default}
+      AI2_QUERY_REQUIRE_SIGNATURE: "true"
+      AI2_SEMANTIC_ENABLED: ${AI2_SEMANTIC_ENABLED:-true}
+      AI2_PROCESSING_EGRESS_ALLOWED: ${AI2_PROCESSING_EGRESS_ALLOWED:-true}
+      AI2_QUERY_EGRESS_ALLOWED: ${AI2_QUERY_EGRESS_ALLOWED:-true}
+      AI2_QUERY_USE_LLM: ${AI2_QUERY_USE_LLM:-true}
+      AI2_QUERY_USE_VECTOR: ${AI2_QUERY_USE_VECTOR:-true}
+      AI2_VECTOR_RECALL_ENABLED: ${AI2_VECTOR_RECALL_ENABLED:-true}
+      AI2_QUERY_LLM_TIMEOUT_SECONDS: "15"
+      AI2_EMBEDDING_BASE_URL: ${AI2_EMBEDDING_BASE_URL:-https://api.openai.com/v1}
+      AI2_EMBEDDING_API_KEY: ${AI2_EMBEDDING_API_KEY:-}
+      AI2_EMBEDDING_DISCOVERY_ENABLED: ${AI2_EMBEDDING_DISCOVERY_ENABLED:-false}
+      AI2_EMBEDDING_MODEL: ${AI2_EMBEDDING_MODEL:-text-embedding-3-small}
+      AI2_SEMANTIC_CONTEXT_CAPS: '{"max_hops":2,"max_nodes":256,"max_context_tokens":32768,"max_output_tokens":8192,"max_llm_calls":20,"max_seconds":300}'
+      # LANGFUSE_* come from ai-service/.env; AI2's question traces get their own service name.
+      OTEL_SERVICE_NAME: contract-intelligence-ai2
+      # Aggregate question cost/tokens for Prometheus (internal port, not published).
+      AI2_METRICS_PORT: "9109"
+      # glibc makes one heap per allocating thread (up to 8 x CPUs); two keep
+      # fragmentation and the post-job footprint lower.
+      MALLOC_ARENA_MAX: "2"
+      # IDP jobs run one at a time; the rest wait QUEUED (the backend does not
+      # count queue time against the processing budget).
+      AI2_MAX_CONCURRENT_JOBS: ${AI2_MAX_CONCURRENT_JOBS:-1}
+      AI2_JOB_ISOLATION: ${AI2_JOB_ISOLATION:-process}
+    depends_on:
+      backend-db:
+        condition: service_healthy
+    # AI2 is internal-only; browser/API traffic enters through backend.
+    volumes:
+      - ./docs:/docs:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      ci-network:
+        aliases:
+          - ai2
+      # Prometheus reaches AI2_METRICS_PORT through this network.
+      ci-monitoring: {}
+    # Liveness only. /readyz probes the LLM provider: deploy.sh calls it once per
+    # deploy; probing it every 15 s cost a paid request each time and let a
+    # provider outage mark AI2 itself unhealthy.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - '/app/.venv/bin/python -c "import urllib.request; urllib.request.urlopen(''http://localhost:8002/healthz'', timeout=5)"'
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  # =============================================================================
+  # SERVICE 6 — MinIO S3-compatible object storage
+  # =============================================================================
+  minio:
+    # MinIO took its own images off Docker Hub (2026-09-11) and closed anonymous
+    # pulls on quay.io (2026-09-24). Chainguard builds the same server from
+    # source and publishes it for anonymous pulls.
+    image: cgr.dev/chainguard/minio:latest
+    # The image defaults to uid 65532; volumes written by the old image belong
+    # to root, so keep running as root to read and write them.
+    user: "0:0"
+    container_name: ci-minio
+    restart: unless-stopped
+    mem_limit: ${MINIO_MEM_LIMIT:-768m}
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password123
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"     # S3 API
+      - "9001:9001"     # Web UI (http://localhost:9001)
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 7 — Mailpit (SMTP bắt thư mời đặt mật khẩu, chỉ local)
+  # Web UI: http://localhost:8025
+  # =============================================================================
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: ci-mailpit
+    restart: unless-stopped
+    mem_limit: ${MAILPIT_MEM_LIMIT:-128m}
+    profiles: ["core"]
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # SERVICE 8 — MinIO bucket initialization (create `dossiers`, private)
+  # =============================================================================
+  minio-init:
+    # -dev: the variant with a shell, which the entrypoint below needs.
+    image: cgr.dev/chainguard/minio-client:latest-dev
+    container_name: ci-minio-init
+    depends_on:
+      - minio
+    entrypoint: /bin/sh -c "until (/usr/bin/mc alias set myminio http://minio:9000 admin password123) do echo 'waiting for minio...' && sleep 1; done; /usr/bin/mc mb --ignore-existing myminio/dossiers; /usr/bin/mc mb --ignore-existing myminio/ci-render; /usr/bin/mc anonymous set private myminio/dossiers; /usr/bin/mc anonymous set private myminio/ci-render; exit 0;"
+    networks:
+      - ci-network
+
+  # =============================================================================
+  # MONITORING — Prometheus + Grafana + Node Exporter + cAdvisor
+  #
+  #   browser ─▶ backend /grafana/* ─(ADMINISTRATOR check, sets X-WEBAUTH-USER)─▶ grafana:3000
+  #                                                         grafana ─▶ prometheus:9090
+  #   prometheus ─▶ node-exporter:9100, cadvisor:8080, backend:9101, ai1-worker:9108,
+  #                 ai2-service:9109
+  #
+  # None of these publish a port. They share `ci-monitoring` (internal: no
+  # route out), so only the backend — at its fixed IP — can reach Grafana with
+  # an auth-proxy header. Langfuse Cloud stays the per-trace tool; Prometheus
+  # holds aggregates only.
+  # =============================================================================
+
+  # SERVICE 9 — Prometheus (metrics store, internal only)
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: ci-prometheus
+    restart: unless-stopped
+    mem_limit: ${PROMETHEUS_MEM_LIMIT:-512m}
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME:-15d}
+      - --storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-5GB}
+    volumes:
+      - ./infra/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - ci-monitoring
+
+  # SERVICE 10 — Grafana (embedded in /admin/monitoring through the backend)
+  grafana:
+    image: grafana/grafana-oss:12.1.1
+    container_name: ci-grafana
+    restart: unless-stopped
+    mem_limit: ${GRAFANA_MEM_LIMIT:-256m}
+    depends_on:
+      - prometheus
+    environment:
+      # ---- Served under the API origin at /grafana (backend proxy) ----
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://127.0.0.1:8000/grafana/}
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      # ---- Auth proxy: identity comes ONLY from the backend's fixed IP ----
+      GF_AUTH_PROXY_ENABLED: "true"
+      GF_AUTH_PROXY_HEADER_NAME: X-WEBAUTH-USER
+      GF_AUTH_PROXY_HEADER_PROPERTY: username
+      GF_AUTH_PROXY_HEADERS: Role:X-WEBAUTH-ROLE
+      GF_AUTH_PROXY_AUTO_SIGN_UP: "true"
+      GF_AUTH_PROXY_WHITELIST: ${MONITORING_PROXY_IP:-172.30.240.10}
+      GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN: "false"
+      # ---- No anonymous access, no other way in ----
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_AUTH_BASIC_ENABLED: "false"
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-ci-grafana-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-ci_grafana_admin_dev}
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      # ---- Application admins are Grafana Viewers, nothing more ----
+      GF_USERS_AUTO_ASSIGN_ORG: "true"
+      GF_USERS_AUTO_ASSIGN_ORG_ID: "1"
+      GF_USERS_AUTO_ASSIGN_ORG_ROLE: Viewer
+      GF_USERS_VIEWERS_CAN_EDIT: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_ALLOW_ORG_CREATE: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/ci-overview.json
+      # ---- Internal network has no Internet: no phoning home, no sharing ----
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_PLUGINS_PUBLIC_KEY_RETRIEVAL_DISABLED: "true"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"
+      GF_PUBLIC_DASHBOARDS_ENABLED: "false"
+      # The backend proxy does not carry websockets; panels poll instead.
+      GF_LIVE_MAX_CONNECTIONS: "0"
+      GF_LOG_LEVEL: ${GRAFANA_LOG_LEVEL:-warn}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+    networks:
+      - ci-monitoring
+
+  # SERVICE 11 — Node Exporter (host CPU / RAM / disk / load)
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: ci-node-exporter
+    restart: unless-stopped
+    mem_limit: ${NODE_EXPORTER_MEM_LIMIT:-64m}
+    command:
+      - --path.rootfs=/host
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+)($$|/)
+    pid: host
+    volumes:
+      # Docker Desktop refuses rslave here; deploy/compose.prod.yml (Linux) adds it.
+      - /:/host:ro
+    networks:
+      - ci-monitoring
+
+  # SERVICE 12 — cAdvisor (per-container CPU / RAM / status / restarts)
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.53.0
+    container_name: ci-cadvisor
+    restart: unless-stopped
+    mem_limit: ${CADVISOR_MEM_LIMIT:-256m}
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    command:
+      # Read containers through containerd (namespace "moby", where Docker runs
+      # every container). cAdvisor's Docker handler cannot read the containerd
+      # image store (default since Docker Engine 29 and on Docker Desktop), so
+      # it is switched off; no docker.sock is mounted either.
+      - --docker=unix:///nonexistent/docker.sock
+      - --containerd=/run/containerd/containerd.sock
+      - --containerd-namespace=moby
+      # Keep the root cgroup: its network counters are the host's interfaces.
+      - --docker_only=false
+      - --housekeeping_interval=15s
+      # Container labels/env can hold configuration; export usage only.
+      - --store_container_labels=false
+      - --disable_metrics=percpu,sched,tcp,udp,hugetlb,referenced_memory,cpu_topology,resctrl,advtcp,memory_numa,process
+    volumes:
+      - /:/rootfs:ro
+      - /sys:/sys:ro
+      - /dev/disk/:/dev/disk:ro
+      - /run/containerd/containerd.sock:/run/containerd/containerd.sock:ro
+    networks:
+      - ci-monitoring
+
+
+# -----------------------------------------------------------------------------
+# Volumes — named, local driver
+# -----------------------------------------------------------------------------
+volumes:
+  keycloak_pgdata:
+    driver: local
+  backend_pgdata:
+    driver: local
+  kafka_data_v2:
+    driver: local
+  minio_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+
+# -----------------------------------------------------------------------------
+# Networks — custom bridge để container resolve nhau bằng service name
+# -----------------------------------------------------------------------------
+networks:
+  ci-network:
+    name: ci-network
+    driver: bridge
+  # Monitoring only. internal: no route to the Internet or the host. The fixed
+  # subnet lets Grafana whitelist the backend's address for auth-proxy headers.
+  ci-monitoring:
+    name: ci-monitoring
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: ${MONITORING_SUBNET:-172.30.240.0/24}

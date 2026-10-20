@@ -1,0 +1,41 @@
+{
+  "schema_version": "ai1.snapshot.v1",
+  "snapshot_id": "eval-relation-v1",
+  "dossier_id": "eval_relation_v1",
+  "document_id": "doc-relation-v1",
+  "run_id": "run-relation-v1",
+  "source_digest": "5555555555555555555555555555555555555555555555555555555555555555",
+  "execution": {"ocr_engine": "fixture", "attempt": 1},
+  "producer": {"name": "AI1 coverage fixture", "version": "1"},
+  "status": "SUCCESS",
+  "pages": [
+    {
+      "page_no": 1,
+      "page_revision_id": "eval-relation-v1:p1:r1",
+      "input_type": "PDF_TEXT",
+      "status": "SUCCESS",
+      "raw_text_digest": "6666666666666666666666666666666666666666666666666666666666666666",
+      "transform": {"rotation_degrees": 0, "profile_version": "coverage"},
+      "table_coverage": {"status": "NOT_PRESENT", "method": "layout-v1"},
+      "lines": [
+        {"line_id": "p1-l1", "raw_text": "DIEU 1. Ngay lam viec la ngay duoc dinh nghia trong hop dong.", "bbox": [0.1, 0.1, 0.9, 0.2], "words": []},
+        {"line_id": "p1-l2", "raw_text": "DIEU 8. Thanh toan can cu vao ngay lam viec.", "bbox": [0.1, 0.22, 0.9, 0.32], "words": []}
+      ],
+      "tables": []
+    },
+    {
+      "page_no": 2,
+      "page_revision_id": "eval-relation-v1:p2:r1",
+      "input_type": "PDF_TEXT",
+      "status": "SUCCESS",
+      "raw_text_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+      "transform": {"rotation_degrees": 0, "profile_version": "coverage"},
+      "table_coverage": {"status": "NOT_PRESENT", "method": "layout-v1"},
+      "lines": [
+        {"line_id": "p2-l1", "raw_text": "PHU LUC 13. Sua dinh nghia ngay lam viec.", "bbox": [0.1, 0.1, 0.9, 0.2], "words": []},
+        {"line_id": "p2-l2", "raw_text": "Dieu 8 ap dung theo phu luc nay tu ngay co hieu luc.", "bbox": [0.1, 0.22, 0.9, 0.32], "words": []}
+      ],
+      "tables": []
+    }
+  ]
+}

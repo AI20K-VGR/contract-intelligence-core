@@ -1,0 +1,19 @@
+{
+  "schema_version": "ai2.eval.strategy.v1",
+  "domain": "ai2_fact_pair_citation",
+  "strategy": "ground-truth",
+  "surface": "extraction",
+  "production_module": "app/pipeline/idp.py",
+  "production_entry": "run_idp",
+  "mirror_lang": "python",
+  "note": "Approved at R7. Official eval_config.py write refused the self-target fence, so this card lives beside the other domain cards and does not replace evals/eval_config.json. The runner calls run_idp. It does not mirror the LLM.",
+  "threshold": 90,
+  "primary_dimension": "fact_accuracy",
+  "dimensions": {
+    "fact_accuracy": 40,
+    "pair_disposition": 30,
+    "citation_identity": 30
+  },
+  "approved_by": "user-approved",
+  "approved_ts": "2026-09-28T03:40:00+07:00"
+}

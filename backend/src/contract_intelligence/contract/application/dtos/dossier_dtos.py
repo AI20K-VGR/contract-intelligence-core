@@ -1,0 +1,222 @@
+"""DTOs for Dossier endpoints — Phase 1 alignment with openapi.yaml.
+
+Schemas match DOC-05-api-spec.yaml components:
+    DossierSummary  (lines 1779-1789)   — for list responses
+    Dossier         (lines 1761-1778)   — for detail responses
+    DossierCreated  (ApiEnvelopeDossierCreated, line 2320) — for POST /dossiers
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from contract_intelligence.contract.domain.entities.document import Document, DocumentRole
+from contract_intelligence.contract.domain.entities.dossier import Dossier
+from contract_intelligence.contract.domain.entities.job import JobStatus
+
+
+class MyAccessDTO(BaseModel):
+    """What the caller may do on a dossier (``shared.acl.dossier_my_access``).
+
+    Clients use the ``can_*`` flags to show or hide actions instead of
+    re-deriving them from ``metadata.shared_with``. They answer the ACL only:
+    a ``locked`` dossier still refuses changes.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    owner: bool = False
+    # The share naming the caller; null for none (the owner needs none).
+    permission: Literal["read", "edit"] | None = None
+    expires_at: datetime | None = None
+    expired: bool = False
+    can_edit: bool = False
+    can_review: bool = False
+    can_see_review: bool = False
+    can_manage: bool = False
+    can_approve: bool = False
+
+
+class DocumentCountsDTO(BaseModel):
+    """Documents of a dossier by role."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    contracts: int = 0
+    annexes: int = 0
+
+
+class ContractOcrSummaryDTO(BaseModel):
+    """OCR state of the dossier's first contract (else first document).
+
+    Gives the list screen what it used to read from ``/documents`` and
+    ``/documents/{id}/pages`` per dossier. A page counts as failed when its
+    ``ai1_page_status`` is ``FAILED`` or it carries an error; ``first_error``
+    is that page's raw error (capped at 500 characters).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: str
+    filename: str | None = None
+    page_count: int = 0
+    failed_pages: int = 0
+    first_error: str | None = None
+
+
+class DossierSummaryDTO(BaseModel):
+    """Lightweight dossier projection for list endpoints (openapi.yaml: DossierSummary)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    name: str
+    batch_id: str | None = None
+    has_conflicts: bool = False
+    latest_job_status: JobStatus | None = None
+    open_review_items: int = 0
+    pending_conflicts: int = 0
+    # Lifecycle: locked for approval (no more edits or review), then approved.
+    locked: bool = False
+    approved_at: datetime | None = None
+    my_access: MyAccessDTO | None = None
+    metadata: dict[str, Any] | None = None
+    created_at: datetime
+    # Null when the caller may not read the dossier's documents.
+    document_counts: DocumentCountsDTO | None = None
+    # Null when the dossier has no document yet or the caller may not read it.
+    contract_ocr: ContractOcrSummaryDTO | None = None
+
+    @classmethod
+    def from_domain(
+        cls,
+        dossier: Dossier,
+        *,
+        latest_job_status: JobStatus | None = None,
+        open_review_items: int = 0,
+        pending_conflicts: int = 0,
+        locked: bool = False,
+        approved_at: datetime | None = None,
+    ) -> DossierSummaryDTO:
+        return cls(
+            id=dossier.id,
+            name=dossier.name,
+            batch_id=dossier.batch_id,
+            has_conflicts=dossier.has_conflicts,
+            latest_job_status=latest_job_status,
+            open_review_items=open_review_items,
+            pending_conflicts=pending_conflicts,
+            locked=locked,
+            approved_at=approved_at,
+            metadata=dossier.metadata,
+            created_at=dossier.created_at,
+        )
+
+
+class DossierDetailDTO(BaseModel):
+    """Full dossier detail (openapi.yaml: Dossier)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    name: str
+    batch_id: str | None = None
+    has_conflicts: bool = False
+    latest_job_id: str | None = None
+    latest_job_status: JobStatus | None = None
+    # Why the latest job failed (e.g. AI2_TIMEOUT, RUN_CANCELLED); picks the retry endpoint.
+    latest_job_error_code: str | None = None
+    documents: list[DocumentSummaryDTO] = Field(default_factory=list)
+    open_review_items: int = 0
+    pending_conflicts: int = 0
+    locked: bool = False
+    approved_at: datetime | None = None
+    my_access: MyAccessDTO | None = None
+    metadata: dict[str, Any] | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    @classmethod
+    def from_domain(
+        cls,
+        dossier: Dossier,
+        *,
+        documents: list[Document] | None = None,
+        latest_job_id: str | None = None,
+        latest_job_status: JobStatus | None = None,
+        latest_job_error_code: str | None = None,
+        open_review_items: int = 0,
+        pending_conflicts: int = 0,
+        locked: bool = False,
+        approved_at: datetime | None = None,
+    ) -> DossierDetailDTO:
+        return cls(
+            id=dossier.id,
+            name=dossier.name,
+            batch_id=dossier.batch_id,
+            has_conflicts=dossier.has_conflicts,
+            latest_job_id=latest_job_id,
+            latest_job_status=latest_job_status,
+            latest_job_error_code=latest_job_error_code,
+            documents=[DocumentSummaryDTO.from_domain(d) for d in (documents or [])],
+            open_review_items=open_review_items,
+            pending_conflicts=pending_conflicts,
+            locked=locked,
+            approved_at=approved_at,
+            metadata=dossier.metadata,
+            created_at=dossier.created_at,
+            updated_at=dossier.updated_at,
+        )
+
+
+class DocumentSummaryDTO(BaseModel):
+    """Document summary embedded in Dossier detail (subset of Document)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    dossier_id: str
+    role: DocumentRole
+    order_index: int
+    filename: str
+    sha256: str
+    page_count: int = 0
+    file_size_bytes: int = 0
+    lang_detected: str | None = None
+
+    @classmethod
+    def from_domain(cls, doc: Document) -> DocumentSummaryDTO:
+        return cls(
+            id=doc.id,
+            dossier_id=doc.dossier_id,
+            role=doc.role,
+            order_index=doc.order_index,
+            filename=doc.filename,
+            sha256=doc.sha256,
+            page_count=doc.page_count,
+            file_size_bytes=doc.file_size_bytes,
+            lang_detected=doc.lang_detected,
+        )
+
+
+class DossierCreatedDTO(BaseModel):
+    """Response data for POST /dossiers multipart upload.
+
+    Maps to ApiEnvelopeDossierCreated.data in openapi.yaml (line 2320).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    dossier_id: str
+    job_id: str | None = None
+
+
+__all__ = [
+    "DossierSummaryDTO",
+    "DossierDetailDTO",
+    "DocumentSummaryDTO",
+    "DossierCreatedDTO",
+]

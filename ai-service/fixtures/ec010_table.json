@@ -1,0 +1,5 @@
+{
+  "ec": "EC-010",
+  "description": "Table with missing cell must not coerce to 0",
+  "table_id": "table_1"
+}

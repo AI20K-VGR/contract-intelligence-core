@@ -1,0 +1,28 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.3, pytest-9.1.1, pluggy-1.6.0 -- E:\Project_OJT\contract-intelligence-core\backend\.venv\Scripts\python.exe
+rootdir: E:\Project_OJT\contract-intelligence-core\backend
+configfile: pyproject.toml
+plugins: anyio-4.15.1, asyncio-1.4.0, cov-7.1.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 18 items
+
+tests/integration/test_review_action_hardening.py::test_action_writes_audit_event PASSED [  5%]
+tests/integration/test_review_action_hardening.py::test_action_refused_on_locked_or_approved_dossier[is_locked] PASSED [ 11%]
+tests/integration/test_review_action_hardening.py::test_action_refused_on_locked_or_approved_dossier[is_approved] PASSED [ 16%]
+tests/integration/test_review_action_hardening.py::test_base_version_zero_is_rejected PASSED [ 22%]
+tests/integration/test_review_action_hardening.py::test_racing_action_on_same_base_version_returns_409 PASSED [ 27%]
+tests/unit/test_review_router.py::TestSubmitAction::test_returns_200_with_new_version PASSED [ 33%]
+tests/unit/test_review_router.py::TestSubmitAction::test_accepts_base_version_one PASSED [ 38%]
+tests/unit/test_review_router.py::TestSubmitAction::test_returns_409_on_version_conflict PASSED [ 44%]
+tests/unit/test_review_router.py::TestSubmitAction::test_invalid_action_returns_422 PASSED [ 50%]
+tests/unit/test_review_router.py::TestListRevisions::test_returns_append_only_trail PASSED [ 55%]
+tests/unit/test_approval_router.py::TestLock::test_lock_ok PASSED        [ 61%]
+tests/unit/test_approval_router.py::TestLock::test_lock_already_locked_409 PASSED [ 66%]
+tests/unit/test_approval_router.py::TestApprove::test_approve_ok PASSED  [ 72%]
+tests/unit/test_approval_router.py::TestApprove::test_approve_precondition_409 PASSED [ 77%]
+tests/unit/test_approval_router.py::TestExternalApproval::test_create_201 PASSED [ 83%]
+tests/unit/test_approval_router.py::TestExternalApproval::test_create_409 PASSED [ 88%]
+tests/unit/test_approval_router.py::TestExternalApproval::test_callback_by_grant_id PASSED [ 94%]
+tests/integration/test_ai2_review_fixes_flow.py::test_review_queue_rejects_stale_version_after_invalid_evidence PASSED [100%]
+
+============================= 18 passed in 4.18s ==============================

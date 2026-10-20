@@ -1,0 +1,1149 @@
+import { useEffect, useMemo, useState } from 'react'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
+import {
+  listDossiers,
+  accessSaveErrorMessage,
+  listDossiersErrorMessage,
+  SHARE_EMAIL_NOT_FOUND,
+  shareEmailNotice,
+  updateDossierAccess,
+  type DossierShareGrant,
+} from '../api/dossiers'
+import {
+  listUserDirectory,
+  lookupUserByEmail,
+  type TenantUser,
+  type ManagedUserStatus,
+} from '../api/users'
+import { homePath, validateWorkEmail } from '../auth/session'
+import { useAuth } from '../auth/useAuth'
+import { MaterialIcon } from '../components/icons'
+import { dossierOpenTo, type Dossier } from '../data/dossiers'
+import { usePageTitle } from '../hooks/usePageTitle'
+import {
+  formatExpiry,
+  fromDateInput,
+  grantEffect,
+  grantPermission,
+  isGrantExpired,
+  permissionLabels,
+  shareRoleLabels,
+  todayInput,
+  toDateInput,
+  type SharePermission,
+  type ShareRole,
+} from '../data/shareGrant'
+import { dossierFromSummary } from './MyDossiersPage'
+
+type AccessFilter = 'all' | Dossier['access']
+
+type GrantOption = { permission: SharePermission; expires: string }
+
+const DEFAULT_OPTION: GrantOption = { permission: 'read', expires: '' }
+
+/** Người có thể được chia sẻ: từ danh sách người dùng, lượt chia sẻ cũ hoặc email vừa tra. */
+type SharePerson = {
+  id: string
+  email: string
+  display_name: string
+  role?: ShareRole
+  status?: ManagedUserStatus
+}
+
+const OWN_EMAIL = 'Đây là email của bạn. Hãy nhập email của người nhận.'
+
+const filters: { id: AccessFilter; label: string; dot?: string }[] = [
+  { id: 'all', label: 'Tất cả' },
+  { id: 'mine', label: 'Hồ sơ của tôi', dot: 'bg-emerald-600' },
+  { id: 'shared_out', label: 'Hồ sơ đã chia sẻ', dot: 'bg-amber-500' },
+  { id: 'shared_in', label: 'Hồ sơ được chia sẻ', dot: 'bg-[#2563eb]' },
+]
+
+export function AccessPage() {
+  const { user } = useAuth()
+  const isAdmin = user?.backendRole === 'ADMINISTRATOR'
+  // Vận hành chia sẻ được hồ sơ của chính mình (DOSSIER_MANAGE), nhưng không xem
+  // được danh sách người dùng: chỉ nhập email người nhận để hệ thống tra.
+  const sharedOnly = !isAdmin && user?.backendRole !== 'OPERATOR'
+  usePageTitle('Quyền truy cập')
+  const [params, setParams] = useSearchParams()
+  const selectedId = params.get('dossier')
+  const [dossiers, setDossiers] = useState<Dossier[]>([])
+  const [people, setPeople] = useState<TenantUser[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [filter, setFilter] = useState<AccessFilter>(
+    sharedOnly ? 'shared_in' : 'all',
+  )
+  const [chosen, setChosen] = useState<string[]>([])
+  const [options, setOptions] = useState<Record<string, GrantOption>>({})
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<{
+    text: string
+    icon: string
+    /** Cảnh báo cần đọc kỹ: không tự đóng. */
+    sticky?: boolean
+  } | null>(null)
+  const [found, setFound] = useState<SharePerson[]>([])
+  const [emailInput, setEmailInput] = useState('')
+  const [emailError, setEmailError] = useState<string | null>(null)
+  const [checkingEmail, setCheckingEmail] = useState(false)
+  /** Hồ sơ đang mở hộp ngừng chia sẻ và những người được chọn để thu hồi. */
+  const [revokeId, setRevokeId] = useState<string | null>(null)
+  const [revoking, setRevoking] = useState<string[]>([])
+
+  const selected = dossiers.find((item) => item.id === selectedId) ?? null
+  const tenants = useMemo(
+    () => people.filter((person) => person.id !== user?.id),
+    [people, user?.id],
+  )
+  // Ai cũng chọn được: danh sách người dùng (chỉ Quản trị tải được), người đang
+  // được chia sẻ hồ sơ này, và người vừa tra bằng email. Lúc lưu dựng lại từ
+  // danh sách này, nên không làm rơi lượt chia sẻ cũ khi không có danh sách người dùng.
+  const candidates = useMemo(() => {
+    const byId = new Map<string, SharePerson>()
+    for (const person of tenants) byId.set(person.id, person)
+    for (const grant of selected?.shares ?? []) {
+      if (grant.id === user?.id || byId.has(grant.id)) continue
+      byId.set(grant.id, {
+        id: grant.id,
+        email: grant.email,
+        display_name: grant.display_name || grant.email,
+        status: grant.status,
+      })
+    }
+    for (const person of found) {
+      if (!byId.has(person.id)) byId.set(person.id, person)
+    }
+    return [...byId.values()]
+  }, [found, selected?.shares, tenants, user?.id])
+  const visible = useMemo(
+    () =>
+      filter === 'all'
+        ? dossiers
+        : dossiers.filter((item) => item.access === filter),
+    [dossiers, filter],
+  )
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setLoading(true)
+    listDossiers({ limit: 100, offset: 0, signal: controller.signal })
+      .then((result) => {
+        if (controller.signal.aborted) return
+        setDossiers(
+          result.items.map((item) =>
+            dossierFromSummary(item, user?.id, user?.email),
+          ),
+        )
+        setError(null)
+      })
+      .catch((cause: unknown) => {
+        const message = listDossiersErrorMessage(cause)
+        if (message && !controller.signal.aborted) setError(message)
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+    // Danh bạ cả đơn vị chỉ Quản trị tải không cần gõ; Vận hành nhập email để tra.
+    if (isAdmin) {
+      listUserDirectory({ limit: 100, offset: 0, signal: controller.signal })
+        .then((users) => {
+          if (!controller.signal.aborted) setPeople(users)
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setPeople([])
+        })
+    }
+    return () => controller.abort()
+  }, [isAdmin, user?.id, user?.email])
+
+  useEffect(() => {
+    setChosen(selected?.shares?.map((item) => item.id) ?? [])
+    setOptions(
+      Object.fromEntries(
+        (selected?.shares ?? []).map((item) => [
+          item.id,
+          {
+            permission: grantPermission(item),
+            expires: toDateInput(item.expires_at),
+          },
+        ]),
+      ),
+    )
+    setSaveError(null)
+    setFound([])
+    setEmailInput('')
+    setEmailError(null)
+  }, [selected])
+
+  useEffect(() => {
+    if (!notice || notice.sticky) return
+    const timer = window.setTimeout(() => setNotice(null), 5000)
+    return () => window.clearTimeout(timer)
+  }, [notice])
+
+  function select(id: string) {
+    setParams({ dossier: id })
+    if (id) setRevokeId(null)
+  }
+
+  function choose(id: string) {
+    setChosen((current) => (current.includes(id) ? current : [...current, id]))
+  }
+
+  // Kiểm tra email có trong đơn vị trước, rồi mới thêm vào danh sách chia sẻ:
+  // email sai không được lưu, không có thư nào gửi đi, không báo "đã lưu".
+  async function addByEmail() {
+    if (!emailInput.trim() || checkingEmail) return
+    setEmailError(null)
+    let normalized = ''
+    try {
+      normalized = validateWorkEmail(emailInput)
+    } catch (cause) {
+      setEmailError(
+        cause instanceof Error ? cause.message : 'Email không hợp lệ.',
+      )
+      return
+    }
+    const email = normalized
+    if (normalized === user?.email?.trim().toLowerCase()) {
+      setEmailError(OWN_EMAIL)
+      return
+    }
+    const known = candidates.find(
+      (person) => person.email.trim().toLowerCase() === normalized,
+    )
+    if (known) {
+      choose(known.id)
+      setEmailInput('')
+      return
+    }
+    setCheckingEmail(true)
+    try {
+      const person = await lookupUserByEmail(email)
+      if (!person) {
+        setEmailError(SHARE_EMAIL_NOT_FOUND)
+        return
+      }
+      if (person.id === user?.id) {
+        setEmailError(OWN_EMAIL)
+        return
+      }
+      setFound((current) => [...current, person])
+      choose(person.id)
+      setEmailInput('')
+    } catch {
+      setEmailError('Chưa kiểm tra được email. Vui lòng thử lại.')
+    } finally {
+      setCheckingEmail(false)
+    }
+  }
+
+  function openRevoke(id: string | null) {
+    setRevokeId(id)
+    setRevoking([])
+    setSaveError(null)
+    if (id) setParams({})
+  }
+
+  // API ghi đè cả danh sách: gửi lại những người còn giữ nguyên quyền và hạn
+  // (lượt đã hết hạn gửi lại y nguyên vẫn được backend giữ). Bỏ hết thì về "của tôi".
+  function revokeAccess(dossier: Dossier, removeIds: string[]) {
+    const remaining = (dossier.shares ?? []).filter(
+      (grant) => !removeIds.includes(grant.id),
+    )
+    if (remaining.length === 0) {
+      void applyAccess(dossier, 'mine', [])
+      return
+    }
+    void applyAccess(
+      dossier,
+      'shared_out',
+      remaining,
+      `Đã ngừng chia sẻ với ${removeIds.length} người.`,
+    )
+  }
+
+  function saveAccess(
+    dossier: Dossier,
+    nextScope: Dossier['access'],
+    shareIds: string[],
+    shareOptions: Record<string, GrantOption> = {},
+  ) {
+    const shares =
+      nextScope === 'mine'
+        ? []
+        : candidates
+            .filter((person) => shareIds.includes(person.id))
+            .map((person) => ({
+              id: person.id,
+              email: person.email,
+              display_name: person.display_name,
+              status: person.status,
+              permission: (shareOptions[person.id] ?? DEFAULT_OPTION)
+                .permission,
+              expires_at: fromDateInput(
+                (shareOptions[person.id] ?? DEFAULT_OPTION).expires,
+              ),
+            }))
+    void applyAccess(dossier, nextScope, shares)
+  }
+
+  async function applyAccess(
+    dossier: Dossier,
+    nextScope: Dossier['access'],
+    shares: DossierShareGrant[],
+    savedText = 'Đã lưu quyền truy cập.',
+  ) {
+    setSavingId(dossier.id)
+    setSaveError(null)
+    try {
+      const saved = await updateDossierAccess(dossier.id, nextScope, shares)
+      setDossiers((current) =>
+        current.map((item) =>
+          item.id === dossier.id
+            ? { ...item, access: saved.scope, shares: saved.shared_with }
+            : item,
+        ),
+      )
+      setChosen(saved.shared_with.map((item) => item.id))
+      // Đóng hộp và báo đã lưu để người dùng biết thao tác thành công.
+      setParams({})
+      setRevokeId(null)
+      const mailWarning = shareEmailNotice(saved.email_not_sent)
+      setNotice(
+        mailWarning
+          ? { text: mailWarning, icon: 'warning', sticky: true }
+          : {
+              text:
+                nextScope === 'mine'
+                  ? 'Đã đổi thành hồ sơ của bạn, không còn chia sẻ.'
+                  : savedText,
+              icon: 'check_circle',
+            },
+      )
+    } catch (cause: unknown) {
+      setSaveError(accessSaveErrorMessage(cause))
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  if (user?.backendRole === 'REVIEWER') {
+    return <Navigate to={homePath(user.role)} replace />
+  }
+
+  const shownFilters = sharedOnly
+    ? filters.filter((item) => item.id === 'shared_in')
+    : filters
+  const columnCount = sharedOnly ? 6 : 7
+
+  return (
+    <div className="flex flex-col w-full pb-margin-lg">
+      <p className="font-body-sm text-body-sm text-on-surface-variant pb-space-lg">
+        {sharedOnly
+          ? 'Hồ sơ người khác chia sẻ cho bạn.'
+          : 'Phân loại hồ sơ bạn tải lên, hồ sơ bạn đã chia sẻ và hồ sơ người khác chia sẻ cho bạn.'}
+      </p>
+
+      <div className="bg-surface-container-lowest rounded-lg shadow-[0_1px_3px_rgba(15,23,42,0.06)] flex flex-col">
+        <div className="p-space-md bg-surface-container-lowest">
+          <div className="inline-flex items-center bg-surface-container-low p-1 rounded-lg gap-1 flex-wrap">
+            {shownFilters.map((item) => {
+              const active = filter === item.id
+              const count =
+                item.id === 'all'
+                  ? dossiers.length
+                  : dossiers.filter((row) => row.access === item.id).length
+              return (
+                <button
+                  key={item.id}
+                  className={`px-3 py-1 rounded font-label-sm text-label-sm uppercase tracking-wide flex items-center gap-1.5 transition-colors ${
+                    active
+                      ? 'bg-surface-container-lowest text-on-surface shadow-sm font-semibold'
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                  type="button"
+                  onClick={() => setFilter(item.id)}
+                >
+                  {item.dot ? (
+                    <span className={`w-1.5 h-1.5 rounded-full ${item.dot}`} />
+                  ) : null}
+                  <span>{item.label}</span>
+                  <span
+                    className={`font-code-sm text-[11px] ${
+                      item.id === 'all' && active
+                        ? 'text-on-surface-variant'
+                        : ''
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="w-full">
+          {/* table-fixed: chữ dài bị cắt "…" thay vì đẩy bảng tràn ngang. */}
+          <table className="w-full table-fixed text-left font-body-sm text-body-sm border-collapse">
+            <thead>
+              <tr className="bg-surface-container-low text-on-secondary-container font-label-sm text-label-sm uppercase tracking-wider">
+                <th className="py-3 px-3 font-semibold">Hồ sơ</th>
+                <th className="py-3 px-3 font-semibold">Người có quyền</th>
+                <th className="py-3 px-3 font-semibold w-[7rem]">Vai trò</th>
+                <th className="py-3 px-3 font-semibold w-[7.5rem]">Quyền</th>
+                <th className="py-3 px-3 font-semibold w-[8rem]">Hạn</th>
+                <th className="hidden xl:table-cell py-3 px-3 font-semibold w-[7.5rem]">
+                  Tải lên
+                </th>
+                {sharedOnly ? null : (
+                  <th className="py-3 px-3 font-semibold w-[6.5rem]">
+                    Thao tác
+                  </th>
+                )}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-container-low text-on-surface">
+              {error ? (
+                <tr>
+                  <td
+                    className="py-10 px-space-md text-error"
+                    colSpan={columnCount}
+                  >
+                    {error}
+                  </td>
+                </tr>
+              ) : null}
+              {loading && dossiers.length === 0 ? (
+                <tr>
+                  <td
+                    className="py-10 px-space-md text-on-surface-variant"
+                    colSpan={columnCount}
+                  >
+                    Đang tải danh sách hồ sơ…
+                  </td>
+                </tr>
+              ) : null}
+              {!loading && !error && visible.length === 0 ? (
+                <tr>
+                  <td
+                    className="py-10 px-space-md text-on-surface-variant"
+                    colSpan={columnCount}
+                  >
+                    Không có hồ sơ trong nhóm này.
+                  </td>
+                </tr>
+              ) : null}
+              {visible.map((item) => {
+                const active = item.id === selectedId
+                const rows = grantRows(item, user, people)
+                return (
+                  <tr
+                    key={item.id}
+                    className={`transition-colors ${
+                      active
+                        ? 'bg-surface-container'
+                        : 'bg-surface-container-lowest hover:bg-surface-container-low/70'
+                    }`}
+                  >
+                    <td className="py-3.5 px-3 align-top">
+                      {item.myGrant?.expired ? (
+                        <span
+                          className="block truncate font-title-sm text-title-sm font-semibold text-on-surface-variant"
+                          title={`${item.title} · Quyền chia sẻ đã hết hạn`}
+                        >
+                          {item.title}
+                        </span>
+                      ) : (
+                        <Link
+                          className="block truncate font-title-sm text-title-sm font-semibold text-on-surface hover:text-on-tertiary-container"
+                          state={{ dossierId: item.id, name: item.title }}
+                          title={item.title}
+                          to={dossierOpenTo(item)}
+                        >
+                          {item.title}
+                        </Link>
+                      )}
+                      <span
+                        className="block truncate font-code-sm text-label-sm text-on-surface-variant mt-1"
+                        title={item.code}
+                      >
+                        {item.code}
+                      </span>
+                      {pendingInvite(item, user?.id, user?.email) ? (
+                        <button
+                          className="mt-1.5 flex whitespace-nowrap items-center gap-1 rounded bg-amber-50 px-2 py-0.5 font-label-sm text-label-sm text-amber-900 hover:bg-amber-100"
+                          type="button"
+                          onClick={() =>
+                            setNotice({
+                              text: 'Vui lòng kiểm tra mail mời rồi làm theo hướng dẫn.',
+                              icon: 'mark_email_unread',
+                            })
+                          }
+                        >
+                          <MaterialIcon
+                            name="mark_email_unread"
+                            className="text-[14px]"
+                          />
+                          Chưa nhận mời
+                        </button>
+                      ) : null}
+                    </td>
+                    <td className="py-3.5 px-3 align-top">
+                      <PeopleCell access={item.access} rows={rows} />
+                    </td>
+                    <td className="py-3.5 px-3 align-top">
+                      <RoleCell rows={rows} />
+                    </td>
+                    <td className="py-3.5 px-3 align-top">
+                      <PermissionCell rows={rows} />
+                    </td>
+                    <td className="py-3.5 px-3 align-top">
+                      <ExpiryCell rows={rows} />
+                    </td>
+                    <td className="hidden xl:table-cell py-3.5 px-3 align-top text-on-surface-variant">
+                      <span className="flex h-10 items-center truncate">
+                        {item.updated || '—'}
+                      </span>
+                    </td>
+                    {sharedOnly ? null : (
+                      <td className="py-3.5 px-3 align-top">
+                        {item.access === 'shared_in' ? (
+                          <span className="flex h-10 items-center font-body-sm text-body-sm text-on-surface-variant">
+                            —
+                          </span>
+                        ) : (
+                          <div className="relative inline-flex items-center gap-1.5">
+                            <button
+                              aria-expanded={active}
+                              aria-label="Chia sẻ"
+                              className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-outline-variant hover:bg-surface-container-low disabled:opacity-50 ${
+                                active ? 'bg-surface-container-low' : 'bg-white'
+                              }`}
+                              disabled={savingId === item.id}
+                              title="Chia sẻ hồ sơ"
+                              type="button"
+                              onClick={() => select(active ? '' : item.id)}
+                            >
+                              <MaterialIcon
+                                name="person_add"
+                                className="text-[18px] text-brand-700"
+                              />
+                            </button>
+                            {item.access === 'shared_out' ? (
+                              <button
+                                aria-expanded={revokeId === item.id}
+                                aria-label="Ngừng chia sẻ"
+                                className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-outline-variant hover:bg-surface-container-low disabled:opacity-50 ${
+                                  revokeId === item.id
+                                    ? 'bg-surface-container-low'
+                                    : 'bg-white'
+                                }`}
+                                disabled={savingId === item.id}
+                                title="Ngừng chia sẻ: chọn người cần thu hồi quyền"
+                                type="button"
+                                onClick={() =>
+                                  openRevoke(
+                                    revokeId === item.id ? null : item.id,
+                                  )
+                                }
+                              >
+                                <MaterialIcon
+                                  name={
+                                    savingId === item.id
+                                      ? 'progress_activity'
+                                      : 'link_off'
+                                  }
+                                  className={`text-[18px] text-error ${
+                                    savingId === item.id ? 'animate-spin' : ''
+                                  }`}
+                                />
+                              </button>
+                            ) : null}
+                            {revokeId === item.id && item.access === 'shared_out' ? (
+                              <RevokePanel
+                                error={saveError}
+                                grants={item.shares ?? []}
+                                saving={savingId === item.id}
+                                selected={revoking}
+                                onCancel={() => openRevoke(null)}
+                                onChange={setRevoking}
+                                onConfirm={() => revokeAccess(item, revoking)}
+                              />
+                            ) : null}
+                            {active ? (
+                              <div className="absolute right-0 top-10 z-50 flex text-left w-[26rem] max-w-[calc(100vw-2rem)] flex-col gap-space-sm rounded-lg border border-surface-container bg-surface-container-lowest p-space-md shadow-[0_8px_24px_rgba(15,23,42,0.12)]">
+                                <p className="font-label-sm text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">
+                                  Chia sẻ với
+                                </p>
+                                <form
+                                  className="flex flex-col gap-1"
+                                  onSubmit={(event) => {
+                                    event.preventDefault()
+                                    void addByEmail()
+                                  }}
+                                >
+                                  <label
+                                    className="font-label-sm text-label-sm text-on-surface-variant"
+                                    htmlFor={`share-email-${item.id}`}
+                                  >
+                                    Thêm người nhận bằng email
+                                  </label>
+                                  <div className="flex gap-space-xs">
+                                    <input
+                                      aria-invalid={
+                                        emailError ? true : undefined
+                                      }
+                                      autoComplete="off"
+                                      className={`h-9 min-w-0 flex-1 rounded bg-surface-container-lowest px-2 font-body-sm text-body-sm text-on-surface ring-1 ${
+                                        emailError
+                                          ? 'ring-error'
+                                          : 'ring-surface-container-high'
+                                      }`}
+                                      id={`share-email-${item.id}`}
+                                      placeholder="ten@congty.vn"
+                                      type="email"
+                                      value={emailInput}
+                                      onChange={(event) => {
+                                        setEmailInput(event.target.value)
+                                        setEmailError(null)
+                                      }}
+                                    />
+                                    <button
+                                      className="h-9 shrink-0 rounded bg-brand-100 px-space-md font-label-sm text-label-sm font-semibold text-brand-700 hover:bg-brand-200 disabled:opacity-50"
+                                      disabled={
+                                        checkingEmail || !emailInput.trim()
+                                      }
+                                      type="submit"
+                                    >
+                                      {checkingEmail
+                                        ? 'Đang kiểm tra…'
+                                        : 'Thêm'}
+                                    </button>
+                                  </div>
+                                  {emailError ? (
+                                    <p
+                                      className="font-label-sm text-label-sm text-error"
+                                      role="alert"
+                                    >
+                                      {emailError}
+                                    </p>
+                                  ) : null}
+                                </form>
+                                <div className="flex max-h-72 flex-col gap-space-xs overflow-auto">
+                                  {candidates.length === 0 ? (
+                                    <p className="px-1 font-body-sm text-body-sm text-secondary">
+                                      {isAdmin
+                                        ? 'Chưa có người dùng nào khác đã kích hoạt trong đơn vị của bạn.'
+                                        : 'Nhập email người nhận ở trên để thêm vào danh sách chia sẻ.'}
+                                    </p>
+                                  ) : (
+                                    candidates.map((person) => {
+                                      const isChosen = chosen.includes(
+                                        person.id,
+                                      )
+                                      const option =
+                                        options[person.id] ?? DEFAULT_OPTION
+                                      const pastDate =
+                                        Boolean(option.expires) &&
+                                        option.expires < todayInput()
+                                      return (
+                                        <div
+                                          key={person.id}
+                                          className={`rounded-lg border px-space-sm py-space-sm ${
+                                            isChosen
+                                              ? 'border-primary-container/30 bg-surface-container-low'
+                                              : 'border-transparent hover:bg-surface-container-low'
+                                          }`}
+                                        >
+                                          <label className="flex cursor-pointer items-center gap-space-sm">
+                                            <input
+                                              checked={isChosen}
+                                              className="h-4 w-4 shrink-0"
+                                              type="checkbox"
+                                              onChange={() =>
+                                                setChosen((current) =>
+                                                  current.includes(person.id)
+                                                    ? current.filter(
+                                                        (id) =>
+                                                          id !== person.id,
+                                                      )
+                                                    : [...current, person.id],
+                                                )
+                                              }
+                                            />
+                                            <span className="min-w-0 flex-1">
+                                              <span className="block truncate font-body-sm text-body-sm font-semibold text-on-surface">
+                                                {person.display_name}
+                                              </span>
+                                              <span className="block truncate font-label-sm text-label-sm text-on-surface-variant">
+                                                {person.email}
+                                              </span>
+                                            </span>
+                                            {person.role ? (
+                                              <RoleBadge role={person.role} />
+                                            ) : null}
+                                          </label>
+                                          {isChosen ? (
+                                            <div className="mt-space-sm grid grid-cols-2 gap-space-sm pl-7">
+                                              <label className="flex flex-col gap-1">
+                                                <span className="font-label-sm text-label-sm text-on-surface-variant">
+                                                  Quyền
+                                                </span>
+                                                <select
+                                                  aria-label={`Quyền của ${person.display_name}`}
+                                                  className="h-9 w-full rounded bg-surface-container-lowest px-2 font-body-sm text-body-sm text-on-surface ring-1 ring-surface-container-high"
+                                                  value={option.permission}
+                                                  onChange={(event) =>
+                                                    setOptions((current) => ({
+                                                      ...current,
+                                                      [person.id]: {
+                                                        ...option,
+                                                        permission: event.target
+                                                          .value as SharePermission,
+                                                      },
+                                                    }))
+                                                  }
+                                                >
+                                                  <option value="read">
+                                                    {permissionLabels.read}
+                                                  </option>
+                                                  <option value="edit">
+                                                    {permissionLabels.edit}
+                                                  </option>
+                                                </select>
+                                              </label>
+                                              <label className="flex flex-col gap-1">
+                                                <span className="font-label-sm text-label-sm text-on-surface-variant">
+                                                  Hết hạn
+                                                </span>
+                                                <input
+                                                  aria-label={`Ngày hết hạn của ${person.display_name}`}
+                                                  className={`h-9 w-full rounded bg-surface-container-lowest px-2 font-body-sm text-body-sm text-on-surface ring-1 ${
+                                                    pastDate
+                                                      ? 'ring-error'
+                                                      : 'ring-surface-container-high'
+                                                  }`}
+                                                  min={todayInput()}
+                                                  type="date"
+                                                  value={option.expires}
+                                                  onChange={(event) =>
+                                                    setOptions((current) => ({
+                                                      ...current,
+                                                      [person.id]: {
+                                                        ...option,
+                                                        expires:
+                                                          event.target.value,
+                                                      },
+                                                    }))
+                                                  }
+                                                />
+                                              </label>
+                                              <p className="col-span-2 flex items-start gap-1 rounded bg-surface-container-lowest px-2 py-1.5 font-label-sm text-label-sm text-on-surface">
+                                                <MaterialIcon
+                                                  name="info"
+                                                  className="mt-px shrink-0 text-[14px] text-brand-700"
+                                                />
+                                                {grantEffect(
+                                                  person.role,
+                                                  option.permission,
+                                                )}
+                                              </p>
+                                              <p
+                                                className={`col-span-2 font-label-sm text-label-sm ${
+                                                  pastDate
+                                                    ? 'text-error'
+                                                    : 'text-secondary'
+                                                }`}
+                                              >
+                                                {pastDate
+                                                  ? 'Ngày hết hạn đã qua, chọn ngày khác.'
+                                                  : option.expires
+                                                    ? `Hết hạn hết ngày ${formatExpiry(fromDateInput(option.expires))}.`
+                                                    : 'Để trống ngày thì không hết hạn.'}
+                                              </p>
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      )
+                                    })
+                                  )}
+                                </div>
+                                {saveError ? (
+                                  <p className="font-body-sm text-body-sm text-error">
+                                    {saveError}
+                                  </p>
+                                ) : null}
+                                <div className="flex gap-space-sm">
+                                  <button
+                                    className="h-8 px-space-md rounded bg-surface-container-low text-on-surface font-label-sm text-label-sm hover:bg-surface-container disabled:opacity-50"
+                                    disabled={savingId === item.id}
+                                    type="button"
+                                    onClick={() => select('')}
+                                  >
+                                    Hủy
+                                  </button>
+                                  <button
+                                    className="h-8 flex-1 px-space-sm rounded bg-brand-100 text-brand-700 hover:bg-brand-200 font-label-sm text-label-sm disabled:opacity-50"
+                                    disabled={
+                                      savingId === item.id ||
+                                      chosen.length === 0 ||
+                                      chosen.some(
+                                        (id) =>
+                                          (options[id]?.expires ?? '') !== '' &&
+                                          (options[id]?.expires ?? '') <
+                                            todayInput(),
+                                      )
+                                    }
+                                    type="button"
+                                    onClick={() =>
+                                      saveAccess(
+                                        item,
+                                        'shared_out',
+                                        chosen,
+                                        options,
+                                      )
+                                    }
+                                  >
+                                    {savingId === item.id
+                                      ? 'Đang lưu…'
+                                      : 'Lưu quyền'}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {notice ? (
+        <div
+          className="fixed top-20 right-6 z-[70] flex w-[min(24rem,calc(100vw-3rem))] items-start gap-space-md rounded border border-surface-container bg-surface-container-lowest px-space-lg py-space-md font-body-sm text-body-sm text-on-surface shadow-md"
+          role="status"
+        >
+          <MaterialIcon
+            name={notice.icon}
+            className={`shrink-0 text-[20px] ${
+              notice.icon === 'check_circle'
+                ? 'text-emerald-600'
+                : 'text-amber-700'
+            }`}
+          />
+          <span className="flex-1">{notice.text}</span>
+          <button
+            aria-label="Đóng thông báo"
+            className="shrink-0 text-secondary hover:text-on-surface"
+            type="button"
+            onClick={() => setNotice(null)}
+          >
+            <MaterialIcon name="close" className="text-[18px]" />
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+type GrantRow = {
+  id: string
+  name: string
+  email: string
+  permission: SharePermission
+  role?: ShareRole
+  expiresAt: string | null
+  expired: boolean
+}
+
+/** Mỗi người có quyền trên hồ sơ: người được chia sẻ, hoặc chính bạn ở hồ sơ được chia sẻ. */
+function grantRows(
+  dossier: Dossier,
+  me: { email?: string; backendRole?: ShareRole } | null | undefined,
+  people: TenantUser[],
+): GrantRow[] {
+  if (dossier.access === 'shared_out') {
+    return (dossier.shares ?? []).map((grant) => ({
+      id: grant.id,
+      name: grant.display_name || grant.email,
+      email: grant.email,
+      permission: grantPermission(grant),
+      role: people.find((person) => person.id === grant.id)?.role,
+      expiresAt: grant.expires_at ?? null,
+      expired: isGrantExpired(grant),
+    }))
+  }
+  if (dossier.access === 'shared_in' && dossier.myGrant) {
+    return [
+      {
+        id: 'me',
+        name: 'Bạn',
+        email: me?.email ?? '',
+        permission: dossier.myGrant.permission,
+        role: me?.backendRole,
+        expiresAt: dossier.myGrant.expires_at,
+        expired: dossier.myGrant.expired,
+      },
+    ]
+  }
+  return []
+}
+
+function initials(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return '?'
+  const first = words[0][0] ?? ''
+  const last = words.length > 1 ? (words[words.length - 1][0] ?? '') : ''
+  return `${first}${last}`.toUpperCase()
+}
+
+// Mỗi người một dòng cao h-10 ở mọi cột để tên, vai trò, quyền và hạn thẳng hàng.
+function PeopleCell({
+  access,
+  rows,
+}: {
+  access: Dossier['access']
+  rows: GrantRow[]
+}) {
+  if (rows.length === 0) {
+    return (
+      <span className="flex h-10 items-center font-body-sm text-body-sm text-on-surface-variant">
+        {access === 'mine' ? 'Chỉ mình bạn' : '—'}
+      </span>
+    )
+  }
+  return (
+    <ul className="flex flex-col gap-1">
+      {rows.map((row) => (
+        <li
+          key={row.id}
+          className="flex h-10 min-w-0 items-center gap-space-sm"
+        >
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 font-label-sm text-[11px] font-bold text-brand-700">
+            {initials(row.name)}
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate font-body-sm text-body-sm font-semibold text-on-surface">
+              {row.name}
+            </span>
+            {row.email && row.email !== row.name ? (
+              <span className="block truncate font-label-sm text-label-sm text-on-surface-variant">
+                {row.email}
+              </span>
+            ) : null}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function EmptyCell() {
+  return (
+    <span className="flex h-10 items-center text-on-surface-variant">—</span>
+  )
+}
+
+function RoleCell({ rows }: { rows: GrantRow[] }) {
+  if (rows.length === 0) return <EmptyCell />
+  return (
+    <ul className="flex flex-col gap-1">
+      {rows.map((row) => (
+        <li key={row.id} className="flex h-10 items-center">
+          {row.role ? (
+            <RoleBadge role={row.role} />
+          ) : (
+            <span className="text-on-surface-variant">—</span>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function PermissionCell({ rows }: { rows: GrantRow[] }) {
+  if (rows.length === 0) return <EmptyCell />
+  return (
+    <ul className="flex flex-col gap-1">
+      {rows.map((row) => (
+        <li key={row.id} className="flex h-10 items-center">
+          <span
+            className="inline-flex shrink-0 cursor-help items-center gap-1 rounded bg-surface-container px-1.5 font-label-sm text-label-sm leading-5 text-on-surface"
+            title={grantEffect(row.role, row.permission)}
+          >
+            <MaterialIcon
+              name={row.permission === 'read' ? 'visibility' : 'edit'}
+              className="text-[14px]"
+            />
+            {permissionLabels[row.permission]}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function ExpiryCell({ rows }: { rows: GrantRow[] }) {
+  if (rows.length === 0) return <EmptyCell />
+  return (
+    <ul className="flex flex-col gap-1">
+      {rows.map((row) => (
+        <li
+          key={row.id}
+          className={`flex h-10 items-center whitespace-nowrap font-label-sm text-label-sm ${
+            row.expired ? 'font-semibold text-error' : 'text-on-surface-variant'
+          }`}
+        >
+          {row.expired
+            ? 'Đã hết hạn'
+            : row.expiresAt
+              ? `Đến ${formatExpiry(row.expiresAt)}`
+              : 'Không hết hạn'}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/** Hộp ngừng chia sẻ: chọn những người cần thu hồi, người còn lại giữ nguyên quyền. */
+function RevokePanel({
+  grants,
+  selected,
+  saving,
+  error,
+  onChange,
+  onCancel,
+  onConfirm,
+}: {
+  grants: DossierShareGrant[]
+  selected: string[]
+  saving: boolean
+  error: string | null
+  onChange: (ids: string[]) => void
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const allSelected =
+    grants.length > 0 && grants.every((grant) => selected.includes(grant.id))
+  return (
+    <div className="absolute right-0 top-10 z-50 flex text-left w-[22rem] max-w-[calc(100vw-2rem)] flex-col gap-space-sm rounded-lg border border-surface-container bg-surface-container-lowest p-space-md shadow-[0_8px_24px_rgba(15,23,42,0.12)]">
+      <div className="flex items-center justify-between gap-space-sm">
+        <p className="font-label-sm text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">
+          Ngừng chia sẻ với
+        </p>
+        <button
+          className="font-label-sm text-label-sm font-semibold text-brand-700 hover:underline"
+          type="button"
+          onClick={() =>
+            onChange(allSelected ? [] : grants.map((grant) => grant.id))
+          }
+        >
+          {allSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+        </button>
+      </div>
+      <div className="flex max-h-72 flex-col gap-space-xs overflow-auto">
+        {grants.map((grant) => {
+          const isSelected = selected.includes(grant.id)
+          const name = grant.display_name || grant.email
+          return (
+            <label
+              key={grant.id}
+              className={`flex cursor-pointer items-center gap-space-sm rounded-lg border px-space-sm py-space-sm ${
+                isSelected
+                  ? 'border-error/30 bg-error-container/30'
+                  : 'border-transparent hover:bg-surface-container-low'
+              }`}
+            >
+              <input
+                checked={isSelected}
+                className="h-4 w-4 shrink-0"
+                type="checkbox"
+                onChange={() =>
+                  onChange(
+                    isSelected
+                      ? selected.filter((id) => id !== grant.id)
+                      : [...selected, grant.id],
+                  )
+                }
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-body-sm text-body-sm font-semibold text-on-surface">
+                  {name}
+                </span>
+                {grant.email && grant.email !== name ? (
+                  <span className="block truncate font-label-sm text-label-sm text-on-surface-variant">
+                    {grant.email}
+                  </span>
+                ) : null}
+              </span>
+              <span className="shrink-0 font-label-sm text-label-sm text-on-surface-variant">
+                {permissionLabels[grantPermission(grant)]}
+              </span>
+            </label>
+          )
+        })}
+      </div>
+      <p className="font-label-sm text-label-sm text-secondary">
+        {allSelected
+          ? 'Bỏ hết người được chia sẻ: hồ sơ trở về chỉ mình bạn.'
+          : 'Người được chọn mất quyền truy cập, người còn lại giữ nguyên quyền và hạn.'}
+      </p>
+      {error ? (
+        <p className="font-body-sm text-body-sm text-error">{error}</p>
+      ) : null}
+      <div className="flex gap-space-sm">
+        <button
+          className="h-8 px-space-md rounded bg-surface-container-low text-on-surface font-label-sm text-label-sm hover:bg-surface-container disabled:opacity-50"
+          disabled={saving}
+          type="button"
+          onClick={onCancel}
+        >
+          Hủy
+        </button>
+        <button
+          className="h-8 flex-1 px-space-sm rounded bg-error text-on-error hover:opacity-90 font-label-sm text-label-sm font-semibold disabled:opacity-50"
+          disabled={saving || selected.length === 0}
+          type="button"
+          onClick={onConfirm}
+        >
+          {saving
+            ? 'Đang lưu…'
+            : selected.length === 0
+              ? 'Chọn người cần thu hồi'
+              : `Ngừng chia sẻ với ${selected.length} người`}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function RoleBadge({ role }: { role: ShareRole }) {
+  return (
+    <span className="shrink-0 rounded-full bg-brand-50 px-2 font-label-sm text-[11px] font-semibold leading-5 text-brand-700">
+      {shareRoleLabels[role]}
+    </span>
+  )
+}
+
+function pendingInvite(
+  dossier: Dossier,
+  userId: string | undefined,
+  email: string | undefined,
+) {
+  const normalized = email?.trim().toLowerCase()
+  return dossier.shares?.some(
+    (item) =>
+      item.status === 'invited' &&
+      ((userId && item.id === userId) ||
+        (normalized && item.email.trim().toLowerCase() === normalized)),
+  )
+}

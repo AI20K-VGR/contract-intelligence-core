@@ -1,0 +1,22 @@
+{
+ "dataset_id": "quality-recovery-dev-20261011-v3",
+ "dev_report_lock": null,
+ "frame_version": "contract-graph-quality-frame/1",
+ "precision_frame": {
+  "n_rows": 600,
+  "path": "precision-frame.v1.jsonl",
+  "sha256": "0a446ac5fb94c62b861c72789320f5264874f9a37f335fceb1ce6346f72f197c"
+ },
+ "recall_frame": {
+  "n_rows": 600,
+  "path": "recall-frame.v1.jsonl",
+  "sha256": "53b124e0f5814d03f9c159a26f29e3dae7821e5b4ada1460faf8557abd320ddb"
+ },
+ "review_lock": null,
+ "reviewed_gold": {
+  "n_rows": 600,
+  "path": "reviewed-gold.v1.jsonl",
+  "sha256": "11355553a39300a5557941ae38edc450e9ef72f8f8926666b9fa7a835865a0b3"
+ },
+ "schema": "contract-graph-quality-dataset/1"
+}

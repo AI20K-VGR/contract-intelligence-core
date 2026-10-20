@@ -1,0 +1,7 @@
+# Applies to builds that use deploy/frontend.Dockerfile (context: ./frontend).
+node_modules
+dist
+tests
+# A developer's .env.local would otherwise override the VITE_* build args.
+.env
+.env.*

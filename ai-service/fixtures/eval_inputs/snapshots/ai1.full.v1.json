@@ -1,0 +1,39 @@
+{
+  "schema_version": "ai1.snapshot.v1",
+  "snapshot_id": "eval-full-v1",
+  "dossier_id": "eval_full_v1",
+  "document_id": "doc-full-v1",
+  "run_id": "run-full-v1",
+  "source_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+  "execution": {"ocr_engine": "fixture", "attempt": 1},
+  "producer": {"name": "AI1 coverage fixture", "version": "1"},
+  "status": "SUCCESS",
+  "pages": [
+    {
+      "page_no": 1,
+      "page_revision_id": "eval-full-v1:p1:r1",
+      "input_type": "PDF_TEXT",
+      "status": "SUCCESS",
+      "raw_text_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+      "transform": {"rotation_degrees": 0, "profile_version": "coverage"},
+      "table_coverage": {"status": "DETECTED", "method": "layout-v1"},
+      "lines": [
+        {"line_id": "p1-l1", "raw_text": "DIEU 5. Gia tri hop dong va thanh toan.", "bbox": [0.1, 0.1, 0.9, 0.2], "words": []},
+        {"line_id": "p1-l2", "raw_text": "Phu luc 1 quy dinh bang chi tiet.", "bbox": [0.1, 0.22, 0.9, 0.3], "words": []}
+      ],
+      "tables": [
+        {
+          "table_id": "t-full-v1",
+          "title": "Bang chi tiet",
+          "header": ["hang_muc", "so_tien"],
+          "cells": [
+            {"cell_id": "t-full-v1-c1", "row_index": 0, "column_index": 0, "text": "Hang muc", "bbox": [0.1, 0.4, 0.45, 0.5], "line_ids": ["p1-l2"]},
+            {"cell_id": "t-full-v1-c2", "row_index": 0, "column_index": 1, "text": "So tien", "bbox": [0.46, 0.4, 0.8, 0.5], "line_ids": ["p1-l2"]},
+            {"cell_id": "t-full-v1-c3", "row_index": 1, "column_index": 0, "text": "Dich vu", "bbox": [0.1, 0.51, 0.45, 0.6], "line_ids": ["p1-l2"]},
+            {"cell_id": "t-full-v1-c4", "row_index": 1, "column_index": 1, "text": "1000", "bbox": [0.46, 0.51, 0.8, 0.6], "line_ids": ["p1-l2"]}
+          ]
+        }
+      ]
+    }
+  ]
+}

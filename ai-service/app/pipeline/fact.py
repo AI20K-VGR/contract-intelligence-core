@@ -1,0 +1,270 @@
+from __future__ import annotations
+
+import re
+from hashlib import sha256
+
+from app.contracts.models import Citation, Fact, ReviewState, TenantProfile, ToolEnvelope
+from app.llm.client import NineRouterClient
+from app.pipeline.grounding import GroundingGate
+from app.pipeline.runtime import ProcessingRuntime
+from app.tools.gateway import ToolGateway
+
+
+class FactExtractor:
+    MAX_NORMALIZATION_INPUT_CHARS = 4096
+
+    def __init__(
+        self,
+        gateway: ToolGateway,
+        llm: NineRouterClient | None = None,
+        runtime: ProcessingRuntime | None = None,
+        contract_unit_scopes: dict[str, str] | None = None,
+    ) -> None:
+        self.gateway = gateway
+        self.llm = llm
+        self.runtime = runtime
+        self.gate = GroundingGate()
+        self.contract_unit_scopes = contract_unit_scopes or {}
+
+    def extract(self, envelope: ToolEnvelope, node_id: str, profile: TenantProfile) -> Fact:
+        payload = self.gateway.call("get_node", envelope, node_id=node_id)
+        text = payload["text"]
+        citation = Citation(**payload["citation"])
+        raw = payload.get("structured_value") or _first_value(text)
+        normalized, provenance = self._normalize(raw, text, profile)
+        sk = str(payload.get("structured_key") or "")
+        item_key = sk.split(":", 1)[1] if sk.startswith("item:") else None
+        anc = payload.get("ancestors") or []
+        blob_anc = " ".join(str(a) for a in anc)
+        annex_m = re.search(r"(?:phụ lục|phu luc)\s+(\d+)", blob_anc, re.I)
+        source_role = "annex" if annex_m else "body"
+        period = None
+        mper = re.search(r"từ\s+(\d{1,2}/\d{1,2}(?:/\d{2,4})?)", text, re.I)
+        if mper:
+            period = mper.group(1)
+        scope = sk.split(":", 1)[1] if sk.startswith("scope:") else None
+        identity_unit = (
+            self.contract_unit_scopes.get(node_id)
+            if sk.startswith(("party_", "mst_party_"))
+            else None
+        )
+        if item_key is None and (
+            sk
+            in {
+                "contract_value",
+                "contract_value_words",
+                "payment_schedule",
+                "payment_term",
+                "payment_method",
+                "contract_number",
+            }
+            or sk.startswith("party_")
+            or sk.startswith("mst")
+        ):
+            item_key = sk
+        if item_key is None and not scope:
+            mi = re.search(r"\bitem\s+([A-Za-z0-9]+)\b", text, re.I) or re.search(
+                r"hạng mục\s+([A-Za-z0-9]+)", text, re.I
+            )
+            if mi:
+                item_key = mi.group(1)
+        fact = Fact(
+            fact_id="fact_"
+            + sha256(
+                f"{node_id}:{envelope.pins.source_snapshot_digest}:{envelope.pins.extraction_version}".encode()
+            ).hexdigest()[:24],
+            raw_value=raw,
+            normalized_value=normalized,
+            subject=_context_subject(anc, payload.get("raw_label")),
+            role=sk if identity_unit else None,
+            unit=_guess_unit(raw, text),
+            currency="VND"
+            if _guess_unit(raw, text) == "VND"
+            else ("USD" if _guess_unit(raw, text) == "USD" else None),
+            citation=citation,
+            provenance=provenance,
+            review_state=ReviewState.NEEDS_REVIEW,
+            item_key=item_key,
+            period_start=period,
+            source_role=source_role,  # type: ignore[arg-type]
+            scope=identity_unit or scope or item_key,
+            validity=f"PL{annex_m.group(1)}" if annex_m else None,
+            condition=_fact_condition(text, item_key),
+            tax_basis=_tax_basis(text),
+            vat_basis=_tax_basis(text),
+        )
+        return self.gate.ground_fact(fact, source_text=text, profile=profile)
+
+    def _normalize(self, raw: str, text: str, profile: TenantProfile) -> tuple[str | None, str]:
+        # Preserve the original fact, but do not spend CPU or provider budget
+        # normalizing unexpectedly large OCR values.
+        if len(raw) > self.MAX_NORMALIZATION_INPUT_CHARS:
+            return None, "L0"
+        alias = _alias_match(raw, profile)
+        if alias:
+            return alias, "L0"
+        compact = raw.replace(" ", "").replace(",", ".")
+        if re.fullmatch(r"-?\d+(\.\d+)?%?", compact):
+            return compact.rstrip("%"), "L0"
+        grouped = re.fullmatch(r"\d{1,3}(?:[.,]\d{3})+", raw.replace(" ", ""))
+        if grouped:
+            return re.sub(r"\D", "", raw), "L0"
+        if "%" not in raw:
+            digits = re.sub(r"[^\d]", "", raw)
+            if digits and re.search(r"vnd|đồng", raw, re.I):
+                return digits, "L0"
+        phrase = _scale_phrase_norm(raw)
+        if phrase:
+            return phrase, "L0"
+        # A masked or illegible value has nothing to normalize; asking a model
+        # turned "1.000.•••" into "1000".
+        if _unreadable(raw):
+            return None, "L0"
+        if self.llm and (self.runtime is None or self.llm.configured()):
+            if self.runtime is not None:
+                data = self.runtime.complete_json(
+                    self.llm,
+                    _NORMALIZE_SYSTEM,
+                    f"raw={raw}\ncontext={text[:1500]}",
+                    operation="fact_normalize",
+                )
+            else:
+                data = self.llm.complete_json(
+                    _NORMALIZE_SYSTEM,
+                    f"raw={raw}\ncontext={text[:1500]}",
+                )
+            if not data:
+                return None, "L0"
+            norm = data.get("normalized")
+            if not isinstance(norm, str) or not norm.strip():
+                if self.runtime is not None:
+                    self.runtime.add_issue(
+                        "LLM_INVALID_OUTPUT", "normalization response omitted a string"
+                    )
+                    self.runtime.fallback_count += 1
+                return None, "L0"
+            reason = _ungrounded_normalization(raw, norm)
+            if reason:
+                if self.runtime is not None:
+                    self.runtime.add_issue("LLM_NORMALIZATION_REJECTED", reason)
+                    self.runtime.fallback_count += 1
+                return None, "L0"
+            return norm.strip(), "L2"
+        return None, "L0"
+
+
+_NORMALIZE_SYSTEM = (
+    "Normalize a contract field. Return JSON with keys normalized and unit. "
+    "normalized must be one string in the same language as raw. "
+    "Do not translate. Do not return an object or a list. Do not invent values. No legal conclusion. "
+    "Use the deterministic rules' conventions: a percentage becomes the bare number without % "
+    '("0,1%/ngày" -> "0.1"); a money amount becomes digits only. '
+    'If the raw value is masked, cut off, illegible or states no value, return {"normalized": null}.'
+)
+
+_MASK = re.compile(r"[•●■□▯�]|\?{2,}|\*{2,}|\.{4,}|…|x{3,}", re.I)
+_UNREADABLE_PHRASES = (
+    "không rõ",
+    "không đọc được",
+    "khong ro",
+    "khong doc duoc",
+    "illegible",
+    "unreadable",
+)
+
+
+def _unreadable(raw: str) -> bool:
+    low = (raw or "").casefold()
+    return bool(_MASK.search(raw or "")) or any(p in low for p in _UNREADABLE_PHRASES)
+
+
+def _fold(value: str) -> str:
+    import unicodedata
+
+    text = unicodedata.normalize("NFD", value.casefold())
+    return "".join(c for c in text if unicodedata.category(c) != "Mn").replace("đ", "d")
+
+
+def _ungrounded_normalization(raw: str, norm: str) -> str | None:
+    """Reject a model normalization that adds digits or words the raw lacks."""
+
+    raw_digits = re.sub(r"\D", "", raw)
+    if raw_digits:
+        norm_digits = re.sub(r"\D", "", norm)
+        if norm_digits and norm_digits not in raw_digits and raw_digits not in norm_digits:
+            return f"normalized digits {norm!r} are not in raw value {raw!r}"
+    raw_words = set(re.findall(r"[a-z]+", _fold(raw)))
+    extra = [w for w in re.findall(r"[a-z]+", _fold(norm)) if len(w) > 2 and w not in raw_words]
+    if extra:
+        return f"normalized value adds words not in raw ({', '.join(extra[:3])}); translation is not normalization"
+    return None
+
+
+def _first_value(text: str) -> str:
+    if ":" in text:
+        return text.split(":", 1)[1].strip() or text.strip()
+    return text.strip()[:200]
+
+
+def _subject(ancestors: list[str]) -> str | None:
+    return ancestors[-1] if ancestors else None
+
+
+def _guess_unit(raw: str, text: str) -> str | None:
+    blob = f"{raw} {text}".lower()
+    if "%" in blob or "/ngày" in blob or "/ngay" in blob:
+        return "percent"
+    if re.search(r"\busd\b", blob):
+        return "USD"
+    if re.search(r"\bvnd\b", blob) or re.search(r"(?<!hợp )đồng\b", blob):
+        return "VND"
+    return None
+
+
+def _context_subject(ancestors: list, raw_label: str | None) -> str | None:
+    labels = [str(a) for a in ancestors if a] + ([str(raw_label)] if raw_label else [])
+    for lab in reversed(labels):
+        if re.match(r"^(Điều|ĐIỀU|Phụ lục|PHỤ LỤC|Phu luc|PHU LUC|Phần)\b", lab):
+            return lab[:80]
+    return labels[-1][:80] if labels else None
+
+
+def _tax_basis(text: str) -> str | None:
+    low = text.lower()
+    if "chưa vat" in low or "chưa bao gồm vat" in low or "chua vat" in low:
+        return "ex_vat"
+    if "gồm vat" in low or "bao gồm vat" in low or "incl" in low:
+        return "incl_vat"
+    return None
+
+
+def _fact_condition(text: str, item_key: str | None) -> str | None:
+    low = text.lower()
+    if item_key and item_key.startswith("penalty"):
+        if "xây lắp" in low or "xay lap" in low:
+            return "construction"
+        if "thiết bị" in low or "thiet bi" in low:
+            return "equipment"
+        if "chung" in low:
+            return "general"
+    return None
+
+
+def _scale_phrase_norm(raw: str) -> str | None:
+    """Only full scale phrases (một tỷ), not lone năm/một in running text."""
+    low = raw.lower().strip()
+    m = re.search(r"(một|hai|ba)\s+(tỷ|triệu|nghìn|ngìn)\b", low)
+    if not m:
+        return None
+    n = {"một": "1", "hai": "2", "ba": "3"}[m.group(1)]
+    scale = {"tỷ": "000000000", "triệu": "000000", "nghìn": "000", "ngìn": "000"}[m.group(2)]
+    return n + scale
+
+
+def _alias_match(raw: str, profile: TenantProfile) -> str | None:
+    low = raw.lower()
+    for canonical, aliases in profile.aliases.items():
+        for a in [canonical, *aliases]:
+            if a.lower() == low:
+                return canonical
+    return None

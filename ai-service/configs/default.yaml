@@ -1,0 +1,11 @@
+render:
+  dpi: 300
+classifier:
+  min_chars: 20
+  min_words: 3
+  image_threshold: 0.5
+evaluation:
+  unicode_normalization: NFC
+  bbox_iou_threshold: 0.5
+experiments:
+  - {id: E0, engine: pymupdf}

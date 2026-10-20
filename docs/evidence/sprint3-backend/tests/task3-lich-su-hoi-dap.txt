@@ -1,0 +1,14 @@
+============================= test session starts =============================
+collecting ... collected 9 items
+
+tests/integration/test_query_history.py::test_history_is_per_user_and_survives_a_restart PASSED [ 11%]
+tests/integration/test_query_history.py::test_failed_query_is_kept_without_an_answer PASSED [ 22%]
+tests/integration/test_query_history.py::test_outsiders_cannot_read_history[outsider0-expected0] PASSED [ 33%]
+tests/integration/test_query_history.py::test_outsiders_cannot_read_history[outsider1-expected1] PASSED [ 44%]
+tests/integration/test_query_history.py::test_outsiders_cannot_read_history[outsider2-expected2] PASSED [ 55%]
+tests/integration/test_query_history.py::test_purge_removes_answers_and_keeps_the_audit_trace PASSED [ 66%]
+tests/integration/test_tenant_isolation.py::test_every_dossier_scoped_parameter_is_mapped PASSED [ 77%]
+tests/integration/test_tenant_isolation.py::test_m07_no_request_returns_data_outside_tenant_or_acl PASSED [ 88%]
+tests/unit/test_contract_router.py::TestSearchDossierEndpoint::test_second_acl_pass_blocks_when_access_revoked_mid_query PASSED [100%]
+
+============================== 9 passed in 6.45s ==============================

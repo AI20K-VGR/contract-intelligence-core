@@ -1,0 +1,418 @@
+import { useEffect, useMemo, useState } from 'react'
+import {
+  ClauseReviewConflictError,
+  getClauseReview,
+  saveClauseReview,
+  type ClauseReview,
+  type ClauseReviewAction,
+  type ClauseReviewEntry,
+} from '../api/clauseReview'
+import { getFindingReview, type FindingReview } from '../api/findingReview'
+import {
+  conflictName,
+  type ClauseNode,
+  type ReviewSpot,
+} from '../api/structure'
+import { reviewerLabel } from '../review/reviewerLabel'
+import { reviewErrorMessage } from '../review/saveError'
+import { mergeTimelines, timelineEntries } from '../review/timeline'
+import { bodyOf, headOf } from '../structure/display'
+import { CitationPane } from './CitationPane'
+import { ConflictNotice } from './ConflictNotice'
+import { MaterialIcon } from './icons'
+import { ReviewReadOnlyNote } from './ReviewReadOnlyNote'
+import { roleCanReview } from '../review/canReview'
+import { useAuth } from '../auth/useAuth'
+import { ReviewTimeline } from './ReviewTimeline'
+
+type Verdict = 'correct' | 'deviation'
+
+const ACTION_OF: Record<Verdict, ClauseReviewAction> = {
+  correct: 'confirm',
+  deviation: 'reject',
+}
+
+const VERDICT_OF: Record<string, Verdict> = {
+  confirm: 'correct',
+  reject: 'deviation',
+  // Bản ghi cũ "sửa nhận định" được tính là đúng kèm bổ sung.
+  correct: 'correct',
+}
+
+const VERDICT_LABEL: Record<Verdict, string> = {
+  correct: 'Đúng',
+  deviation: 'Sai',
+}
+
+function entryNote(entry: ClauseReviewEntry) {
+  return entry.assessment ?? entry.comment ?? ''
+}
+
+function entryWho(entry: ClauseReviewEntry) {
+  return reviewerLabel(entry)
+}
+
+function entryWhen(entry: ClauseReviewEntry) {
+  return entry.createdAt
+    ? new Date(entry.createdAt).toLocaleString('vi-VN')
+    : ''
+}
+
+const NO_CONFLICTS: ReviewSpot[] = []
+
+export function SearchCitationReview({
+  citeNo,
+  dossierId = '',
+  documentId,
+  filename,
+  node,
+  ordinal,
+  conflicts = NO_CONFLICTS,
+  onBack,
+  onOpenConflict,
+  reviewBlocked,
+}: {
+  citeNo: number
+  /** null: được thẩm định; chuỗi: lý do không được; bỏ trống: xét theo vai trò. */
+  reviewBlocked?: string | null
+  dossierId?: string
+  documentId: string
+  filename: string | null
+  node: ClauseNode
+  ordinal: number
+  /** Xung đột máy phát hiện neo vào đúng điều khoản này. */
+  conflicts?: ReviewSpot[]
+  onBack: () => void
+  onOpenConflict?: (findingId: string) => void
+}) {
+  const [verdict, setVerdict] = useState<Verdict>('correct')
+  const [note, setNote] = useState('')
+  const [saved, setSaved] = useState(false)
+  const [review, setReview] = useState<ClauseReview | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [findingReviews, setFindingReviews] = useState<
+    Record<string, FindingReview>
+  >({})
+  const head = headOf(node)
+  const body = bodyOf(node) || node.text.replace(/\s+/g, ' ').trim()
+  const page = node.pageStart || node.regions[0]?.pageNo || 1
+  const latest = review?.latest ?? null
+  const locked = review?.dossierLocked ?? false
+  const { user } = useAuth()
+  // Trang biết quyền trên hồ sơ thì truyền lý do; không thì xét theo vai trò.
+  const blocked =
+    reviewBlocked !== undefined
+      ? reviewBlocked
+      : roleCanReview(user?.backendRole)
+        ? null
+        : 'Chỉ Thẩm định hoặc Quản trị được thẩm định.'
+  const canReview = blocked === null
+  const conflictKey = conflicts.map((spot) => spot.id).join('|')
+
+  // Cùng vị trí: kéo lịch sử thẩm định xung đột về để dòng thời gian đủ hai phía.
+  useEffect(() => {
+    if (!conflictKey) {
+      setFindingReviews({})
+      return
+    }
+    const controller = new AbortController()
+    for (const spot of conflicts) {
+      getFindingReview(spot.id, controller.signal)
+        .then((next) => {
+          if (controller.signal.aborted) return
+          setFindingReviews((current) => ({ ...current, [spot.id]: next }))
+        })
+        .catch(() => {
+          // Thiếu lịch sử xung đột thì phần thẩm định trích dẫn vẫn dùng được.
+        })
+    }
+    return () => controller.abort()
+    // conflicts được nhận diện qua conflictKey để không gọi lại khi mảng đổi tham chiếu.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conflictKey])
+
+  const timeline = useMemo(
+    () =>
+      mergeTimelines(
+        timelineEntries(
+          'citation',
+          '',
+          `clause:${node.id}`,
+          review?.history ?? [],
+        ),
+        ...conflicts.map((spot) =>
+          timelineEntries(
+            'finding',
+            conflictName(spot),
+            `finding:${spot.id}`,
+            findingReviews[spot.id]?.history ?? [],
+          ),
+        ),
+      ),
+    [conflicts, findingReviews, node.id, review?.history],
+  )
+
+  function adopt(next: ClauseReview) {
+    setReview(next)
+    if (next.latest) {
+      setVerdict(VERDICT_OF[next.latest.action] ?? 'correct')
+      setNote(entryNote(next.latest))
+    } else {
+      setVerdict('correct')
+      setNote('')
+    }
+  }
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setLoading(true)
+    setSaved(false)
+    setMessage(null)
+    setReview(null)
+    getClauseReview({ documentId, node, ordinal }, controller.signal)
+      .then(adopt)
+      .catch((cause: unknown) => {
+        if (controller.signal.aborted) return
+        setMessage(reviewErrorMessage(cause, 'Không tải được thẩm định.'))
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+    return () => controller.abort()
+  }, [documentId, node, ordinal])
+
+  function choose(next: Verdict) {
+    setVerdict(next)
+    setSaved(false)
+  }
+
+  async function save() {
+    if (saving || loading) return
+    setSaving(true)
+    setMessage(null)
+    try {
+      const next = await saveClauseReview(
+        { documentId, node, ordinal },
+        {
+          action: ACTION_OF[verdict],
+          baseVersion: review?.version ?? 0,
+          comment: note,
+        },
+      )
+      adopt(next)
+      setSaved(true)
+    } catch (cause: unknown) {
+      if (cause instanceof ClauseReviewConflictError && cause.current) {
+        adopt(cause.current)
+        const who = cause.current.latest ? entryWho(cause.current.latest) : ''
+        setMessage(
+          `${who || 'Người khác'} vừa lưu thẩm định cho trích dẫn này. Đã tải bản mới nhất, hãy xem lại trước khi lưu.`,
+        )
+      } else {
+        setMessage(reviewErrorMessage(cause, 'Không lưu được thẩm định.'))
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-space-sm">
+      <div className="flex flex-wrap items-center gap-space-sm">
+        <button
+          className="inline-flex items-center gap-1 rounded bg-surface-container-lowest px-3 py-1 font-label-sm text-label-sm text-on-surface shadow-sm hover:bg-surface-container-high"
+          type="button"
+          onClick={onBack}
+        >
+          <MaterialIcon name="arrow_back" className="text-[16px]" />
+          Quay lại kết quả tìm kiếm
+        </button>
+        <span className="font-code-sm text-code-sm text-secondary">
+          Đối soát trích dẫn [{citeNo}]{head ? ` / ${head}` : ''}
+        </span>
+      </div>
+      <div className="grid min-h-0 flex-1 grid-cols-1 items-stretch gap-space-md lg:grid-cols-12">
+        <div className="flex flex-col gap-space-sm lg:col-span-5">
+          <section className="rounded bg-surface-container-lowest p-space-md shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1">
+                <MaterialIcon
+                  name="fact_check"
+                  className="text-[18px] text-on-tertiary-container"
+                />
+                <span className="font-label-md text-label-md font-bold uppercase tracking-wide text-on-surface">
+                  Thẩm định trích dẫn [{citeNo}]
+                </span>
+              </div>
+              <span className="rounded bg-surface-container px-2 py-0.5 font-code-sm text-code-sm text-on-surface">
+                Trang {page}
+              </span>
+            </div>
+            <p className="mt-space-sm rounded border border-surface-container bg-surface-container-low p-space-sm font-body-md text-body-md leading-relaxed text-on-surface">
+              {body ? `“${body}”` : 'Không có nội dung trích dẫn.'}
+            </p>
+            <p className="mt-space-sm font-label-sm text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">
+              Thẩm định của chuyên viên
+            </p>
+            {latest ? (
+              <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">
+                Lần gần nhất:{' '}
+                <span className="font-semibold text-on-surface">
+                  {VERDICT_LABEL[VERDICT_OF[latest.action] ?? 'correct']}
+                </span>{' '}
+                bởi {entryWho(latest)} · {entryWhen(latest)}
+              </p>
+            ) : !loading ? (
+              <p className="mt-1 font-body-sm text-body-sm text-secondary">
+                Chưa có ai thẩm định trích dẫn này.
+              </p>
+            ) : null}
+            {review?.stale ? (
+              <div className="mt-1 rounded border border-[#F59E0B] bg-[#FFFBEB] p-2 font-body-sm text-body-sm text-on-surface">
+                <p className="flex items-center gap-1 font-semibold text-[#92400E]">
+                  <MaterialIcon name="history" className="text-[15px]" />
+                  Từ lần phân tích trước, cần xem lại
+                </p>
+                <p className="mt-0.5">
+                  <span className="font-semibold">
+                    {
+                      VERDICT_LABEL[
+                        VERDICT_OF[review.stale.latest.action] ?? 'correct'
+                      ]
+                    }
+                  </span>{' '}
+                  bởi {entryWho(review.stale.latest)} ·{' '}
+                  {entryWhen(review.stale.latest)}
+                </p>
+                {entryNote(review.stale.latest) ? (
+                  <p className="mt-0.5 text-on-surface-variant">
+                    {entryNote(review.stale.latest)}
+                  </p>
+                ) : null}
+                {review.stale.textChanged ? (
+                  <p className="mt-0.5 font-semibold text-[#92400E]">
+                    Nội dung điều khoản đã đổi so với lúc thẩm định.
+                  </p>
+                ) : null}
+                <p className="mt-0.5 text-secondary">
+                  Kết quả này không được tính cho lần phân tích hiện tại. Hãy
+                  chọn đúng hoặc sai rồi lưu lại.
+                </p>
+              </div>
+            ) : null}
+            {canReview ? (
+              <>
+                <div className="mt-1 grid grid-cols-2 gap-1">
+                  <VerdictButton
+                    active={verdict === 'correct'}
+                    icon="check_circle"
+                    label="Đúng"
+                    onClick={() => choose('correct')}
+                  />
+                  <VerdictButton
+                    active={verdict === 'deviation'}
+                    icon="cancel"
+                    label="Sai"
+                    onClick={() => choose('deviation')}
+                  />
+                </div>
+                <textarea
+                  className="mt-2 w-full resize-none rounded bg-surface-container-low p-2 font-body-sm text-body-sm text-on-surface outline-none focus:ring-1 focus:ring-outline-variant"
+                  placeholder="Bổ sung hoặc xử lý..."
+                  rows={2}
+                  disabled={locked}
+                  value={note}
+                  onChange={(event) => {
+                    setNote(event.target.value)
+                    setSaved(false)
+                  }}
+                />
+                {message ? (
+                  <p className="mt-1 font-body-sm text-body-sm text-error">
+                    {message}
+                  </p>
+                ) : null}
+                <div className="mt-1 flex items-center justify-end gap-2">
+                  {locked ? (
+                    <span className="font-label-sm text-label-sm text-secondary">
+                      Hồ sơ đã khóa
+                    </span>
+                  ) : null}
+                  <button
+                    className="inline-flex items-center gap-1 rounded bg-brand-100 px-3 py-1 font-label-sm text-label-sm font-semibold text-brand-700 hover:bg-brand-200 disabled:opacity-50"
+                    type="button"
+                    disabled={loading || saving || locked}
+                    onClick={() => void save()}
+                  >
+                    <MaterialIcon
+                      name={saved ? 'check' : 'save'}
+                      className="text-[15px]"
+                    />
+                    {saving
+                      ? 'Đang lưu...'
+                      : saved
+                        ? 'Đã lưu thẩm định'
+                        : 'Lưu thẩm định'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <ReviewReadOnlyNote reason={blocked} />
+            )}
+            <ReviewTimeline entries={timeline} />
+          </section>
+        </div>
+        <div className="flex min-h-[480px] overflow-hidden rounded bg-surface-container-lowest shadow-sm lg:col-span-7">
+          <CitationPane
+            key={node.id}
+            embedded
+            banner={
+              dossierId && conflicts.length > 0 && onOpenConflict ? (
+                <ConflictNotice
+                  documentId={documentId}
+                  dossierId={dossierId}
+                  nodeId={node.id}
+                  spots={conflicts}
+                  onOpen={onOpenConflict}
+                />
+              ) : null
+            }
+            citeNo={citeNo}
+            documentId={documentId}
+            filename={filename}
+            node={node}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function VerdictButton({
+  active,
+  icon,
+  label,
+  onClick,
+}: {
+  active: boolean
+  icon: string
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      className={`flex items-center justify-center gap-1 rounded px-1 py-1 font-label-sm text-label-sm ${
+        active
+          ? 'bg-brand-100 font-semibold text-brand-700 shadow-sm ring-1 ring-brand-200'
+          : 'bg-surface-container font-medium text-on-surface-variant hover:bg-surface-container-high'
+      }`}
+      type="button"
+      onClick={onClick}
+    >
+      <MaterialIcon name={icon} className="text-[14px]" />
+      {label}
+    </button>
+  )
+}

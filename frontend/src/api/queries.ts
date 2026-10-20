@@ -1,0 +1,129 @@
+import { requestJson } from './client'
+
+export type QueryScope = 'mine'
+
+export type QueryHistoryCitation = {
+  quote: string
+  pageNo: number | null
+  /**
+   * Tài liệu chứa đoạn trích (source_file_id của AI2). Trích dẫn phụ lục phải
+   * mở đúng phụ lục, không tìm trên cây của hợp đồng chính.
+   */
+  documentId?: string | null
+  lineId?: string | null
+  /** Vùng khoanh 0..1 theo trang, nếu AI2 có trả. */
+  bbox?: [number, number, number, number] | null
+}
+
+export type QueryHistoryItem = {
+  traceId: string
+  endpoint: 'ask' | 'query' | 'search'
+  actorId: string
+  question: string
+  /** null khi AI2 lỗi hoặc câu hỏi có trước khi có lịch sử. */
+  answer: string | null
+  state: string | null
+  citations: QueryHistoryCitation[]
+  errorCode: string | null
+  createdAt: string
+}
+
+export const QUERY_HISTORY_PAGE = 20
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
+function asText(value: unknown) {
+  return typeof value === 'string' ? value : ''
+}
+
+function citationOf(value: unknown): QueryHistoryCitation | null {
+  const row = asRecord(value)
+  if (!row) return null
+  const nested = asRecord(row.citation) ?? {}
+  // Trace của /search lưu nguyên citation AI2 (text_span, page) ở cấp ngoài.
+  const quote =
+    asText(row.quote) ||
+    asText(row.text_span) ||
+    asText(nested.text_span) ||
+    asText(row.text) ||
+    asText(nested.quote)
+  const page = row.page_no ?? row.page ?? nested.page_no ?? nested.page
+  const bbox = row.bbox ?? nested.bbox
+  return {
+    quote,
+    pageNo: typeof page === 'number' && Number.isFinite(page) ? page : null,
+    documentId:
+      asText(row.source_file_id) ||
+      asText(nested.source_file_id) ||
+      asText(row.document_id) ||
+      asText(nested.document_id) ||
+      null,
+    lineId: asText(row.line_id) || asText(nested.line_id) || null,
+    bbox:
+      Array.isArray(bbox) &&
+      bbox.length === 4 &&
+      bbox.every((value) => typeof value === 'number' && Number.isFinite(value))
+        ? [bbox[0], bbox[1], bbox[2], bbox[3]]
+        : null,
+  }
+}
+
+export function normalizeQueryHistoryItem(
+  value: unknown,
+): QueryHistoryItem | null {
+  const row = asRecord(value)
+  if (!row) return null
+  const traceId = asText(row.trace_id)
+  if (!traceId) return null
+  return {
+    traceId,
+    endpoint:
+      row.endpoint === 'query' || row.endpoint === 'search'
+        ? row.endpoint
+        : 'ask',
+    actorId: asText(row.actor_id),
+    question: asText(row.question),
+    answer: asText(row.answer) || null,
+    state: asText(row.state) || null,
+    citations: (Array.isArray(row.citations) ? row.citations : [])
+      .map(citationOf)
+      .filter((item): item is QueryHistoryCitation => item !== null),
+    errorCode: asText(row.error_code) || null,
+    createdAt: asText(row.created_at),
+  }
+}
+
+/**
+ * GET /dossiers/{id}/queries. Phân trang bằng limit/offset (không phải
+ * page/page_size). Frontend chỉ gọi `scope=mine` theo chốt của Lead: ai tự xem
+ * câu hỏi của người đấy, không xem được của người khác.
+ */
+export async function listDossierQueries(
+  dossierId: string,
+  options: {
+    scope?: QueryScope
+    limit?: number
+    offset?: number
+    signal?: AbortSignal
+  } = {},
+) {
+  const params = new URLSearchParams({
+    scope: options.scope ?? 'mine',
+    limit: String(options.limit ?? QUERY_HISTORY_PAGE),
+    offset: String(options.offset ?? 0),
+  })
+  const { data, meta } = await requestJson<unknown>(
+    `/api/v1/dossiers/${encodeURIComponent(dossierId)}/queries?${params}`,
+    { signal: options.signal },
+  )
+  const items = (Array.isArray(data) ? data : [])
+    .map(normalizeQueryHistoryItem)
+    .filter((item): item is QueryHistoryItem => item !== null)
+  return {
+    items,
+    total: typeof meta?.total === 'number' ? meta.total : items.length,
+  }
+}
