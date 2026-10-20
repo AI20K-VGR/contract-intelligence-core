@@ -2,7 +2,8 @@
 
 The API process never runs the pipeline: OCR/AI work is orchestrated only by
 the Kafka worker (``contract_intelligence.worker``). This loop just sweeps
-dossier purges that are due, on ``job_reaper_interval_seconds``.
+dossier purges that are due, on ``job_reaper_interval_seconds``, and every
+``UPLOAD_SWEEP_INTERVAL_SECONDS`` removes expired chunked-upload sessions.
 
 It used to also claim ``uploaded`` jobs and run the legacy in-process
 ``PipelineOrchestrator``, which raced the Kafka worker for every new upload.
@@ -11,6 +12,7 @@ It used to also claim ``uploaded`` jobs and run the legacy in-process
 from __future__ import annotations
 
 import asyncio
+import time
 
 import structlog
 
@@ -18,9 +20,11 @@ from contract_intelligence.config.settings import Settings, get_settings
 
 logger = structlog.get_logger(__name__)
 
+UPLOAD_SWEEP_INTERVAL_SECONDS = 600.0
+
 
 class MaintenanceLoop:
-    """Background loop: sweep pending dossier purges."""
+    """Background loop: sweep pending dossier purges and expired upload sessions."""
 
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or get_settings()
@@ -43,9 +47,11 @@ class MaintenanceLoop:
     async def _loop(self) -> None:
         from contract_intelligence.contract.infrastructure.persistence import (
             dossier_deletion_service,
+            upload_session_store,
         )
 
         interval = self._settings.job_reaper_interval_seconds
+        next_upload_sweep = 0.0
         while True:
             try:
                 await dossier_deletion_service.sweep_pending_purges()
@@ -53,6 +59,15 @@ class MaintenanceLoop:
                 raise
             except Exception:
                 logger.exception("maintenance.purge_sweep_error")
+            # Expired chunked-upload sessions (#145): every few minutes is plenty.
+            if time.monotonic() >= next_upload_sweep:
+                next_upload_sweep = time.monotonic() + UPLOAD_SWEEP_INTERVAL_SECONDS
+                try:
+                    await upload_session_store.run_expired_session_sweep()
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.exception("maintenance.upload_sweep_error")
             await asyncio.sleep(interval)
 
 

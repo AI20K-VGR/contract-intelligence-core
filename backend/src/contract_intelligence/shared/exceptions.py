@@ -45,6 +45,16 @@ class DomainErrorCode(StrEnum):
     # Dossier size (DEC-BE-AI2-01 D5)
     DOSSIER_TOO_MANY_DOCUMENTS = "DOSSIER_TOO_MANY_DOCUMENTS"
 
+    # Chunked upload sessions (/uploads, #145): one code per case the frontend
+    # handles differently.
+    UPLOAD_NOT_OPEN = "UPLOAD_NOT_OPEN"
+    UPLOAD_MISSING_CHUNKS = "UPLOAD_MISSING_CHUNKS"
+    UPLOAD_SIZE_MISMATCH = "UPLOAD_SIZE_MISMATCH"
+    UPLOAD_COMPLETING = "UPLOAD_COMPLETING"
+    UPLOAD_COMPLETED = "UPLOAD_COMPLETED"
+    UPLOAD_CANCELLED = "UPLOAD_CANCELLED"
+    UPLOAD_EXPIRED = "UPLOAD_EXPIRED"
+
     # Conflict
     INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
 
@@ -165,6 +175,29 @@ class ManifestVersionConflict(DomainException):
                 "expected_version": expected_version,
                 "current_version": current_version,
             },
+        )
+
+
+class UploadSessionConflict(DomainException):
+    """A chunked upload session is not in the state the call needs — HTTP 409.
+
+    ``code`` says which case (``UPLOAD_*``) so the frontend can react to each.
+    """
+
+    def __init__(
+        self, code: DomainErrorCode, message: str, *, details: dict[str, Any] | None = None
+    ) -> None:
+        super().__init__(code, message, details=details)
+
+
+class UploadSessionExpired(DomainException):
+    """A chunked upload session passed its ``expires_at`` — HTTP 410."""
+
+    def __init__(self, upload_id: str) -> None:
+        super().__init__(
+            DomainErrorCode.UPLOAD_EXPIRED,
+            "Upload session expired; upload the files again.",
+            details={"upload_id": upload_id},
         )
 
 

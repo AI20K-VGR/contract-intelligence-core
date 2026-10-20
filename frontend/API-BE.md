@@ -2,7 +2,7 @@
 
 Spec: **Contract Intelligence API** `1.1.0+sprint4-ai-integration` (DOC-05b + DOC-05c).  
 Đã chốt theo OpenAPI backend (envelope `{ data, meta }`, header `X-Backend-Version`).
-Hợp đồng FE-BE: **DOC-05b `v4.1.0`**, header response `X-API-Contract: v4.1.0`. 4 endpoint `/notifications` của `v1.6.0` vẫn là đề xuất, backend chưa có ([24](#24-thông-báo-cá-nhân-đề-xuất-be-chưa-có)).
+Hợp đồng FE-BE: **DOC-05b `v4.2.0`**, header response `X-API-Contract: v4.2.0`. 4 endpoint `/notifications` của `v1.6.0` vẫn là đề xuất, backend chưa có ([24](#24-thông-báo-cá-nhân-đề-xuất-be-chưa-có)).
 
 Từ `v2.1.0`:
 
@@ -12,6 +12,7 @@ Từ `v2.1.0`:
 - `v3.3.0`: `GET /dossiers` thêm `document_counts`, `contract_ocr`; header `Server-Timing`. Màn danh sách (`MyDossiersPage`) đọc thẳng hai trường này (`listedDossierFacts`, #144), không gọi `/documents`, `/pages` cho từng dòng nữa. Trường là `null` (không có quyền) thì không hiện phần đó và không gọi bù; thiếu trường (backend trước v3.3.0) thì mới gọi theo cách cũ.
 - `v4.0.0` (**breaking**): chia sẻ hồ sơ chỉ với người dùng có thật trong cùng tenant ([20](#20-chia-sẻ-hồ-sơ-chỉ-đọc--được-sửa-có-hạn)); thêm `GET /users/lookup`; OPERATOR gọi `/users/directory` phải có `q` từ 3 ký tự (frontend không gọi danh bạ); `POST /users`, `/invite` trả `422 email_domain_undeliverable` ([18](#18-quản-lý-người-dùng)).
 - `v4.1.0`: đăng xuất có hiệu lực ngay. Keycloak báo phiên kết thúc qua back-channel logout (`POST /api/v1/auth/backchannel-logout`, chỉ Keycloak gọi trong mạng nội bộ, Caddy trả 404 từ Internet); access token của phiên đó nhận `401` `{"detail": "Session has ended"}` thay vì chờ hết hạn. Frontend không phải sửa ([1](#1-auth)).
+- `v4.2.0`: tải hồ sơ theo khúc (`/uploads`) để Cloudflare không cắt lần tải lên dài quá khoảng 125 giây (#145). Frontend tạo hồ sơ qua `/uploads` ([3c](#3c-tải-hồ-sơ-theo-khúc-uploads-v420)).
 
 Dùng file này khi bỏ mock: mở mục tương ứng màn hình / file `src/data/*`, copy endpoint + shape, nối `src/api/client.ts`.
 
@@ -285,7 +286,7 @@ RBAC list: **mọi user đã auth**.
 
 ## 3. Upload dossier
 
-**FE:** `CreateDossierPage` ← `src/api/dossiers.ts` (`createDossier`, `patchDossier`)  
+**FE:** `CreateDossierPage` → store `src/api/dossierUpload.ts` → `src/api/chunkedUpload.ts` (`uploadDossierInChunks`, mặc định từ v4.2.0, [3c](#3c-tải-hồ-sơ-theo-khúc-uploads-v420)); `src/api/dossiers.ts` (`createDossier` khi backend chưa có `/uploads`, `patchDossier`)  
 Đã chốt OpenAPI: màn `/tao-ho-so` gọi **3b** `POST /api/v1/dossiers` → **202**. Multipart `contract` + `metadata` JSON `{ name }` + `annexes[]`. Nhận `dossier_id` + `job_id`, hiện **UPLOADED**.
 
 **Giới hạn (DOC-05b v2.0.1):** mỗi file tối đa 50 MiB (backend trả `413` JSON); trên bản online **cả request tối đa 100 MB** vì Cloudflare gói Free, quá thì Cloudflare trả `413` dạng **HTML** (không parse body). Bộ hồ sơ lớn hơn thì bớt phụ lục hoặc tải phụ lục qua `POST /dossiers/{id}/documents`.
@@ -293,6 +294,24 @@ RBAC list: **mọi user đã auth**.
 Mã vụ việc / phân loại / quyền riêng tư **không** nằm trong body POST (OpenAPI metadata chỉ `{ name, tags?, notes? }`). Sau 202 FE gọi `PATCH /dossiers/{id}` `{ metadata: { code, category, privacy } }`. PATCH lỗi không huỷ hồ sơ vừa tạo.
 
 Chỉ còn **1** POST tạo hồ sơ (3b). Endpoint cũ 3a `POST /dossiers/upload` (chạy pipeline trong tiến trình backend, không qua Kafka) **đã bị gỡ** — gọi vào sẽ nhận 404/405. Pipeline OCR tự chạy sau 3b: backend publish `dossier.uploaded`, worker gửi lệnh AI1 rồi AI2.
+
+### 3c. Tải hồ sơ theo khúc: `/uploads` (v4.2.0)
+
+Cloudflare gói Free cắt request còn đang gửi body sau khoảng 125 giây; với mạng 35–87 KB/s đo trên production, một `POST /dossiers` chỉ gửi kịp 4–10 MB (#145). Từ v4.2.0 frontend luôn tạo hồ sơ theo khúc (`uploadDossierInChunks`):
+
+1. `POST /api/v1/uploads` (JSON `{ metadata, files: [{ role, filename, size }] }`, hợp đồng trước) → `201` `{ upload_id, chunk_size, expires_at, files: [{ index, chunks, received }] }`. `size` là số byte sau khi ảnh đã gói thành PDF.
+2. Mỗi khúc `n` của file `index`: `PUT /api/v1/uploads/{id}/files/{index}/chunks/{n}`, body byte thô (`application/octet-stream`) của đoạn `[n × chunk_size, (n + 1) × chunk_size)` → `204`. Tiến độ trên trang Tiến trình tính trên tổng byte mọi file.
+   - Mất mạng, treo 30 giây không gửi thêm được byte (`UploadStalledError`), `408`, `429` hay `5xx`: gửi lại riêng khúc đó, tối đa 4 lần (chờ 2 s, 4 s, 8 s). Lỗi khác (ví dụ `422` sai độ dài) thì dừng.
+   - Khúc đã có trong `received` (gửi tiếp sau khi mất mạng) thì bỏ qua.
+3. `POST /api/v1/uploads/{id}/complete` → `202` `{ dossier_id, job_id }` như 3b, rồi `PATCH /dossiers/{id}` như cũ.
+   - `409 UPLOAD_MISSING_CHUNKS` (`error.details.missing_chunks`): gửi bù các khúc đó rồi gọi lại.
+   - `409 UPLOAD_COMPLETING`, `524` (Cloudflare chờ quá khoảng 100 s) hay mất mạng: chờ 3 s rồi `GET /api/v1/uploads/{id}`; `status: completed` thì lấy `dossier_id`, `job_id` ở đó (không tạo hồ sơ thứ hai); còn `open` thì gọi lại `complete`. Tối đa 3 phút.
+   - `409 UPLOAD_COMPLETED` (khi gửi khúc): phiên đã thành hồ sơ, lấy hồ sơ đó.
+   - `409 UPLOAD_CANCELLED` / `UPLOAD_NOT_OPEN` (backend đã huỷ phiên không nhận khúc nào trong 5 phút khi người dùng mở phiên thứ 4), `410 UPLOAD_EXPIRED`, `409 UPLOAD_SIZE_MISMATCH`: dừng, báo người dùng tải lên lại. Câu báo theo mã ở `createDossierErrorMessage` (message của backend là tiếng Anh).
+4. Người dùng huỷ, hay tải lên lỗi hẳn: `DELETE /api/v1/uploads/{id}` (không chờ, lỗi bỏ qua). Phiên bỏ dở vì đóng tab hay F5 thì backend tự huỷ phiên `open` không nhận khúc nào trong 5 phút khi người dùng mở phiên thứ 4. Không có phiên nào bỏ dở đủ 5 phút (cả 3 lượt còn đang gửi hoặc đang `completing`) thì `POST /uploads` trả `429`: frontend báo "Đang có 3 lượt tải lên chưa xong…" (`createDossierErrorMessage`), không tự gửi lại.
+5. Backend trước v4.2.0 trả `404` ở bước 1: frontend dùng 3b `POST /dossiers` như cũ.
+
+Giới hạn 6 file, đúng 1 hợp đồng và 50 MiB mỗi file được kiểm ngay ở bước 1, trước khi gửi byte nào. Giới hạn 100 MB mỗi request của Cloudflare không còn áp lên cả bộ hồ sơ.
 
 ### 3b. Đã chốt — màn tạo hồ sơ: `POST /api/v1/dossiers` → **202**
 

@@ -5,7 +5,7 @@
 | Thuộc tính | Nội dung |
 |---|---|
 | Mã tài liệu | **DOC-05b** / Contract Intelligence (PROD-01) |
-| Phiên bản / SemVer | **`v4.1.0`** — đăng xuất có hiệu lực ngay: token của phiên Keycloak đã kết thúc nhận `401` `{"detail": "Session has ended"}`. **`v4.0.0`** (breaking) — chia sẻ hồ sơ chỉ với người dùng có thật cùng tenant: `PUT /dossiers/{id}/access` kiểm tra người nhận mới trong Keycloak (`422 share_recipient_not_found`), `shared_with` tối đa 100; thêm `GET /users/lookup`; `GET /users/directory` bắt OPERATOR gửi `q` từ 3 ký tự; không gửi thư tới tên miền dành riêng (`422 email_domain_undeliverable` khi tạo người dùng hoặc gửi lại lời mời). **`v3.3.0`** — `GET /dossiers` thêm `document_counts`, `contract_ocr` cho mỗi hồ sơ (bỏ 3 lần gọi mỗi dòng); header `Server-Timing`. **`v3.2.0`** — tiến độ trong bước: `progress` trên `GET /runs/{id}/steps` và SSE `step.changed`; mã lỗi `AI1_NO_READABLE_PAGE`. **`v3.1.0`** — bật consent AI2 tự reindex hồ sơ, response thêm `ai2_reindex_queued`. **`v3.0.0`** — siết quyền trước pentest (#96): token không có role ứng dụng trả `403` thay vì thành `OPERATOR`; `/ai/jobs/{id}` chỉ `ADMINISTRATOR`; batch cancel/resume chỉ người tạo hoặc `ADMINISTRATOR`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
+| Phiên bản / SemVer | **`v4.2.0`** — tải hồ sơ theo khúc (`/uploads`) để không bị Cloudflare cắt ở khoảng 125 giây (#145). **`v4.1.0`** — đăng xuất có hiệu lực ngay: token của phiên Keycloak đã kết thúc nhận `401` `{"detail": "Session has ended"}`. **`v4.0.0`** (breaking) — chia sẻ hồ sơ chỉ với người dùng có thật cùng tenant: `PUT /dossiers/{id}/access` kiểm tra người nhận mới trong Keycloak (`422 share_recipient_not_found`), `shared_with` tối đa 100; thêm `GET /users/lookup`; `GET /users/directory` bắt OPERATOR gửi `q` từ 3 ký tự; không gửi thư tới tên miền dành riêng (`422 email_domain_undeliverable` khi tạo người dùng hoặc gửi lại lời mời). **`v3.3.0`** — `GET /dossiers` thêm `document_counts`, `contract_ocr` cho mỗi hồ sơ (bỏ 3 lần gọi mỗi dòng); header `Server-Timing`. **`v3.2.0`** — tiến độ trong bước: `progress` trên `GET /runs/{id}/steps` và SSE `step.changed`; mã lỗi `AI1_NO_READABLE_PAGE`. **`v3.1.0`** — bật consent AI2 tự reindex hồ sơ, response thêm `ai2_reindex_queued`. **`v3.0.0`** — siết quyền trước pentest (#96): token không có role ứng dụng trả `403` thay vì thành `OPERATOR`; `/ai/jobs/{id}` chỉ `ADMINISTRATOR`; batch cancel/resume chỉ người tạo hoặc `ADMINISTRATOR`. Xem [Lịch sử phiên bản](#lịch-sử-phiên-bản) |
 | Trạng thái | Đã chốt — Sẵn sàng triển khai Frontend & Backend |
 | Owner | Tech Lead / Frontend Lead / Backend Lead |
 | Ngày hiệu lực | 17/09/2026 |
@@ -184,6 +184,13 @@ Mọi phản hồi lỗi (HTTP status >= 400) đều tuân theo chuẩn RFC 7807
 | `422` | `email_domain_undeliverable` | **v4.0.0.** `POST /users`, `POST /users/{id}/invite`: email thuộc tên miền không nhận thư (`.local`, `.test`, `.example`, `.invalid`, `localhost`, `example.com/net/org`). Không tạo người dùng, không gửi thư. `details`: `{ field }` ở `POST /users`, `{ email }` ở `/invite` | Hiện `error.message` ("Tên miền email không nhận được thư, vui lòng kiểm tra lại.") ở ô email |
 | `422` | `directory_query_required` | **v4.0.0.** `GET /users/directory` do OPERATOR gọi mà không có `q` hoặc `q` dưới 3 ký tự. `details`: `{ min_length: 3 }` | Chỉ gọi khi người dùng đã gõ đủ 3 ký tự; chia sẻ theo email thì dùng `GET /users/lookup` |
 | `422` | `contract_required` / `contract_not_unique` | **v1.2.0.** Hồ sơ không có, hoặc có nhiều hơn một, hợp đồng chính (`POST /dossiers/{id}/split`, `POST /dossiers/{id}/manifest/confirm`) | Yêu cầu chọn đúng một phần hoặc tài liệu là hợp đồng |
+| `409` | `UPLOAD_MISSING_CHUNKS` | **v4.2.0.** `POST /uploads/{id}/complete` khi còn khúc chưa gửi. `details.missing_chunks`: `{ "<file_index>": [chunk_no, …] }` | Gửi các khúc trong danh sách rồi gọi lại `complete` |
+| `409` | `UPLOAD_SIZE_MISMATCH` | **v4.2.0.** `complete`: số byte ghép được khác `size` đã khai. `details`: `file_index`, `received_bytes`, `declared_bytes` | Huỷ phiên (`DELETE /uploads/{id}`) rồi tải lại |
+| `409` | `UPLOAD_COMPLETING` | **v4.2.0.** Phiên đang được một request khác `complete` (gửi khúc, `complete`, `DELETE`) | Chờ vài giây rồi gọi lại `complete` hoặc `GET /uploads/{id}` |
+| `409` | `UPLOAD_COMPLETED` | **v4.2.0.** Phiên đã thành hồ sơ (gửi khúc, `DELETE`). `details.dossier_id` | Mở hồ sơ `details.dossier_id` |
+| `409` | `UPLOAD_CANCELLED` | **v4.2.0.** Phiên đã huỷ: người dùng huỷ, hoặc backend huỷ phiên `open` không nhận khúc nào trong 5 phút khi người dùng mở phiên thứ 4 (gửi khúc, `complete`) | Dừng gửi; muốn tải tiếp thì mở phiên mới |
+| `409` | `UPLOAD_NOT_OPEN` | **v4.2.0.** Phiên ở trạng thái khác (dự phòng; `details.status`) | Như `UPLOAD_CANCELLED` |
+| `410` | `UPLOAD_EXPIRED` | **v4.2.0.** Phiên quá `expires_at` (24 giờ) mà chưa `complete` | Mở phiên mới và tải lại |
 | `500` | `INTERNAL_ERROR` | Lỗi phía server / database / AI service | Hiển thị toast lỗi và mã `X-Request-Id` để liên hệ IT |
 
 ---
@@ -284,6 +291,11 @@ Màn hình khởi tạo hồ sơ, tải lên các file PDF (hợp đồng gốc 
 | `GET` | `/dossiers/{id}/manifest` | `OPERATOR`, `REVIEWER`, `ADMINISTRATOR` | Xem Manifest dự thảo phân loại tài liệu sau bước tiền xử lý |
 | `POST` | `/dossiers/{id}/manifest/confirm` | `OPERATOR`, `ADMINISTRATOR` | Xác nhận phân loại tài liệu để kích hoạt bước phân tích sâu |
 | `POST` | `/dossiers/{id}/split` | `OPERATOR`, `ADMINISTRATOR` | **v1.1.0.** Tách một PDF trộn (hợp đồng + phụ lục) thành từng tài liệu theo khoảng trang người dùng xác nhận |
+| `POST` | `/uploads` | `OPERATOR`, `ADMINISTRATOR` | **v4.2.0.** Mở phiên tải hồ sơ theo khúc: khai báo các file và `metadata` (xem dưới bảng) |
+| `PUT` | `/uploads/{upload_id}/files/{index}/chunks/{n}` | người mở phiên | **v4.2.0.** Gửi một khúc (byte thô) |
+| `GET` | `/uploads/{upload_id}` | người mở phiên | **v4.2.0.** Các khúc đã nhận, để gửi tiếp sau khi mất mạng |
+| `POST` | `/uploads/{upload_id}/complete` | người mở phiên | **v4.2.0.** Ghép các khúc và tạo hồ sơ, trả như `POST /dossiers` |
+| `DELETE` | `/uploads/{upload_id}` | người mở phiên | **v4.2.0.** Huỷ phiên, xoá các khúc đã gửi |
 
 - **Số tài liệu và trạng thái OCR trong danh sách (v3.3.0):** mỗi phần tử của `GET /dossiers` có thêm hai trường, để màn danh sách không phải gọi `GET /dossiers/{id}/documents` và `GET /documents/{id}/pages` cho từng dòng:
   ```json
@@ -318,6 +330,46 @@ Màn hình khởi tạo hồ sơ, tải lên các file PDF (hợp đồng gốc 
   - `order_index`: `0` (số thứ tự)
 
 - **Giới hạn dung lượng (v2.0.1):** mỗi file tối đa 50 MiB (backend trả `413` JSON); tối đa 6 tài liệu (`422 DOSSIER_TOO_MANY_DOCUMENTS`); trên bản online, **mỗi request tối đa 100 MB** vì Cloudflare gói Free. Quá mức này Cloudflare trả `413` với body HTML, không phải envelope `{ error }` (xem §3.3). Bộ hồ sơ lớn hơn 100 MB phải bớt hoặc nén file; tải từng phụ lục qua `POST /dossiers/{id}/documents` cũng tránh được giới hạn.
+
+- **Tải hồ sơ theo khúc (v4.2.0, #145):** trên bản online, Cloudflare gói Free **cắt request còn đang gửi body sau khoảng 125 giây** (đo 19/10/2026; Caddy ghi `502` vì body không tới đủ). Với mạng 35–87 KB/s đo được trên production, `POST /dossiers` chỉ gửi kịp 4–10 MB. Hồ sơ lớn hơn gửi theo khúc, mỗi khúc một request ngắn:
+  1. `POST /uploads` (JSON) → `201`:
+     ```json
+     {
+       "metadata": { "name": "Hồ sơ A", "code": "HD-01", "split_pending": false },
+       "files": [
+         { "role": "contract", "filename": "hop-dong.pdf", "size": 15891385 },
+         { "role": "annex", "filename": "phu-luc-1.pdf", "size": 2138220 }
+       ]
+     }
+     ```
+     - `metadata` giống trường `metadata` của `POST /dossiers` (JSON object, không phải chuỗi).
+     - `files`: đúng **một** `contract`; tối đa 6 file. `size` là số byte của file **đúng như sẽ gửi** (sau khi ảnh đã gói thành PDF).
+     - Kiểm ngay khi mở phiên, trước khi gửi byte nào: quá 6 file → `422 DOSSIER_TOO_MANY_DOCUMENTS`; không đúng một hợp đồng hoặc `metadata` sai → `422`; một file quá 50 MiB → `413`.
+     - **Mỗi người tối đa 3 phiên chưa xong.**
+       - Mở phiên thứ 4 thì backend **tự huỷ phiên `open` đã không nhận khúc nào trong 5 phút**, ít hoạt động nhất trước, và xoá khúc của phiên đó, rồi mở phiên mới. Nhờ vậy, upload bị bỏ dở (đóng tab, F5) không khoá người dùng tới khi hết hạn.
+       - Phiên **còn đang gửi khúc** (nhiều hồ sơ tải cùng lúc) và phiên đang `completing` thì không bao giờ bị huỷ. Không có phiên nào bỏ dở đủ 5 phút thì `429`: chờ một lượt tải xong, hoặc huỷ một lượt, rồi mở lại.
+       - Phiên bị huỷ như vậy, nếu tab cũ còn gửi khúc vào, nhận `409 UPLOAD_CANCELLED`.
+     - Trả về `upload_id`, `chunk_size` (mặc định 1 MiB), `expires_at` (24 giờ), và `files[]` theo thứ tự hợp đồng trước (`index` 0), phụ lục sau, mỗi file có `chunks` (số khúc) và `received` (các khúc đã nhận, lúc đầu rỗng).
+  2. Gửi khúc theo **`files[].index` mà server trả về** (hợp đồng luôn là `index` 0, phụ lục theo thứ tự đã khai), không theo thứ tự file ở phía client. Ghép nhầm thì hai file cùng kích thước sẽ đổi chỗ mà không kiểm tra nào bắt được.
+     Với mỗi file `index`, mỗi khúc `n` từ `0` tới `chunks - 1`: `PUT /uploads/{upload_id}/files/{index}/chunks/{n}`, body là byte thô (`Content-Type: application/octet-stream`) của đoạn `[n × chunk_size, (n + 1) × chunk_size)`. → `204`.
+     - Mọi khúc dài đúng `chunk_size`, trừ khúc cuối (phần còn lại). Sai độ dài → `422`. `index` hoặc `n` ngoài phạm vi → `404`.
+     - **Gửi lại cùng một khúc thì ghi đè**, nên khúc lỗi mạng cứ gửi lại. Thứ tự gửi không quan trọng.
+     - Ở 35 KB/s, một khúc 1 MiB mất khoảng 30 giây, xa mốc 125 giây.
+  3. `POST /uploads/{upload_id}/complete` → `202` với **đúng** `{dossier_id, job_id}` như `POST /dossiers`. Backend ghép các khúc rồi chạy cùng luồng tạo hồ sơ (kiểm PDF, số trang, `split_pending`, tự xác nhận vai trò, gửi OCR).
+     - Thiếu khúc → `409 UPLOAD_MISSING_CHUNKS`, `error.details.missing_chunks` là `{ "<index>": [n, …] }`. Gửi các khúc đó rồi gọi lại.
+     - Số byte ghép được khác `size` đã khai → `409 UPLOAD_SIZE_MISMATCH` (`details`: `file_index`, `received_bytes`, `declared_bytes`). Chỉ xảy ra khi dữ liệu lưu bị hỏng: huỷ phiên rồi tải lại.
+     - File không phải PDF đọc được → `422` (như `POST /dossiers`). Phiên **vẫn mở**: có thể huỷ và tải file khác.
+     - **Gọi lại sau khi đã thành công trả cùng hồ sơ**, nên mất response lần đầu thì cứ gọi lại, không tạo hồ sơ thứ hai. Hai lần gọi cùng lúc: một lần tạo hồ sơ, lần kia nhận `409 UPLOAD_COMPLETING`.
+     - **`524` hoặc `409 UPLOAD_COMPLETING`: chờ rồi gọi lại, đừng tải lại từ đầu.**
+       - `complete` ghép cả bộ hồ sơ rồi tạo hồ sơ trong cùng một request. Với bộ hồ sơ rất lớn, request này có thể vượt 100 giây chờ của Cloudflare, và Cloudflare trả `524` trong khi backend vẫn đang làm tiếp.
+       - Khi đó chờ vài giây rồi gọi lại `complete`, hoặc `GET /uploads/{upload_id}`: thấy `status: "completed"` kèm `dossier_id` là xong.
+       - Phiên kẹt ở `completing` quá 10 phút (backend khởi động lại giữa chừng) thì gọi lại `complete` sẽ làm lại từ đầu.
+  - `GET /uploads/{upload_id}` trả lại trạng thái như bước 1 (`status`: `open`, `completing`, `completed` kèm `dossier_id`, hoặc `cancelled`). Mất mạng hoặc tải lại trang thì đọc `received` và chỉ gửi khúc còn thiếu.
+  - `DELETE /uploads/{upload_id}` → `204` (huỷ hai lần không lỗi); phiên đã thành hồ sơ → `409 UPLOAD_COMPLETED` (`details.dossier_id`), xoá hồ sơ bằng `DELETE /dossiers/{id}`; đang hoàn tất → `409 UPLOAD_COMPLETING`.
+  - Gửi khúc vào phiên không còn mở → `409` với mã theo trạng thái: `UPLOAD_COMPLETING`, `UPLOAD_COMPLETED` (`details.dossier_id`) hoặc `UPLOAD_CANCELLED`.
+  - Phiên chỉ của người mở: người khác (kể cả cùng tenant) nhận `404`. Quá `expires_at` mà chưa `complete` → `410 UPLOAD_EXPIRED`, backend xoá phiên và các khúc.
+  - Lỗi của `/uploads` dùng khung `{"error": {"code", "message", "details"}}` như các lỗi nghiệp vụ khác (§3.3). `message` bằng tiếng Anh: frontend hiển thị theo `code`. Riêng `404`, `413`, `422` (sai độ dài khúc, PDF hỏng) và `429` vẫn là `{"detail": …}` như `POST /dossiers`.
+  - `POST /dossiers` **không đổi**. Frontend có thể giữ nó cho hồ sơ nhỏ (ví dụ tổng dưới 4 MB) và dùng `/uploads` cho hồ sơ lớn hơn. Giới hạn 100 MB mỗi request của Cloudflare không còn áp lên cả bộ hồ sơ khi gửi theo khúc; giới hạn 50 MiB mỗi file và 6 file vẫn giữ.
 
 - **Tách file trộn (v1.1.0):**
   1. `POST /dossiers` với `metadata.split_pending = true`: Backend lưu file nhưng **chưa gửi OCR**.
@@ -1042,6 +1094,7 @@ Khi người dùng upload hồ sơ hoặc kích hoạt Run phân tích hợp đ�
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
 | `v1.0.0` | 17/09/2026 | Baseline |
+| `v4.2.0` | 19/10/2026 | Tải hồ sơ theo khúc (Màn hình 3, #145). Cloudflare gói Free cắt request còn đang gửi body sau khoảng 125 giây, nên trên mạng chậm `POST /dossiers` chỉ gửi kịp 4–10 MB. Thêm `POST /uploads`, `PUT /uploads/{id}/files/{index}/chunks/{n}`, `GET /uploads/{id}`, `POST /uploads/{id}/complete`, `DELETE /uploads/{id}`; khúc 1 MiB, gửi lại được, tiếp tục sau khi mất mạng; `complete` trả như `POST /dossiers` và gọi lại an toàn. `POST /dossiers` không đổi. Chỉ thêm endpoint nên là MINOR |
 | `v4.1.0` | 19/10/2026 | Đăng xuất có hiệu lực ngay (Màn hình 1). Keycloak báo phiên kết thúc qua back-channel logout (`POST /auth/backchannel-logout`, chỉ trong mạng nội bộ), backend lưu `sid` (bảng `revoked_session`, giữ 1 giờ) và trả `401` `Session has ended` cho mọi access token của phiên đó thay vì chờ hết hạn (15 phút). Quản trị khoá tài khoản cũng kết thúc mọi phiên của người đó. Thêm một `message` cho `401` và một endpoint nội bộ, frontend không phải sửa, nên là MINOR |
 | `v4.0.0` | 18/10/2026 | Chia sẻ hồ sơ chỉ với người dùng có thật trong cùng tenant (mục "Chia sẻ hồ sơ & hàng chờ thẩm định" ở §5). `PUT /dossiers/{id}/access` (lần đầu ghi vào DOC-05b) kiểm tra mỗi người nhận mới trong Keycloak, trả `422 share_recipient_not_found` (`details.rejected_emails`) và không lưu, không gửi thư khi có người không hợp lệ; danh tính người nhận lấy từ Keycloak. Thêm `GET /users/lookup?email=`. `shared_with` tối đa 100 phần tử. Không gửi thư tới tên miền dành riêng (`.local`, `.test`...); `POST /users` và `POST /users/{id}/invite` trả `422 email_domain_undeliverable`. **Breaking** theo §8 vì thu hẹp hành vi đã công bố: `GET /users/directory` do OPERATOR gọi phải có `q` từ 3 ký tự (`422 directory_query_required`), và `PUT /access` từ chối người nhận trước đây được nhận. Frontend chia sẻ bằng email đã tra `q=<email>` nên không bị ảnh hưởng; nên chuyển sang `GET /users/lookup` |
 | `v3.3.0` | 17/10/2026 | `GET /dossiers`: mỗi hồ sơ thêm `document_counts` (`{contracts, annexes}`) và `contract_ocr` (`{document_id, filename, page_count, failed_pages, first_error}`), `null` khi người gọi không có quyền tương ứng: `CITATION_READ` cho `document_counts`, `QUERY` cho `contract_ocr` (mục "Số tài liệu và trạng thái OCR trong danh sách" ở Màn hình 3). Màn danh sách bỏ được 3 lần gọi cho mỗi dòng. Header `Server-Timing` và `Timing-Allow-Origin` (§1.2), staging và production tắt mặc định. Chỉ thêm trường và header, nên là MINOR |
