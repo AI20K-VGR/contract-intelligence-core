@@ -18,6 +18,7 @@ from contract_intelligence.infrastructure import invite_bounces, keycloak_admin
 from contract_intelligence.infrastructure.invite_bounces import Bounce, MailboxRead, parse_bounce
 
 GMAIL_DSN = b"""\
+Return-Path: <>
 From: Mail Delivery Subsystem <mailer-daemon@googlemail.com>
 To: lexis.sender@gmail.com
 Subject: Delivery Status Notification (Failure)
@@ -46,6 +47,7 @@ Diagnostic-Code: smtp; 550-5.1.1 The email account that you tried to reach does 
 """
 
 DELAYED_DSN = b"""\
+Return-Path: <>
 From: Mail Delivery Subsystem <mailer-daemon@googlemail.com>
 Subject: Delivery Status Notification (Delay)
 Date: Mon, 19 Oct 2026 09:30:05 +0000
@@ -111,6 +113,12 @@ def test_x_failed_recipients_from_a_real_sender_is_ignored() -> None:
     spoofed = PLAIN_BOUNCE.replace(b"Return-Path: <>", b"Return-Path: <someone@example.org>")
     assert parse_bounce(spoofed) == []
     assert parse_bounce(PLAIN_BOUNCE.replace(b"Return-Path: <>\n", b"")) == []
+
+
+def test_a_status_report_from_a_real_sender_is_ignored() -> None:
+    # Phần delivery-status cũng giả được: chỉ tin thư từ người gửi rỗng.
+    spoofed = GMAIL_DSN.replace(b"Return-Path: <>", b"Return-Path: <someone@example.org>")
+    assert parse_bounce(spoofed) == []
 
 
 def test_imap_defaults_to_gmail_and_the_smtp_account(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -395,6 +403,11 @@ class _FakeImap:
     fetches: list[str] = []
     opened = 0
     fail = False
+    # Status trả về cho các lệnh UID FETCH / UID SEARCH lần lượt; hết thì "OK".
+    fetch_statuses: list[str] = []
+    search_statuses: list[str] = []
+    # Đặt UID sau literal: ``* 1 FETCH (BODY[]<0> {n} … UID 7)``.
+    uid_after_literal = False
 
     def __init__(self, host: str, port: int, timeout: float) -> None:
         type(self).opened += 1
@@ -418,14 +431,22 @@ class _FakeImap:
 
     def uid(self, command: str, *args: str) -> tuple[str, list[Any]]:
         if command == "SEARCH":
+            if self.search_statuses and (status := self.search_statuses.pop(0)) != "OK":
+                return status, [b"[UNAVAILABLE] Temporary backend failure"]
             return "OK", [b" ".join(sorted(self.mailbox, key=int))]
         assert command == "FETCH"
         type(self).fetches.append(args[0])
+        if self.fetch_statuses and (status := self.fetch_statuses.pop(0)) != "OK":
+            return status, [b"[UNAVAILABLE] Temporary backend failure"]
         data: list[Any] = []
         for uid in args[0].split(","):
             raw = self.mailbox[uid.encode()]
-            data.append((b"1 (UID " + uid.encode() + b" BODY[]<0> {%d}" % len(raw), raw))
-            data.append(b")")
+            if self.uid_after_literal:
+                data.append((b"1 (BODY[]<0> {%d}" % len(raw), raw))
+                data.append(b" UID " + uid.encode() + b")")
+            else:
+                data.append((b"1 (UID " + uid.encode() + b" BODY[]<0> {%d}" % len(raw), raw))
+                data.append(b")")
         return "OK", data
 
 
@@ -441,6 +462,9 @@ def imap(monkeypatch: pytest.MonkeyPatch) -> Iterator[type[_FakeImap]]:
     _FakeImap.fetches = []
     _FakeImap.opened = 0
     _FakeImap.fail = False
+    _FakeImap.fetch_statuses = []
+    _FakeImap.search_statuses = []
+    _FakeImap.uid_after_literal = False
     invite_bounces.clear_cache()
     yield _FakeImap
     invite_bounces.clear_cache()
@@ -474,3 +498,62 @@ def test_an_imap_failure_is_not_retried_on_every_request(imap: type[_FakeImap]) 
     assert invite_bounces.recent_bounces(since) is None
 
     assert imap.opened == 1
+
+
+def test_uid_after_the_literal_is_still_found(imap: type[_FakeImap]) -> None:
+    imap.uid_after_literal = True
+
+    read = invite_bounces.recent_bounces(datetime(2026, 10, 19, tzinfo=UTC))
+
+    assert read is not None
+    assert list(read.bounces) == ["sai.ten@gmail.com"]
+
+
+def test_a_refused_fetch_is_a_failed_read_and_the_messages_are_fetched_again(
+    imap: type[_FakeImap],
+) -> None:
+    imap.fetch_statuses = ["NO"]
+    since = datetime(2026, 10, 19, tzinfo=UTC)
+
+    # FETCH trả NO: không đọc được hộp thư, không phải "không có thư trả về".
+    assert invite_bounces.recent_bounces(since) is None
+    assert invite_bounces.recent_bounces(since) is None
+    assert imap.opened == 1
+
+    # Hết thời gian chờ sau lỗi: thư chưa đọc được tải lại.
+    invite_bounces._cache = None
+    read = invite_bounces.recent_bounces(since)
+
+    assert read is not None
+    assert list(read.bounces) == ["sai.ten@gmail.com"]
+    assert imap.fetches == ["7,9", "7,9"]
+
+
+def test_a_refused_search_is_a_failed_read(imap: type[_FakeImap]) -> None:
+    imap.search_statuses = ["NO"]
+
+    assert invite_bounces.recent_bounces(datetime(2026, 10, 19, tzinfo=UTC)) is None
+    assert imap.fetches == []
+
+
+def test_a_message_missing_from_the_fetch_is_read_again_later(
+    imap: type[_FakeImap], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real_uid = _FakeImap.uid
+
+    def drop_first(self: _FakeImap, command: str, *args: str) -> tuple[str, list[Any]]:
+        status, data = real_uid(self, command, *args)
+        if command == "FETCH" and len(imap.fetches) == 1:
+            data = data[2:]  # server không trả thư đầu tiên
+        return status, data
+
+    monkeypatch.setattr(_FakeImap, "uid", drop_first)
+    since = datetime(2026, 10, 19, tzinfo=UTC)
+
+    assert invite_bounces.recent_bounces(since) is None
+
+    invite_bounces._cache = None
+    read = invite_bounces.recent_bounces(since)
+
+    assert read is not None
+    assert list(read.bounces) == ["sai.ten@gmail.com"]

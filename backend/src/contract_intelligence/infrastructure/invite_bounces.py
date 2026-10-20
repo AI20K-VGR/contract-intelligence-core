@@ -25,6 +25,7 @@ from datetime import UTC, date, datetime
 from email.message import Message
 from email.policy import default as default_policy
 from email.utils import parsedate_to_datetime
+from typing import Any
 
 import structlog
 
@@ -126,29 +127,30 @@ def _read_bounces(
     since = f"{day.day:02d}-{_MONTHS[day.month - 1]}-{day.year}"
     with imaplib.IMAP4_SSL(host, port, timeout=_IMAP_TIMEOUT_SECONDS) as imap:
         imap.login(user, password)
-        imap.select("INBOX", readonly=True)
+        _ok("SELECT", imap.select("INBOX", readonly=True))
         _, validity = imap.response("UIDVALIDITY")
         uid_validity = validity[0] if validity and isinstance(validity[0], bytes) else b""
-        _, data = imap.uid(
-            "SEARCH", "SINCE", since, "OR", "FROM", "mailer-daemon", "FROM", "postmaster"
+        data = _ok(
+            "UID SEARCH",
+            imap.uid("SEARCH", "SINCE", since, "OR", "FROM", "mailer-daemon", "FROM", "postmaster"),
         )
         uids: list[bytes] = (data[0] or b"").split()[-_MAX_MESSAGES:] if data else []
         new = [uid for uid in uids if (uid_validity, uid) not in _parsed]
         if new:
             # Một lệnh cho mọi thư mới, thay vì một vòng hỏi đáp mỗi thư.
-            _, parts = imap.uid(
-                "FETCH", b",".join(new).decode(), f"(BODY.PEEK[]<0.{_FETCH_BYTES}>)"
+            parts = _ok(
+                "UID FETCH",
+                imap.uid("FETCH", b",".join(new).decode(), f"(BODY.PEEK[]<0.{_FETCH_BYTES}>)"),
             )
-            fetched: dict[bytes, list[Bounce]] = {}
-            for part in parts or []:
-                if not (isinstance(part, tuple) and len(part) > 1):
-                    continue
-                match = _UID_RE.search(part[0]) if isinstance(part[0], bytes) else None
-                if match is not None and isinstance(part[1], bytes):
-                    fetched[match.group(1)] = parse_bounce(part[1])
-            for uid in new:
-                # Thư bị xoá giữa SEARCH và FETCH thì không có gì để đọc.
-                _parsed[(uid_validity, uid)] = fetched.get(uid, [])
+            fetched = _fetched_messages(parts)
+            missing = [uid for uid in new if uid not in fetched]
+            if missing:
+                # Không ghi "không có thư trả về" cho thư chưa đọc được: lần sau
+                # (sau _FAILURE_CACHE_SECONDS) tải lại. Thư đã bị xoá thì lần
+                # SEARCH sau không còn nó.
+                raise imaplib.IMAP4.error(f"UID FETCH returned {len(fetched)}/{len(new)} messages")
+            for uid, raw in fetched.items():
+                _parsed[(uid_validity, uid)] = parse_bounce(raw)
     # Chỉ giữ thư còn trong lần SEARCH này, để bộ nhớ không lớn dần.
     keep = {(uid_validity, uid) for uid in uids}
     for key in [key for key in _parsed if key not in keep]:
@@ -162,19 +164,56 @@ def _read_bounces(
     return found
 
 
+def _ok(command: str, response: tuple[str, list[Any]]) -> list[Any]:
+    """Dữ liệu của một lệnh IMAP; status khác OK (NO, BAD) là lỗi, không phải hộp thư rỗng."""
+    status, data = response
+    if status != "OK":
+        raise imaplib.IMAP4.error(f"{command} returned {status}")
+    return data
+
+
+def _fetched_messages(parts: list[Any]) -> dict[bytes, bytes]:
+    """Thư thô theo UID trong kết quả UID FETCH.
+
+    RFC 3501 không quy định thứ tự các mục trong một response FETCH: UID có thể
+    đứng trước literal (trong phần đầu tuple) hoặc sau nó (trong phần bytes
+    ngay sau tuple, ví dụ ``b' UID 5)'``).
+    """
+    fetched: dict[bytes, bytes] = {}
+    waiting: bytes | None = None  # thư của tuple trước, chưa thấy UID
+    for part in parts or []:
+        if isinstance(part, tuple) and len(part) > 1:
+            head, raw = part[0], part[1]
+            waiting = None
+            if not isinstance(raw, bytes):
+                continue
+            match = _UID_RE.search(head) if isinstance(head, bytes) else None
+            if match is not None:
+                fetched[match.group(1)] = raw
+            else:
+                waiting = raw
+        elif isinstance(part, bytes) and waiting is not None:
+            match = _UID_RE.search(part)
+            if match is not None:
+                fetched[match.group(1)] = waiting
+            waiting = None
+    return fetched
+
+
 def parse_bounce(raw: bytes) -> list[Bounce]:
     """Người nhận bị từ chối hẳn trong một thư báo lỗi; [] khi không phải thư như vậy."""
     message = email.message_from_bytes(raw, policy=default_policy)
     at = _message_time(message)
     if at is None:
         return []
+    # Thư báo lỗi thật luôn từ người gửi rỗng (Return-Path <>); ai cũng gửi được
+    # một thư "From: mailer-daemon" có phần delivery-status giả.
+    if not _from_null_sender(message):
+        return []
     failed = _delivery_status_failures(message)
     # Có phần delivery-status thì chỉ tin phần đó: "delayed" (4.x.x) không phải
-    # bị trả về dù thư có X-Failed-Recipients. Không có thì chỉ tin header khi
-    # thư đến từ người gửi rỗng (Return-Path <>), như mọi thư báo lỗi thật.
+    # bị trả về dù thư có X-Failed-Recipients.
     if failed is None:
-        if not _from_null_sender(message):
-            return []
         header = str(message.get("X-Failed-Recipients") or "")
         reason = _reason("", _body_text(message))
         failed = [(address, reason) for address in _addresses(header)]

@@ -20,9 +20,11 @@ vi.mock('../src/pdf/imageToPdf', () => ({
 
 const { ApiError } = await import('../src/api/client')
 const {
+  canRetryUpload,
   cancelDossierUpload,
   getDossierUpload,
   startDossierUpload,
+  UPLOAD_MAY_BE_CREATED_MESSAGE,
   uploadPercent,
 } = await import('../src/api/dossierUpload')
 
@@ -172,6 +174,73 @@ describe('dossier upload memory', () => {
     await settle()
     releaseDossierUpload(id)
     expect(getDossierUpload(id)?.status).toBe('sending')
+  })
+})
+
+describe('failure after every byte was sent', () => {
+  beforeEach(() => {
+    createDossier.mockReset()
+    patchDossier.mockReset()
+  })
+
+  /** Gửi hết body rồi mới lỗi: máy chủ có thể đã tạo hồ sơ. */
+  function failAfterSending(cause: unknown) {
+    createDossier.mockImplementation(
+      (
+        _body,
+        options: { onProgress: (sent: number, total: number) => void },
+      ) => {
+        options.onProgress(1000, 1000)
+        return Promise.reject(cause)
+      },
+    )
+  }
+
+  it('flags a dropped connection while waiting for the server', async () => {
+    failAfterSending(new TypeError('Failed to fetch'))
+
+    const id = startDossierUpload(input())
+    await settle()
+
+    const failed = getDossierUpload(id)!
+    expect(failed.status).toBe('failed')
+    expect(failed.mayBeCreated).toBe(true)
+    expect(failed.error).toBe(UPLOAD_MAY_BE_CREATED_MESSAGE)
+    // Tệp vẫn giữ để người dùng tự quay lại form nếu hồ sơ chưa có.
+    expect(failed.input?.contract.name).toBe('hd.pdf')
+    // Không có nút Tải lại một chạm: không có POST /dossiers lần hai.
+    expect(canRetryUpload(failed)).toBe(false)
+    expect(createDossier).toHaveBeenCalledTimes(1)
+  })
+
+  it('flags a gateway timeout (Cloudflare 524) the same way', async () => {
+    failAfterSending(new ApiError(524, 'A timeout occurred'))
+
+    const id = startDossierUpload(input())
+    await settle()
+
+    expect(getDossierUpload(id)?.mayBeCreated).toBe(true)
+  })
+
+  it('does not flag a refusal from the backend', async () => {
+    failAfterSending(new ApiError(422, 'Invalid PDF'))
+
+    const id = startDossierUpload(input())
+    await settle()
+
+    expect(getDossierUpload(id)?.mayBeCreated).toBe(false)
+  })
+
+  it('does not flag a failure while bytes were still being sent', async () => {
+    createDossier.mockRejectedValue(new TypeError('Failed to fetch'))
+
+    const id = startDossierUpload(input())
+    await settle()
+
+    const failed = getDossierUpload(id)!
+    expect(failed.status).toBe('failed')
+    expect(failed.mayBeCreated).toBe(false)
+    expect(canRetryUpload(failed)).toBe(true)
   })
 })
 

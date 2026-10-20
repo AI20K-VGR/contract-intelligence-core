@@ -35,6 +35,7 @@ import {
 } from '../api/structure'
 import {
   cancelDossierUpload,
+  canRetryUpload,
   formatFileSize,
   startDossierUpload,
   uploadPercent,
@@ -174,7 +175,9 @@ function uploadHeadline(upload: DossierUpload) {
     case 'done':
       return 'Đã tạo hồ sơ, đang mở tiến trình'
     case 'failed':
-      return 'Tải lên thất bại'
+      return upload.mayBeCreated
+        ? 'Chưa rõ hồ sơ đã được tạo chưa'
+        : 'Tải lên thất bại'
     case 'cancelled':
       return 'Đã hủy tải lên'
   }
@@ -285,9 +288,10 @@ export function AnalysisProgressPage() {
     })
   }
 
-  // Tải lại ngay với đúng tệp và thông tin đã chọn, không phải chọn lại.
+  // Tải lại ngay với đúng tệp và thông tin đã chọn, không phải chọn lại. Chỉ
+  // khi chắc chắn máy chủ chưa có hồ sơ (xem DossierUpload.mayBeCreated).
   function retryUpload() {
-    if (!pending?.input) return
+    if (!pending?.input || !canRetryUpload(pending)) return
     const { input } = pending
     const next = startDossierUpload(input)
     navigate(UPLOAD_PROGRESS_PATH, {
@@ -1116,7 +1120,7 @@ export function AnalysisProgressPage() {
               <span>Hủy tải lên</span>
             </button>
           ) : null}
-          {pendingStopped && pending?.input ? (
+          {canRetryUpload(pending) ? (
             <button
               className="font-body-sm text-body-sm text-primary hover:underline flex items-center gap-space-xs"
               type="button"
@@ -1125,6 +1129,15 @@ export function AnalysisProgressPage() {
               <MaterialIcon name="refresh" className="text-[16px]" />
               <span>Tải lại</span>
             </button>
+          ) : null}
+          {pendingStopped && pending?.mayBeCreated ? (
+            <Link
+              className="font-body-sm text-body-sm text-primary hover:underline flex items-center gap-space-xs"
+              to={backTo}
+            >
+              <MaterialIcon name="folder_open" className="text-[16px]" />
+              <span>Xem danh sách hồ sơ</span>
+            </Link>
           ) : null}
           {pendingStopped ? (
             <button

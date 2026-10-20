@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { asUploadPdf } from '../pdf/imageToPdf'
 import { STRUCTURE_MODE_KEY, type StructureMode } from '../structure'
+import { ApiError } from './client'
 import {
   createDossier,
   createDossierErrorMessage,
@@ -57,6 +58,29 @@ export type DossierUpload = {
   finishedAt: number | null
   dossierId: string | null
   error: string | null
+  /**
+   * Lỗi sau khi đã gửi hết byte mà không có phản hồi của backend (mất mạng,
+   * Cloudflare cắt lúc chờ): máy chủ có thể đã tạo hồ sơ và gửi đi OCR. Không
+   * cho tải lại một chạm, kẻo tạo hồ sơ thứ hai và OCR lại cả bộ tệp.
+   */
+  mayBeCreated: boolean
+}
+
+export const UPLOAD_MAY_BE_CREATED_MESSAGE =
+  'Mất kết nối sau khi đã gửi hết tệp, nên có thể máy chủ đã tạo hồ sơ. Kiểm tra danh sách hồ sơ trước khi tải lại, để không tạo hồ sơ trùng và đọc tài liệu hai lần.'
+
+/** Nút "Tải lại" một chạm: lần này dừng hẳn và chắc chắn máy chủ chưa có hồ sơ. */
+export function canRetryUpload(upload: DossierUpload | null | undefined) {
+  return (
+    (upload?.status === 'failed' || upload?.status === 'cancelled') &&
+    upload.input !== null &&
+    !upload.mayBeCreated
+  )
+}
+
+/** Backend đã trả lời là từ chối (4xx): chắc chắn chưa tạo hồ sơ. */
+function refusedByBackend(cause: unknown) {
+  return cause instanceof ApiError && cause.status >= 400 && cause.status < 500
 }
 
 const uploads = new Map<string, DossierUpload>()
@@ -154,12 +178,17 @@ async function run(id: string, input: DossierUploadInput) {
       update(id, { status: 'cancelled', finishedAt: Date.now() })
       return
     }
+    // 'saving' lúc lỗi: đã gửi hết byte, đang chờ máy chủ trả lời.
+    const mayBeCreated =
+      uploads.get(id)?.status === 'saving' && !refusedByBackend(cause)
     update(id, {
       status: 'failed',
-      error:
-        createDossierErrorMessage(cause) ??
-        'Không tải lên được. Vui lòng thử lại.',
+      error: mayBeCreated
+        ? UPLOAD_MAY_BE_CREATED_MESSAGE
+        : (createDossierErrorMessage(cause) ??
+          'Không tải lên được. Vui lòng thử lại.'),
       finishedAt: Date.now(),
+      mayBeCreated,
     })
   }
 }
@@ -207,6 +236,7 @@ export function startDossierUpload(input: DossierUploadInput) {
     finishedAt: null,
     dossierId: null,
     error: null,
+    mayBeCreated: false,
   })
   controllers.set(id, new AbortController())
   update(id, {})
