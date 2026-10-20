@@ -2,13 +2,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const createDossier = vi.fn()
 const patchDossier = vi.fn()
+const splitDossier = vi.fn()
+const getDossierStructure = vi.fn()
 
 vi.mock('../src/api/dossiers', async () => {
   const actual = await vi.importActual<typeof import('../src/api/dossiers')>(
     '../src/api/dossiers',
   )
-  return { ...actual, createDossier, patchDossier }
+  return { ...actual, createDossier, patchDossier, splitDossier }
 })
+
+vi.mock('../src/api/structure', () => ({ getDossierStructure }))
 
 vi.mock('../src/pdf/imageToPdf', () => ({
   asUploadPdf: (file: File) => Promise.resolve(file),
@@ -168,5 +172,69 @@ describe('dossier upload memory', () => {
     await settle()
     releaseDossierUpload(id)
     expect(getDossierUpload(id)?.status).toBe('sending')
+  })
+})
+
+describe('merged file the browser could not cut', () => {
+  const parts = [
+    { page_start: 1, page_end: 3, role: 'contract' as const },
+    { page_start: 4, page_end: 5, role: 'annex' as const },
+  ]
+
+  beforeEach(() => {
+    createDossier.mockReset()
+    patchDossier.mockReset()
+    patchDossier.mockResolvedValue({})
+    splitDossier.mockReset()
+    getDossierStructure.mockReset()
+    getDossierStructure.mockResolvedValue({
+      documents: [{ id: 'doc_1', role: 'contract' }],
+    })
+  })
+
+  it('uploads the whole file as split_pending, then splits it on the server', async () => {
+    createDossier.mockResolvedValue({ dossier_id: 'dos_9', job_id: null })
+    splitDossier.mockResolvedValue({})
+
+    const id = startDossierUpload({
+      ...input(),
+      splitPending: true,
+      serverSplit: parts,
+    })
+    await settle()
+
+    expect(createDossier.mock.calls[0][0].metadata).toEqual({
+      name: 'Hồ sơ A',
+      split_pending: true,
+    })
+    expect(splitDossier).toHaveBeenCalledWith('dos_9', 'doc_1', parts)
+    expect(getDossierUpload(id)?.status).toBe('done')
+  })
+
+  it('still finishes the upload when the split is refused', async () => {
+    createDossier.mockResolvedValue({ dossier_id: 'dos_9', job_id: null })
+    splitDossier.mockRejectedValue(new ApiError(422, 'bad parts'))
+
+    const id = startDossierUpload({
+      ...input(),
+      splitPending: true,
+      serverSplit: parts,
+    })
+    await settle()
+
+    // Hồ sơ vẫn chờ tách: trang tiến trình đưa người dùng sang trang tách file.
+    const done = getDossierUpload(id)!
+    expect(done.status).toBe('done')
+    expect(done.dossierId).toBe('dos_9')
+  })
+
+  it('does not split a file the browser already cut', async () => {
+    createDossier.mockResolvedValue({ dossier_id: 'dos_1', job_id: null })
+
+    startDossierUpload(input())
+    await settle()
+
+    expect(createDossier.mock.calls[0][0].metadata).toEqual({ name: 'Hồ sơ A' })
+    expect(splitDossier).not.toHaveBeenCalled()
   })
 })

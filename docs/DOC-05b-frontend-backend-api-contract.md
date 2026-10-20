@@ -320,7 +320,7 @@ Màn hình khởi tạo hồ sơ, tải lên các file PDF (hợp đồng gốc 
 
 - **Giới hạn dung lượng (v2.0.1):** mỗi file tối đa 50 MiB (backend trả `413` JSON); tối đa 6 tài liệu (`422 DOSSIER_TOO_MANY_DOCUMENTS`); trên bản online, **mỗi request tối đa 100 MB** vì Cloudflare gói Free. Quá mức này Cloudflare trả `413` với body HTML, không phải envelope `{ error }` (xem §3.3). Bộ hồ sơ lớn hơn 100 MB phải bớt hoặc nén file; tải từng phụ lục qua `POST /dossiers/{id}/documents` cũng tránh được giới hạn.
 
-- **Tách file trộn (v1.1.0):**
+- **Tách file trộn (v1.1.0):** frontend hiện cắt file trộn ngay trên trình duyệt và tải các phần lên như từng tệp riêng. Hai bước dưới chỉ dùng khi trình duyệt không cắt được (PDF chỉ khoá in/sao chép: thư viện cắt của trình duyệt từ chối mọi PDF mã hoá, còn backend đọc được); khi đó frontend gọi bước 2 ngay sau bước 1 với các phần người dùng đã chọn.
   1. `POST /dossiers` với `metadata.split_pending = true`: Backend lưu file nhưng **chưa gửi OCR**.
   2. `POST /dossiers/{id}/split` → `202`:
      ```json
@@ -676,7 +676,7 @@ Backend đã có cả hai endpoint và các trường dưới đây. Response b�
 - Tên miền dành riêng `.local`, `.test`, `.example`, `.invalid`, `localhost`, `example.com`, `example.net`, `example.org` không có máy chủ nhận thư, nên thư gửi tới đó bị trả về hộp thư người gửi. Ba tài khoản demo trong `keycloak/realm-export.json` dùng `@ci.local`.
 - Chia sẻ (`PUT /dossiers/{id}/access`): **v5.0.0** trả `422 share_recipient_undeliverable`, không lưu lượt chia sẻ. Trước v5.0.0 lượt chia sẻ vẫn được lưu, chỉ không gửi thư.
 - `POST /users` và `POST /users/{id}/invite`: trả `422 email_domain_undeliverable`, không tạo người dùng và không gửi thư.
-- Backend chưa kiểm tra bản ghi MX, và không thể biết trước một hộp thư như `ten-sai@gmail.com` có tồn tại hay không: máy chủ thư chỉ báo sau khi đã gửi. **v5.1.0:** với thư mời người dùng, backend đọc thư báo lỗi đó trong hộp thư gửi và trả `invite_delivery` (mục dưới). Chia sẻ hồ sơ chưa dùng cách này.
+- Backend chưa kiểm tra bản ghi MX, và không thể biết trước một hộp thư như `ten-sai@gmail.com` có tồn tại hay không: máy chủ thư chỉ báo sau khi đã gửi. **v5.1.0:** với thư mời người dùng, backend đọc thư báo lỗi đó trong hộp thư gửi và trả `invite_delivery` (mục dưới). Chia sẻ hồ sơ chưa dùng cách này: thư chia sẻ tới một địa chỉ Gmail không tồn tại vẫn được tính là đã gửi (không có trong `email_not_sent`) và người đó vẫn giữ quyền.
 
 **Trạng thái thư mời** (v5.1.0)
 
@@ -684,14 +684,14 @@ Người dùng trả về từ `GET /users`, `POST /users`, `PATCH /users/{id}`,
 
 | Trường | Kiểu | Ý nghĩa |
 |---|---|---|
-| `invite_delivery` | `"pending" \| "sent" \| "bounced" \| null` | Chỉ có giá trị khi `status = "invited"`. `pending`: thư mời gần nhất gửi chưa quá `INVITE_BOUNCE_PENDING_SECONDS` (mặc định 600 giây) và chưa thấy thư trả về. `sent`: đã quá thời gian đó mà không thấy thư trả về. `bounced`: máy chủ thư báo không gửi được. `null`: không phải `invited`, thư mời gửi trước v5.1.0, hoặc backend không đọc hộp thư gửi |
+| `invite_delivery` | `"pending" \| "sent" \| "bounced" \| null` | Chỉ có giá trị khi `status = "invited"`. `pending`: thư mời gần nhất gửi chưa quá `INVITE_BOUNCE_PENDING_SECONDS` (mặc định 600 giây) và chưa thấy thư trả về. `sent`: đã quá thời gian đó, và một lần đọc hộp thư gửi **sau** thời gian đó không thấy thư trả về. `bounced`: máy chủ thư báo không gửi được. `null`: không phải `invited`, thư mời gửi trước v5.1.0, backend không đọc hộp thư gửi, đã quá thời gian chờ mà chưa đọc được hộp thư, hoặc thư mời gửi quá 3 ngày (không đọc lại hộp thư cho thư đó nữa) |
 | `invite_delivery_reason` | `"mailbox_not_found" \| "rejected" \| null` | Chỉ khi `bounced`. `mailbox_not_found`: địa chỉ không tồn tại (5.1.1, "Address not found"). `rejected`: bị từ chối vì lý do khác |
 
 - Gmail nhận mọi người nhận lúc gửi SMTP, nên `POST /users` vẫn trả `201` với địa chỉ không tồn tại; thư "Address not found" về hộp thư gửi sau đó vài giây tới vài phút. `POST /users` vì vậy luôn trả `pending` (khi backend đọc được hộp thư gửi).
-- Backend đọc thư báo lỗi (DSN RFC 3464, người gửi `mailer-daemon` hoặc `postmaster`) trong INBOX của hộp thư gửi qua IMAP, chỉ đọc, không đánh dấu đã đọc; một lần đọc giữ 20 giây. Việc đọc diễn ra trong `GET /users` khi trên trang có người `invited` được mời trong 3 ngày qua mà chưa bị trả thư. Thư trả về sau lần gửi mời gần nhất được ghi vào thuộc tính Keycloak `invite_bounced_at`, `invite_bounce_reason`; lúc gửi mời ghi ở `invite_sent_at`.
+- Backend đọc thư báo lỗi (DSN RFC 3464, người gửi `mailer-daemon` hoặc `postmaster`) trong INBOX của hộp thư gửi qua IMAP, chỉ đọc, không đánh dấu đã đọc; một lần đọc giữ 20 giây, đọc lỗi thì 60 giây sau mới thử lại. Thư đã đọc được nhớ theo UID nên mỗi lần chỉ tải thư mới, gom trong một lệnh. Thư có phần `message/delivery-status` thì chỉ theo phần đó (`Action: delayed`, `4.x.x` không phải bị trả về); thư không có phần đó chỉ được tin khi có `X-Failed-Recipients` và `Return-Path: <>`. Việc đọc diễn ra trong `GET /users` khi trên trang có người `invited` được mời trong 3 ngày qua mà chưa bị trả thư. Thư trả về sau lần gửi mời gần nhất được ghi vào thuộc tính Keycloak `invite_bounced_at`, `invite_bounce_reason`; lúc gửi mời ghi ở `invite_sent_at`.
 - `POST /users/{id}/invite` ghi lại `invite_sent_at` và xoá thư trả về cũ, nên người đó về `pending`.
 - Người bị trả thư vẫn là `invited`, không bị xoá. Quản trị viên khoá tài khoản đó hoặc gửi lại lời mời.
-- Không đọc được hộp thư (sai mật khẩu, mất mạng) thì API không báo lỗi, chỉ ghi log `invite_bounces.imap_failed`; người đang chờ vẫn đi từ `pending` sang `sent`.
+- Không đọc được hộp thư (sai mật khẩu, mất mạng) thì API không báo lỗi, chỉ ghi log `invite_bounces.imap_failed`; người đang chờ giữ `pending` trong thời gian chờ, quá thời gian đó thì `null` (không biết), không thành `sent`.
 - Cấu hình backend: `INVITE_BOUNCE_IMAP_HOST` (trống: `imap.gmail.com` khi `SMTP_HOST=smtp.gmail.com`, nếu không thì không kiểm tra), `INVITE_BOUNCE_IMAP_PORT` (993), `INVITE_BOUNCE_IMAP_USER` và `INVITE_BOUNCE_IMAP_PASSWORD` (trống: `SMTP_USER`, `SMTP_PASSWORD`; app password Gmail dùng được cho cả hai), `INVITE_BOUNCE_PENDING_SECONDS` (600). Keycloak phải khai báo ba thuộc tính trên trong user profile (`keycloak/realm-export.json`, `deploy/keycloak_configure.py`); thiếu khai báo thì Keycloak bỏ thuộc tính và `invite_delivery` luôn là `null`.
 - Frontend: khi có người `pending` trên trang hoặc vừa tạo, vừa gửi lại lời mời, `UsersPage` hỏi lại `GET /users` mỗi 10 giây. Người chuyển từ `pending` sang `bounced` được báo bằng cảnh báo không tự đóng, và dòng của họ hiện "Không gửi được thư".
 

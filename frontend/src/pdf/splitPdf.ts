@@ -8,6 +8,18 @@ GlobalWorkerOptions.workerSrc = workerUrl
 
 export type PdfPageRange = { pageStart: number; pageEnd: number }
 
+/**
+ * pdf-lib không mở được file này. Hay gặp nhất là PDF chỉ khoá in/sao chép
+ * (owner password, không có mật khẩu mở): pdf-lib từ chối mọi PDF mã hoá, còn
+ * backend đọc được. Khi đó tải nguyên file lên và để backend tách.
+ */
+export class PdfSplitUnsupportedError extends Error {
+  constructor(filename: string, options?: { cause?: unknown }) {
+    super(`Trình duyệt không tách được "${filename}".`, options)
+    this.name = 'PdfSplitUnsupportedError'
+  }
+}
+
 export async function countPdfPages(file: File) {
   const task = getDocument({ data: new Uint8Array(await file.arrayBuffer()) })
   try {
@@ -26,28 +38,30 @@ export async function splitPdf(
   let source: Awaited<ReturnType<typeof PDFDocument.load>>
   try {
     source = await PDFDocument.load(await file.arrayBuffer())
-  } catch {
-    throw new Error(
-      `Không tách được "${file.name}" (file có mật khẩu hoặc bị lỗi). Hãy tách sẵn thành từng tệp rồi tải lên.`,
-    )
+  } catch (cause) {
+    throw new PdfSplitUnsupportedError(file.name, { cause })
   }
   const base = file.name.replace(/\.pdf$/i, '')
-  return Promise.all(
-    ranges.map(async ({ pageStart, pageEnd }) => {
-      const out = await PDFDocument.create()
-      const indices = Array.from(
-        { length: pageEnd - pageStart + 1 },
-        (_, index) => pageStart - 1 + index,
-      )
-      for (const page of await out.copyPages(source, indices)) {
-        out.addPage(page)
-      }
-      const bytes = await out.save()
-      return new File(
+  // Lần lượt từng phần: file scan vài chục MB, giữ mọi phần cùng lúc thì tab
+  // tốn bộ nhớ gấp nhiều lần.
+  const files: File[] = []
+  for (const { pageStart, pageEnd } of ranges) {
+    const out = await PDFDocument.create()
+    const indices = Array.from(
+      { length: pageEnd - pageStart + 1 },
+      (_, index) => pageStart - 1 + index,
+    )
+    for (const page of await out.copyPages(source, indices)) {
+      out.addPage(page)
+    }
+    const bytes = await out.save()
+    files.push(
+      new File(
         [new Blob([bytes as BlobPart], { type: 'application/pdf' })],
         `${base}-p${pageStart}-${pageEnd}.pdf`,
         { type: 'application/pdf' },
-      )
-    }),
-  )
+      ),
+    )
+  }
+  return files
 }

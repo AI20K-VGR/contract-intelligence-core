@@ -224,7 +224,9 @@ def _invite_delivery(
     """Thư mời gần nhất của người còn "invited" đã tới nơi chưa, theo thuộc tính Keycloak.
 
     (None, None) khi không phải "invited", thư mời gửi trước khi có thuộc tính này,
-    hoặc backend không đọc hộp thư gửi (không biết được).
+    hoặc backend không đọc hộp thư gửi (không biết được). Quá thời gian chờ mà
+    chưa có thư trả về cũng là None ở đây: chỉ ``_record_invite_bounces`` mới kết
+    luận "sent", sau khi đọc được hộp thư.
     """
     if status != "invited":
         return None, None
@@ -239,10 +241,13 @@ def _invite_delivery(
         return "bounced", reason if reason in _BOUNCE_REASONS else "rejected"  # type: ignore[return-value]
     if not invite_bounces.bounce_check_enabled():
         return None, None
-    waited = datetime.now(UTC) - sent_at
-    if waited < timedelta(seconds=get_settings().invite_bounce_pending_seconds):
+    if datetime.now(UTC) - sent_at < _invite_pending_for():
         return "pending", None
-    return "sent", None
+    return None, None
+
+
+def _invite_pending_for() -> timedelta:
+    return timedelta(seconds=get_settings().invite_bounce_pending_seconds)
 
 
 def _to_user_dto(
@@ -494,8 +499,12 @@ def _record_invite_bounces(
     """Đối chiếu người còn chờ thư mời trên trang với thư trả về trong hộp thư gửi.
 
     Người có thư trả về sau lần gửi mời gần nhất được ghi ``invite_bounced_at`` vào
-    Keycloak, để lần sau không cần đọc lại hộp thư. Không đọc được hộp thư thì giữ nguyên.
+    Keycloak, để lần sau không cần đọc lại hộp thư. Người không có thư trả về thành
+    "sent" chỉ khi hộp thư được đọc sau thời gian chờ. Không đọc được hộp thư thì
+    giữ nguyên ("pending" trong thời gian chờ, None sau đó).
     """
+    if not invite_bounces.bounce_check_enabled():
+        return page
     now = datetime.now(UTC)
     waiting: list[tuple[UserDTO, dict[str, Any], datetime]] = []
     for dto in page:
@@ -504,19 +513,25 @@ def _record_invite_bounces(
         if (
             user is not None
             and sent_at is not None
-            and dto.invite_delivery in ("pending", "sent")
+            and dto.status == "invited"
+            and dto.invite_delivery != "bounced"
             and now - sent_at <= _INVITE_BOUNCE_LOOKBACK
         ):
             waiting.append((dto, user, sent_at))
     if not waiting:
         return page
-    bounces = invite_bounces.recent_bounces(min(sent for _, _, sent in waiting))
-    if not bounces:
+    read = invite_bounces.recent_bounces(min(sent for _, _, sent in waiting))
+    if read is None:
         return page
+    pending_for = _invite_pending_for()
     updated: dict[str, UserDTO] = {}
     for dto, user, sent_at in waiting:
-        bounce = bounces.get(dto.email.casefold())
+        bounce = read.bounces.get(dto.email.casefold())
         if bounce is None or bounce.at < sent_at - _BOUNCE_CLOCK_SKEW:
+            if read.at - sent_at >= pending_for:
+                updated[dto.id] = dto.model_copy(
+                    update={"invite_delivery": "sent", "invite_delivery_reason": None}
+                )
             continue
         try:
             _update_attributes(

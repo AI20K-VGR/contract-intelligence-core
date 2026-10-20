@@ -530,7 +530,10 @@ class Settings(BaseSettings):
         default=600,
         ge=60,
         le=86400,
-        description="Sau bao lâu không thấy thư trả về thì coi thư mời đã gửi được (giây).",
+        description=(
+            "Sau bao lâu không thấy thư trả về (và đã đọc được hộp thư) thì coi thư mời"
+            " đã gửi được (giây)."
+        ),
     )
 
     def invite_bounce_imap(self) -> tuple[str, int, str, str] | None:

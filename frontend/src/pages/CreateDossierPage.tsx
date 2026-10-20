@@ -172,7 +172,9 @@ export function CreateDossierPage() {
   const [annexes, setAnnexes] = useState<PickedFile[]>(() =>
     previous ? previous.annexes.map(pickedAnnex) : [],
   )
-  const [mixedFile, setMixedFile] = useState(draft !== null)
+  const [mixedFile, setMixedFile] = useState(
+    draft !== null || previous?.splitPending === true,
+  )
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle')
   const [error, setError] = useState<string | null>(retry?.error ?? null)
   const [dragOver, setDragOver] = useState(false)
@@ -321,6 +323,9 @@ export function CreateDossierPage() {
       structureMode,
       contract: contract.file,
       annexes: annexes.map((item) => item.file),
+      // File trộn được cắt trên trình duyệt; trang tách file chỉ bật lại khi
+      // trình duyệt không cắt được.
+      splitPending: false,
     }
     // File trộn: chọn hợp đồng và phụ lục trước, xác nhận xong mới cắt và tải lên.
     if (splitPending) {

@@ -1181,7 +1181,7 @@ RBAC: **ADMINISTRATOR** only, trừ `GET /users/lookup` (cả **OPERATOR**, đ�
 
 **v4.0.0:** email thuộc tên miền không nhận thư (`.local`, `.test`, `.example`, `.invalid`, `localhost`, `example.com/net/org`) thì `POST /users` và `POST /users/{id}/invite` trả `422 email_domain_undeliverable`, không tạo người dùng, không gửi thư. FE hiện "Tên miền email không nhận được thư, vui lòng kiểm tra lại." (`userAdminErrorMessage`).
 
-**v5.1.0, thư mời bị trả về:** Gmail nhận thư mời cả khi địa chỉ không tồn tại, rồi mới gửi thư "Address not found" về hộp thư gửi. Backend đọc thư đó qua IMAP và trả `invite_delivery` (`pending` khi vừa gửi, `sent` khi quá 10 phút không thấy thư trả về, `bounced` khi bị trả thư, `null` khi không biết) cùng `invite_delivery_reason` (`mailbox_not_found` hoặc `rejected`). FE: `UsersPage` hiện "Đang chờ xác nhận gửi thư" dưới nhãn "Đã mời" khi `pending`, và nhãn đỏ "Không gửi được thư" khi `bounced`. Trong lúc còn người `pending` trên trang hoặc người vừa tạo, vừa gửi lại lời mời, trang hỏi lại `GET /users` mỗi 10 giây (người vừa tạo được hỏi bằng `q=<email>`). Khi một người chuyển sang `bounced`, trang hiện cảnh báo không tự đóng do `inviteBounceMessage` (`src/api/users.ts`) dựng: "Không gửi được email mời tới <email> vì không tìm thấy địa chỉ này. Kiểm tra lại email và tạo người dùng với địa chỉ đúng." Backend không đọc được hộp thư (`invite_delivery = null`) thì trang giữ như trước.
+**v5.1.0, thư mời bị trả về:** Gmail nhận thư mời cả khi địa chỉ không tồn tại, rồi mới gửi thư "Address not found" về hộp thư gửi. Backend đọc thư đó qua IMAP và trả `invite_delivery` (`pending` khi vừa gửi, `sent` khi quá 10 phút và một lần đọc hộp thư sau đó không thấy thư trả về, `bounced` khi bị trả thư, `null` khi không biết, kể cả khi đọc hộp thư lỗi) cùng `invite_delivery_reason` (`mailbox_not_found` hoặc `rejected`). FE: `UsersPage` hiện "Đang chờ xác nhận gửi thư" dưới nhãn "Đã mời" khi `pending`, và nhãn đỏ "Không gửi được thư" khi `bounced`. Trong lúc còn người `pending` trên trang hoặc người vừa tạo, vừa gửi lại lời mời, trang hỏi lại `GET /users` mỗi 10 giây (người vừa tạo được hỏi bằng `q=<email>`). Khi một người chuyển sang `bounced`, trang hiện cảnh báo không tự đóng do `inviteBounceMessage` (`src/api/users.ts`) dựng: "Không gửi được email mời tới <email> vì không tìm thấy địa chỉ này. Kiểm tra lại email và tạo người dùng với địa chỉ đúng." Backend không đọc được hộp thư (`invite_delivery = null`) thì trang giữ như trước.
 
 ### `GET /api/v1/users/lookup?email=` (v4.0.0)
 
@@ -1292,6 +1292,8 @@ Dùng khi hồ sơ lỗi ở bước OCR (`latest_job_status = failed` với mã
 `POST /dossiers/{id}/ocr` (chạy lại OCR toàn bộ) vẫn giữ nguyên hành vi cũ.
 
 ## 23. Tách file trộn (hợp đồng + phụ lục trong một PDF)
+
+FE cắt file trộn trên trình duyệt (`src/pdf/splitPdf.ts`, pdf-lib) rồi tải các phần lên như từng tệp riêng. Hai bước dưới chỉ dùng khi pdf-lib không mở được file (`PdfSplitUnsupportedError`, hay gặp với PDF chỉ khoá in/sao chép): `SplitConfirmPage` tải nguyên file với `split_pending: true`, rồi `dossierUpload.ts` gọi `POST /dossiers/{id}/split` với đúng các phần đã chọn. Tách lỗi thì hồ sơ vẫn chờ tách và trang tiến trình chuyển sang trang tách file.
 
 **Bước 1: tải lên nhưng chưa xử lý.** `POST /api/v1/dossiers` như cũ, thêm `"split_pending": true` vào `metadata`:
 

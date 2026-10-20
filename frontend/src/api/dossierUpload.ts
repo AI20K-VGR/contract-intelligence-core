@@ -5,7 +5,10 @@ import {
   createDossier,
   createDossierErrorMessage,
   patchDossier,
+  splitDossier,
+  type SplitPartRequest,
 } from './dossiers'
+import { getDossierStructure } from './structure'
 
 /**
  * Tải hồ sơ lên ở ngoài trang Tải lên: bấm tải lên là sang trang tiến trình
@@ -19,6 +22,13 @@ export type DossierUploadInput = {
   structureMode: StructureMode
   contract: File
   annexes: File[]
+  splitPending: boolean
+  /**
+   * Chỉ khi `splitPending`: các phần đã chọn ở trang tách file mà trình duyệt
+   * không cắt được (PDF khoá in/sao chép). Tạo xong hồ sơ thì nhờ backend tách
+   * theo đúng các phần đó, người dùng không phải chọn lại.
+   */
+  serverSplit?: SplitPartRequest[]
 }
 
 export type DossierUploadStatus =
@@ -36,6 +46,7 @@ export type DossierUpload = {
   id: string
   name: string
   structureMode: StructureMode
+  splitPending: boolean
   fileCount: number
   /** Giữ tệp đã chọn để quay lại trang Tải lên khi lỗi; bỏ khi đã xong. */
   input: DossierUploadInput | null
@@ -94,7 +105,9 @@ async function run(id: string, input: DossierUploadInput) {
     const created = await createDossier(
       {
         contract,
-        metadata: { name: input.name },
+        metadata: input.splitPending
+          ? { name: input.name, split_pending: true }
+          : { name: input.name },
         annexes,
       },
       {
@@ -131,6 +144,9 @@ async function run(id: string, input: DossierUploadInput) {
       // POST đã tạo hồ sơ. PATCH chỉ ghi field UI thừa so với OpenAPI.
       // Loại cấu trúc vẫn được truyền qua state để trang cây dùng ngay.
     }
+    if (input.splitPending && input.serverSplit?.length) {
+      await splitOnServer(created.dossier_id, input.serverSplit)
+    }
     update(id, { status: 'done', input: null, finishedAt: Date.now() })
   } catch (cause) {
     controllers.delete(id)
@@ -148,6 +164,22 @@ async function run(id: string, input: DossierUploadInput) {
   }
 }
 
+/**
+ * POST /dossiers/{id}/split cho tệp vừa tải lên. Lỗi thì hồ sơ vẫn chờ tách:
+ * trang tiến trình chuyển sang trang tách file để người dùng xác nhận lại.
+ */
+async function splitOnServer(dossierId: string, parts: SplitPartRequest[]) {
+  try {
+    const structure = await getDossierStructure(dossierId)
+    const source =
+      structure.documents.find((item) => item.role === 'contract') ??
+      structure.documents[0]
+    if (source) await splitDossier(dossierId, source.id, parts)
+  } catch {
+    // Hồ sơ đã tạo: không báo lỗi tải lên, chỉ chưa tách.
+  }
+}
+
 /** Bắt đầu tải lên; trả mã để trang tiến trình theo dõi. */
 export function startDossierUpload(input: DossierUploadInput) {
   // Lần lỗi/huỷ trước vẫn giữ tệp gốc (tới vài trăm MB): lần mới thay nó.
@@ -162,6 +194,7 @@ export function startDossierUpload(input: DossierUploadInput) {
     id,
     name: input.name,
     structureMode: input.structureMode,
+    splitPending: input.splitPending,
     fileCount: 1 + input.annexes.length,
     input,
     status: 'preparing',

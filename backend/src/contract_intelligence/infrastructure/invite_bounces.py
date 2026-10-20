@@ -8,7 +8,9 @@ gửi: "Address not found". Module này đọc các thư đó qua IMAP (chỉ đ
 
 Không cấu hình IMAP (``Settings.invite_bounce_imap``) thì không kiểm tra gì.
 Một lần đọc được giữ ``_CACHE_SECONDS`` để trang người dùng hỏi lại liên tục
-không mở một phiên IMAP mỗi lần.
+không mở một phiên IMAP mỗi lần; IMAP lỗi thì chờ ``_FAILURE_CACHE_SECONDS`` mới
+thử lại, để ``GET /users`` không lần nào cũng chờ timeout. Thư đã đọc được nhớ
+theo UID (thư báo lỗi không đổi), nên mỗi lần chỉ tải thư mới, gom trong một lệnh.
 """
 
 from __future__ import annotations
@@ -32,9 +34,13 @@ from contract_intelligence.schemas.users import InviteBounceReason
 logger = structlog.get_logger(__name__)
 
 _CACHE_SECONDS = 20.0
+_FAILURE_CACHE_SECONDS = 60.0
 _IMAP_TIMEOUT_SECONDS = 10.0
 # Thư báo lỗi mới nhất được đọc trong một lần; hộp thư gửi ít khi có nhiều hơn.
 _MAX_MESSAGES = 200
+# Chỉ tải phần đầu mỗi thư: phần delivery-status nằm trước thư gốc đính kèm.
+_FETCH_BYTES = 65536
+_UID_RE = re.compile(rb"\bUID (\d+)")
 # IMAP SINCE cần tên tháng tiếng Anh, không phụ thuộc locale như strftime("%b").
 _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 _NOT_FOUND_STATUSES = frozenset({"5.1.0", "5.1.1", "5.1.10"})
@@ -55,19 +61,31 @@ class Bounce:
     reason: InviteBounceReason
 
 
+@dataclass(frozen=True, slots=True)
+class MailboxRead:
+    """Một lần đọc hộp thư gửi thành công: lúc đọc và thư trả về theo email."""
+
+    at: datetime
+    bounces: dict[str, Bounce]
+
+
 _lock = threading.Lock()
-# (lúc đọc theo time.monotonic, ngày SINCE đã dùng, kết quả)
-_cache: tuple[float, date, dict[str, Bounce]] | None = None
+# (lúc đọc theo time.monotonic, ngày SINCE đã dùng, kết quả; None khi lần đó lỗi)
+_cache: tuple[float, date, MailboxRead | None] | None = None
+# Thư đã parse, theo (UIDVALIDITY, UID).
+_parsed: dict[tuple[bytes, bytes], list[Bounce]] = {}
 
 
 def bounce_check_enabled() -> bool:
     return get_settings().invite_bounce_imap() is not None
 
 
-def recent_bounces(since: datetime) -> dict[str, Bounce] | None:
-    """Thư trả về từ ngày của ``since``, theo email (casefold); None khi không đọc được.
+def recent_bounces(since: datetime) -> MailboxRead | None:
+    """Thư trả về từ ngày của ``since``; None khi không đọc được hộp thư.
 
-    Mỗi email giữ thư mới nhất. None khi chưa cấu hình IMAP hoặc IMAP lỗi (đã ghi log).
+    Mỗi email (casefold) giữ thư mới nhất. ``MailboxRead.at`` là lúc đọc hộp thư,
+    có thể đã cách tới ``_CACHE_SECONDS``. None khi chưa cấu hình IMAP hoặc IMAP
+    lỗi (đã ghi log).
     """
     global _cache
     conf = get_settings().invite_bounce_imap()
@@ -75,52 +93,72 @@ def recent_bounces(since: datetime) -> dict[str, Bounce] | None:
         return None
     day = since.astimezone(UTC).date()
     with _lock:
-        if (
-            _cache is not None
-            and time.monotonic() - _cache[0] < _CACHE_SECONDS
-            and _cache[1] <= day
-        ):
-            return _cache[2]
+        if _cache is not None:
+            read_at, cached_day, cached = _cache
+            age = time.monotonic() - read_at
+            if cached is None and age < _FAILURE_CACHE_SECONDS:
+                return None
+            if cached is not None and age < _CACHE_SECONDS and cached_day <= day:
+                return cached
         try:
             found = _read_bounces(*conf, day=day)
         except (imaplib.IMAP4.error, OSError) as exc:
             logger.warning(
                 "invite_bounces.imap_failed", host=conf[0], error_type=type(exc).__name__
             )
+            _cache = (time.monotonic(), day, None)
             return None
-        _cache = (time.monotonic(), day, found)
-        return found
+        result = MailboxRead(at=datetime.now(UTC), bounces=found)
+        _cache = (time.monotonic(), day, result)
+        return result
 
 
 def clear_cache() -> None:
     global _cache
     with _lock:
         _cache = None
+        _parsed.clear()
 
 
 def _read_bounces(
     host: str, port: int, user: str, password: str, *, day: date
 ) -> dict[str, Bounce]:
-    found: dict[str, Bounce] = {}
     since = f"{day.day:02d}-{_MONTHS[day.month - 1]}-{day.year}"
     with imaplib.IMAP4_SSL(host, port, timeout=_IMAP_TIMEOUT_SECONDS) as imap:
         imap.login(user, password)
         imap.select("INBOX", readonly=True)
-        _, data = imap.search(
-            None, "SINCE", since, "OR", "FROM", "mailer-daemon", "FROM", "postmaster"
+        _, validity = imap.response("UIDVALIDITY")
+        uid_validity = validity[0] if validity and isinstance(validity[0], bytes) else b""
+        _, data = imap.uid(
+            "SEARCH", "SINCE", since, "OR", "FROM", "mailer-daemon", "FROM", "postmaster"
         )
-        ids = (data[0] or b"").split()[-_MAX_MESSAGES:] if data else []
-        for message_id in ids:
-            _, parts = imap.fetch(message_id.decode(), "(BODY.PEEK[])")
-            raw = next(
-                (part[1] for part in parts or [] if isinstance(part, tuple) and len(part) > 1),
-                None,
+        uids: list[bytes] = (data[0] or b"").split()[-_MAX_MESSAGES:] if data else []
+        new = [uid for uid in uids if (uid_validity, uid) not in _parsed]
+        if new:
+            # Một lệnh cho mọi thư mới, thay vì một vòng hỏi đáp mỗi thư.
+            _, parts = imap.uid(
+                "FETCH", b",".join(new).decode(), f"(BODY.PEEK[]<0.{_FETCH_BYTES}>)"
             )
-            if isinstance(raw, bytes):
-                for bounce in parse_bounce(raw):
-                    kept = found.get(bounce.email)
-                    if kept is None or bounce.at > kept.at:
-                        found[bounce.email] = bounce
+            fetched: dict[bytes, list[Bounce]] = {}
+            for part in parts or []:
+                if not (isinstance(part, tuple) and len(part) > 1):
+                    continue
+                match = _UID_RE.search(part[0]) if isinstance(part[0], bytes) else None
+                if match is not None and isinstance(part[1], bytes):
+                    fetched[match.group(1)] = parse_bounce(part[1])
+            for uid in new:
+                # Thư bị xoá giữa SEARCH và FETCH thì không có gì để đọc.
+                _parsed[(uid_validity, uid)] = fetched.get(uid, [])
+    # Chỉ giữ thư còn trong lần SEARCH này, để bộ nhớ không lớn dần.
+    keep = {(uid_validity, uid) for uid in uids}
+    for key in [key for key in _parsed if key not in keep]:
+        del _parsed[key]
+    found: dict[str, Bounce] = {}
+    for uid in uids:
+        for bounce in _parsed.get((uid_validity, uid), []):
+            kept = found.get(bounce.email)
+            if kept is None or bounce.at > kept.at:
+                found[bounce.email] = bounce
     return found
 
 
@@ -131,7 +169,12 @@ def parse_bounce(raw: bytes) -> list[Bounce]:
     if at is None:
         return []
     failed = _delivery_status_failures(message)
-    if not failed:
+    # Có phần delivery-status thì chỉ tin phần đó: "delayed" (4.x.x) không phải
+    # bị trả về dù thư có X-Failed-Recipients. Không có thì chỉ tin header khi
+    # thư đến từ người gửi rỗng (Return-Path <>), như mọi thư báo lỗi thật.
+    if failed is None:
+        if not _from_null_sender(message):
+            return []
         header = str(message.get("X-Failed-Recipients") or "")
         reason = _reason("", _body_text(message))
         failed = [(address, reason) for address in _addresses(header)]
@@ -149,11 +192,20 @@ def _message_time(message: Message) -> datetime | None:
     return when.replace(tzinfo=UTC) if when.tzinfo is None else when.astimezone(UTC)
 
 
-def _delivery_status_failures(message: Message) -> list[tuple[str, InviteBounceReason]]:
-    failed: list[tuple[str, InviteBounceReason]] = []
+def _from_null_sender(message: Message) -> bool:
+    return str(message.get("Return-Path") or "").strip() == "<>"
+
+
+def _delivery_status_failures(
+    message: Message,
+) -> list[tuple[str, InviteBounceReason]] | None:
+    """Người nhận thất bại hẳn theo phần delivery-status; None khi thư không có phần đó."""
+    failed: list[tuple[str, InviteBounceReason]] | None = None
     for part in message.walk():
         if part.get_content_type() != "message/delivery-status":
             continue
+        if failed is None:
+            failed = []
         blocks = part.get_payload()
         if not isinstance(blocks, list):
             continue
@@ -195,4 +247,11 @@ def _body_text(message: Message) -> str:
     return "\n".join(chunks)
 
 
-__all__ = ["Bounce", "bounce_check_enabled", "clear_cache", "parse_bounce", "recent_bounces"]
+__all__ = [
+    "Bounce",
+    "MailboxRead",
+    "bounce_check_enabled",
+    "clear_cache",
+    "parse_bounce",
+    "recent_bounces",
+]

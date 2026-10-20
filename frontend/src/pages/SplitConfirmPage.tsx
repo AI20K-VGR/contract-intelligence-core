@@ -38,7 +38,11 @@ import {
 } from '../split/parts'
 import { dropSplitDraft, getSplitDraft } from '../split/draft'
 import { asUploadPdf } from '../pdf/imageToPdf'
-import { countPdfPages, splitPdf } from '../pdf/splitPdf'
+import {
+  countPdfPages,
+  PdfSplitUnsupportedError,
+  splitPdf,
+} from '../pdf/splitPdf'
 
 const roleLabels: Record<SplitRole, string> = {
   contract: 'Hợp đồng chính',
@@ -201,20 +205,40 @@ export function SplitConfirmPage() {
   }
 
   // Cắt file trên máy, rồi tải các phần lên như khi chọn từng tệp riêng.
+  // Trình duyệt không cắt được (PDF khoá in/sao chép): tải nguyên file, backend
+  // tách theo đúng các phần đã chọn.
   async function uploadDraft() {
     if (!draft || !local || saving || problem) return
     setSaving(true)
     setSaveError(null)
     try {
       const ranges = resolveParts(parts, pageCount)
-      const files =
-        ranges.length > 1 ? await splitPdf(local.file, ranges) : [local.file]
+      let files: File[] | null = [local.file]
+      if (ranges.length > 1) {
+        try {
+          files = await splitPdf(local.file, ranges)
+        } catch (cause) {
+          if (!(cause instanceof PdfSplitUnsupportedError)) throw cause
+          files = null
+        }
+      }
       const contractIndex = ranges.findIndex((part) => part.role === 'contract')
-      const upload = startDossierUpload({
-        ...draft,
-        contract: files[contractIndex],
-        annexes: files.filter((_, index) => index !== contractIndex),
-      })
+      const upload = startDossierUpload(
+        files
+          ? {
+              ...draft,
+              contract: files[contractIndex],
+              annexes: files.filter((_, index) => index !== contractIndex),
+              splitPending: false,
+            }
+          : {
+              ...draft,
+              contract: local.file,
+              annexes: [],
+              splitPending: true,
+              serverSplit: toRequestParts(parts, pageCount),
+            },
+      )
       dropSplitDraft(draftId)
       navigate(UPLOAD_PROGRESS_PATH, {
         replace: true,

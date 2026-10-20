@@ -368,3 +368,44 @@ def test_deploy_script_waits_for_services_and_fails_before_external_smoke_on_con
     assert "$sudo git checkout --detach \"$SHA\"" in workflow
     assert "deployment checkout has local changes" in workflow
     assert "git ls-files --others --exclude-standard" in workflow
+
+
+def test_profile_attributes_added_once_and_existing_ones_kept(monkeypatch):
+    """Keycloak 26 drops user attributes the profile does not declare (invite bounces, v5.1.0)."""
+    module = _load_keycloak_configure()
+    stored = {
+        "attributes": [
+            {"name": "username"},
+            {"name": "tenant_id", "displayName": "Tenant ID", "permissions": {"view": ["admin"]}},
+        ],
+        "groups": [{"name": "user-metadata"}],
+    }
+    puts: list[dict] = []
+
+    def fake_request(method, path, token=None, body=None):
+        assert path == f"/admin/realms/{module.REALM}/users/profile"
+        if method == "GET":
+            return json.loads(json.dumps(stored))
+        puts.append(body)
+        stored.clear()
+        stored.update(body)
+        return None
+
+    monkeypatch.setattr(module, "_request", fake_request)
+
+    module.ensure_profile_attributes("token")
+    module.ensure_profile_attributes("token")
+
+    assert len(puts) == 1
+    names = [item["name"] for item in stored["attributes"]]
+    assert names == [
+        "username",
+        "tenant_id",
+        "invite_sent_at",
+        "invite_bounced_at",
+        "invite_bounce_reason",
+    ]
+    assert stored["attributes"][1]["displayName"] == "Tenant ID"
+    assert stored["groups"] == [{"name": "user-metadata"}]
+    added = stored["attributes"][2]
+    assert added["permissions"] == {"view": ["admin"], "edit": ["admin"]}
