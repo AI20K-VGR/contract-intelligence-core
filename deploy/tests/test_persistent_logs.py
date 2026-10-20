@@ -34,7 +34,7 @@ SERVICES = (
     "caddy",
 )
 BLOCK_START = "# Service logs (deploy/compose.prod.yml sends them to journald)."
-BLOCK_END = "# Nightly backup (deploy/backup.sh)."
+BLOCK_END = '"${COMPOSE[@]}" config --quiet'
 
 
 class _ComposeLoader(yaml.SafeLoader):
@@ -143,3 +143,11 @@ def test_a_bad_limit_stops_the_deploy(tmp_path: Path, line: str) -> None:
     assert proc.returncode == 1
     assert "LOG_JOURNAL_MAX_USE must look like" in proc.stderr
     assert not conf.exists()
+
+
+def test_limits_are_checked_before_the_stack_changes() -> None:
+    """A bad value must stop the deploy before build and `up -d` (review of #159)."""
+    source = (ROOT / "deploy/deploy.sh").read_text(encoding="utf-8")
+    check = source.index("LOG_JOURNAL_MAX_USE must look like")
+    assert check < source.index('"${COMPOSE[@]}" build')
+    assert check < source.index('"${COMPOSE[@]}" up -d')
