@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Nightly backup: both Postgres databases and the MinIO buckets.
-#   0 2 * * * /opt/contract-intelligence/deploy/backup.sh >> /var/log/ci-backup.log 2>&1
+# deploy/deploy.sh schedules it in /etc/cron.d/ci-backup (BACKUP_SCHEDULE);
+# run it by hand with `sudo deploy/backup.sh`.
 #
 # With BACKUP_S3_ENDPOINT set in deploy/.env.prod the backup is also encrypted
 # and copied off this server (deploy/README.md, "Backup ra ngoài máy").
@@ -9,9 +10,16 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ENV_FILE=deploy/.env.prod
 DEST=${BACKUP_DIR:-/var/backups/contract-intelligence}
-KEEP_DAYS=${BACKUP_KEEP_DAYS:-7}
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 envval() { grep -E "^$1=" "$ENV_FILE" | tail -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//'; }
+# Days a local backup is kept: the environment, then deploy/.env.prod, then 3.
+# One backup is ~1.8 GB on production (19/10/2026) and the disk had 13 GB free,
+# so the old default of 7 nightly copies would have filled it.
+KEEP_DAYS=${BACKUP_KEEP_DAYS:-$(envval BACKUP_KEEP_DAYS || true)}
+KEEP_DAYS=${KEEP_DAYS:-3}
+case $KEEP_DAYS in
+  ''|*[!0-9]*) echo "[backup] BACKUP_KEEP_DAYS must be a number of days: $KEEP_DAYS" >&2; exit 1 ;;
+esac
 
 mkdir -p "$DEST/$stamp"
 backend_db_host=$(envval BACKEND_DB_HOST || true)
@@ -40,8 +48,15 @@ echo "[backup] $DEST/$stamp $(du -sh "$DEST/$stamp" | cut -f1)"
 # bucket's per-file limit, under <bucket>/<stamp>/. Credentials reach rclone
 # and openssl through the environment, never the command line.
 REMOTE_ENDPOINT=$(envval BACKUP_S3_ENDPOINT || true)
+# Days an off-site backup is kept. 0 = never delete from here: the bucket's own
+# lifecycle rule expires old backups, and the key needs no delete permission, so
+# whoever takes over this server cannot erase the off-site copies (AWS S3 setup,
+# deploy/README.md "Backup ra ngoài máy").
 REMOTE_KEEP_DAYS=$(envval BACKUP_REMOTE_KEEP_DAYS || true)
 REMOTE_KEEP_DAYS=${REMOTE_KEEP_DAYS:-$KEEP_DAYS}
+case $REMOTE_KEEP_DAYS in
+  ''|*[!0-9]*) echo "[backup] BACKUP_REMOTE_KEEP_DAYS must be a number of days: $REMOTE_KEEP_DAYS" >&2; exit 1 ;;
+esac
 PART_SIZE=$(envval BACKUP_PART_SIZE || true)
 PART_SIZE=${PART_SIZE:-45M}
 RCLONE_IMAGE=rclone/rclone:latest
@@ -86,8 +101,8 @@ offsite_copy() {
     && (cd "$staging" && sha256sum backup.tar.enc.part-* > SHA256SUMS) \
     && rclone_remote -v "$staging:/upload:ro" "$RCLONE_IMAGE" \
       copy /upload "dst:$bucket/$stamp" --s3-no-check-bucket --quiet \
-    && rclone_remote "$RCLONE_IMAGE" \
-      delete "dst:$bucket" --min-age "${REMOTE_KEEP_DAYS}d" --quiet \
+    && { [ "$REMOTE_KEEP_DAYS" = 0 ] || rclone_remote "$RCLONE_IMAGE" \
+      delete "dst:$bucket" --min-age "${REMOTE_KEEP_DAYS}d" --quiet; } \
     && echo "[backup] off-site: $bucket/$stamp $(du -sh "$staging" | cut -f1) in $(find "$staging" -name 'backup.tar.enc.part-*' | wc -l) part(s)"
 }
 

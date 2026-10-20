@@ -124,6 +124,7 @@ def test_signed_graph_read_returns_unavailable_when_postgres_is_not_configured(m
     from app.security.service_envelope import build_service_envelope
 
     monkeypatch.delenv("AI2_DATABASE_URL", raising=False)
+    monkeypatch.setenv("AI2_REQUIRE_DATABASE", "false")
     monkeypatch.setenv("AI2_SERVICE_HMAC_SECRET", "graph-read-test-secret")
     params = {"job_id": "job-1", "dossier_id": "dossier-1", "snapshot_digest": "a" * 64,
               "graph_kind": "operation", "cursor": None, "limit": 50}
@@ -180,13 +181,19 @@ def test_signed_graph_read_distinguishes_nonterminal_and_terminal_jobs(
 
     monkeypatch.setenv("AI2_SERVICE_HMAC_SECRET", "fixture-hmac-material-graph-read-01")
     store = PostgresJobStore(pg_url)
+    run_id = uuid4().hex
     job, _ = store.create_or_get(
         tenant_id="terminal-status-tenant", dossier_id=f"dossier-{job_status}",
-        request_id=f"request-{job_status}", idempotency_key=f"idem-{job_status}",
+        request_id=f"request-{job_status}-{run_id}", idempotency_key=f"idem-{job_status}-{run_id}",
         attempt=1, request={}, wire={},
     )
-    with store.engine.begin() as cx:
-        cx.execute(update(jobs).where(jobs.c.job_id == job["job_id"]).values(status=job_status))
+    if job_status == "RUNNING":
+        assert store.claim(
+            job["job_id"], tenant_id="terminal-status-tenant", dossier_id=f"dossier-{job_status}",
+        )
+    else:
+        with store.engine.begin() as cx:
+            cx.execute(update(jobs).where(jobs.c.job_id == job["job_id"]).values(status=job_status))
     monkeypatch.setattr(contract_graph_router, "database_url", lambda: pg_url)
     monkeypatch.setattr(contract_graph_router, "get_engine", lambda: store.engine)
     monkeypatch.setattr(contract_graph_router, "ensure_database", lambda _engine: None)

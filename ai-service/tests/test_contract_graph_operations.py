@@ -84,6 +84,40 @@ def test_contract_annex_verbs(text, target):
     assert _targets(found) == [target]
 
 
+def test_explicit_amendment_language_without_legal_address_is_not_an_edge():
+    assert (
+        parse_operation(
+            "Quy định này khác Điều 16 nhưng không ghi rõ khoản nào bị thay thế."
+        )
+        is None
+    )
+
+
+def test_article_replacement_and_item_level_replacement_are_parsed():
+    progress = parse_operation(
+        "Nội dung này thay thế riêng các mốc tương ứng ở Điều 10."
+    )
+    sla = parse_operation(
+        "Thay thời gian khôi phục P1 ở Điều 16 và PL02 thành 06 giờ"
+    )
+
+    assert progress is not None and _targets(progress) == ["dieu 10"]
+    assert sla is not None and _targets(sla) == ["dieu 16", "phu luc 2"]
+    assert sla.new_text == "06 gi\u1edd"
+
+
+def test_item_replacement_preserves_nested_annex_scope_and_article_lists():
+    nested = parse_operation("Thay thời gian khôi phục tại Điều 16 của PL02 thành 06 giờ")
+    independent = parse_operation(
+        "Thay thời gian khôi phục tại Điều 16 và Điều 17 và PL02 thành 06 giờ"
+    )
+
+    assert nested is not None and _targets(nested) == ["dieu 16 phu luc 2"]
+    assert independent is not None and _targets(independent) == [
+        "dieu 16", "dieu 17", "phu luc 2"
+    ]
+
+
 def test_suffix_operation_targets():
     pair = parse_operation("Bổ sung điểm d1, d2 vào sau điểm d khoản 2 Điều 3 như sau:")
     clause = parse_operation("Bổ sung khoản 5a vào sau khoản 5 Điều 18 như sau:")

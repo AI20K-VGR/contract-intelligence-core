@@ -42,6 +42,9 @@ from contract_intelligence.contract.interfaces.api.routers.contract_router impor
 from contract_intelligence.contract.interfaces.api.routers.dossier_consent_router import (
     router as dossier_consent_router,
 )
+from contract_intelligence.contract.interfaces.api.routers.upload_session_router import (
+    router as upload_session_router,
+)
 from contract_intelligence.extraction.interfaces.api.routers.events_router import (
     router as events_router,
 )
@@ -82,7 +85,7 @@ from contract_intelligence.shared.ai import (
     reset_ai_service_client,
     reset_background_dispatcher,
 )
-from contract_intelligence.shared.ai.health_router import router as ai_health_router
+from contract_intelligence.shared.ai.health_router import ai2_alive, router as ai_health_router
 from contract_intelligence.shared.ai.job_worker import (
     start_maintenance_loop,
     stop_maintenance_loop,
@@ -187,12 +190,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as exc:
             logger.warning("auth.revoked_sessions.load_failed", error=str(exc))
 
-    # Initialize AI service client (singleton) — verify connectivity
-    ai_client = get_ai_service_client()
-    if await ai_client.healthcheck():
-        logger.info("ai_client.ready")
+    # Initialize AI service client (singleton); AI2 is the service to reach.
+    get_ai_service_client()
+    if await ai2_alive():
+        logger.info("ai2.ready")
     else:
-        logger.warning("ai_client.healthcheck_failed")
+        logger.warning("ai2.healthcheck_failed")
 
     # Initialize background dispatcher
     _dispatcher = get_background_dispatcher()
@@ -433,6 +436,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_overview_router, prefix="/api/v1")  # → /api/v1/admin/*
     app.include_router(monitoring_router, prefix="/api/v1")  # → /api/v1/admin/monitoring/*
     app.include_router(contract_router, prefix="/api/v1", tags=["Contract"])
+    app.include_router(upload_session_router, prefix="/api/v1")  # → /api/v1/uploads* (#145)
     app.include_router(dossier_consent_router, prefix="/api/v1")
     app.include_router(extraction_router, prefix="/api/v1", tags=["Extraction"])
     app.include_router(conflict_router, prefix="/api/v1", tags=["Conflict"])
@@ -475,6 +479,8 @@ _domain_exc_to_http: dict[str, int] = {
     "ValidationError": 422,
     "ManifestValidationError": 422,
     "DossierTooManyDocuments": 422,
+    "UploadSessionConflict": 409,
+    "UploadSessionExpired": 410,
     "ManifestVersionConflict": 409,
     "ReviewVersionConflict": 409,
     "InvalidStateTransition": 409,

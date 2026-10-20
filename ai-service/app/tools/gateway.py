@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.contracts.models import LifecycleState, ReviewState, ToolEnvelope
+from app.contracts.models import Citation, LifecycleState, ReviewState, ToolEnvelope
 from app.pipeline.outline import citation_for_node
 from app.tools.store import InMemorySnapshotStore
 
@@ -95,6 +95,39 @@ class ToolGateway:
         assert rec is not None
         nodes = rec.evidence_nodes()
         node = next((n for n in nodes if n.node_id == node_id), None)
+        if node is None and node_id.startswith("page:"):
+            page = next((item for item in rec.pages if node_id == f"page:{item.page_revision_id}"), None)
+            if page is not None and self._member_allowed(envelope, page.source_file_id, node_id):
+                from app.pipeline.citations import CitationResolver, quote_digest
+
+                text = page.text or "\n".join(page.line_texts.values())
+                citation = {
+                    "node_id": node_id,
+                    "page_revision_id": page.page_revision_id,
+                    "bbox": [],
+                    "text_span": text,
+                    "source_file_id": page.source_file_id,
+                    "page": page.page_number,
+                    "page_range": [page.page_number],
+                    "line_ids": list(page.line_texts),
+                    "char_start": 0,
+                    "char_end": len(text),
+                    "source_hash": page.source_hash,
+                    "quote_sha256": quote_digest(text),
+                }
+                citation["validation_status"] = CitationResolver([page]).verify(
+                    Citation.model_validate(citation)
+                ).status
+                return {
+                    "node_id": node_id,
+                    "text": text,
+                    "page_range": [page.page_number],
+                    "ancestors": [],
+                    "citation": citation,
+                    "type": "PAGE",
+                    "raw_label": f"Page {page.page_number}",
+                    "source_file_id": page.source_file_id,
+                }
         if node is None or not self._member_allowed(envelope, node.source_file_id, node.scope_id, node.node_id):
             raise ToolBlocked()
         ancestors = []

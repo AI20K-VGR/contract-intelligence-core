@@ -65,7 +65,9 @@ __version__ = "2.0.0"
 #         gửi q; không gửi thư tới tên miền dành riêng. Thu hẹp hành vi nên MAJOR.
 # v4.1.0: phiên Keycloak đã kết thúc (back-channel logout) → token của phiên đó
 #         nhận 401 "Session has ended" ngay, không chờ hết hạn.
-__api_contract__ = "v4.1.0"
+# v4.2.0: tải hồ sơ theo khúc (/uploads) vì Cloudflare Free cắt request còn gửi body
+#         sau ~125 s (#145). Chỉ thêm endpoint; POST /dossiers không đổi.
+__api_contract__ = "v4.2.0"
 
 # AI service contract version (DOC-05c) — wrap khi AI service sẵn sàng
 __ai_contract__ = "v1.0.0"

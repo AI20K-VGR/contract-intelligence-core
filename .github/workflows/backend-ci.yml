@@ -153,6 +153,11 @@ jobs:
       CI_TEST_POSTGRES_URL: postgresql+asyncpg://ci:ci@127.0.0.1:5432/ci_test
       # Lexicon tests migrate/downgrade their own tables: keep them off ci_test.
       LEXICON_TEST_DATABASE_URL: postgresql+asyncpg://ci:ci@127.0.0.1:5432/ci_lexicon
+      # Disposable MinIO for the chunked upload tests on real S3 calls
+      # (test_upload_sessions_minio.py). Throwaway credentials, local to the job.
+      CI_TEST_MINIO_URL: http://127.0.0.1:9000
+      CI_TEST_MINIO_USER: citest
+      CI_TEST_MINIO_PASSWORD: citest-minio-only
     steps:
       - uses: actions/checkout@v4
 
@@ -169,6 +174,20 @@ jobs:
 
       - name: Create dedicated lexicon database
         run: PGPASSWORD=ci psql -h 127.0.0.1 -U ci -d ci_test -c "CREATE DATABASE ci_lexicon"
+
+      # Same image as production (docker-compose.yml). Started here, not as a
+      # service container: the image needs the `server /data` arguments.
+      - name: Start MinIO
+        run: |
+          docker run -d --name ci-minio-test --user 0:0 -p 127.0.0.1:9000:9000 \
+            -e MINIO_ROOT_USER="$CI_TEST_MINIO_USER" -e MINIO_ROOT_PASSWORD="$CI_TEST_MINIO_PASSWORD" \
+            cgr.dev/chainguard/minio:latest server /data
+          for _ in $(seq 1 30); do
+            curl -fsS "$CI_TEST_MINIO_URL/minio/health/live" >/dev/null && exit 0
+            sleep 2
+          done
+          docker logs ci-minio-test
+          exit 1
 
       # ai2_local_e2e tests spawn the Windows-only local AI2 service (docs/ai2 runbooks).
       - name: Run integration tests (SQLite + PostgreSQL)

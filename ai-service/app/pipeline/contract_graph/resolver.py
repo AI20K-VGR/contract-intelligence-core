@@ -267,6 +267,13 @@ class StructureIndex:
                 return Resolution(Status.NOT_FOUND, canonical=new, residual=("anchor_not_found",))
             if anchor.status == Status.AMBIGUOUS:
                 return Resolution(Status.AMBIGUOUS, candidates=anchor.candidates, canonical=new)
+        elif addr.dieu is not None and addr.khoan is None and addr.diem is None:
+            # "Bổ sung Điều 19" commonly adds text to an existing article. Use that
+            # article as the edge's container; a genuinely new article has no existing
+            # target and continues through the insertion path below.
+            existing = self._resolve_existing(addr, parts, source)
+            if existing.status == Status.UNIQUE and existing.node_id is not None:
+                return existing
         levels = address_levels(addr)
         levels.pop("phu_luc", None)
         finest = min(levels, key=_RANK.__getitem__) if levels else None

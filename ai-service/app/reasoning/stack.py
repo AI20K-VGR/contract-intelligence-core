@@ -40,13 +40,53 @@ class FourLayerReasoner:
             and self.l2.llm is not None
             and self.l2.llm.configured()
             and answer_compose.eligible(task)
-            and answer_compose.needs_scoped_evidence(task)
+            and (
+                answer_compose.needs_scoped_evidence(task)
+                or answer_compose.document_title_evidence(
+                    self.l1.gateway, envelope, str(task.get("query") or "")
+                )
+            )
         )
         if direct:
             # One composition call with the whole bounded source scope,
             # rather than spending L2's call on a truncated prefix first.
             task = {**task, "scoped_composition": True}
         result = self._run_core(envelope, task)
+        if result.get("review_state") == ReviewState.BLOCKED.value:
+            return result
+        selected = [str(item) for item in task.get("selected_member_ids") or [] if item]
+        if selected:
+            # Core validated membership; retrieval/fallback must keep that scope too.
+            envelope = envelope.model_copy(
+                update={"auth": envelope.auth.model_copy(update={"member_ids": selected})}
+            )
+        explicit_record = answer_compose.document_codes(str(task.get("query") or ""))
+        if explicit_record:
+            source_pages = answer_compose.document_evidence(
+                self.l1.gateway, envelope, str(task.get("query") or "")
+            )
+            if source_pages and not direct:
+                item = source_pages[0]
+                source_text = str(item.get("text") or "").strip()
+                citation = {
+                    **(item.get("citation") or {"node_id": item["node_id"]}),
+                    "node_id": item["node_id"],
+                    "text_span": source_text[:350],
+                }
+                grounded = self.l3.run(
+                    envelope,
+                    task,
+                    review_state=ReviewState.NEEDS_REVIEW.value,
+                    answer=f"Trích đoạn nguồn (chưa tổng hợp câu trả lời): {source_text[:350]}",
+                    citations=[citation],
+                )
+                if grounded.get("citations"):
+                    return {
+                        **result,
+                        **grounded,
+                        "layers_used": [*(result.get("layers_used") or []), "DOCUMENT_SOURCE"],
+                        "used_llm": False,
+                    }
         policy_flags = task.get("policy_flags") or {}
         llm = self.l2.llm
         if not (
@@ -57,15 +97,6 @@ class FourLayerReasoner:
             and answer_compose.eligible(task)
         ):
             return result
-        if result.get("review_state") == ReviewState.BLOCKED.value:
-            return result
-        selected = [str(item) for item in task.get("selected_member_ids") or [] if item]
-        if selected:
-            # _run_core already validates membership. Keep that same scope
-            # for the composer; context expansion must not reopen the dossier.
-            envelope = envelope.model_copy(
-                update={"auth": envelope.auth.model_copy(update={"member_ids": selected})}
-            )
         if result.get("l0_notes") == "missing_clause":
             return result
         query = str(task.get("query") or "")
@@ -74,6 +105,12 @@ class FourLayerReasoner:
         pairs = list(task.get("pair_relations") or [])
         if pairs and answer_compose.is_conflict_query(query):
             evidence, notes = answer_compose.evidence_from_pairs(gateway, envelope, pairs)
+            # Stored pair relations are only candidate links, not a complete
+            # index of conflicts. Always add source retrieval so a missing edge
+            # cannot make the answer claim that a clause/event is absent.
+            retrieved = self._compose_evidence(envelope, task, result)
+            known = {item["node_id"] for item in evidence}
+            evidence += [item for item in retrieved if item["node_id"] not in known]
         elif direct:
             evidence = answer_compose.scoped_evidence(gateway, envelope, task)
             # Named annexes do not replace the body facts L0/L1 already
@@ -145,9 +182,14 @@ class FourLayerReasoner:
         query = str(task.get("query") or "")
         record = gateway.store.get(envelope.auth.tenant_id, envelope.auth.dossier_id)
         named = answer_compose.referenced_nodes(record, query) if record else []
-        ids: list[str] = [
+        explicit_documents = answer_compose.document_evidence(gateway, envelope, query)
+        ids: list[str] = [item["node_id"] for item in explicit_documents]
+        ids.extend(
+            item["node_id"] for item in answer_compose.lexical_evidence(gateway, envelope, query)
+        )
+        ids.extend(
             item["node_id"] for item in answer_compose.party_evidence(gateway, envelope, query)
-        ]
+        )
         for citation in [*({"node_id": n} for n in named), *(result.get("citations") or [])]:
             node_id = str((citation or {}).get("node_id") or "")
             if node_id:

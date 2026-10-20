@@ -19,9 +19,11 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
+import httpx
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Path
 
+from contract_intelligence.config.settings import get_settings
 from contract_intelligence.shared.ai import get_ai_service_client
 from contract_intelligence.shared.auth import AuthenticatedUser, require_role
 from contract_intelligence.shared.responses import ApiResponse
@@ -29,6 +31,28 @@ from contract_intelligence.shared.versioning import __ai_contract__
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["AI-Service"])
+
+_AI2_PROBE_TIMEOUT = httpx.Timeout(3.0)
+
+
+async def ai2_alive() -> bool:
+    """AI2 answers its liveness probe (``GET {AI2_BASE_URL}/healthz``).
+
+    AI2 is the only AI service the pipeline calls over HTTP (AI1 is Kafka-only).
+    Its /readyz is not used: that one probes the paid LLM provider. The legacy
+    DOC-05c client (``AI_SERVICE_URL``) has no service behind it in production,
+    so it says nothing about readiness. In stub mode the stub answers.
+    """
+    settings = get_settings()
+    if settings.ai_service_mode != "http":
+        return await get_ai_service_client().healthcheck()
+    base = settings.ai2_base_url.rstrip("/").removesuffix("/api/v1")
+    try:
+        async with httpx.AsyncClient(timeout=_AI2_PROBE_TIMEOUT) as client:
+            response = await client.get(f"{base}/healthz")
+    except httpx.HTTPError:
+        return False
+    return response.status_code == 200
 
 
 @router.get(
@@ -49,13 +73,12 @@ async def backend_healthz() -> ApiResponse[dict[str, Any]]:
 
 @router.get(
     "/readyz",
-    summary="Readiness probe — kiểm tra DB + AI service sẵn sàng",
+    summary="Readiness probe — kiểm tra DB + AI2 sẵn sàng",
     response_model=ApiResponse[dict[str, Any]],
 )
 async def backend_readyz() -> ApiResponse[dict[str, Any]]:
-    """Trả 503 nếu AI service không available (chỉ trong HTTP mode)."""
-    client = get_ai_service_client()
-    ai_ok = await client.healthcheck()
+    """503 khi DB lỗi, hoặc AI2 không trả lời và ``AI_REQUIRE_READY=1``."""
+    ai_ok = await ai2_alive()
 
     from contract_intelligence.shared.persistence import get_engine
 
@@ -71,8 +94,10 @@ async def backend_readyz() -> ApiResponse[dict[str, Any]]:
 
     payload = {
         "db_ok": db_ok,
+        # Same key as before (it now means AI2); "unavailable" replaces the
+        # old "stub", which was shown for any failed probe.
         "ai_service_ok": ai_ok,
-        "ai_service_mode": "stub" if not ai_ok else "live",
+        "ai_service_mode": "live" if ai_ok else "unavailable",
     }
 
     if not db_ok or (not ai_ok and __import__("os").environ.get("AI_REQUIRE_READY", "0") == "1"):

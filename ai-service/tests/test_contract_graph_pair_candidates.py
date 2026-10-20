@@ -124,6 +124,66 @@ def test_explicit_ref_resolves_clause_level():
     assert ("d2", "d4k1") not in found
 
 
+def test_article_reference_pairs_with_relevant_clause_not_only_heading():
+    nodes = [
+        _node("d8", "Điều 8", text="Tạm ứng và các đợt thanh toán"),
+        _node(
+            "d8k3",
+            "3.",
+            "d8",
+            text="Thời hạn thanh toán đợt 2 là 30 ngày kể từ ngày nhận đủ hồ sơ." + LONG,
+        ),
+        _node("pl1", "Phụ lục 1", file="f-annex"),
+        _node(
+            "pl1p2",
+            "2.",
+            "pl1",
+            file="f-annex",
+            text="Đợt 2 được thanh toán trong 45 ngày sau nghiệm thu sơ bộ theo Điều 8." + LONG,
+        ),
+    ]
+    for order, node in enumerate(nodes):
+        node.order = order
+    index = StructureIndex.build(nodes, {"f-body": "body", "f-annex": "annex"})
+
+    found = _pairs(generate_pair_candidates(index, nodes, top_k=20), PairSource.EXPLICIT_REF)
+
+    assert any(set(pair) == {"d8k3", "pl1p2"} for pair in found)
+    assert not any(set(pair) == {"d8", "pl1p2"} for pair in found)
+
+
+def test_article_reference_keeps_clause_that_quotes_both_conflicting_values():
+    nodes, index = _build([
+        _node("d8", "Điều 8", text="Tạm ứng và các đợt thanh toán"),
+        _node(
+            "d8k3", "3.", "d8",
+            text=(
+                "Thời hạn trả tiền cho đợt 2 và đợt 3 là 30 ngày theo lịch. "
+                "Phụ lục PL01 lại ghi 45 ngày cho đợt 2; chưa có giải thích chênh lệch."
+            ),
+        ),
+        _node(
+            "d8k4", "4.", "d8",
+            text=(
+                "Khi thực hiện thanh toán, bên đề nghị lập hồ sơ nghiệm thu và hóa đơn hợp lệ. "
+                "Bên nhận phản hồi trong 05 ngày làm việc."
+            ),
+        ),
+        _node("pl1", "Phụ lục 1", file="f-annex"),
+        _node(
+            "payment", "2.", "pl1", file="f-annex",
+            text=(
+                "Đợt 2 được thanh toán trong 45 ngày theo lịch sau nghiệm thu sơ bộ và nhận "
+                "hóa đơn hợp lệ. Nội dung này được ký cùng ngày với Điều 8."
+            ),
+        ),
+    ])
+
+    found = _pairs(generate_pair_candidates(index, nodes, top_k=20), PairSource.EXPLICIT_REF)
+
+    assert any(set(pair) == {"d8k3", "payment"} for pair in found)
+
+
 @pytest.mark.parametrize(
     "ref",
     [
@@ -542,6 +602,19 @@ def test_verbatim_clauses_in_different_articles_are_candidates():
     index = StructureIndex.build(nodes, {"f-body": "body"})
     found = _pairs(generate_pair_candidates(index, nodes, top_k=10_000), PairSource.VERBATIM)
     assert ("k42", "k51") in found
+
+
+def test_large_verbatim_group_keeps_one_representative_per_file():
+    text = "Mỗi xác nhận phải phân biệt rõ dữ liệu này với nội dung hợp đồng mẫu để người rà soát kiểm tra đầy đủ."
+    nodes = [_node(f"repeat-{i}", f"{i}.", text=f"{i}. {text}") for i in range(30)]
+    for order, node in enumerate(nodes):
+        node.order = order
+    index = StructureIndex.build(nodes, {"f-body": "body"})
+
+    result = generate_pair_candidates(index, nodes, top_k=10_000)
+
+    assert _pairs(result, PairSource.VERBATIM) == {("repeat-0", "repeat-1")}
+    assert result.stats["verbatim_repeated_group_collapsed"] == 29
 
 
 def test_restated_prose_across_body_and_annex_is_not_furniture():

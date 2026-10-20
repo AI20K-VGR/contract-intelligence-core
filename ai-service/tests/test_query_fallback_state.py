@@ -152,10 +152,12 @@ def _signed_query(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 @pytest.mark.parametrize("state", ["PASS", "NEEDS_REVIEW", "INSUFFICIENT_EVIDENCE", "BLOCKED"])
-def test_query_endpoint_round_trips_state_and_operational_fields(monkeypatch, state: str) -> None:
+def test_query_endpoint_round_trips_state_and_operational_fields(
+    monkeypatch, state: str, seed_query_record
+) -> None:
     monkeypatch.setenv("AI2_SERVICE_HMAC_SECRET", "test-secret")
     main.STORE._dossiers.clear()
-    main.STORE.put(mock_record())
+    seed_query_record()
 
     def fake_query(
         self: Any, envelope: Any, text: str, task: Any = None, policy_flags: Any = None
